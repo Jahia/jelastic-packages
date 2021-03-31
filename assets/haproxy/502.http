@@ -1,0 +1,56 @@
+HTTP/1.0 503 Service Unavailable
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Environment not available</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="Cache-Control" content="no-cache">
+    <meta http-equiv="pragma" content="no-cache">
+    <title></title>
+    <link href="https://fonts.googleapis.com/css?family=Nunito+Sans" rel="stylesheet">
+    <style>
+        .recomedations-block ol li,.recomedations-block ul span{font-weight:700}body{margin:0;padding:0;background-color:#E8EBED;}.main-block,.main-content{width:100%;margin:0 auto;font-family:'Nunito Sans',sans-serif;font-size:14px}.main-content{max-width:790px}.main-block{margin-top: 48px; padding-bottom:30px;max-width:1045px;background-color:#fff;box-shadow:0 0 0 transparent, -1px 1px 5px 2px rgba(0,0,0,.1), 5px 0 5px -5px rgba(0,0,0,.2), 0 0 0 rgba(0,0,0,.1) inset}.content{padding:0 50px}@media all and (max-width:770px){.content{padding:0 40px}}@media all and (max-width:750px){.content{padding:0 30px}}@media all and (max-width:740px){.content{padding:0 20px}}@media all and (max-width:720px){.content{padding:0 10px}}.info-block{border: solid 1px #E8EBED;border-radius:3px;background-color:#F6F8F9;padding:8px 16px;margin:48px 0 0 0;display:flex;align-items:center}.info-block p{font-size:14px;color:#504E4D;line-height:1.5; font-weight: 300;}.info-block a {color : #0076A8}.info-block svg{margin-right:16px}.recomedations-block h3{font-size:18px;color:#303030;line-height:2}.recomedations-block ul{list-style-type:disc}.recomedations-block p{font-weight:400}.recomedations-block img{width:100%;margin:30px auto;display:block}.support-block p{font-weight:700;padding-left:20px;font-size:16px}.img-screen{max-width:540px}.header-image{position:relative;width:100%;top:5px}.error-block{position:absolute;left:114px;top:70px}.error-text{display:inline-block;padding-left:15px;font-size:28px;color:#60717B}@media all and (max-width:1050px){body{background-color:#fff}.main-block{box-shadow:none}}.background{background-image:url('https://haproxy-502-image.s3-eu-west-1.amazonaws.com/502-background.png');background-repeat:no-repeat;width:751px;height:288px}@media all and (max-width:750px){.background{background-repeat:no-repeat;width:auto}}@media all and (max-width:650px){.background{background-image:url('https://haproxy-502-image.s3-eu-west-1.amazonaws.com/502-background.png');background-position:center}.error-block{left:20%}.error-text{font-size:23px;display:block;padding:0}}@media all and (max-width:440px){.background{background-position:-55px}.error-block{left:9%}}@media all and (max-width:420px){.background{background-position:-35px}}@media all and (max-width:380px){.background{background-position:-55px}}@media all and (max-width:360px){.background{background-position:-75px}}@media all and (max-width:320px){.background{background-position:-110px}.error-block{left:1%}.error-code{width:90%}}
+    </style>
+</head>
+<body>
+<div class="main-block">
+    <div class="main-content">
+        <div class="header-image">
+            <div class="background"></div>
+            <div class="error-block">
+                  <img class="error-code" src="data:image/png;base64,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" >
+                <p class="error-text">
+                    Environment<br>not available
+                </p>
+            </div>
+        </div>
+        <div class="content">
+            <div class="info-block">
+                    <span style="display: inline-block; min-width: 32px; margin-right: 8px">
+                            <svg width="24" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M16 0C7.168 0 0 7.168 0 16C0 24.832 7.168 32 16 32C24.832 32 32 24.832 32 16C32 7.168 24.832 0 16 0ZM17.6 24H14.4V14.4H17.6V24ZM17.6 11.2H14.4V8H17.6V11.2Z" fill="#007CB0"/>
+                                </svg></span>
+                <div>
+                    <p>The environment you are trying to reach is not available. Please retry in a few minutes.</p>
+                    <p>Have you tried the following?</p>
+                    <ul>
+                        <li>Wait for a few minutes, the environment may be starting</li>
+                        <li>Check the server logs in Datadog, something may have gone wrong</li>
+                        <li>Ask the Support team for assistance</li>
+                    </ul>
+                </div>
+            </div>
+
+
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

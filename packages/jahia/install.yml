@@ -1,0 +1,272 @@
+---
+type: install
+version: 1.5.2
+name: Jahia - Install
+logo: ../../assets/jahia/jahia-logo-70x70.png
+id: jahia-jelastic
+description:
+  short: Jahia - Install
+  text: Digital Experience Manager gives you an agile customizable platform that
+    manages your entire digital ecosystem to innovate and deliver great customer
+    experiences, foster internal collaboration and support dynamic business
+    needs for sustainable growth.
+
+success: ../../assets/jahia/success_install.md
+
+globals:
+  jahia_env_version: 3
+  healthcheck_token: ${fn.password(20)}
+  db_user: jahia-db-${fn.random}
+  db_pass: ${fn.password(20)}
+  db_user_datadog: ${fn.password(20)}
+  mngr_user: manager
+  dbnodeType: mariadb-dockerized
+  xms: 256M
+  xmx: 2584M
+
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+
+onBeforeInstall: |
+  nodes = []
+  var cp_cloudlets = '${settings.mode}' == 'production' ? 64 : 40;
+  var proc_cloudlets = cp_cloudlets;
+  var db_cloudlets = '${settings.mode}' == 'production' ? 40 : 32;
+  var db_scheme = '${settings.mode}' == 'production' ? 'galera' : 'galera';
+  var db_count = '${settings.mode}' == 'production' ? 3 : 1;
+  var xmx_browsing = '${settings.mode}' == 'production' ? '5000M' : '${globals.xmx}';
+  var xmx_processing = '${settings.mode}' == 'production' ? '3584M' : '${globals.xmx}';
+  var dockerImage = "${settings.jahiaDockerImage}";
+
+  node_haproxy = {
+    "displayName": "Haproxy",
+    "nodeGroup": "bl",
+    "nodeType": "haproxy",
+    "tag": "2.1.4",
+    "count": 2,
+    "cloudlets": 8,
+    "env": {
+        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "_PROVIDE": "haproxy",
+        "_ROLE": "reverse_proxy",
+        "envName": "${settings.shortdomain}",
+        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
+        "VAULT_ROLE_ID": "${settings.vaultRoleId}",
+        "VAULT_SECRET_ID": "${settings.vaultSecretId}",
+        "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+      },
+    "distribution": {
+        "mode": "STRICT",
+        "zones": [
+            {high_iops: false}
+        ]
+      },
+    "volumes": [
+      "/etc/haproxy"
+      ]
+  }
+  nodes.push(node_haproxy);
+
+  node_cp = {
+    "displayName": "Browsing",
+    "count": "${settings.browsingCount}",
+    "cloudlets": cp_cloudlets,
+    "nodeGroup": "cp",
+    "links": "sqldb:" + db_scheme,
+    "startServiceOnCreation": false,
+    "isSLBAccessEnabled": false,
+    "env": {
+        "DB_USER": "${globals.db_user}",
+        "DB_PASSWORD": "${globals.db_pass}",
+        "MANAGER_USER": "${globals.mngr_user}",
+        "XMS": "${globals.xms}",
+        "XMX": xmx_browsing,
+        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DX_VERSION": "${settings.productVersion}",
+        "jahia_cfg_operatingMode": "${settings.mode}",
+        "_PROVIDE": "jahia",
+        "_ROLE": "Browsing",
+        "envName": "${settings.shortdomain}",
+        "DB_ENDPOINT": db_scheme,
+        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
+        "VAULT_ROLE_ID": "${settings.vaultRoleId}",
+        "VAULT_SECRET_ID": "${settings.vaultSecretId}",
+        "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "HEALTHCHECK_DURATION": "240",
+      },
+    "distribution": {
+        "mode": "STRICT",
+        "zones": [
+            {high_iops: false}
+        ]
+      }
+  }
+  if (dockerImage == "undefined") {
+    node_cp['nodeType'] = "jahia";
+    node_cp['tag'] = "${settings.productVersion}";
+  } else {
+    node_cp['image']  = dockerImage;
+  }
+
+  nodes.push(node_cp);
+
+  node_proc = {
+    "displayName": "Processing",
+    "count": "1",
+    "cloudlets": proc_cloudlets,
+    "nodeGroup": "proc",
+    "links": "sqldb:" + db_scheme,
+    "startServiceOnCreation": false,
+    "isSLBAccessEnabled": false,
+    "env": {
+        "DB_USER": "${globals.db_user}",
+        "DB_PASSWORD": "${globals.db_pass}",
+        "MANAGER_USER": "${globals.mngr_user}",
+        "XMS": "${globals.xms}",
+        "XMX": xmx_processing,
+        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DX_VERSION": "${settings.productVersion}",
+        "jahia_cfg_operatingMode": "${settings.mode}",
+        "_PROVIDE": "jahia",
+        "_ROLE": "Processing",
+        "envName": "${settings.shortdomain}",
+        "DB_ENDPOINT": db_scheme,
+        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
+        "VAULT_ROLE_ID": "${settings.vaultRoleId}",
+        "VAULT_SECRET_ID": "${settings.vaultSecretId}",
+        "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "HEALTHCHECK_DURATION": "240",
+      },
+    "distribution": {
+        "mode": "STRICT",
+        "zones": [
+            {high_iops: false}
+        ]
+      }
+  }
+  if (dockerImage == "undefined") {
+    node_proc['nodeType'] = "jahia";
+    node_proc['tag'] = "${settings.productVersion}";
+  } else {
+    node_proc['image']  = dockerImage;
+  }
+  nodes.push(node_proc);
+
+  node_mariadb = {
+    "nodeType": "${globals.dbnodeType}",
+    "nodeGroup": "sqldb",
+    "tag": "10.4.13",
+    "count": db_count,
+    "cloudlets": db_cloudlets,
+    "isSLBAccessEnabled": false,
+    "env": {
+        "ADMINPANEL_ENABLED": false,
+        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DB_USER_DATADOG": "${globals.db_user_datadog}",
+        "PHPMYADMIN_ENABLED": false,
+        "DB_USER": "${globals.db_user}",
+        "DB_PASS": "${globals.db_pass}",
+        "_PROVIDE": "Database",
+        "_ROLE": db_scheme,
+        "envName": "${settings.shortdomain}",
+        "jahia_cfg_operatingMode": "${settings.mode}",
+      },
+    "distribution": {
+        "mode": "STRICT",
+        "zones": [
+            {high_iops: false}
+        ]
+      }
+  }
+  nodes.push(node_mariadb);
+  var resp = {
+    result: 0,
+    nodes: nodes
+  };
+  return resp;
+
+nodes: definedInOnBeforeInstall
+
+# --Events --
+onInstall:
+  - log: "## Beginning installation of Jahia"
+  - setJournaldLimit
+  - installDatabase:
+      user: ${globals.db_user}
+      password: ${globals.db_pass}
+  - finishProxysqlInstall
+  - installJahia:
+      jahiaVersion: ${settings.productVersion}
+      rootpwd: ${settings.rootpwd}
+      toolspwd: ${settings.toolspwd}
+      topology: ${settings.mode}
+  - installHaproxy
+  - getLogEventScript: bl, proc, cp, sqldb
+  - setupDatadogAgentSql: sqldb
+  - setupDatadogAgent: cp, proc
+  - setupDatadogAgentHaproxy: bl
+  - setEnvVersion: ${globals.jahia_env_version}
+  - install:
+      jps: "${baseUrl}/update-events.yml"
+  - startupJahiaHealthCheck: cp, proc
+
+
+settings:
+  fields:
+    - name: productVersion
+      type: string
+      caption: Jahia version
+      required: true
+    - name: rootpwd
+      type: string
+      caption: Jahia root password
+      vtype: string
+      required: true
+    - name: toolspwd
+      type: string
+      caption: Jahia tools password
+      vtype: string
+      required: true
+    - name: browsingCount
+      type: string
+      caption: Number of Jahia browsing nodes
+      vtype: string
+      required: true
+      default: 2
+
+    - name: shortdomain
+      type: envname
+      caption: Environment
+      required: true
+    - name: mode
+      type: radio-fieldset
+      caption: Operating Mode
+      values:
+        production: production
+        development: development
+      default: production
+    - name: ddogApikey
+      type: string
+      caption: Datadog API KEY
+      required: true
+
+    - name: jahiaDockerImage
+      inputType: hidden
+      type: string
+      default: 'undefined'
+    - name: vaultRoleId
+      type: string
+      caption: Vault Role Id
+    - name: vaultSecretId
+      inputType: password
+      type: string
+      caption: Vault Secret Id
+    - name: vaultClusterUrl
+      type: string
+      caption: Vault Cluster Url

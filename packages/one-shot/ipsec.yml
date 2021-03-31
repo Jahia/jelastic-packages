@@ -1,0 +1,190 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Set IPsec customer's conf
+id: jahia-set-ipsec
+description:
+  short: Jahia - Set IPsec customer's conf
+
+globals:
+  ipsec_conf_dir: "/etc/strongswan/ipsec.d"
+  ipsec_secrets_file: "/etc/strongswan/ipsec.secrets"
+
+
+onInstall:
+  - if (settings.vault_secret_path != ""):
+      - setIPsecConf: proc
+      - foreach(nodes.cp):
+          - setIPsecConf: ${@i.id}
+  - if (settings.ipsec_should_be != ""):
+      - daemonControl
+      - setNodeGroupData
+
+actions:
+  setNodeGroupData:
+    - environment.control.ApplyNodeGroupData [cp]:
+        data:
+          ipsec: "${settings.ipsec_should_be}"
+
+  daemonControl:
+    - cmd[cp, proc]: |-
+        systemctl ${settings.ipsec_should_be} --now strongswan
+        if [ "${settings.ipsec_should_be}" == "disable" ]; then
+          rm -v ${globals.ipsec_conf_dir}/*.conf
+          sed -i '2,$d' ${globals.ipsec_secrets_file}
+        fi
+      user: root
+
+  setIPsecConf:
+    - cmd [${this}]: |-
+        VAULT_SECRET_PATH="${settings.vault_secret_path}"
+        confname=$(echo $VAULT_SECRET_PATH | awk -F'/' '{print $NF}')
+        confdir=${globals.ipsec_conf_dir}
+        secretsfile=${globals.ipsec_secrets_file}
+        payloadfile=$(mktemp)
+        to_start=false
+        reload_secret=false
+        reload_all=false
+        if systemctl is-active strongswan; then
+          ipsec_is_active=true
+        else
+          ipsec_is_active=false
+        fi
+
+        cat > $payloadfile <<END
+        {
+          "role_id": "$VAULT_ROLE_ID",
+          "secret_id": "$VAULT_SECRET_ID"
+        }
+        END
+
+        # auth to vault
+        VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data @$payloadfile | jq -er .auth.client_token)
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't generate token (VAULT_TOKEN=$VAULT_TOKEN)" >&2
+          exit 1
+        fi
+        rm $payloadfile
+
+        # get connection conf file from vault
+        conf_tmpfile=$(mktemp)
+        curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH \
+          | jq -er .data.data.conf \
+          > $conf_tmpfile
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't get conf" >&2
+          exit 1
+        fi
+
+        # get connection secret conf from vault
+        secret_tmpfile=$(mktemp)
+        curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH \
+          | jq -er .data.data.secret \
+          > $secret_tmpfile
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't get secret" >&2
+          exit 1
+        fi
+
+        # work on connection conf
+        new_conf_md5=$(md5sum $conf_tmpfile | cut -d" " -f1)
+        if [ -f $confdir/$confname.conf ]; then
+          conf_md5=$(md5sum $confdir/$confname.conf | cut -d" " -f1)
+          if [[ "$conf_md5" == "$new_conf_md5" ]]; then
+           echo "This conf is already set"
+          else
+            cp -p $confdir/$confname.conf{,_bak}
+            mv $conf_tmpfile $confdir/$confname.conf
+            reload_all=true
+          fi
+        else
+          mv $conf_tmpfile $confdir/$confname.conf
+          reload_all=true
+        fi
+
+        # work on secret conf
+        new_secret_md5=$(md5sum $secret_tmpfile | cut -d" " -f1)
+        if (grep -q "^# for $confname:" $secretsfile); then
+          echo "$confname secret exist in $secretsfile"
+          secret_md5=$(sed -n "/^# for $confname:/{n;p}" $secretsfile | md5sum | cut -d" " -f1)
+          if [[ "$secret_md5" == "$new_secret_md5" ]]; then
+            echo "This secret is already set"
+            rm $secret_tmpfile
+          else
+            cp -p ${secretsfile}{,_bak}
+            l=$(awk "/^# for $confname:\$/ {print NR}" $secretsfile)
+            sed "${l}{n;d}" -i $secretsfile && sed "${l}r $secret_tmpfile" -i $secretsfile
+            if [[ $? -ne 0 ]]; then
+              echo "[ERROR] secrets file is not updated" >&2
+            fi
+            rm $secret_tmpfile
+            reload_secret=true
+          fi
+        else
+          cp -p ${secretsfile}{,_bak}
+          echo "$confname is new, now adding his secret"
+          echo "# for $confname:" >> $secretsfile
+          cat $secret_tmpfile >> $secretsfile
+          rm $secret_tmpfile
+          reload_secret=true
+        fi
+
+        # reload everything, reload the secrets file, or start daemon as needed
+        if $ipsec_is_active; then
+          if $reload_all; then
+            strongswan reload 2>&1  # because always output to stderr even all is ok
+          elif $reload_secret; then
+            strongswan rereadsecrets 2>&1
+          fi
+        else
+          systemctl start strongswan
+        fi
+        # We force the link to be brought up in case an option like "auto = route" is set
+
+        # check connection is alive, rollback if needed
+        sleep 5  # little wait to be sure
+        conn_name=$(awk '$1=="conn" {print $2; exit}' $confdir/$confname.conf)
+        strongswan up $conn_name
+        conn_status=$(strongswan status $conn_name | awk '$1=="Security" && $2=="Associations" {getline; if($2=="ESTABLISHED") {print "true"}else{print "false"}}')
+        if ! $conn_status; then
+          echo "[ERROR] Connection $conn_name is not established" >&2
+          for f in $confdir/$confname.conf ${secretsfile}; do
+            if [ -f ${f}_bak ]; then
+              mv ${f}{_bak,}
+            else
+              rm -v ${f}
+            fi
+          done
+          if ! $ipsec_is_active; then
+            systemctl stop strongswan
+          else
+            strongswan reload
+          fi
+          echo "[INFO] Reverting to previous configuration"
+          exit 1
+        fi
+
+        # remove now useless _bak file(s)
+        find /etc/strongswan/ -maxdepth 2 -type f -name "*_bak" -ls -exec rm {} \;
+      user: root
+    - if ("${response.errOut}" != ""):
+        - log: "Error while set up strongswan on ${this}"
+        - return:
+            type: error
+            message: "An internal error occurred while set up strongswan's configuration on ${this}"
+
+
+settings:
+  fields:
+    - name: vault_secret_path
+      type: string
+      caption: Vault Secret Path
+      required: false
+    - name: ipsec_should_be
+      type: list
+      caption: ipsec should be
+      values:
+        enable: enable
+        disable: disable
+      editable: false
+      required: false

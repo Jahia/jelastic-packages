@@ -1,0 +1,38 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Set basic auth
+id: jahia-set-auth-basic
+description:
+  short: Jahia - Set basic auth
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/haproxy.yml
+
+globals:
+  haproxy_frontend_file: "/etc/haproxy/haproxy.cfg.d/00-global.cfg"
+  auth_basic_script: "/usr/local/bin/manage-auth-basic.py"
+
+onInstall:
+  - setAuthBasic:
+      new_password: ${settings.pwd}
+      new_login: ${settings.login}
+      enable_auth_basic: ${settings.enable}
+      haproxy_frontend_file: ${globals.haproxy_frontend_file}
+      auth_basic_script: ${globals.auth_basic_script}
+
+
+settings:
+  fields:
+    - type: checkbox
+      name: enable
+      caption: Enable auth_basic
+      value: false
+    - name: login
+      type: string
+      caption: Auth basic login
+    - name: pwd
+      type: string
+      inputType: password
+      caption: Auth basic password

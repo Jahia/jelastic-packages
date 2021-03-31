@@ -1,0 +1,220 @@
+---
+actions:
+  setGlobalRepoRootUrl:
+    # Gets the repository root URL and set it in a global named "repoRootUrl", WITH NO TRAILING SLASH
+    # Examples:
+    #   repoRootUrl = https://github.com/Jahia/jelastic-packages/raw/master
+    #   repoRootUrl = https://raw.githubusercontent.com/Jahia/jelastic-packages/master
+    - if(!globals.repoRootUrl):
+        - script: |-
+            var baseUrl = "${baseUrl}"
+            var regex = /https:\/\/(raw\.)?github\w*\.com\/Jahia\/[\w-]+\/(raw\/)?[\w-]+/
+            var repoRootUrl = baseUrl.match(regex)
+            return {"result": 0, "root_url": repoRootUrl[0]}
+        - setGlobals:
+            repoRootUrl: ${response.root_url}
+    - else:
+        log: "[INFO] global repoRootUrl is already define with value '${globals.repoRootUrl}'"
+
+  setSudoer:
+    - log: "## Set sudoer on ${this}"
+    - cmd[${this}]: |-
+        touch /etc/sudoers.d/sudo
+        # Warning : it only works if jelastic user exists, which may be compromised
+        # if using a non-Jelastic docker image
+        USER=$(id -nu $(id -u jelastic))
+        echo "$USER ALL=NOPASSWD: ALL" >> /etc/sudoers.d/sudo
+        echo "jelastic ALL=NOPASSWD: ALL" >> /etc/sudoers.d/sudo
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during sudoers configuration."
+
+  setJournaldLimit:
+    - cmd[*]: |-
+        sed -i 's/.*SystemMaxUse=.*/SystemMaxUse=200M/g' /etc/systemd/journald.conf
+        systemctl restart systemd-journald.service
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while configuring journald."
+
+  setEnvVersion:
+  # If the parameter is not an integer, we don't set the env version
+    - if (/^[0-9]+$/.test(${this})):
+        - script: |
+            return api.env.control.ApplyNodeGroupData("${env.envName}", session, "cp", { envVersion: ${this} });
+    - else:
+        - log: "The parameter '${this}' is not an integer, nothing to do"
+
+  getLogEventScript:
+    - setGlobalRepoRootUrl
+    - cmd[${this}]: |-
+        wget -qO /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh
+        chmod u+x /usr/local/bin/log_event.sh
+      user: root
+
+  logEvent:
+    # Check if env is running (status = 1)
+    if (1 == ${env.status}):
+      cmd[${this.target}]: |-
+        /usr/local/bin/log_event.sh "${this.title}" "${this.text}"
+      user: root
+
+  ###################
+  # COMPARE VERSION #
+  ###################
+  compareVersions:
+    # Parameters :
+    #  a : the first version to compare
+    #  b : the second version to compare
+    #  res : the global variable name to store the result
+    # Returns:
+    # 1 if a > b
+    # 0 if a = b
+    # -1 if a < b
+    - script: |-
+        function compare(index) {
+          if (index > a.length)
+            return 0;
+
+          aDigit = parseInt(a[index]);
+          bDigit = parseInt(b[index]);
+
+          if (aDigit < bDigit)
+            return -1;
+          else if (aDigit > bDigit)
+            return 1;
+          else
+            return compare(index+1)
+        }
+
+        const a = "${this.a}".split('.');
+        const b = "${this.b}".split('.')
+
+        if (a.length != b.length)
+          return {"result": 1, "error": "invalid parameters"}
+
+        return {"result": 0, "outcome": compare(0)}
+
+    - setGlobals:
+        versionIsGreater: 1
+        versionIsEqual: 0
+        versionIsLower: -1
+        ${this.res}: ${response.outcome}
+
+  isVersionLower:
+    # Parameters :
+    #  a : the first version to compare
+    #  b : the second version to compare
+    #  res : the global variable name to store the result
+    # Returns:
+    # 1 if a < b
+    # 0 if a >= b
+    - compareVersions:
+        a: "${this.a}"
+        b: "${this.b}"
+        res: isVersionLowerComparison
+    - if (${globals.isVersionLowerComparison} == -1):
+        setGlobals:
+          ${this.res}: true
+    - else:
+        setGlobals:
+          ${this.res}: false
+
+  isVersionHigher:
+    # Parameters :
+    #  a : the first version to compare
+    #  b : the second version to compare
+    #  res : the global variable name to store the result
+    # Returns:
+    # 1 if a > b
+    # 0 if a <= b
+    - compareVersions:
+        a: "${this.a}"
+        b: "${this.b}"
+        res: isVersionHigherComparison
+    - if (${globals.isVersionHigherComparison} == 1):
+        setGlobals:
+          ${this.res}: true
+    - else:
+        setGlobals:
+          ${this.res}: false
+
+  isVersionEqual:
+    # Parameters :
+    #  a : the first version to compare
+    #  b : the second version to compare
+    #  res : the global variable name to store the result
+    # Returns:
+    # 1 if a == b
+    # 0 if a != b
+    - compareVersions:
+        a: "${this.a}"
+        b: "${this.b}"
+        res: isVersionEqualComparison
+    - if (${globals.isVersionEqualComparison} == 0):
+        setGlobals:
+          ${this.res}: true
+    - else:
+        setGlobals:
+          ${this.res}: false
+
+  isVersionBetween:
+    # Parameters :
+    #  lower : the lower version to compare
+    #  lower_may_equal : true is version can be equal to lower, false otherwise
+    #  version : the version number to check
+    #  higher : the higher version to compare
+    #  higher_may_equal : true is version can be equal to higher, false otherwise
+    #  res : the global variable name to store the result
+    # Returns:
+    # true if lower < version < higher and both *_may_equal are false
+    # true if lower <= version <= higher and both *_may_equal are true
+    # true if lower <= version < higher and only lower_may_equal is true
+    # true if lower < version <= higher and only higher_may_equal is true
+    # false otherwise
+    - set:
+        is_ok: false
+    - compareVersions:
+        a: "${this.lower}"
+        b: "${this.higher}"
+        res: areBoundsOK
+    - if ( ${globals.areBoundsOK} <= 0):
+        - compareVersions:
+            a: "${this.lower}"
+            b: "${this.version}"
+            res: isLowerLower
+        - compareVersions:
+            a: "${this.version}"
+            b: "${this.higher}"
+            res: isHigherHigher
+        - if (! ${this.lower_may_equal} && ! ${this.higher_may_equal}):
+            - if (${globals.isLowerLower} == -1 && ${globals.isHigherHigher} == -1):
+                - set:
+                    is_ok: true
+        - elif (${this.lower_may_equal} && ${this.higher_may_equal}):
+            - if (${globals.isLowerLower} <= 0 && ${globals.isHigherHigher} <= 0):
+                - set:
+                    is_ok: true
+        - elif (${this.lower_may_equal} && ! ${this.higher_may_equal}):
+            - if (${globals.isLowerLower} <= 0 && ${globals.isHigherHigher} < 0):
+                - set:
+                    is_ok: true
+        - elif (! ${this.lower_may_equal} && ${this.higher_may_equal}):
+            - if (${globals.isLowerLower} < 0 && ${globals.isHigherHigher} <= 0):
+                - set:
+                    is_ok: true
+    - else:
+        - log: "[ERROR] Boundaries are not valid: '${this.lower}<=${this.higher}' is false"
+        - return:
+            type: error
+            message: "Boundaries are not valid: '${this.lower}<=${this.higher}' is false"
+    - if (${this.is_ok}):
+        - setGlobals:
+            ${this.res}: true
+    - else:
+        - setGlobals:
+            ${this.res}: false

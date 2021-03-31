@@ -1,0 +1,19 @@
+---
+logs:
+  - type: file
+    path: /var/log/haproxy/haproxy.log
+    service: haproxy
+    source: haproxy
+    sourcecategory: http_web_access
+  - type: file
+    path: /var/log/haproxy/haproxy-status.log
+    service: haproxy
+    source: haproxy
+    sourcecategory: haproxy_status
+
+init_config:
+instances:
+  - url: http://localhost/haproxy_adm_panel?stats
+    username: admin
+    password: my_awesome_password
+    collect_status_metrics: true

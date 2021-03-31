@@ -1,0 +1,18 @@
+/var/log/mysql/mysqld.log /var/log/mysql/slow-queries.log {
+        create 644 mysql mysql
+        notifempty
+        daily
+        rotate 15
+        missingok
+        compress
+    postrotate
+        # just if mysqld is really running
+        if test -x /usr/bin/mysqladmin && \
+           /usr/bin/mysqladmin ping &>/dev/null
+        then
+           /usr/bin/mysqladmin --local flush-error-log \
+              flush-engine-log flush-general-log flush-slow-log
+        fi
+    endscript
+
+}

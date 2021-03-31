@@ -1,0 +1,160 @@
+---
+# Depends on:
+#   - common.yml
+
+globals:
+  haproxy_admin_stats_pass: ${fn.password(20)}
+
+actions:
+  installHaproxy:
+    - setSudoer: bl
+    - cmd[bl]: yum install -y jq
+      user: root
+    - retrieveHaproxyConf: bl
+    - splitHaproxyConf: bl
+    - updateHaproxyConf
+    - configureProcessingDirectAccessHaproxy
+    - environment.control.ApplyNodeGroupData [bl]:
+        data:
+          productName: haproxy
+          productVersion: ${nodes.bl.first.version}
+    - env.control.AddContainerEnvVars[bl]:
+      vars: {"auth_basic_enabled": "false"}
+
+  retrieveHaproxyConf:
+    - setGlobalRepoRootUrl
+    - cmd[${this}]: |-
+        wget -qO /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http
+        mkdir /etc/haproxy/haproxy.cfg.d && chmod 775 /etc/haproxy/haproxy.cfg.d
+        wget -qO /etc/haproxy/haproxy.cfg.d/00-global.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-00-global.cfg
+        wget -qO /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg
+        wget -qO /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg
+        wget -qO /etc/sysconfig/haproxy ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while retrieving haproxy configuration."
+
+  splitHaproxyConf:
+    # "Hack" to split the haproxy conf file and isolate jahia backend conf
+    - cmd[${this}]: |-
+        # We empty the file instead of deleting it because of Jelastic trying to update it
+        # when scaling
+        echo "### WARNING : this config file is not used for haproxy configuration" > /etc/haproxy/haproxy.cfg
+        sed -i "s|cfgfile=.*|cfgfile=/etc/haproxy/haproxy.cfg.d|g" /etc/init.d/haproxy
+        chown -R haproxy:haproxy /etc/haproxy
+        systemctl daemon-reload
+        service haproxy restart
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while configuring haproxy."
+
+  updateHaproxyConf:
+    - cmd[bl]: |-
+        # Various configuration changes
+        stats_pwd="${globals.haproxy_admin_stats_pass}"
+        sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.d/00-global.cfg
+      user: haproxy
+    - resetHaproxyBackends
+
+  removeNodeFromHaproxy:
+    - log: "Removing node ${this.nodeId} from HAProxy"
+    - cmd[bl]: |-
+        grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+        if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg; fi
+        sudo service haproxy reload
+      user: haproxy
+
+  addNodeToHaproxy:
+    - log: "Adding node ${this.nodeId} to HAProxy"
+    - cmd[bl]: |-
+        echo "    server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+        sudo service haproxy reload
+      user: haproxy
+
+  configureProcessingDirectAccessHaproxy:
+    - cmd[bl]: |-
+        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
+        sed -i 's/beg sPROCESSING_NODE_ID/beg s${nodes.proc.first.id}/g' /etc/haproxy/haproxy.cfg.d/00-global.cfg
+        sudo service haproxy reload
+
+  resetHaproxyBackends:
+    - cmd[bl]: |-
+        sed -i -e "/$server.*:80 check cookie/d" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+    - forEach(nodes.cp):
+        cmd[bl]: |-
+          echo "    server ${env.appid}-${@i.id} ${@i.intIP}:80 check cookie s${@i.id}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+    - cmd[bl]: |-
+        sudo service haproxy reload
+      user: haproxy
+
+  setupDatadogAgentHaproxy:
+    - log: "## Finalize Datadog agent setup on ${this}"
+    - setGlobalRepoRootUrl
+    - cmd[${this}]: |-
+        DD_API_KEY=$(sed -n 's/DATADOGAPIKEY=\(.*\)/\1/p' < /.jelenv) bash -c "$(curl -sL https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+        NODE_NAME=${HOSTNAME/-*}
+        echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
+        echo "tags:" >> /etc/datadog-agent/datadog.yaml
+        echo " - product:jahia" >> /etc/datadog-agent/datadog.yaml
+        echo " - version:${DX_VERSION}" >> /etc/datadog-agent/datadog.yaml
+        echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
+        echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
+        echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
+        echo " - envmode:${jahia_cfg_operatingMode}" >> /etc/datadog-agent/datadog.yaml
+        wget -qO /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py ${globals.repoRootUrl}/scripts/haproxy_one_remaining_browsing.py
+        chown dd-agent:dd-agent /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
+        ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_browsing.yaml
+        wget -qO /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
+        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+        chown haproxy:root /var/log/jelastic-packages
+        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
+        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        STATS_PWD=$(grep "stats auth admin" /etc/haproxy/haproxy.cfg.d/00-global.cfg | head -n1 | cut -d":" -f2)
+        sed -i "s/my_awesome_password/${STATS_PWD}/g" /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
+        wget -qO /etc/datadog-agent/conf.d/process.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_process_conf.yml
+        wget -qO /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh
+        wget -qO /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron
+        chmod u+x /usr/local/bin/set_dd_tags.sh
+        wget -qO /etc/rsyslog.d/haproxy.conf ${globals.repoRootUrl}/assets/haproxy/rsyslog_haproxy
+        wget -qO /etc/logrotate.d/haproxy ${globals.repoRootUrl}/assets/haproxy/logrotate_haproxy
+        chmod 644 /etc/logrotate.d/haproxy
+        chown root:dd-agent /var/log/haproxy/* && chmod 640 /var/log/haproxy/*
+        systemctl restart rsyslog crond datadog-agent
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when installing datadog agent on an haproxy node."
+
+  checkHaproxyHealth:
+    cmd [${this}]: |-
+      if service haproxy status > /dev/null; then
+        adm_user=$(awk '/ stats auth / {print $3}' /etc/haproxy/haproxy.cfg.d/00-global.cfg)
+        curl -fsI /dev/null -u "$adm_user" localhost:80/haproxy_adm_panel && exit 0
+      fi
+      echo "[ERROR] Haproxy is unavailable, exiting" 1>&2 && exit 1
+    user: root
+
+  setAuthBasic:
+    # Parameters:
+    #   - auth_basic_script
+    #   - haproxy_frontend_file
+    #   - enable_auth_basic
+    #   - new_login
+    #   - new_password
+    - setGlobalRepoRootUrl
+    - cmd[bl]: |-
+        yum install python3
+        wget -O ${this.auth_basic_script} ${globals.repoRootUrl}/assets/haproxy/manage-auth-basic.py
+        chmod u+x ${this.auth_basic_script}
+        ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" "${this.new_password.toBase64()}"
+        service haproxy reload
+      user: root
+    - env.control.AddContainerEnvVars[bl]:
+      vars: {"auth_basic_enabled": "${this.enable_auth_basic}"}

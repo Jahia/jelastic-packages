@@ -1,0 +1,28 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Redeploy Galera nodes
+logo: ../../assets/jahia/jahia-logo-70x70.png
+id: redeploy-galera-nodes
+
+globals:
+  targetDockerTag: ${settings.targetDockerTag}
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - enableFullReadOnlyOnCluster
+  - redeployGalera
+  - disableFullReadOnlyOnCluster
+
+settings:
+  fields:
+    - name: targetDockerTag
+      type: dockertags
+      nodeType: mariadb-dockerized
+      caption: MariaDB target Docker tag
+      default: 10.4.13
+      required: false

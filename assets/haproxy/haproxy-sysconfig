@@ -1,0 +1,2 @@
+eval $(grep "^jahia_cfg_healthcheck_token=" /.jelenv)
+export jahia_cfg_healthcheck_token
