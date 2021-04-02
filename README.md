@@ -17,57 +17,18 @@ Here are some rules that should be observed:
 .
 ├── assets
 │   ├── common
-│   │   ├── dd_agent_jelastic_package_conf.yml
-│   │   ├── log_events.sh
-│   │   ├── set_dd_tags_cron
-│   │   └── set_dd_tags.sh
 │   ├── database
-│   │   ├── galera.cnf
-│   │   ├── logrotate_mysql
-│   │   └── mysql-init.d
 │   ├── elasticsearch
 │   ├── haproxy
-│   │   ├── 502.http
-│   │   ├── dd_agent_haproxy_conf.yml
-│   │   ├── dd_agent_process_conf.yml
-│   │   ├── haproxy-00-global.cfg
-│   │   ├── haproxy-10-jahia.cfg
-│   │   ├── haproxy-11-proc.cfg
-│   │   ├── haproxy-sysconfig
-│   │   ├── logrotate_haproxy
-│   │   ├── manage-auth-basic.py
-│   │   └── rsyslog_haproxy
 │   ├── jahia
-│   │   ├── jahia-logo-70x70.png
-│   │   ├── jahia.properties
-│   │   ├── reset-jahia-tools-manager-password.py
-│   │   └── success_install.md
 │   └── jcustomer
 ├── mixins
-│   ├── common.yml
-│   ├── haproxy.yml
-│   ├── jahia.yml
-│   ├── jcustomer.yml
-│   └── mariadb.yml
-├── packages
-│   ├── augsearch
-│   ├── common
-│   ├── jahia
-│   │   ├── install.yml
-│   │   ├── jahia-rolling-restart.yml
-│   │   ├── redeploy-galera-nodes.yml
-│   │   ├── update-events.yml
-│   │   └── upgrade.yml
-│   ├── jcustomer
-│   └── one-shot
-│       ├── check_jexperience.yml
-│       ├── ipsec.yml
-│       ├── manage-auth-basic.yml
-│       ├── reset-polling.yml
-│       ├── rewrite-rules.yml
-│       ├── set-jahia-root-password.yml
-│       └── set-jahia-tools-password.yml
-└── README.md
+└── packages
+    ├── augsearch
+    ├── common
+    ├── jahia
+    ├── jcustomer
+    └── one-shot
 ```
 
 ## Jahia Environments
