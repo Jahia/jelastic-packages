@@ -1,0 +1,78 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Set HAProxy conf
+id: jahia-set-rewrite-rules
+description:
+  short: Jahia - Set HAProxy conf
+
+globals:
+  haproxy_frontend_file: "/etc/haproxy/haproxy.cfg.d/00-global.cfg"
+  haproxy_backup_file: "/var/lib/haproxy/haproxy-global-cfg.bak"
+  rewrite_rules_file: "/var/lib/haproxy/rewrite-rules.cfg"
+
+onInstall:
+  - getRewritesRules
+  - reloadHAProxy
+  - removeBackup
+
+actions:
+  getRewritesRules:
+    - cmd [bl]: |-
+        [ -x /usr/bin/jq ] || yum install -y jq
+      user: root
+    - cmd [bl]: |-
+        cp "${globals.haproxy_frontend_file}" "${globals.haproxy_backup_file}"
+        VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data '{"role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'"}' | jq -r .auth.client_token)
+        VAULT_SECRET_PATH="${settings.vault_secret_path}"
+        curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -r .data.data[] > "${globals.rewrite_rules_file}"
+
+        if [ $(( PIPESTATUS[0] + PIPESTATUS[1] )) -gt 0 ]; then
+          echo "Failed to fetch secret" >&2
+          exit 0
+        fi
+
+        if echo "${settings.md5sum} ${globals.rewrite_rules_file}" | md5sum --check --status ; then
+          sed -i -ne '/## START_REWRITES ##/{p;r ${globals.rewrite_rules_file}' -e ':a;n;/## END_REWRITES ##/{p;b};ba};p' "${globals.haproxy_frontend_file}"
+        else
+          echo "MD5 sum mismatch. Aborting" >&2
+        fi
+        rm "${globals.rewrite_rules_file}"
+    - if ("${response.errOut}" != ""):
+        - cmd [bl]: |-
+            mv "${globals.haproxy_backup_file}" "${globals.haproxy_frontend_file}"
+        - log: "Get Rewrite Rules Failed"
+        - return:
+            type: error
+            message: "An internal error occurred while updating haproxy configuration"
+
+  reloadHAProxy:
+    - cmd [bl]: |-
+        service haproxy reload || true
+      user: root
+    - if ("${response.responses.errOut}" != ""):
+        - set:
+            error-out: "${response.responses.out} -- ${response.responses.errOut}"
+        - log: "reload failed"
+        - cmd [bl]: |-
+            mv "${globals.haproxy_backup_file}" "${globals.haproxy_frontend_file}"
+        - return:
+            type: error
+            message: "${this.error-out}"
+
+  removeBackup:
+    - cmd [bl]: |-
+        rm "${globals.haproxy_backup_file}"
+    - return:
+        type: success
+
+settings:
+  fields:
+    - name: vault_secret_path
+      type: string
+      caption: Vault Secret Path
+      required: true
+    - name: md5sum
+      type: string
+      caption: The md5 sum of the rewrite rules
+      required: true

@@ -1,0 +1,818 @@
+---
+# Depends on:
+#   - common.yml
+
+globals:
+  proxysql_cli: "mysql -h 127.0.0.1 -uadmin -padmin -P6032"
+  org_jahia_ehcachemanager_maxBytesLocalHeap_dev: 700M
+  org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev: 700M
+  org_jahia_ehcachemanager_maxBytesLocalHeap_prod: 800M
+  org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_cp: 2500M
+  org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_proc: 700M
+  expandImportedFilesOnDisk: "true"
+  jahiaFileUploadMaxSize: 268435456
+  imageService: ImageMagickImageService
+  jahiaImageMagickPath: /opt/magick/bin
+  java_opts:
+    -DDB_USER=${DB_USER}
+    -DDB_PASSWORD=${DB_PASSWORD}
+    -DREDIS_PASSWORD=${REDIS_PASSWORD}
+    -DMANAGER_USER=${MANAGER_USER}
+    -DHOST_NAME=$(hostname)
+    -Dcom.sun.management.jmxremote
+    -Dcom.sun.management.jmxremote.port=7199
+    -Dcom.sun.management.jmxremote.ssl=false
+    -Dcom.sun.management.jmxremote.authenticate=false
+    -XX:MaxPermSize=512m
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:+PrintConcurrentLocks
+    -XX:+UseParallelGC
+    -XX:SurvivorRatio=8
+    -Xmn1G
+
+actions:
+  #################
+  # jahia related #
+  #################
+  onAfterBrowsingScaleOut:
+    - setSudoer: ${this.newNode}
+    - copyApp: ${this.newNode}
+    - setToolsPwd: ${this.newNode}
+    - setupDatadogAgentPerNode: ${this.newNode}
+    - cmd[${this.newNode}]: |-
+        if (service tomcat status); then
+          echo "Now Restarting Tomcat"
+          service tomcat restart
+        else
+          echo "Now Launching Tomcat"
+          service tomcat start
+        fi
+      user: root
+
+  onAfterRedeployJahiaContainer:
+    - cmd[${this}]:
+        - service tomcat stop
+      user: root
+    - setSudoer: ${this}
+    - getLogEventScript: ${this}
+    - if (nodes.sqldb.length == 1):
+        - disableDatadogCustomChecks
+    - copyApp: ${this}
+    - setToolsPwd: ${this}
+    - if ("${this}" == "cp"):
+        cmd[${this}]:
+          - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+    - setupDatadogAgent: ${this}
+    - cmd[${this}]: |-
+          if [ $(echo $DX_VERSION | sed 's/\.//g') -ge 7320 ]; then
+            touch "/data/digital-factory-data/[persisted-configurations].dorestore"
+            chown tomcat: "/data/digital-factory-data/[persisted-configurations].dorestore"
+          fi
+    - cmd[${this}]: |-
+          source /etc/locale.conf
+          echo "JAHIA_UPGRADE=$JAHIA_UPGRADE"
+          if [ "$JAHIA_UPGRADE" == "true" ]; then
+            echo "This is an upgrade, processing's tomcat will not be restarted now"
+          else
+            echo "This is a regular redeploy, restart tomcat now"
+            service tomcat start
+          fi
+      user: root
+
+  stopJahia:
+    cmd[${this}]: "service tomcat stop"
+    user: root
+
+  initJahiaDatabase:
+    - log: "## Import DX schema in database"
+    - cmd[${nodes.proc.first.id}]: cat $DATA_PATH/digital-factory-data/db/sql/schema/mysql/*.sql | mysql -h $DB_ENDPOINT -u$DB_USER -p$DB_PASSWORD -f jahia
+
+  installJahia:
+    # Parameters:
+    #   - jahiaVersion
+    #   - rootpwd: Jahia root user password
+    #   - toolspwd: Jahia Tools password
+    #   - topology: "production" or "development"
+    - setSudoer: proc, cp
+    - getLogEventScript: proc, cp
+
+    - environment.control.ApplyNodeGroupData [proc, cp]:
+        data:
+          productName: dx
+          productVersion: ${this.jahiaVersion}
+    - initJahiaDatabase
+    - log: "## Determine JDK version for good _JAVA_OPTIONS envvar"
+    - cmd[proc, cp]: |-
+        case "$($JAVA_HOME/bin/java -version 2>&1 | awk 'NR==1 {print gensub("(\"|_.*)", "", "g", $3)}')" in
+          1.8*)
+              j_opts='${globals.java_opts}'
+              ;;
+          *)
+              j_opts='${globals.java_opts} -Xlog:gc:file=/opt/tomcat/logs/gc.log:time,uptime,level,pid,tid,tags'
+              ;;
+        esac
+        sed -e '2isource /.jelenv' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
+    - setJahiaPropertiesEnvvars:
+        topology: ${this.topology}
+    - copyApp: proc, cp
+    - cmd[proc]: |-
+        base64 -d <<< "${settings.rootpwd.toBase64()}" > $DATA_PATH/digital-factory-data/root.pwd
+      user: tomcat
+    - defineToolsPwd:
+        toolspwd: ${this.toolspwd}
+    - setToolsPwd: proc, cp
+    - api: env.control.ExecDockerRunCmd
+      nodeId: ${nodes.proc.first.id}
+    - sleep:
+        - milliseconds: 120000
+    - env.control.ExecDockerRunCmd [${nodes.cp.join(id,)}]
+
+  setJahiaPropertiesEnvvars:
+    # Parameters:
+    #   - topology: "production" or "development"
+    - log: "## Setting jahia.properties envvars"
+    - cmd [${nodes.proc.first.id}]: echo $(ls -d /opt/*maven*/bin/mvn)
+    - setGlobals:
+        jahia_cfg_mvnPath: ${response.out}
+    - if (this.topology == "production"):
+        - setGlobals:
+            jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.org_jahia_ehcachemanager_maxBytesLocalHeap_prod}
+            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_cp}
+            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_proc}
+    - else:
+        - setGlobals:
+            jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.org_jahia_ehcachemanager_maxBytesLocalHeap_dev}
+            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev}
+            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev}
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        jahia_cfg_expandImportedFilesOnDisk: ${globals.expandImportedFilesOnDisk}
+        jahia_cfg_jahiaFileUploadMaxSize: ${globals.jahiaFileUploadMaxSize}
+        jahia_cfg_imageService: ${globals.imageService}
+        jahia_cfg_imageMagickPath: ${globals.jahiaImageMagickPath}
+        jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
+        jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap}
+    - env.control.AddContainerEnvVars [cp]:
+      vars:
+        jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp}
+    - env.control.AddContainerEnvVars [proc]:
+      vars:
+        jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc}
+
+  copyApp:
+    - log: "## Copying Jahia app and settings its properties"
+    - cmd[${this}]: |-
+        [ "$_ROLE" == "Browsing" ] && sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+        rm -rf $STACK_PATH/webapps/*
+        #COPS-18 workaround, switch from loadbalance to sequential
+        replace="sequential:"
+        sed "s/loadbalance:/$replace/" -i /$DATA_PATH/jahia/tomcat/webapps/ROOT/META-INF/context.xml
+        cp -rf $DATA_PATH/jahia/tomcat/webapps/* $STACK_PATH/webapps
+        chown -R tomcat:tomcat $STACK_PATH/webapps
+        sed -i "s/operatingMode/#operatingMode/" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+        short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
+        sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+        sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" /opt/tomcat/conf/tomcat-env.sh
+        sed -i '/<!-- Access log processes all example./i \\t<!-- Remote IP Valve -->\n \t<Valve className="org.apache.catalina.valves.RemoteIpValve" protocolHeader="X-Forwarded-Proto" />\n' /opt/tomcat/conf/server.xml
+        sed -i 's/pattern="%h /pattern="%{org.apache.catalina.AccessLog.RemoteAddr}r /' /opt/tomcat/conf/server.xml
+        sed -i 's/prefix="localhost_access_log"/prefix="access_log" rotatable="false"/g' /opt/tomcat/conf/server.xml
+        #Secure cookies from cross scripting
+        indent="      " && printf "$indent<cookie-config>\n$indent$indent<secure>true</secure>\n$indent$indent<http-only>true</http-only>\n$indent</cookie-config>\n" > /tmp/cookies-config
+        sed -i '/<session-config>/r /tmp/cookies-config' /opt/tomcat/conf/web.xml && rm /tmp/cookies-config
+        sed -e '/maxHttpHeaderSize/d' -e "s/^\(.*Connector port=\"80.*HTTP.*\)$/\1\n\t\tmaxHttpHeaderSize=\"65536\"/g" -i /opt/tomcat/conf/server.xml
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when installing jahia."
+
+  defineToolsPwd:
+    # Parameters:
+    #   - toolspwd: Jahia Tools password
+    - log: "## Now setting tools password"
+    - setGlobalRepoRootUrl
+    - cmd[proc]: |-
+        if [ ! -f /usr/local/bin/reset-jahia-tools-manager-password.py ]; then
+          wget -qO /usr/local/bin/reset-jahia-tools-manager-password.py ${globals.repoRootUrl}/assets/jahia/reset-jahia-tools-manager-password.py
+          chmod u+x /usr/local/bin/reset-jahia-tools-manager-password.py
+        fi
+        /usr/local/bin/reset-jahia-tools-manager-password.py "${this.toolspwd.toBase64()}" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when defining tools password."
+    - cmd [proc]: awk '$1=="jahiaToolManagerPassword" {print $NF}' $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+    - set:
+        jahiaToolManagerPassword: ${response.out}
+    - cmd [cp]: |-
+        sed -i 's,^\s*\(jahiaToolManagerPassword\s*=\).*$,\1 ${this.jahiaToolManagerPassword},' $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+    - env.control.AddContainerEnvVars [proc, cp]:
+      vars:
+        MANAGER_PASSWORD: ${this.jahiaToolManagerPassword}
+
+  setToolsPwd:
+    - cmd[${this}]: |-
+         sed -i "s|^jahiaToolManagerPassword .*$|jahiaToolManagerPassword = $MANAGER_PASSWORD|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+
+  setupDatadogAgent:
+    - log: "## Finalize Datadog agent setup on ${this}"
+    - setGlobalRepoRootUrl
+    - cmd [${this}]: |-
+        NODE_NAME=${HOSTNAME/-*}
+        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
+        chmod 644 /opt/tomcat/logs/catalina.out
+        /usr/local/bin/set_dd_tags.sh
+        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+        chown tomcat:root /var/log/jelastic-packages
+        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
+        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        systemctl restart crond
+        systemctl enable datadog-agent
+      user: root
+
+  setupDatadogAgentPerNode:
+    - log: "## Finalize Datadog agent on ${this}"
+    - setGlobalRepoRootUrl
+    - cmd[${this}]: |-
+        NODE_NAME=${HOSTNAME/-*}
+        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
+        chmod 644 /opt/tomcat/logs/catalina.out
+        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+        chown tomcat:root /var/log/jelastic-packages
+        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
+        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        /usr/local/bin/set_dd_tags.sh
+        systemctl restart crond
+        systemctl enable datadog-agent
+      user: root
+
+  startupJahiaHealthCheck:
+    # Two arguments:
+    #   - target: Mandatory, the target nodeId or nodeGroup. If the duration is not specified, the target
+    #     can be passed as a parameter directly after the action name, e.g.: startupJahiaHealthCheck: <target>
+    #   - duration: Optional, duration in seconds. Default value of 24 hours if not specified
+    # The .print() call surrounded by simple quotes is the only working way I found to test if the variable exists
+    - if ('${this.print()}' != ''):
+        set:
+          target: ${this}
+    - else:
+        set:
+          target: ${this.target}
+    - cmd [${this.target}]: |-
+        if ! rpm --quiet -q jq; then
+          echo "[INFO] Installing jq to parse healthcheck module response"
+          yum install -y jq
+        fi
+      user: root
+    - log: "## Health check on Jahia startup, target: ${this.target}"
+    - cmd [${this.target}]: |-
+        if ! tomcat_pid=$(pgrep -u tomcat -f java); then
+          echo "[ERROR] Tomcat process not found, please check." >&2
+          exit 1
+        fi
+
+        if [ ! -f /var/log/tomcat/jahia.log ]; then
+          echo "[ERROR] Jahia log file not found, it seems there is a problem with tomcat instance, please check." >&2
+          exit 2
+        fi
+
+        startup_line=$(grep -n "s t a r t i n g" /opt/tomcat/logs/catalina.out | tail -n1 | cut -d":" -f1)
+        timeout=$(date --date="+$HEALTHCHECK_DURATION minutes" +%s)
+        hc_url="http://127.0.0.1:8080/modules/healthcheck?token=$jahia_cfg_healthcheck_token"
+
+        # Number of minutes allowed for healthcheck to be completed once tomcat startup is finished
+        jahia_running_timeout=5
+
+        while [ $(date +%s) -lt $timeout ]; do
+          # First we test if Jahia is up with a curl request.
+          if curl_resp=$(curl -f -s -m 1 "$hc_url"); then
+            status=$(echo $curl_resp | jq -r ".status")
+            if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
+              exit 0
+            fi
+          fi
+
+          # If it isn't, we first check tomcat process status
+          if ! ps --pid $tomcat_pid > /dev/null; then
+            echo "[ERROR] Tomcat process no more running, please check." >&2
+            exit 3
+          fi
+          # Then we check Jahia startup status, all
+          tail -n +${startup_line} /opt/tomcat/logs/catalina.out | grep -q "Server startup in"
+          if [ $? -eq 0 ]; then
+            if [ $jahia_running_timeout -eq 0 ]; then
+              echo "[ERROR] Tomcat startup is finished but healthcheck failed, please check." >&2
+              exit 4
+            fi
+            ((jahia_running_timeout-=1))
+          fi
+
+          sleep 60
+        done
+
+        echo "[ERROR] Timeout, the Tomcat process is still running but Jahia is not started yet" >&2
+        exit 5
+
+  checkJahiaHealth:
+    - cmd [${this}]: |-
+        if ! rpm --quiet -q jq; then
+          echo "[INFO] Installing jq to parse healthcheck module response"
+          yum install -y jq
+        fi
+      user: root
+    - cmd [${this}]: |-
+        if ! tomcat_pid=$(pgrep -u tomcat -f java); then
+          echo "[ERROR] Tomcat process not found, please check" >&2
+          exit 1
+        fi
+
+        hc_url="http://127.0.0.1:8080/modules/healthcheck?token=$jahia_cfg_healthcheck_token"
+
+        if curl_resp=$(curl -f -s -m 1 "$hc_url"); then
+          status=$(echo $curl_resp | jq -r ".status")
+          if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
+            exit 0
+          fi
+        fi
+        echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
+
+  deleteEnvLink:
+    - script: |-
+        const envName = "${env.envName}";
+        jCustomerEnv = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                return object.name == "cp";
+                              }).pop().envLink;
+        if (jCustomerEnv == null) {
+          return {"result": 0, "out": "No jCustomer env linked"};
+        }
+        envsLinked = jelastic.env.control.GetNodeGroups(jCustomerEnv, session).object.filter(function (object) {
+                                return object.name == "cp";
+                              }).pop().envLink;
+        if (envsLinked.indexOf(envName) == -1) {
+          return {"result": 0, "out": envName + " not in envLink of " + jCustomerEnv};
+        }
+
+        // envLink can contain multiple Jahia envs on jCustomer side separated by a comma
+        if (envsLinked.indexOf(",") != -1) {
+          envsLinkedArr = envsLinked.split(",");
+          envsLinkedArr.splice(envsLinkedArr.indexOf(envName), 1);
+          newEnvLink = String(envsLinkedArr);
+        } else {
+          newEnvLink = null;
+        }
+        resp = jelastic.env.control.ApplyNodeGroupData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
+        return {"result": 0, "out": envName + " removed from envLink of " + jCustomerEnv};
+
+  isFullReadonlyEnabled:
+    - cmd[proc]: |-
+        RO_ON=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only | grep -e Current -e local | grep ON)
+        if [ "$RO_ON" == "" ]; then
+          echo false
+        else
+          echo true
+        fi
+    - setGlobals:
+        RO: "${response.out}"
+
+  switchFullReadonly:
+    - log: "switch full read mode to ${this.fullreadmode} on nodegroup ${this.group}"
+    - cmd[${this.group}]: |-
+          ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only ${this.fullreadmode}
+
+  enableKarafLogin:
+    - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
+      script: |-
+          try {
+            var resp = JSON.parse(isKarafLoginEnabled)["${this}"]
+          } catch(error) {
+            var resp = false
+          }
+          return {"result": 0, "resp": resp}
+    - if(${response.resp}):
+        - log: "karaf login is already enabled, nothing to do"
+    - else:
+        - log: "Activate karaf's ssh login on ${this}"
+        - cmd[${this}]: |-
+            # Clear everything and enable karaf login
+            [ -f /tmp/abricot ] && rm /tmp/abricot
+            [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
+            ssh-keygen -t rsa -f /tmp/abricot -P ""
+            awk '{printf "abricot:%s,_g_:admingroup\n",$2}' /tmp/abricot.pub >> /data/digital-factory-data/karaf/etc/keys.properties
+            sed 's,\(sshRealm\s*=\s*\)jahia,\1karaf,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+            i=1
+            it=66
+            until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only); do
+              echo "karaf ssh login not updated yet (iteration $i/$it)"
+              if [ $i -ge $it ]; then
+                echo "Too long to start, something is wrong here... EXITING"
+                exit 1
+              fi
+              ((i++))
+              sleep 1
+            done
+        - isKarafLoginEnabled: ${globals.isEnable}
+          script: |-
+            try {
+              var isEnable = JSON.parse(isKarafLoginEnabled)
+            } catch(error) {
+              var isEnable = {}
+            } finally {
+              isEnable["${this}"] = true
+            }
+            return {"result": 0, "isEnable": isEnable}
+        - setGlobals:
+            isKarafLoginEnabled: ${response.isEnable}
+            karafConsole: "ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no"
+
+  disableKarafLogin:
+    - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
+      script: |-
+          try {
+            var resp = JSON.parse(isKarafLoginEnabled)["${this}"]
+          } catch(error) {
+            var resp = false
+          }
+          return {"result": 0, "resp": resp}
+    - if(! ${response.resp}):
+        - log: "karaf login is already disabled, nothing to do"
+    - else:
+        - log: "Disable karaf's ssh login on ${this}"
+        - cmd[${this}]: |-
+            [ -f /tmp/abricot  ] && rm /tmp/abricot
+            [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
+            sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
+            sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+        - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
+          script: |-
+            try {
+              var isEnable = JSON.parse(isKarafLoginEnabled)
+            } catch(error) {
+              var isEnable = {}
+            } finally {
+              isEnable["${this}"] = false
+            }
+            return {"result": 0, "isEnable": isEnable}
+        - setGlobals:
+            isKarafLoginEnabled: ${response.isEnable}
+
+  enableFullReadOnlyOnCluster:
+    - getJahiaVersion
+
+    - enableKarafLogin: proc
+    - isFullReadonlyEnabled
+
+    - if(!${globals.RO}):
+        - switchFullReadonly:
+            group: "proc"
+            fullreadmode: "ON"
+
+        - if(globals.jahiaVersion < '7.3.3.0'):
+            - enableKarafLogin: cp
+            - switchFullReadonly:
+                group: "cp"
+                fullreadmode: "ON"
+
+  disableFullReadOnlyOnCluster:
+    - getJahiaVersion
+    - isFullReadonlyEnabled
+
+    - if(${globals.RO}):
+        - switchFullReadonly:
+            group: "proc"
+            fullreadmode: "OFF"
+        - disableKarafLogin: proc
+
+        - if(globals.jahiaVersion < '7.3.3.0'):
+            - switchFullReadonly:
+                group: "cp"
+                fullreadmode: "OFF"
+            - disableKarafLogin: cp
+
+  getJahiaVersion:
+    - log: "Get jahia version"
+    - script: |-
+        var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session)
+        for (var i = 0, g = resp.nodes; i < g.length; i++) {
+          if (g[i].nodeGroup == "proc") {
+            var jahia_version = g[i].version.split("-", 1)[0]
+            break
+            }
+          }
+        return {'result': 0, 'jahia_version': jahia_version}
+    - setGlobals:
+        jahiaVersion: ${response.jahia_version}
+    - log: "Jahia is v${globals.jahiaVersion}"
+
+  upgradeJahiaModule:
+    # expect the parameter version to be defined
+    - if ("${this.module}" == "" || "${this.version}" == ""):
+        return:
+          type: error
+          message: upgradeJahiaModule have to be called with module and version settings
+    - setGlobals:
+        moduleName: "${this.module}"
+        moduleVersion: "${this.version}"
+        awkFS: "-F ' ?*\t ?'"
+        awkIC: "-v IGNORECASE=1"
+
+    - performModuleUpgradeOnNode: proc
+    - foreach (nodes.cp):
+        - performModuleUpgradeOnNode: ${@i.id}
+
+  performModuleUpgradeOnNode:
+    - enableKarafLogin: ${this}
+    - installModuleIfNotPresent: ${this}
+    - removeOldModuleVersions: ${this}
+    - disableKarafLogin: ${this}
+
+  installModuleIfNotPresent:
+    - set:
+        modulesUrl: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
+    - cmd[${this}]: |-
+        ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+              'NF==5 && $1>0 && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
+               {print $1}'
+    - if ("${response.out}" == ""):
+        - log: Installing new ${globals.moduleName} v${globals.moduleVersion} on ${this}
+        - cmd[${this}]: |-
+            dashed_name=$(echo "${globals.moduleName}" | awk '{gsub("[[:blank:]]+", "-", $0); print tolower($0)}')
+            url="${this.modulesUrl}/${dashed_name}/${globals.moduleVersion}/${dashed_name}-${globals.moduleVersion}.jar"
+            if (curl -fIs $url > /dev/null); then
+              cd /data/digital-factory-data/modules
+              wget -nv -O ${globals.moduleName}-${globals.moduleVersion}.jar $url
+            sleep 20
+            fi
+    - else:
+        log: Module ${globals.moduleName} v${globals.moduleVersion} is already on ${this}
+
+    - cmd[${this}]: |-
+        # starts the module if not
+        bundle_id="$(${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+                  'NF==5 && $1>0 && $2!="Active" && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
+                  {print $1}')"
+        if [ -n "$bundle_id" ]; then
+          i=1
+          until (${globals.karafConsole} bundle:start $bundle_id 2> /dev/null) || [ $i -gt $imax ]; do
+            sleep 1
+            ((i++))
+          done
+          echo "module started"
+        else
+          echo "module already started"
+        fi
+    - if ("${response.out}" == "module started"):
+        log: Module ${globals.moduleName} v${globals.moduleVersion} started on ${this}
+    - elif ("${response.out}" == "module already started"):
+        log: Module ${globals.moduleName} v${globals.moduleVersion} start without intervention on ${this}
+
+  removeOldModuleVersions:
+    - cmd[${this}]: |-
+        i=1
+        imax=66
+        id_to_rm="blablabla"
+        while [ -n "$id_to_rm" ] || [ $i -gt $imax ]; do
+          id_to_rm="$( \
+              ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+              'NF==5 && $1>0 && $4!="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
+              {printf "%s ",$1}')"
+          if [ -n "$id_to_rm" ]; then
+            ${globals.karafConsole} bundle:uninstall $id_to_rm 2> /dev/null
+          else
+            if [ $i -gt 1 ]; then
+              echo "removed"
+            else
+              echo "no other"
+            fi
+            exit 0
+          fi
+          ((i++))
+        done
+        echo "still previous"
+    - if ("${response.out}" == "removed"):
+        log: Other ${globals.moduleName} module version now deleted on ${this}
+    - elif ("${response.out}" == "no other"):
+        log: No other ${globals.moduleName} module version on ${this}
+    - elif ("${response.out}" == "still previous"):
+        log: Other ${globals.moduleName} module version still present on ${this}
+
+  ####################
+  # proxysql related #
+  ####################
+  setupProxysqlCluster:
+    - cmd[cp, proc]: |-
+          ${globals.proxysql_cli} -e "DELETE FROM proxysql_servers"
+    - foreach (nodes.cp):
+        - cmd[cp, proc]: |-
+            ${globals.proxysql_cli} -e "INSERT INTO proxysql_servers (hostname,port,weight,comment) VALUES ('node${@i.id}-${env.domain}',6032,0,'browsing_$((${@}+1))')"
+    - cmd [cp, proc]: |-
+        ${globals.proxysql_cli} -e "INSERT INTO proxysql_servers (hostname,port,weight,comment) VALUES ('node${nodes.proc.first.id}-${env.domain}',6032,0,'processing')"
+        ${globals.proxysql_cli} -e "LOAD PROXYSQL SERVERS TO RUNTIME"
+        ${globals.proxysql_cli} -e "SAVE PROXYSQL SERVERS TO DISK"
+    - cmd [cp, proc]: |-
+        i=60
+        sql="select count(*) from stats_proxysql_servers_metrics where Uptime_s = 0"
+        while ! sleep 1 && ${globals.proxysql_cli} -e "$sql" | grep -s 0; do
+          ((i--))
+          if [ $i -eq 0 ]; then
+            echo "[ERROR] ProxySQL cluster is not healthy" 1>&2
+            exit 1
+          fi
+        done
+
+  setupMysqlServers:
+    - cmd[proc]: |-
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 50)"
+    - if (nodes.sqldb.length > 1):
+        - cmd[proc]: |-
+            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_2',3306, 50)"
+            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_3',3306, 50)"
+    - cmd[proc]: |-
+        ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME"
+        ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
+
+  setupMonitorUser:
+    - cmd[sqldb]: |-
+        mysql -e "CREATE USER IF NOT EXISTS 'proxysql'@'%' IDENTIFIED BY 'monitorpassword'"
+        mysql -e "GRANT SELECT on sys.* TO 'proxysql'@'%'"
+        mysql -e "GRANT SELECT on performance_schema.* TO 'proxysql'@'%'"
+        mysql -e "GRANT  PROCESS, REPLICATION CLIENT ON *.* TO 'proxysql'@'%'"
+
+  enableBackendMonitor:
+    - cmd[cp, proc]: |-
+        ${globals.proxysql_cli} -e "UPDATE global_variables SET variable_value='true' WHERE variable_name='mysql-monitor_enabled'"
+        ${globals.proxysql_cli} -e "LOAD MYSQL VARIABLES TO RUNTIME"
+        ${globals.proxysql_cli} -e "SAVE MYSQL VARIABLES TO DISK"
+
+  finishProxysqlInstall:
+    - setupMonitorUser
+    - enableBackendMonitor
+    - if (nodes.sqldb.length > 1):
+        - setupMysqlServers
+    - else:
+        - disableDatadogCustomChecks
+    - setupProxysqlCluster
+
+  refreshProxysqlInstancesList:
+    - setupProxysqlCluster
+
+  proxysqlSetMariadbBackendStatus:
+    - cmd[cp, proc]: |-
+        ${globals.proxysql_cli} -e "UPDATE mysql_servers SET status='${this.newStatus}' WHERE hostname='${this.targetHost}';"
+
+  disableDatadogCustomChecks:
+    - cmd[cp, proc]: |-
+        p="/etc/datadog-agent/conf.d"
+        for check in proxysql_backend_missing proxysql_connections_discrepancies; do
+          [ -h $p/${check}.yaml ] && mv $p/${check}.yaml $p/${check}.yaml_disabled
+        done
+        if systemctl -q is-active datadog-agent; then
+          systemctl restart datadog-agent
+        fi
+      user: root
+
+  procUpgrade:
+    # Parameters:
+    #   - upgradeJahia: true or false
+    #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    #   - useExistingVolumes: true or false
+    - cmd [proc]:
+        - echo 'export JAHIA_UPGRADE="${this.upgradeJahia}"' >> /etc/locale.conf
+      user: root
+    - api: environment.control.RedeployContainersByGroup
+      nodeGroup: proc
+      tag: ${this.targetDockerTag}
+      useExistingVolumes: ${this.useExistingVolumes}
+      skipReinstall: false
+      envName: ${env.envName}
+    # restore-module-state is not compatible with rolling upgrade
+    - if (!${globals.rollingUpgrade}):
+        - cmd [proc]: |-
+            if [ $(echo $DX_VERSION | sed 's/\.//g') -ge 7320  ]; then
+              rm -fr /data/digital-factory-data/bundles-deployed/*
+              sudo -u tomcat touch "/data/digital-factory-data/[persisted-bundles].dorestore"
+              echo "restore-module-state have been asked"
+              ls -l /data/digital-factory-data/*.dorestore
+            else
+              echo "Can't use restore-module-state here"
+            fi
+          user: root
+    - cmd [proc]: |-
+        if [[ "${this.upgradeJahia}" == "true" ]]; then
+          touch /data/digital-factory-data/modules/*
+          service tomcat start
+        fi
+        sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
+      user: root
+    - startupJahiaHealthCheck: ${nodes.proc.first.id}
+
+  bulkCpUpgrade:
+    # Parameters:
+    #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    #   - useExistingVolumes: true or false
+    - cmd [proc]: |-
+        ## [Upgrade] - 2/2
+        exit 0
+    - api: environment.control.RedeployContainersByGroup
+      nodeGroup: cp
+      tag: ${this.targetDockerTag}
+      useExistingVolumes: ${this.useExistingVolumes}
+      skipReinstall: false
+      envName: ${env.envName}
+
+  rollingCpUpgrade:
+    # Parameters:
+    #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    #   - useExistingVolumes: true or false
+    - cmd [proc]: |-
+        ## [Upgrade] - 2/2
+        exit 0
+    - forEach (nodes.cp):
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${this.targetDockerTag}
+          useExistingVolumes: ${this.useExistingVolumes}
+          skipReinstall: false
+          envName: ${env.envName}
+
+  setVersionPropertiesValue:
+    # Parameters:
+    #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
+    # in case we upgrade from a version that does not handle it to a version that does.
+    - isVersionLower:
+        a: "${this.targetDockerTag}"
+        b: "7.3.8.0"
+        res: isTargetVersionLowerThan7380
+
+    - if ( ! ${globals.isTargetVersionLowerThan7380} ):
+        - isVersionLower:
+            a: "${this.targetDockerTag}"
+            b: "8.0.0.0"
+            res: isTargetVersionLowerThan8000
+        - isVersionLower:
+            a: "${this.targetDockerTag}"
+            b: "8.0.2.0"
+            res: isTargetVersionLowerThan8020
+        - if ( ${globals.isTargetVersionLowerThan8000} || ! ${globals.isTargetVersionLowerThan8020} ):
+            # If the targetDockerTag < 8.0.0.0 or >= 8.0.2.0
+            cmd[proc,cp]: |-
+              INFO_DIR="/data/digital-factory-data/info"
+              if [ ! -f $INFO_DIR/version.properties ]; then
+                mkdir -p $INFO_DIR
+                echo "version=${nodes.proc.version}" > $INFO_DIR/version.properties
+              fi
+            user: tomcat
+
+  #######################
+  # jexperience related #
+  #######################
+  getEnvLinkedJcustomer:
+    # Parameters:
+    #   - envName: jahia env name to fetch info from
+    - script: |
+        const envName = "${this.envName}";
+        envs = jelastic.env.control.GetEnvInfo(envName, session);
+
+        unomi_linked = envs.nodeGroups.filter(function (nodeGroup) {
+                         return nodeGroup.name == "cp";
+                       })
+                       .pop()
+                       .envLink;
+
+        return unomi_linked?
+        {"result": 0, value: unomi_linked, "is_linked": true, "out": "Found a linked env"} :
+        {"result": 0, value: "none", "is_linked": false, "out": "No unomi env linked"};
+    - setGlobals:
+        unomi_env_name: ${response.value}
+        unomi_env_linked: ${response.is_linked}
+
+  checkJexperienceCfg:
+    # Parameters:
+    #   - jcustomerDns: jahia env name to fetch info from
+    #   - jcustomerPwd: jahia env name to fetch info from
+    - cmd[proc]: |-
+        CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
+        URL=$(grep jexperience.jCustomerURL $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g' |sed 's/https\?...//g')
+        if [ "$URL" != "${this.jcustomerDns}" ]; then
+          >&2 echo "error"
+        fi
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "jCustomer url is wrong."
+    - cmd[proc]: |-
+        CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
+        PWD=$(grep jexperience.jCustomerPassword $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g')
+        if [ "$PWD" != "${this.jcustomerPwd}" ]; then
+          >&2 echo "error"
+        fi
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "jCustomer password is wrong."

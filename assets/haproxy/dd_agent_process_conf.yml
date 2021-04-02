@@ -1,0 +1,10 @@
+---
+
+init_config:
+  pid_cache_duration: 5
+  shared_process_list_cache_duration: 5
+instances:
+  - name: haproxy
+    search_string: ["haproxy"]
+    min_collection_interval: 15
+

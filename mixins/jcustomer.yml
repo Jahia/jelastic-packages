@@ -1,0 +1,41 @@
+---
+actions:
+  getUnomiDnsAndPwd:
+    # Parameters:
+    #   - unomi_env_name
+    - script: |
+        var unomi_env_name = "${this.unomi_env_name}"
+        var resp = jelastic.env.control.GetEnvInfo(unomi_env_name, session)
+        for (var i = 0, g = resp.nodes; i < g.length; i++) {
+          if (g[i].nodeGroup == "cp") {
+            var unomi_nodeid = g[i].id
+            var unomi_version = g[i].version.split("-", 1)[0]
+            break
+          }
+        }
+        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'=' '$1~/ROOT_PASSWORD$/ {print $2}' {} \\;";
+        var command = toJSON([{"command": cmd}]);
+        var res = jelastic.env.control.ExecCmdById(unomi_env_name, session, unomi_nodeid, command)
+        var unomi_pwd = res['responses'][0]['out'];
+
+
+        const container_env_vars = jelastic.env.control.GetContainerEnvVars(
+                                     unomi_env_name,
+                                     session,
+                                     unomi_nodeid
+                                   );
+        const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
+
+        return {
+          'result': 0,
+          'domain': resp.env.domain,
+          'unomi_pwd': unomi_pwd,
+          'unomi_version': unomi_version,
+          'allowed_ips': allowed_ips
+        }
+
+    - setGlobals:
+        unomidns: ${response.domain}
+        unomi_pwd: ${response.unomi_pwd}
+        unomi_version: ${response.unomi_version}
+        unomi_allowed_ips: ${response.allowed_ips}

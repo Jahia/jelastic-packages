@@ -1,0 +1,235 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Update events
+logo: ../../assets/jahia/jahia-logo-70x70.png
+id: jahia-update-events
+description:
+  short: Jahia - Update events
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+
+onBeforeScaleIn[cp]:
+  - forEach(event.response.nodes):
+      - removeNodeFromHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+
+onAfterScaleIn[cp]:
+  - refreshProxysqlInstancesList
+
+onAfterServiceScaleOut[cp]:
+  - forEach(event.response.nodes):
+      - onAfterBrowsingScaleOut:
+          newNode: ${@i.id}
+  - resetHaproxyBackends
+  - refreshProxysqlInstancesList
+
+onBeforeRestartNode[cp]:
+  removeNodeFromHaproxy:
+    nodeId: ${event.params.nodeId}
+
+onAfterRestartNode[cp]:
+  forEach(nodes.cp):
+    if ("${event.params.nodeId}" == "${@i.id}"):
+      - startupJahiaHealthCheck: ${event.params.nodeId}
+      - addNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+
+onAfterRestartNode[proc]:
+  startupJahiaHealthCheck: ${event.params.nodeId}
+
+onBeforeRedeployContainer[cp]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - forEach(nodes.cp):
+          removeNodeFromHaproxy:
+            nodeId: ${@i.id}
+      - cmd [cp]: |-
+          service tomcat stop
+        user: root
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - removeNodeFromHaproxy:
+          nodeId: ${event.params.nodeId}
+      - cmd [${event.params.nodeId}]: |-
+          service tomcat stop
+        user: root
+
+onAfterRedeployContainer[cp]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
+      - startupJahiaHealthCheck: ${event.params.nodeGroup}
+      - resetHaproxyBackends
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - onAfterRedeployJahiaContainer: ${event.params.nodeId}
+      - forEach(nodes.cp):
+          if ("${event.params.nodeId}" == "${@i.id}"):
+            - startupJahiaHealthCheck: ${event.params.nodeId}
+            - addNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+
+onBeforeRedeployContainer[proc]:
+  - cmd [proc]: |-
+      service tomcat stop
+    user: root
+
+onAfterRedeployContainer[proc]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
+      - cmd [proc]: |-
+          echo $JAHIA_UPGRADE
+        user: root
+      - if ('${response.out}' == ''):
+          startupJahiaHealthCheck: ${event.params.nodeGroup}
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - onAfterRedeployJahiaContainer: ${event.params.nodeId}
+      - startupJahiaHealthCheck: ${event.params.nodeId}
+
+onAfterRedeployContainer[bl]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - setSudoer: ${event.params.nodeGroup}
+      - splitHaproxyConf: ${event.params.nodeGroup}
+      - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
+      - environment.control.ApplyNodeGroupData [bl]:
+          data:
+            productName: haproxy
+            productVersion: ${nodes.bl.first.version}
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - setSudoer: ${event.params.nodeId}
+      - splitHaproxyConf: ${event.params.nodeId}
+      - setupDatadogAgentHaproxy: ${event.params.nodeId}
+      - environment.control.ApplyNodeGroupData [bl]:
+          data:
+            productName: haproxy
+            productVersion: ${nodes.bl.first.version}
+
+onBeforeRedeployContainer[sqldb]:
+  # disable mysql autostart because JEM will do it
+  - if ('${event.params.nodeGroup:}'):
+      - mysqlService:
+          target: ${event.params.nodeGroup}
+          action: disable
+  - elif ('${event.params.nodeId:}'):
+      - mysqlService:
+          target: ${event.params.nodeId}
+          action: disable
+
+onAfterRedeployContainer[sqldb]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - setSudoer: ${event.params.nodeGroup}
+      - setupDatadogAgentSql: ${event.params.nodeGroup}
+      - mysqlService:
+          target: ${event.params.nodeGroup}
+          action: enable
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - setSudoer: ${event.params.nodeId}
+      - setupDatadogAgentSql: ${event.params.nodeId}
+      - mysqlService:
+          target: ${event.params.nodeId}
+          action: enable
+
+onBeforeStop:
+  - stopJahia: cp, proc
+  - stopGalera
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Stopping environment $envName"
+      text: "$envName is going to stop"
+
+onAfterStart:
+  - startupJahiaHealthCheck: cp, proc
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "$envName environment started"
+      text: "$envName is started"
+
+onBeforeMigrate:
+  logEvent:
+    target: ${nodes.proc.first.id}
+    title: "Migration triggered for $envName environment"
+    text: "$envName going to be migrate"
+
+onAfterMigrate:
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "$envName has been migrated"
+  - refreshProxysqlInstancesList
+
+onBeforeRestartNode:
+  logEvent:
+    target: ${event.params.nodeId}
+    title: "Restarting node ${event.params.nodeId}"
+    text: "${event.params.nodeId} node is going to be restarted"
+
+onAfterRestartNode:
+  logEvent:
+    target: ${event.params.nodeId}
+    title: "Node ${event.params.nodeId} restarted"
+    text: "Node ${event.params.nodeId} has restarted"
+
+onBeforeRedeployContainer:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      logEvent:
+        target: ${event.params.nodeGroup}
+        title: "Redeploying ${event.params.nodeGroup} nodes to ${event.params.tag} version"
+        text: "${event.params.nodeGroup} nodes are going to be redeploy to ${event.params.tag} version"
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      logEvent:
+        target: ${event.params.nodeId}
+        title: "Redeploying node ${event.params.nodeId} to ${event.params.tag} version"
+        text: "Node ${event.params.nodeId} is going to be redeploy to ${event.params.tag} version"
+
+onAfterRedeployContainer:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - getLogEventScript: ${event.params.nodeGroup}
+      - logEvent:
+          target: ${event.params.nodeGroup}
+          title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+          text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - getLogEventScript: ${event.params.nodeId}
+      - logEvent:
+          target: ${event.params.nodeId}
+          title: "Node ${event.params.nodeId} redeployed to ${event.params.tag} version"
+          text: "Node ${event.params.nodeId} has been redeploy to ${event.params.tag} version"
+
+onBeforeScaleIn:
+  forEach(event.response.nodes):
+    logEvent:
+      target: ${@i.id}
+      title: "Scaling in ${event.params.nodeGroup} node group"
+      text: "Node ${@i.id} is going to be removed"
+
+onAfterServiceScaleOut:
+  forEach(event.response.nodes):
+    logEvent:
+      target: ${@i.id}
+      title: "Scaled out ${event.params.nodeGroup} node group"
+      text: "Node ${@i.id} has been added"
+
+onBeforeDelete:
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Deleting environment $envName"
+      text: "$envName is going to be deleted"
+  - deleteEnvLink

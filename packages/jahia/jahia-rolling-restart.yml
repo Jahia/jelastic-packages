@@ -1,0 +1,18 @@
+---
+type: update
+version: 1.5.2
+id: jahia-rolling-restart
+name: Jahia nodes rolling restart
+description: Rolling restart all Jahia nodes (cp & proc)
+
+
+onInstall:
+  - restart: ${nodes.proc.first.id}
+  - foreach (nodes.cp):
+      - restart: ${@i.id}
+
+
+actions:
+  restart:
+    - api: environment.control.RestartNodeById
+      nodeId: ${this}

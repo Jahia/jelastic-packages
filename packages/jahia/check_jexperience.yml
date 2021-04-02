@@ -1,0 +1,42 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - check jexperience
+id: jahia-check-jexperience
+description:
+  short: Jahia - check jexperience
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+
+onInstall:
+  - getEnvLinkedJcustomer:
+      envName: ${env.envName}
+  - if (! ${globals.unomi_env_linked}):
+      - return:
+          type: success
+          message: "No unomi linked"
+
+  - getUnomiDnsAndPwd:
+      unomi_env_name: ${globals.unomi_env_name}
+  - checkJexperienceCfg:
+      jcustomerDns: ${globals.unomidns}
+      jcustomerPwd: ${globals.unomi_pwd}
+  - checkAllowedIps
+
+actions:
+  checkAllowedIps:
+    - checkIP: ${nodes.proc.first.intIP}
+    - foreach (nodes.cp):
+        - checkIP: ${@i.intIP}
+
+  checkIP:
+    - script: |-
+        var contains = "${globals.unomi_allowed_ips}".indexOf("${this}") !== -1
+        return {'result': 0, "is_included": contains}
+    - if ( "${response.is_included}" != "true" ):
+        return:
+          type: error
+          message: "IP ${this} not allowed in jcustomer configuration"

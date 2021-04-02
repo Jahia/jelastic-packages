@@ -1,0 +1,313 @@
+---
+# Depends on:
+#   - common.yml
+#   - jahia.yml
+
+actions:
+  ####################
+  # database related #
+  ####################
+  installDatabase:
+    # Parameters:
+      #   - user: DB username 
+      #   - password: DB user's password
+    - setSudoer: sqldb
+    - log: "## Setup MariaDB logrotate"
+    - setGlobalRepoRootUrl
+    - cmd[sqldb]: |-
+        mkdir /etc/systemd/system/{mysql,mariadb}.service.d
+        echo -e "[Service]\nLimitNOFILE=524290" | tee /etc/systemd/system/{mysql,mariadb}.service.d/override.conf
+        # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
+        sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
+        [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
+        [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
+        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M" > /etc/mysql/conf.d/mysql.cnf
+        mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024;"
+        wget -qO /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql
+        logrotate -f /etc/logrotate.d/mysql
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during mariadb setup."
+    - if (nodes.sqldb.length > 1):
+        - installGaleraCluster
+    - log: "## Create DX's Jahia database and user"
+    - cmd[${nodes.sqldb.master.id}]: |-
+        mysql -e "CREATE DATABASE IF NOT EXISTS jahia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        mysql -e "grant all privileges on jahia.* to '${this.user}'@'%' identified by '${this.password}';"
+        mysql -e "flush privileges;"
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when creating jahia database."
+
+  createDataDogUser:
+    - log: "## Create Datadog database user"
+    - cmd[${nodes.sqldb.master.id}]: |-
+        exists=$(mysql -sNe "select count(*) from  mysql.user where User='datadog' and Host='localhost';")
+        if [ $exists -lt 1 ]; then
+          mysql -e "CREATE USER 'datadog'@'localhost' IDENTIFIED BY '${DB_USER_DATADOG}';"
+          mysql -e "GRANT REPLICATION CLIENT ON *.* TO 'datadog'@'localhost' WITH MAX_USER_CONNECTIONS 5;"
+          mysql -e "GRANT PROCESS ON *.* TO 'datadog'@'localhost';"
+          mysql -e "GRANT SELECT ON performance_schema.* TO 'datadog'@'localhost';"
+        fi
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when creating datadog database."
+
+  setupDatadogAgentSql:
+    - createDataDogUser
+    - log: "## Finalize Datadog agent setup on ${this}"
+    - setGlobalRepoRootUrl
+    - cmd [${this}]: |-
+        DD_API_KEY=$(sed -n 's/DATADOGAPIKEY=\(.*\)/\1/p' < /.jelenv) bash -c "$(curl -sL https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+        NODE_NAME=${HOSTNAME/-*}
+        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
+        echo "tags:" >> /etc/datadog-agent/datadog.yaml
+        echo " - product:jahia" >> /etc/datadog-agent/datadog.yaml
+        echo " - version:${DX_VERSION}" >> /etc/datadog-agent/datadog.yaml
+        echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
+        echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
+        echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
+        echo " - envmode:${jahia_cfg_operatingMode}" >> /etc/datadog-agent/datadog.yaml
+        echo "---" > /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "logs:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "  - type: file" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    path: /var/log/mysql/mysqld.log" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    source: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    service: ${env.shortdomain}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    log_processing_rules:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "      - type: multi_line " >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "        name: new_log_start_with_date" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "        pattern: \d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "  - type: file" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    path: /var/log/mysql/slow-queries.log" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    source: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    service: ${env.shortdomain}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "init_config:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "instances:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "  - server: 127.0.0.1" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    user: datadog" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    pass: ${DB_USER_DATADOG}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    sock: /var/lib/mysql/mysql.sock" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    tags:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "      - 'env:${env.envName}'" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "      - 'role:database'" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    options:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       replication: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       galera_cluster: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       extra_status_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       extra_innodb_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       extra_performance_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       schema_size_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       disable_innodb_metrics: false" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+        chown mysql:root /var/log/jelastic-packages
+        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
+        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        wget -qO /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh
+        wget -qO /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron
+        chmod u+x /usr/local/bin/set_dd_tags.sh
+        chmod 644 /var/log/mysql/mysqld.log
+        chmod 644 /var/log/mysql/slow-queries.log  > /dev/null 2>&1
+        systemctl restart crond datadog-agent
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred when installing datadog agent on a mariadb node."
+
+  checkMariadbHealth:
+    - cmd [${this}]: |-
+        if ! service mysql status > /dev/null; then
+          echo "[ERROR] Mariadb service is not running, exiting" 1>&2 && exit 1
+        fi
+        if ! mysqladmin -s processlist 1>/dev/null; then
+          echo "[ERROR] Can't connect to mysql instance, exiting" 1>&2 && exit 1
+        fi
+      user: root
+
+  getGaleraNodeNameIndex:
+    - cmd [${this}]: |-
+        my_ip=$(grep $(hostname) /etc/hosts | awk '{print $1}')
+        awk -v my_ip="$my_ip galera" '$0 ~my_ip {print $2}' /etc/hosts
+    - setGlobals:
+        galeraNodeNameIndex: "${response.out}"
+
+  mysqlService:
+    - if ("${this.action}" == "enable"):
+        - cmd [${this.target}]: |-
+            sed -i '/^\/var\/lib\/jelastic\/overrides\/envinfo.lib/d' /etc/jelastic/redeploy.conf
+            rm /var/lib/jelastic/overrides/envinfo.lib || exit 0
+          user: root
+    - if ("${this.action}" == "disable"):
+        - cmd [${this.target}]: |-
+            echo "SERVICE=''" > /var/lib/jelastic/overrides/envinfo.lib
+            echo "/var/lib/jelastic/overrides/envinfo.lib" >> /etc/jelastic/redeploy.conf
+
+  ##################
+  # galera related #
+  ##################
+  installGaleraCluster:
+    - resetCluster
+    - initialSetup
+    - setupSeeds
+    - forEach(i:nodes.sqldb):
+        setupInstance:
+          id: "${@i.id}"
+    - cmd[${nodes.sqldb.master.id}]: "/etc/init.d/mysql stop; sleep 5; galera_new_cluster;"
+      user: root
+    - forEach(n:nodes.sqldb):
+        if (!${@n.ismaster}):
+          cmd[${@n.id}]: "jem service restart"
+
+  setupInstance:
+    - cmd[${this.id}]: |-
+        sed -i "s/server_id.*/server_id = $(echo '${env.region}' | md5sum | grep -Eo "[[:digit:]]{3}" | head -n1)/" /etc/mysql/conf.d/galera.cnf
+        sed -i "s/bind-address.*/bind-address = node${this.id}/" /etc/mysql/conf.d/galera.cnf
+        sed -i "s/report_host.*/report_host = node${this.id}/" /etc/mysql/conf.d/galera.cnf
+        sed -i "s/wsrep_cluster_name.*/wsrep_cluster_name = galera-cluster/" /etc/mysql/conf.d/galera.cnf
+        sed -i "s/wsrep_node_name.*/wsrep_node_name = node${this.id}/" /etc/mysql/conf.d/galera.cnf
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during galera cluster setup."
+
+  initialSetup:
+    - setNodeDisplayName[sqldb]: Galera
+    - setGlobalRepoRootUrl
+    - cmd[sqldb]: |-
+        wget -q ${globals.repoRootUrl}/assets/database/mysql-init.d -O /etc/init.d/mysql
+        wget -q ${globals.repoRootUrl}/assets/database/galera.cnf -O /etc/mysql/conf.d/galera.cnf &>> /var/log/run.log
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during galera cluster setup."
+
+  stopGalera:
+    forEach(nodes.sqldb):
+      - log: "Stopping MariaDB on node ${@i.id}..."
+      - cmd[${@i.id}]: |-
+          service mysql stop || exit 1
+          cat /var/lib/mysql/grastate.dat || true
+        user: root
+
+  setupSeeds:
+    script: |
+      var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
+      if (resp.result != 0) return resp;
+      var intIP = [];
+      for (var i = 0, n = resp.nodes; i < n.length; i++)
+        n[i].nodeGroup == "sqldb" ? intIP.push(n[i].intIP) : 0
+      resp = {result:0, onAfterReturn: {}};
+      resp.onAfterReturn['cmd[sqldb]'] = 'sed -i "s|wsrep_cluster_address.*|wsrep_cluster_address = gcomm://'+ intIP.join(',') +'|g " /etc/mysql/conf.d/galera.cnf';
+      resp.onAfterReturn['user'] = 'root';
+      return resp;
+
+  resetCluster:
+    - cmd[sqldb]: |-
+        [ -f /etc/mysql/conf.d/galera.cnf ] && rm -f /etc/mysql/conf.d/galera.cnf
+        [ -f /var/lib/mysql/grastate.dat ] && rm -f /var/lib/mysql/grastate.dat
+        [ -f /var/lib/mysql/gvwstate.dat ] && rm -f /var/lib/mysql/gvwstate.dat
+        [ -f /var/lib/mysql/galera.cache ] && rm -f /var/lib/mysql/galera.cache
+        /etc/init.d/mysql stop; pkill -9 mysql; /etc/init.d/mysql start
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during galera cluster init."
+
+  checkGaleraClusterHealth:
+    - cmd [${this}]: |-
+        if [ -f /var/lib/mysql/grastate.dat ]; then
+          if [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" != "Synced"  ]; then
+            echo "[ERROR] Galera cluster not synced, exiting" 1>&2 && exit 1
+          fi
+        fi
+      user: root
+
+  stopGaleraNode:
+    cmd[${this}]: |-
+      service mysql stop || exit 1
+      if [ -f /var/lib/mysql/grastate.dat ]; then
+        cat /var/lib/mysql/grastate.dat
+      else
+        echo "$HOSTNAME is not in a cluster"
+      fi
+      service mysql stop
+    user: root
+
+  startGaleraNode:
+    cmd[${this}]: |-
+      service mysql start
+      rc=$?
+      if [ ! -f /var/lib/mysql/grastate.dat ]; then
+        echo "$HOSTNAME is not in a cluster, exiting"
+        exit $rc
+      fi
+      i=1
+      it=66
+      until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" == "Synced"  ]; do
+        echo "$(date) not ready yet (iteration $i/$it)"
+        if [ $i -ge $it ]; then
+          echo "Too long to start, something is wrong here... EXITING"
+          exit 1
+        fi
+        sleep 1
+        ((i++))
+      done
+      echo "Node $HOSTNAME is now Synced !"
+    user: root
+
+  checkGaleraClusterSize:
+    # Ensure the cluster size match the node count
+    - cmd[${nodes.sqldb.first.id}]: |-
+        mysql -Nse "show global status like 'wsrep_cluster_size';" | awk '{print $NF}'
+    - if ("${response.out}" == "${nodes.sqldb.length}"):
+        setGlobals:
+          galeraClusterSizeOk: True
+    - else:
+        setGlobals:
+          galeraClusterSizeOk: False
+
+  redeployGalera:
+    - if (nodes.sqldb.length > 1):
+        - checkGaleraClusterHealth: sqldb
+        - checkGaleraClusterSize
+        - if (!${globals.galeraClusterSizeOk}):
+            return:
+              type: error
+              message: "Galera cluster size is wrong. Aborting"
+    - forEach(nodes.sqldb):
+        - log: "Redeploying MariaDB on node ${@i.id}..."
+        - getGaleraNodeNameIndex: ${@i.id}
+        - proxysqlSetMariadbBackendStatus:
+            targetHost: ${globals.galeraNodeNameIndex}
+            newStatus: OFFLINE_SOFT
+        - stopGaleraNode: ${@i.id}
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${globals.targetDockerTag}
+          useExistingVolumes: true
+          skipReinstall: false
+          envName: ${env.envName}
+        - proxysqlSetMariadbBackendStatus:
+            targetHost: ${globals.galeraNodeNameIndex}
+            newStatus: ONLINE
+
+        # We are going to a new if dimension, let's save some information
+        - setGlobals:
+            currentNode: ${@i.id}
+        - if (nodes.sqldb.length > 1):
+            - checkGaleraClusterHealth: sqldb
+            - checkGaleraClusterSize
+            - if (!${globals.galeraClusterSizeOk}):
+                return:
+                  type: error
+                  message: "Galera node ${globals.currentNode} was not able to join the cluster after being redeployed"

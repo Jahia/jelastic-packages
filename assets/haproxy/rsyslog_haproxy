@@ -1,0 +1,9 @@
+$ModLoad imudp
+$UDPServerRun 514
+$Umask 0024
+$fileGroup dd-agent
+$template Haproxy,"%msg%\n"
+local0.=info -/var/log/haproxy/haproxy.log;Haproxy
+local0.notice -/var/log/haproxy/haproxy-status.log;Haproxy
+### keep logs in localhost ##
+local0.* ~

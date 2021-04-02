@@ -1,0 +1,6 @@
+---
+logs:
+    - type: file
+      path: /var/log/jelastic-packages/*.log
+      source: jelastic-package
+      service: jelastic-package
