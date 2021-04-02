@@ -78,7 +78,7 @@ Used by Jahia Cloud to reset polling when an action fails (especially during bac
 
 #### jahia/install.yml
 
-The base JPS, called by Jahia Cloud to create an environment. It contains *only* nodes and events definition since actions are all defined in mixins JPS.
+The base JPS, called by Jahia Cloud to create an environment.
 
 Takes as parameters:
 
