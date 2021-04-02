@@ -101,7 +101,20 @@ Images used by Jahia environment nodes:
 | MariaDB          | jelastic/mariadb      |
 
 ## Packages
+
+### common
+
+#### common/reset-polling.yml
+
+Used by Jahia Cloud to reset polling when an action fails (especially during backup/restore). It generates a *finished* action on Jelastic Console so the frontend can be aware that there was an issue with previous JPS execution.
+
+| parameter | comment          |
+|-----------|------------------|
+| feature   | Feature involved |
+| datetime  | Date & Time      |
+
 ### jahia
+
 #### jahia/install.yml
 
 The base JPS, called by Jahia Cloud to create an environment. It contains *only* nodes and events definition since actions are all defined in mixins JPS.
@@ -147,21 +160,11 @@ This *upgrade* package aims at upgrading Jahia version by redeploying Jahia node
 | targetVersion  | Optional.<br>If you don't specify a version, the current Jahia version of the target environment will be selected. |
 | rollingUpgrade | Boolean value<br>For now has to be set to `false`.                                                                 |
 
-### one-shot
-#### one-shot/reset-polling.yml
-
-Used by Jahia Cloud to reset polling when an action fails (especially during backup/restore). It generates a *finished* action on Jelastic Console so the frontend can be aware that there was an issue with previous JPS execution.
-
-| parameter | comment          |
-|-----------|------------------|
-| feature   | Feature involved |
-| datetime  | Date & Time      |
-
-#### one-shot/check_jexperience.yml
+#### jahia/check_jexperience.yml
 
 Check if a jahia env is alowed to talk with is linked jcustomer env.
 
-#### one-shot/ipsec.yml
+#### jahia/ipsec.yml
 
 This manifest will create or update a Strongswan IPSec connection on each tomcat's nodes.
 
@@ -170,7 +173,7 @@ This manifest will create or update a Strongswan IPSec connection on each tomcat
 | vault_secret_path | The Vault path where the connection conf is stored.               |
 | ipsec_should_be   | Boolean.<br>Tell if the previous connection should be up or down. |
 
-#### one-shot/manage-auth-basic.yml
+#### jahia/manage-auth-basic.yml
 
 Enable or disable an Auth Basic at haproxy level.
 
@@ -180,7 +183,7 @@ Enable or disable an Auth Basic at haproxy level.
 | login     | User name to use.                             |
 | pwd       | Password to use.                              |
 
-#### one-shot/rewrite-rules.yml
+#### jahia/rewrite-rules.yml
 
 This will add customer's custom rule to HAProxy configuration.
 
@@ -189,7 +192,7 @@ This will add customer's custom rule to HAProxy configuration.
 | vault_secret_path | The Vault path where the connection conf is stored.                       |
 | md5sum            | For compare the rules at Cloud's front level and what is stored in Vault. |
 
-#### one-shot/set-jahia-root-password.yml
+#### jahia/set-jahia-root-password.yml
 
 Prepare a jahia's env root password update by setting a file on the processing node. Customers will still have to restart the processing node for being effective.
 
@@ -197,7 +200,7 @@ Prepare a jahia's env root password update by setting a file on the processing n
 |-----------|----------------------|
 | rootpwd   | The password to set. |
 
-#### one-shot/set-jahia-tools-password.yml
+#### jahia/set-jahia-tools-password.yml
 Prepare a jahia's env _/tools_ password update on each tomcat nodes. Customers will still have to restart all tomcat nodes for being fully effective.
 
 | parameter | comment              |
