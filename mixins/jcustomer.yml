@@ -213,3 +213,39 @@ actions:
         echo "120 seconds timeout exeeded, exiting with error" >> $log_file
         exit 1
     user: root
+
+  updateJahia:
+    # Parameters:
+    #   - new_password
+    # Update the jcustomer's root password in all linked jahia env(s)
+    - setGlobalRepoRootUrl
+    - script: |-
+        jahia_linked = [];
+        envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
+
+        for (i in envs) {
+          nodeGroups = envs[i]["nodeGroups"];
+          for (j in nodeGroups) {
+            if (nodeGroups[j]["envLink"] == "${env.envName}") {
+              jahia_linked.push(envs[i]["env"]["envName"]);
+              break;
+            }
+          }
+        }
+
+        if (jahia_linked.length == 0) {
+          return {"result": 0, "out": "No jahia linked"};
+        }
+
+        res = ""
+        jahia_linked.forEach(
+          function(jahiaEnvname) {
+            data = {
+              "targetAppid": jahiaEnvname,
+              "settings": {"pwd": "${this.new_password}"},
+              "manifest": "${globals.repoRootUrl}/package/jahia/set-jcustomer-password-in-jahia.yml"
+            };
+            res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
+          }
+        );
+        return {"result": 0, "out": "Jahia environments updated " + res};
