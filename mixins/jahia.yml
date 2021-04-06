@@ -816,3 +816,174 @@ actions:
         - return:
             type: error
             message: "jCustomer password is wrong."
+
+  setNGData:
+    # ParaVmeters:
+    #   - jcustomer_env: the jcustomer env to link with
+    - script: |
+        var resp = jelastic.env.control.GetNodeGroups('${this.jcustomer_env}', session);
+        for (var i = 0, g = resp.object; i < g.length; i++) {
+          if (g[i].name == 'cp' && g[i].hasOwnProperty('envLink')) {
+            var actual_envLink = g[i].envLink;
+            if (actual_envLink.indexOf('${env.shortdomain}') >= 0) {
+              envLinkToSet = actual_envLink;
+            } else {
+                envLinkToSet = actual_envLink + ',' + '${env.shortdomain}';
+              };
+          } else {
+              envLinkToSet = '${env.shortdomain}';
+            };
+        };
+        return {'result': 0, 'envLinkToSet': envLinkToSet, 'response': resp};
+    - set:
+        envLinkToSet: ${response.envLinkToSet}
+    - log: "## this DX appid will now be set to cp node(s) in the Unomi env: ${this.envLinkToSet}"
+    - script: |
+        var resp = jelastic.env.control.ApplyNodeGroupData('${this.jcustomer_env}', session,
+          nodeGroup='cp',
+          data={'envLink': '${this.envLinkToSet}'}
+        );
+        if (resp.result != 0) return resp;
+        var new_prop = jelastic.env.control.GetNodeGroups('${this.jcustomer_env}', session);
+          return {'result': new_prop.result, 'new_prop': new_prop};
+
+  allowIP:
+    # ParaVmeters:
+    #   - jcustomer_env: the jcustomer env on wich allow jahia's env IPs
+    - script: |
+        const unomi_env_name = "${settings.unomienv}";
+        const nodes_infos = jelastic.env.control.GetEnvInfo(
+                unomi_env_name,
+                session
+              ).nodes;
+        const node_id = nodes_infos.filter(function (node) {
+                          return node.nodeGroup == "cp";
+                        }).pop().id;
+        const container_env_vars = jelastic.env.control.GetContainerEnvVars(
+                                     unomi_env_name,
+                                     session,
+                                     node_id
+                                   );
+        const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
+
+        return allowed_ips === undefined?
+          {"result": 0, "value": ""} :
+          {"result": 0, "value": allowed_ips};
+    - setGlobals:
+        unomi_allowed_ips: ${response.value}
+    - script: |
+        var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
+        if (resp.result != 0) return resp;
+        var ipadd = [];
+        for (var i = 0, n = resp.nodes; i < n.length; i++) {
+          var dockername = n[i].nodeGroup;
+          if (dockername == 'cp' || dockername == 'proc') {
+            ipadd.push(n[i].address);
+          };
+          //ipadd.push(dockername);
+        };
+        return {"result": 0,
+          "ipadd": ipadd.toString()
+        };
+    - setGlobals:
+        ipadd_to_allow: ${response.ipadd}
+    - log: "## these ip addresses should be allowed for unomi: ${globals.ipadd_to_allow}"
+    - script: |
+        // Filter the list in order to remove empty strings
+        var allowed_ips = '${globals.unomi_allowed_ips}'.split(',')
+                          .filter( function(e) {
+                            return e;
+                          });
+        var new_ip_to_allow = '${globals.ipadd_to_allow}'.split(',');
+        var ip_to_allow = allowed_ips.concat(new_ip_to_allow).join(',');
+        var resp = jelastic.env.control.AddContainerEnvVars('${settings.unomienv}',
+          session,
+          nodeGroup='cp',
+          vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': ip_to_allow }
+        );
+        if (resp.result != 0) return resp;
+        return {"result": 0, "allowed_ips": ip_to_allow}
+    - log: "## 'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES=${response.allowed_ips}' set in unomi nodes"
+    - script: |
+        var resp = jelastic.env.control.RestartNodes('${settings.unomienv}',
+          session,
+          nodeGroup='cp'
+        );
+        if (resp.result != 0) return resp;
+        return {"result": 0}
+    - log: "## unomi nodes get order to restart"
+
+  getUnomiDNSandPwd:
+    - script: |
+        var resp = jelastic.env.control.GetEnvInfo('${this.jcustomer_env}', session)
+        for (var i = 0, g = resp.nodes; i < g.length; i++) {
+          if (g[i].nodeGroup == "cp") {
+            var unomi_nodeid = g[i].id
+            var unomi_version = g[i].version.split("-", 1)[0]
+            break
+          }
+        }
+        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'=' '$1~/ROOT_PASSWORD$/ {print $2}' {} \\;"
+        var command = toJSON([{"command": cmd}])
+        var res = jelastic.env.control.ExecCmdById('${this.jcustomer_env}', session, unomi_nodeid, command)
+        var unomi_pwd = res['responses'][0]['out']
+        return {'result': 0, 'domain': resp.env.domain, 'unomi_pwd': unomi_pwd, 'unomi_version': unomi_version}
+    - setGlobals:
+        unomidns: ${response.domain}
+        unomi_pwd: ${response.unomi_pwd}
+        unomi_version: ${response.unomi_version}
+
+    - getJahiaVersion
+
+    # Get jExperience version to install according to Jahia env version:
+    # - Jahia 7.3.x ==> jExperience 1.11.4
+    # - Jahia 8 < 8.0.2 ==> jExperience 1.12.2
+    # - Jahia 8.0.2+ ==> jExperience 1.12.3
+    - isVersionLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isLowerThan8000
+    - if( ${globals.isLowerThan8000} ):
+        - setGlobals:
+            jexperience_version: 1.11.4
+    - else:
+        - isVersionLower:
+            a: ${globals.jahiaVersion}
+            b: 8.0.2.0
+            res: isLowerThan8020
+        - if( ${globals.isLowerThan8020} ):
+            - setGlobals:
+                jexperience_version: 1.12.2
+        - else:
+            - setGlobals:
+                jexperience_version: 1.12.3
+
+  installJexperience:
+    - setGlobalRepoRootUrl
+    - cmd[${this}]: |-
+        MODULE_FILENAME=jexperience-${globals.jexperience_version}.jar
+        MODULE_PATH="/data/digital-factory-data/modules/$MODULE_FILENAME"
+        MODULE_URL="https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/jexperience/${globals.jexperience_version}/jexperience-${globals.jexperience_version}.jar"
+        CONF_FILENAME=org.jahia.modules.jexperience.settings-global.cfg
+        CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
+        # Clean up previous jExperience installation (if any)
+        if [ -f "$MODULE_PATH" ]; then
+          rm -v "$MODULE_PATH"
+        fi
+        if [ -f "$CONF_PATH" ]; then
+          rm -v "$CONF_PATH"
+        fi
+        # Set up jExperience configuration
+        jcustomer_key=$(sudo cat /root/.secrets/jcustomer.key)
+        wget -qO "$CONF_PATH" "${globals.repoRootUrl}/assets/jahia/$CONF_FILENAME"
+        sed -i 's!\(\(mf\|jexperience\)\.\(unomi\|jCustomer\)URL= http://\).*!\1${globals.unomidns}!' "$CONF_PATH"
+        sed -i "s,^\# \(\(mf\|jexperience\)\.\(unomi\|jCustomer\)Key=\),\1${jcustomer_key}," "$CONF_PATH"
+        sed -i 's/\(\(mf\|jexperience\)\.\(unomi\|jCustomer\)Password=\)karaf/\1${globals.unomi_pwd}/' "$CONF_PATH"
+        chown tomcat:tomcat "$CONF_PATH"
+        # Install jExperience module
+        wget -qO "$MODULE_PATH" "$MODULE_URL"
+        chown tomcat:tomcat "$MODULE_PATH"
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during jexperience installation."

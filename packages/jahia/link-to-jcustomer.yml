@@ -1,0 +1,36 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Update jExperience config
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-unomi-update-dx
+description:
+  short: Jahia - Update jExperience config
+
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+
+
+onInstall:
+  - setNGData:
+      jcustomer_env: ${settings.unomienv}
+  - environment.control.ApplyNodeGroupData[proc, cp]:
+      data:
+        envLink: ${settings.unomienv}
+  - allowIP:
+      jcustomer_env: ${settings.unomienv}
+  - getUnomiDNSandPwd:
+      jcustomer_env: ${settings.unomienv}
+  - installJexperience: proc
+  - installJexperience: cp
+
+
+settings:
+  fields:
+    - name: unomienv
+      type: envlist
+      caption: Targeted Unomi env
+      required: true
+      valueField: shortdomain
