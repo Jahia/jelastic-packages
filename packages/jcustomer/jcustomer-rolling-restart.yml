@@ -1,0 +1,11 @@
+---
+type: update
+version: 1.5.2
+id: jcustomer-rolling-restart
+name: Jcustomer nodes rolling restart
+description: Rolling restart all Jcustomer nodes
+
+onInstall:
+  - foreach (nodes.cp):
+      api: environment.control.RestartNodeById
+      nodeId: ${@i.id}
