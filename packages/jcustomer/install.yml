@@ -1,0 +1,168 @@
+---
+type: install
+version: 1.5.2
+name: Unomi - Install
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-unomi
+description:
+  short: Unomi - Install
+  text: This is the Jahia Cloud package for Unomi.
+    Apache Unomi is a Java Open Source customer data platform, a Java server
+    designed to manage customers, leads and visitors data and help personalize
+    customers experiences while also offering features to respect visitor
+    privacy rules (such as GDPR).
+
+globals:
+  unomi_version: ${settings.productVersion}
+  unomi_root_password: ${fn.password(20)}
+  jcustomer_env_version: 3
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/elasticsearch.yml
+
+onBeforeInstall: |
+  var unomiVersion = '${settings.productVersion}'
+
+  var resp = {
+    result: 0,
+    nodes: []
+  }
+
+  // Elasticsearch port and version changes from jCustomer 1.5
+  if (unomiVersion >= "1.5") {
+    esPort = "9200";
+    esVersion = 7;
+  } else {
+    esPort = "9300";
+    esVersion = 5;
+  }
+
+  node_es = {
+    nodeType: "jahiastic-elasticsearch",
+    tag: esVersion,
+    displayName: "Elasticsearch v" + esVersion,
+    count: ${settings.ESMode},
+    cloudlets: 40,
+    nodeGroup: 'es',
+    isSLBAccessEnabled: false,
+    startServiceOnCreation: false,
+    env: {
+      UNOMI_VERSION: unomiVersion,
+      jahia_cfg_operatingMode: '${settings.mode}',
+      _ROLE: 'unomi',
+      _PROVIDE: 'elasticsearch',
+      ES_VERSION: esVersion,
+      envmode: '${settings.mode}'
+    },
+    "volumes": [
+      "/var/lib/elasticsearch"
+    ]
+  }
+
+  node_unomi = {
+    nodeType: "jcustomer",
+    tag: unomiVersion,
+    displayName: "Unomi v" + unomiVersion,
+    count: ${settings.UnomiMode},
+    cloudlets: 32,
+    nodeGroup: 'cp',
+    links: 'es:es',
+    startServiceOnCreation: false,
+    env: {
+      UNOMI_VERSION: unomiVersion,
+      jahia_cfg_operatingMode: '${settings.mode}',
+      UNOMI_HTTP_PORT: '80',
+      UNOMI_ELASTICSEARCH_ADDRESSES: 'es:' + esPort,
+      UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
+      _ROLE: 'unomi',
+      _PROVIDE: 'unomi',
+      ES_VERSION: esVersion,
+      envmode: '${settings.mode}'
+    },
+    "distribution": {
+        "mode": "STRICT",
+        "zones": [
+            {high_iops: false}
+        ]
+    }
+  }
+
+  resp.nodes.push(node_unomi)
+  resp.nodes.push(node_es)
+  return resp
+
+nodes: definedInOnBeforeInstall
+
+# --Events --
+onInstall:
+  - if (settings.rootPassword):
+      setGlobals:
+        unomi_root_password: ${settings.rootPassword}
+  - environment.control.ApplyNodeGroupData [cp, es]:
+      data:
+        productName: unomi
+        productVersion: ${settings.productVersion}
+  - setJournaldLimit
+  - getLogEventScript: cp, es
+  - env.control.AddContainerEnvVars [*]:
+    vars: {"envName": "${env.envName}", "DATADOGAPIKEY": "${settings.ddogApikey}"}
+  - setupES: es
+  - setReplica
+  - updateReplica
+  - setupUnomi:
+      unomi_root_password: ${settings.rootPassword}
+  - setupDatadogAgentUnomi:
+      target: cp
+      unomi_root_password: ${settings.rootPassword}
+  - setupDatadogAgentEs: es
+  - setEnvVersion: ${globals.jcustomer_env_version}
+  - install:
+      jps: "${baseUrl}/update-events.yml"
+  - checkJcustomerHealthWhenStarting: cp
+
+
+settings:
+  fields:
+    - name: productVersion
+      type: string
+      caption: jCustomer Version
+      required: true
+    - name: UnomiMode
+      type: list
+      caption: jCustomer mode
+      values:
+        "1": single
+        "2": 2 nodes cluster
+        "3": 3 nodes cluster
+        "4": 4 nodes cluster
+        "5": 5 nodes cluster
+        "6": 6 nodes cluster
+        "7": 7 nodes cluster
+      default: 1
+    - name: ESMode
+      type: list
+      caption: Elasticsearch mode
+      values:
+        "1": single
+        "3": 3 nodes cluster
+        "5": 5 nodes cluster
+      default: 1
+    - name: mode
+      type: radiolist
+      caption: Operating Mode
+      values:
+        production: production
+        development: development
+      default: production
+    - name: ddogApikey
+      type: string
+      caption: Datadog API KEY
+      required: true
+      vtype: text
+    - name: rootPassword
+      type: string
+      caption: Unomi root password
