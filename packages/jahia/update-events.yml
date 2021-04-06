@@ -2,7 +2,7 @@
 type: update
 version: 1.5.2
 name: Jahia - Update events
-logo: ../../assets/jahia/jahia-logo-70x70.png
+logo: ../../assets/common/jahia-logo-70x70.png
 id: jahia-update-events
 description:
   short: Jahia - Update events

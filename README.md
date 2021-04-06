@@ -2,6 +2,13 @@
 
 ## Overview
 This repo (not yet) contains all manifests and assets used for the Jahia Cloud PAAS platform.
+It's a merge of what where in previous _paas_*_ and _cloudr-scripts_ repos.
+
+Progress report:
+| repo                       | state              | comment                      |
+|----------------------------|--------------------|------------------------------|
+| paas_jelastic_dx_universal | :heavy_check_mark: | missing `region_migrate.yml` |
+| paas_jelastic_unomi        | :heavy_check_mark: | missing `region_migrate.yml` |
 
 ## Rules
 Here are some rules that should be observed:
@@ -33,9 +40,9 @@ Here are some rules that should be observed:
 
 ## Jahia Environments
 
-This repository hosts all packages, scripts & config files needed to create a Jahia environment on Jelastic.
-
 ### Infrasctructure overview
+
+#### Jahia env
 
 A Jahia environment contains:
 - Two Haproxy nodes
@@ -50,7 +57,17 @@ The processing node won't receive any request from client as browsing nodes are 
 
 In case of a Galera cluster, queries are all executed on the same MariaDB master node, which is replicated to the other ones.
 
+#### JCustomer
+
+A jCustomer environment contains:
+- One or two jCustomer nodes
+- One or thress Elasticsearch nodes
+
+Nodes numbers depend of the environment purpose: _development_ or _production_.
+
 ### Docker images
+
+#### Jahia env
 
 Images used by Jahia environment nodes:
 
@@ -60,6 +77,16 @@ Images used by Jahia environment nodes:
 | Jahia Browsing   | jahia/jahiastic-jahia |
 | Jahia Processing | jahia/jahiastic-jahia |
 | MariaDB          | jelastic/mariadb      |
+
+
+#### jCustomer env
+
+Images used by jCustomer environment nodes:
+
+| Node type     | Docker image              |
+| ------------- | ------------------------- |
+| jCustomer     | jahia/jahiastic-jcustomer |
+| Elasticsearch | jahiadev/elasticsearch    |
 
 ## Packages
 
@@ -167,6 +194,7 @@ Prepare a jahia's env _/tools_ password update on each tomcat nodes. Customers w
 | parameter | comment              |
 |-----------|----------------------|
 | tools_pwd | The password to set. |
+
 
 ## Monitoring
 
