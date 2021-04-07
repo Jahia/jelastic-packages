@@ -89,6 +89,14 @@ Images used by jCustomer environment nodes:
 | jCustomer     | jahia/jahiastic-jcustomer |
 | Elasticsearch | jahiadev/elasticsearch    |
 
+### Performance tests
+
+In order to run performance tests against a Jahia Cloud environment, required steps must be completed first by running `jahia/perf-test-step1.yml` and `jahia/perf-test-step2.yml` to the environment.
+
+The `jahia/perf-test-step1.yml` package will trigger asynchrounous actions (site import on Jahia) which can take a lot of time, so you have to wait for the processing's tomcat logs to go silent before proceeding to the next step.
+
+Once it is completed, you need to apply `jahia/perf-test-step2.yml` package to the environment. It will also trigger asychronous actions so you will have to wait for the processing's tomcat logs to go silent again before running any performance test.
+
 ## Packages
 
 ### common
@@ -168,6 +176,35 @@ This manifest will redeploy all galera nodes whith the jahia's Full ReadOnly mod
 | parameter       | comment                                                                  |
 |-----------------|--------------------------------------------------------------------------|
 | targetDockerTag | Jelastic Mariadb-dockerized template tag to use.<br>(default: `10.4.13`) |
+
+#### jahia/perf-test-step1.yml
+
+First step to install the performance tests site on Jahia.
+
+It will:
+- Install required modules (calendar, event, ldap, news, publication, remotepublish, sitemap, templates-web-blue-qa-2.0.2-SNAPSHOT)
+- Install required Linux packages (ImageMagick-devel, libreoffice, ffmpeg)
+- Update jahia.properties conf
+- Add LDAP provider (org.jahia.services.usermanager.ldap-cloud-perf.cfg)
+- Retrieve performance tests site archive and import it in Jahia
+    - https://github.com/Jahia/paas-jelastic-dx-perf-test/raw/master/assets/DXPerformanceTestSite_staging_7231.zip
+
+| parameter       | comment                                                                       |
+|-----------------|-------------------------------------------------------------------------------|
+| rootCredentials | The environment's root credentials seperated by a colon, e.g. "root:password" |
+
+#### jahia/perf-test-step2.yml
+
+Second step to install the performance tests site on Jahia.
+
+It will:
+- Pre-compile all servlets
+- Update Spell-Checker index
+- Restart Tomcat
+
+| parameter     | comment                                                                           |
+|---------------|-----------------------------------------------------------------------------------|
+| toolsPassword | The environment's tools credentials seperated by a colon, e.g. "manager:password" |
 
 #### jahia/rewrite-rules.yml
 
