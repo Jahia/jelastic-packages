@@ -4,7 +4,7 @@
 
 This repo (not yet) contains all manifests and assets used for the Jahia Cloud PAAS platform.
 
-It's a merge of what where in previous _paas_*_ and _cloudr-scripts_ repos.
+It's a merge of what where in previous _paas_*_ and _cloud-scripts_ repos.
 
 Progress report:
 | repo                       | state              | comment                      |
@@ -60,7 +60,7 @@ The processing node won't receive any request from client as browsing nodes are 
 
 In case of a Galera cluster, queries are all executed on the same MariaDB master node, which is replicated to the other ones.
 
-#### JCustomer
+#### JCustomer env
 
 A jCustomer environment contains:
 - One or several jCustomer nodes
@@ -145,7 +145,7 @@ Be aware that is it not a redeployment, only tomcat services are restarted.
 
 #### jahia/link-to-customer.yml
 
-This manifest is launch against a Jahia env and will link it to a jCustomer environment.
+This manifest is launched against a Jahia env and will link it to a jCustomer environment by installing and configure _jExperience_ module  as well as putting a metadata `envLink` on nodegroups _proc_ and _cp_. It also allow Jahia env tomcat's IPs in _jCustomer_ configuration.
 
 | parameter | comment                                                  |
 |-----------|----------------------------------------------------------|
