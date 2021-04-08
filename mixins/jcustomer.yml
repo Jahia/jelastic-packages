@@ -1,4 +1,7 @@
 ---
+# Depends on:
+#   - common.yml
+
 actions:
   getUnomiDnsAndPwd:
     # Parameters:
@@ -39,3 +42,210 @@ actions:
         unomi_pwd: ${response.unomi_pwd}
         unomi_version: ${response.unomi_version}
         unomi_allowed_ips: ${response.allowed_ips}
+
+  checkJcustomerHealth:
+    cmd [${this}]: |-
+      if service karaf status > /dev/null; then
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        karaf_pwd=$(grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g')
+        karaf_credentials="karaf:$karaf_pwd"
+        curl -fsI /dev/null -u "$karaf_credentials" http://localhost:80/cxs/privacy/info && exit 0
+      fi
+      echo "[ERROR] jCustomer is unavailable, exiting" 1>&2 && exit 1
+    user: root
+
+  saveUnomiRootPassword:
+    - cmd [${nodes.cp.first.id}]: |-
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g'
+    - environment.control.ApplyNodeGroupData[cp]:
+        data:
+          temp_unomi_root_password: ${response.out}
+
+  getUnomiRootPassword:
+    - script: |-
+        nodeGroups = jelastic.environment.control.getnodegroups("${env.envName}", session)["object"];
+        for (n in nodeGroups) {
+          if (typeof nodeGroups[n]["temp_unomi_root_password"] !== "undefined") {
+            return {"result": 0, "temp_unomi_root_password": nodeGroups[n]["temp_unomi_root_password"]}
+          }
+        }
+    - setGlobals:
+        unomi_root_password: ${response.temp_unomi_root_password}
+
+  setupDatadogAgentUnomi:
+    # Parameters:
+    #   - target
+    #   - unomi_root_password
+    - setGlobalRepoRootUrl
+    - forEach(nodes.${this.target}):
+        cmd[${@i.id}]: |-
+          sed -i 's/\(password: \).*/\1${this.unomi_root_password}/' /etc/datadog-agent/conf.d/jmx.d/conf.yaml
+          mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+          chown root:root /var/log/jelastic-packages
+          chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
+          wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+          systemctl restart datadog-agent
+
+  getUnomiIPs:
+    - script: |
+        var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
+        if (resp.result != 0) return resp;
+        var ipadd = [];
+        for (var i = 0, n = resp.nodes; i < n.length; i++) {
+          var nodetype = n[i].nodeType;
+          if (nodetype == 'jcustomer') {
+            ipadd.push(n[i].address);
+          };
+        };
+        return {"result": 0,
+          "ipadd": ipadd.toString()
+        };
+    - setGlobals:
+        unomi_IPs: ${response.ipadd}
+
+  updateHazelcast:
+    # Parameters:
+    #   - unomi_root_password
+    - getUnomiIPs
+    - script: |
+        var resp = jelastic.env.control.AddContainerEnvVars('${env.envName}',
+          session,
+          nodeGroup='cp',
+          vars={'UNOMI_HAZELCAST_TCPIP_MEMBERS': '${globals.unomi_IPs}'}
+        );
+        if (resp.result != 0) return resp;
+        return {"result": 0}
+    - forEach(nodes.cp):
+        cmd[${@i.id}]: |-
+          sed -i "/<interface>/d" $HAZELCAST_CONFIG
+          sed -i "/<member>node/d" $HAZELCAST_CONFIG
+          envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+          if (grep -q UNOMI_HAZELCAST_TCPIP_MEMBERS $envfile); then
+            sed 's/\(.*HAZELCAST_TCPIP_MEMBERS=\).*/\1${globals.unomi_IPs}/' -i $envfile
+          else
+            echo "export UNOMI_HAZELCAST_TCPIP_MEMBERS=${globals.unomi_IPs}" >> $envfile
+          fi
+          sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
+              -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
+              -e '/UNOMI_ROOT_PASSWORD/d' \
+              -i $envfile
+          echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=${@i.url}" >> $envfile
+          echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=${@i.url}:9443" >> $envfile
+          echo "export UNOMI_ROOT_PASSWORD=${this.unomi_root_password}" >> $envfile
+          systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
+        user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during hazelcast setup."
+
+  setupUnomi:
+    # Parameters:
+    #   - unomi_root_password
+    - updateHazelcast:
+        unomi_root_password: ${this.unomi_root_password}
+    - cmd[${nodes.cp.master.id}]:
+        - systemctl enable --now karaf
+      user: root
+    - sleep: 20000
+    - cmd[cp]:
+        - systemctl enable --now karaf
+      user: root
+
+  setJournaldLimit:
+    - cmd[cp]: |-
+        sed -i 's/.*SystemMaxUse=.*/SystemMaxUse=200M/g' /etc/systemd/journald.conf
+        systemctl restart systemd-journald.service
+      user: root
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during journald configuration."
+
+  deleteEnvLink:
+    script: |-
+      jahia_linked = [];
+      envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
+
+      for (i in envs) {
+        nodeGroups = envs[i]["nodeGroups"];
+        for (j in nodeGroups) {
+          if (nodeGroups[j]["envLink"] == "${env.envName}") {
+            jahia_linked.push(envs[i]["env"]["envName"]);
+            break;
+          }
+        }
+      }
+
+      if (jahia_linked.length == 0) {
+        return {"result": 0, "out": "No jahia linked"};
+      }
+
+      res = ""
+      jahia_linked.forEach(
+        function(jahiaEnvname) {
+          var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+            nodeGroup='cp',
+            data={'envLink': ''}
+          );
+          var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+            nodeGroup='proc',
+            data={'envLink': ''}
+          );
+        }
+      );
+      return {"result": 0, "out": "Unlinked following environments: " + jahia_linked};
+
+  checkJcustomerHealthWhenStarting:
+    cmd [${this}]: |-
+        log_file="/var/log/jelastic-packages/checkJcustomerHealthWhenStarting"
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        karaf_pwd=$(grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g')
+        timeout=120
+        echo "Jcustomer is starting...." >> $log_file
+        echo "Waiting for cxs/privacy/info to be ok" >> $log_file
+        while [ $timeout -gt 0 ]; do
+          curl -fsI /dev/null -u "karaf:$karaf_pwd" http://localhost:80/cxs/privacy/info && exit 0
+          sleep 1
+          let "timeout-=1"
+        done
+        echo "120 seconds timeout exeeded, exiting with error" >> $log_file
+        exit 1
+    user: root
+
+  updateJahia:
+    # Parameters:
+    #   - new_password
+    # Update the jcustomer's root password in all linked jahia env(s)
+    - setGlobalRepoRootUrl
+    - script: |-
+        jahia_linked = [];
+        envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
+
+        for (i in envs) {
+          nodeGroups = envs[i]["nodeGroups"];
+          for (j in nodeGroups) {
+            if (nodeGroups[j]["envLink"] == "${env.envName}") {
+              jahia_linked.push(envs[i]["env"]["envName"]);
+              break;
+            }
+          }
+        }
+
+        if (jahia_linked.length == 0) {
+          return {"result": 0, "out": "No jahia linked"};
+        }
+
+        res = ""
+        jahia_linked.forEach(
+          function(jahiaEnvname) {
+            data = {
+              "targetAppid": jahiaEnvname,
+              "settings": {"pwd": "${this.new_password}"},
+              "manifest": "${globals.repoRootUrl}/package/jahia/set-jcustomer-password-in-jahia.yml"
+            };
+            res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
+          }
+        );
+        return {"result": 0, "out": "Jahia environments updated " + res};

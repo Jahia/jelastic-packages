@@ -1,0 +1,213 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Update events
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-unomi
+description:
+  short: Unomi - Update events
+
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/elasticsearch.yml
+
+onBeforeScaleIn[cp]:
+  - saveUnomiRootPassword
+
+onAfterScaleIn[cp]:
+  - getUnomiRootPassword
+  - updateHazelcast
+  - forEach(event.response.nodes):
+      - setReplica
+
+onBeforeServiceScaleOut[cp]:
+  - saveUnomiRootPassword
+
+onAfterServiceScaleOut[cp]:
+  - getUnomiRootPassword
+  - updateHazelcast
+  - forEach(event.response.nodes):
+      - setReplica
+  - setupDatadogAgentUnomi: cp
+
+onBeforeRedeployContainer[cp]:
+  - saveUnomiRootPassword
+
+onBeforeRedeployContainer[es]:
+  - if (nodes.es.length > 1):
+      - log: "This is an ES cluster, disable shards allocation and flush before stopping node"
+      - if ('${event.params.nodeGroup.print()}' != ''):
+          - setShardAllocation:
+              target: ${nodes.es.master.id}
+              allocation: "primaries"
+          - forEach(nodes.es):
+              - forceESFlush:
+                  target: ${@i.id}
+      - elif ('${event.params.nodeId.print()}' != ''):
+          - setShardAllocation:
+              target: ${event.params.nodeId}
+              allocation: "primaries"
+          - forceESFlush:
+              target: ${event.params.nodeId}
+
+onAfterRedeployContainer[cp]:
+  - getUnomiRootPassword
+  - setReplica
+  - setupUnomi
+  - setupDatadogAgentUnomi: cp
+  - if ('${event.params.nodeGroup.print()}' != ''):
+      checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
+  - elif ('${event.params.nodeId.print()}' != ''):
+      checkJcustomerHealthWhenStarting: ${event.params.nodeId}
+
+onAfterRedeployContainer[es]:
+  - if ('${event.params.nodeGroup.print()}' != ''):
+      - setupES: ${event.params.nodeGroup}
+      - setupDatadogAgentEs: ${event.params.nodeGroup}
+      - if (nodes.es.length > 1):
+          - log: "This is an ES cluster, enable shards allocation"
+          - setShardAllocation:
+              target: ${nodes.es.master.id}
+              allocation: "null"
+  - elif ('${event.params.nodeId.print()}' != ''):
+      - setupES: ${event.params.nodeId}
+      - setupDatadogAgentEs: ${event.params.nodeId}
+      - if (nodes.es.length > 1):
+          - log: "This is an ES cluster, enable shards allocation"
+          - setShardAllocation:
+              target: ${event.params.nodeId}
+              allocation: "null"
+
+onAfterServiceScaleOut[es]:
+  - forEach(event.response.nodes):
+      cmd[${@i.id}]: |-
+        service elasticsearch stop
+        rm -rf /var/lib/elasticsearch/nodes
+  - setupES: es
+  - setReplica
+  - updateReplica
+  - setupDatadogAgentEs: es
+
+onAfterScaleIn[es]:
+  - setupES: es
+  - setReplica
+  - updateReplica
+
+onBeforeDelete:
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Deleting environment $envName"
+      text: "$envName is going to be deleted"
+  - deleteEnvLink
+
+onBeforeStop:
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Stopping environment $envName"
+      text: "$envName is going to stop"
+  - if (nodes.es.length > 1):
+      - log: "This is an ES cluster, disable shards allocation and flush before stopping the environment"
+      - setShardAllocation:
+          target: ${nodes.es.master.id}
+          allocation: "primaries"
+      - forEach(nodes.es):
+          - forceESFlush:
+              target: ${@i.id}
+
+onAfterStart:
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "$envName environment started"
+      text: "$envName is started"
+  - if (nodes.es.length > 1):
+      - log: "This is an ES cluster, enable shards allocation"
+      - setShardAllocation:
+          target: ${nodes.es.master.id}
+          allocation: "null"
+  - checkJcustomerHealthWhenStarting: cp
+
+onBeforeMigrate:
+  logEvent:
+    target: ${nodes.cp.first.id}
+    title: "Migration triggered for $envName environment"
+    text: "$envName going to be migrate"
+
+onAfterMigrate:
+  logEvent:
+    target: ${nodes.cp.first.id}
+    title: "Environment $envName migrated"
+    text: "$envName has been migrated"
+
+onBeforeRestartNode:
+  - logEvent:
+      target: ${event.params.nodeid}
+      title: "Restarting node ${event.params.nodeid}"
+      text: "${event.params.nodeid} node is going to be restarted"
+
+onBeforeRestartNode[es]:
+  - if (nodes.es.length > 1):
+      - log: "This is an ES cluster, disable shards allocation and flush before stopping node"
+      - setShardAllocation:
+          target: ${event.params.nodeId}
+          allocation: "primaries"
+      - forceESFlush:
+          target: ${event.params.nodeId}
+
+onAfterRestartNode[es]:
+  - if (nodes.es.length > 1):
+      - log: "This is an ES cluster, enable shards allocation"
+      - setShardAllocation:
+          target: ${event.params.nodeId}
+          allocation: "null"
+
+onAfterRestartNode[cp]:
+  checkJcustomerHealthWhenStarting: ${event.params.nodeId}
+
+onAfterRestartNode:
+  - logEvent:
+      target: ${event.params.nodeid}
+      title: "Node ${event.params.nodeid} restarted"
+      text: "Node ${event.params.nodeid} has restarted"
+
+onBeforeRedeployContainer:
+  - if ('${event.params.nodeGroup.print()}' != ''):
+      logEvent:
+        target: ${event.params.nodeGroup}
+        title: "Redeploying ${event.params.nodeGroup} nodes to ${event.params.tag} version"
+        text: "${event.params.nodeGroup} nodes are going to be redeploy to ${event.params.tag} version"
+  - elif ('${event.params.nodeid.print()}' != ''):
+      logEvent:
+        target: ${nodes.es.first.id}
+        title: "Redeploying node ${event.params.nodeid} to ${event.params.tag} version"
+        text: "Node ${event.params.nodeid} is going to be redeploy to ${event.params.tag} version"
+
+onAfterRedeployContainer:
+  - if ('${event.params.nodeGroup.print()}' != ''):
+      - getLogEventScript: ${event.params.nodeGroup}
+      - logEvent:
+          target: ${event.params.nodeGroup}
+          title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+          text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+  - elif ('${event.params.nodeid.print()}' != ''):
+      - getLogEventScript: ${event.params.nodeid}
+      - logEvent:
+          target: ${event.params.nodeid}
+          title: "Node ${event.params.nodeid} redeployed to ${event.params.tag} version"
+          text: "Node ${event.params.nodeid} has been redeploy to ${event.params.tag} version"
+
+onBeforeScaleIn:
+  forEach(event.response.nodes):
+    logEvent:
+      target: ${@i.id}
+      title: "Scaling in ${event.params.nodeGroup} node group"
+      text: "Node ${@i.id} is going to be removed"
+
+onAfterServiceScaleOut:
+  forEach(event.response.nodes):
+    - getLogEventScript: ${@i.id}
+    - logEvent:
+        target: ${@i.id}
+        title: "Scaled out ${event.params.nodeGroup} node group"
+        text: "Node ${@i.id} has been added"
