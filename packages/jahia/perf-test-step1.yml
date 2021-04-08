@@ -51,7 +51,6 @@ onInstall:
       - wget "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar"
       - curl -f --user ${credentials} --form bundle=@templates-web-blue-qa-2.0.2-SNAPSHOT.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
   - cmd [cp,proc]:
-      - sudo yum install -y libreoffice*
       - sudo yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && sudo yum install -y ffmpeg
       - sed -i 's/#jahia.dm.thumbnails.video.enabled.*/jahia.dm.thumbnails.video.enabled = true/' ${globals.jahiaPropertiesPath}
       - sed -i 's/#jahia.dm.thumbnails.video.ffmpeg.*/jahia.dm.thumbnails.video.ffmpeg = ffmpeg/' ${globals.jahiaPropertiesPath}
