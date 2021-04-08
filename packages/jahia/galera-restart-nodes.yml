@@ -1,0 +1,16 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Restart Galera nodes
+logo: ../../assets/common/jahia-logo-70x70.png
+id: restart-galera-nodes
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - enableFullReadOnlyOnCluster
+  - rollingRestartGaleraNodes
+  - disableFullReadOnlyOnCluster
