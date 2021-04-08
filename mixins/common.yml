@@ -63,6 +63,15 @@ actions:
         /usr/local/bin/log_event.sh "${this.title}" "${this.text}"
       user: root
 
+  manageSystemdService:
+    # Parameters:
+    #   - target
+    #   - unit
+    #   - action
+    - cmd[${this.target}]: systemctl ${this.action} ${this.unit}
+      user: root
+
+
   ###################
   # COMPARE VERSION #
   ###################

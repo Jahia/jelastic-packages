@@ -3,27 +3,6 @@
 #   - common.yml
 
 actions:
-  checkElasticsearchHealth:
-    - cmd[${this}]: |-
-        if ! rpm --quiet -q jq; then
-          echo "[INFO] Installing jq to parse healthcheck module response"
-          yum install -y jq > /dev/null
-        fi
-      user: root
-    - cmd[${nodes.es.first.id}]: |-
-        health_file="/tmp/es_cluster_health.json"
-        if service elasticsearch status > /dev/null; then
-          curl -Ssf "es:9200/_cluster/health?timeout=10s" > $health_file || (rm -f $health_file; exit 1)
-          status=$(cat $health_file | jq ".status")
-          real_nodes_count=$(cat $health_file | jq ".number_of_nodes")
-          if ([ $status = "\"green\"" ] || [ $status = "\"yellow\"" ]) && \
-          [ $real_nodes_count -eq ${nodes.es.length} ]; then
-            exit 0
-          fi
-        fi
-        echo "[ERROR] There is an issue with the cluster, exiting" 1>&2 && exit 1
-      user: root
-
   setupES:
     cmd[${this}]: |-
       /usr/share/elasticsearch/bin/elasticsearch --version
@@ -174,3 +153,69 @@ actions:
           ((i++))
           sleep 2
         done
+
+  redeployEsNodes:
+    - if(nodes.es.length == 1):
+        - log: "Stopping Karaf..."
+        - manageSystemdService:
+            target: cp
+            unit: karaf
+            action: stop
+
+        - log: "Redeploying Elasticsearch node..."
+        - api: environment.control.redeploycontainersbygroup
+          nodeGroup: es
+          tag: ${nodes.es.first.version}
+          useExistingVolumes: true
+
+        - log: "Starting Karaf..."
+        - manageSystemdService:
+            target: cp
+            unit: karaf
+            action: start
+        - checkEsClusterStatus
+    - else:
+        - forEach(nodes.es):
+            - log: "Redeploying Elasticsearch node ${@i.id}..."
+            - api: environment.control.RedeployContainerById
+              nodeId: ${@i.id}
+              tag: ${nodes.es.first.version}
+              useExistingVolumes: true
+              skipReinstall: false
+            - checkEsClusterStatus
+
+  checkEsClusterStatus:
+    # Every second, we check cluster health. If curl fails with a 10s timeout, then exit 1.
+    # For 3-nodes clusters, until status is green & actual nodes number equals nodes.es.length,
+    # we check that the number of active shards is increasing (meaning the node is not fully
+    # initialized yet). If it is still not after 10s, exit 1.
+    # For single node ES, we check green or yellow status
+    - cmd[${nodes.es.first.id}]: |-
+        [ -x /usr/bin/jq ] || yum install -y jq
+        health_file="/tmp/es_cluster_health.json"
+        i=0
+        prev_active_shards=0
+        total_nodes_count=${nodes.es.length}
+        # Single ES node: we check green or yellow status
+        healthcheck_condition='[[ "$status" == "green" ]] || [[ "$status" == "yellow" ]]'
+
+        # 3-nodes cluster: we check green status only
+        if [ $total_nodes_count -gt 1 ]; then
+          healthcheck_condition='[[ "$status" == "green" ]] && [ $real_nodes_count -eq $total_nodes_count ]'
+        fi
+
+        while [ $i -lt 20 ]; do
+          curl -Ssf 'es:9200/_cluster/health?timeout=10s' > $health_file || (rm -f $health_file; exit 1)
+          status=$(cat $health_file | jq -r '.status')
+          real_nodes_count=$(cat $health_file | jq '.number_of_nodes')
+          if eval $healthcheck_condition; then
+            exit 0
+          fi
+          active_shards=$(cat $health_file | jq ".active_shards")
+          [ $active_shards -eq $prev_active_shards ] && ((i=i+1)) || i=0
+          prev_active_shards=$active_shards
+          sleep 1
+        done
+        echo "[ERROR] There is an issue with the cluster, please check" 1>&2
+        exit 1
+      user: root
