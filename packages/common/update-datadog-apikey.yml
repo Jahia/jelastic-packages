@@ -1,0 +1,33 @@
+---
+type: update
+version: 1.5.2
+name: Update DataDog Apikey
+id: update-datadog-apikey
+
+onInstall:
+  - updateDataDogApikey
+
+actions:
+  updateDataDogApikey:
+    - api []: env.control.GetContainerEnvVars
+      envName: ${env.envName}
+      nodeId: ${nodes.cp.first.id}
+    - if ("${response.object.DATADOGAPIKEY}" == "${settings.currentDataDogApikey}"):
+        - api [*]: env.control.AddContainerEnvVars
+          vars: {"DATADOGAPIKEY": "${settings.newDataDogApikey}"}
+    - else:
+        - log: "DataDog Apikey mismatch"
+        - return:
+            type: error
+            message: "An error occurred while updating DataDog Apikey"
+
+settings:
+  fields:
+    - name: currentDataDogApikey
+      type: string
+      caption: Current DataDog Apikey
+      required: true
+    - name: newDataDogApikey
+      type: string
+      caption: New DataDog Apikey
+      required: true
