@@ -99,16 +99,6 @@ Once it is completed, you need to apply `jahia/perf-test-step2.yml` package to t
 
 ## Packages
 
-### augsearch
-
-#### augsearch/augsearch-redeploy-es-nodes.yml
-
-This manifest will redeploy Elasticsearch nodes while Full ReadOnly mode is enable on jahia env.
-
-| parameter        | comment                      |
-|------------------|------------------------------|
-| augSearchEnvName | The AugmentedSearch env name |
-
 ### common
 
 #### common/update-datadog-apikey.yml
