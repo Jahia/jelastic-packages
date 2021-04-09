@@ -1,0 +1,72 @@
+---
+type: install
+version: 1.5.2
+name: Jahia Cloud - Scheduled backup
+logo: /images/jahia-logo-70x70.png
+id: jahia-cloud-scheduled-backup
+description:
+  short: Jahia Cloud - Scheduled backup
+  text: blabla bla
+
+ssl: true
+skipNodeEmails: true
+
+
+nodes:
+  - image: jahia/paas_autobackup:v1.3
+    displayName: Scheduled backup
+    count: 1
+    cloudlets: 5
+    nodeGroup: cp
+    env:
+      MASTER_LOGIN: ${settings.masterLogin}
+      MASTER_PWD: ${settings.masterPwd}
+      AWS_ACCESS_KEY: ${settings.awsAccess}
+      AWS_SECRET_KEY: ${settings.awsSecret}
+      AWS_ACCESS_KEY_ID: ${settings.awsAccess}
+      AWS_SECRET_ACCESS_KEY: ${settings.awsSecret}
+      DD_API_KEY: ${settings.dd_api_key}
+      LANG: en_US.utf8
+    volumes:
+      - /var/spool/cron
+
+onInstall:
+  - script: |
+        var splitdomain = '${env.domain}'.split('.')
+        if (splitdomain[splitdomain.length - 4] == 'dev') {
+          var env = 'dev'
+        } else {
+          var env = 'prod'
+        }
+        return {'result': 0, 'resp': env}
+  - setGlobals:
+      env: ${response.resp}
+  - cmd[cp]: |-
+      sed 's/__ENV__/${globals.env}/' -i /etc/datadog-agent/datadog.yaml
+      systemctl enable --now datadog-agent
+  - env.control.AddContainerEnvVars[cp]:
+    vars: {"BACKUP_BRANCH": "master"}
+
+
+settings:
+  fields:
+    - name: masterLogin
+      type: string
+      caption: master login
+      required: true
+    - name: masterPwd
+      type: string
+      caption: master password
+      required: true
+    - name: awsAccess
+      type: string
+      caption: AWS Access Key
+      required: true
+    - name: awsSecret
+      type: string
+      caption: AWS Secret Key
+      required: true
+    - name: dd_api_key
+      type: string
+      caption: datadog api key
+      required: true
