@@ -92,13 +92,17 @@ onAfterServiceScaleOut[es]:
         rm -rf /var/lib/elasticsearch/nodes
   - setupES: es
   - setReplica
-  - updateReplica
+  - updateReplica:
+      replica: ${globals.replica}
+      logsPath: /dev/null
   - setupDatadogAgentEs: es
 
 onAfterScaleIn[es]:
   - setupES: es
   - setReplica
-  - updateReplica
+  - updateReplica:
+      replica: ${globals.replica}
+      logsPath: /dev/null
 
 onBeforeDelete:
   - logEvent:

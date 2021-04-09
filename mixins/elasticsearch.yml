@@ -45,13 +45,13 @@ actions:
   updateReplica:
     - cmd[${nodes.es.first.id}]: |-
         NODE_HOSTNAME=$(echo "${nodes.es.first.url}" | sed 's/^https:\/\///')
-        curl -s http://${NODE_HOSTNAME}:9200/_cat/indices | awk -v repl=${globals.replica} '$6!=repl {print $3}' | while read index; do
+        curl -s http://${NODE_HOSTNAME}:9200/_cat/indices | awk -v repl=${this.replica} '$6!=repl {print $3}' | while read index; do
             curl -s -XPUT http://${NODE_HOSTNAME}:9200/$index/_settings \
               -H "Content-Type: application/json" \
-              -d '{"index":{"number_of_replicas": ${globals.replica} }}'
+              -d '{"index":{"number_of_replicas": ${this.replica} }}' 2>>${this.logsPath}
         done
 
-  setReplica:
+  calculateNumberOfReplicas:
     - if(nodes.es.length > 1):
         - if(nodes.es.length > 4):
           - setGlobals:
@@ -62,6 +62,9 @@ actions:
     - else:
         setGlobals:
           - replica: 0
+
+  setReplica:
+    - calculateNumberOfReplicas
     - forEach(nodes.cp):
         cmd[${@i.id}]: |-
           setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
@@ -219,3 +222,100 @@ actions:
         echo "[ERROR] There is an issue with the cluster, please check" 1>&2
         exit 1
       user: root
+
+  setAwsSnapshotRepository:
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"s3\",
+            \"settings\": {
+                \"bucket\": \"${this.account}\",
+                \"region\": \"${this.region}\",
+                ${this.awsAccessKeyJson}
+                ${this.awsSecretKeyJson}
+                \"base_path\" : \"${settings.backup_name}/elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+
+  setAzureSnapshotRepository:
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"azure\",
+            \"settings\": {
+                \"container\": \"${settings.backup_name}\",
+                \"base_path\" : \"elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+
+  # Using an Elasticsearch keystore to add AWS keys
+  setAwsElasticsearchConfig:
+    - if ('${this.esVersion}' >= '6.4.0'):
+        - cmd[es]: |-
+            if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+                /usr/share/elasticsearch/bin/elasticsearch-keystore create
+            fi
+            printf "${settings.aws_access_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
+            printf "${settings.aws_secret_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
+            curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+        - setGlobals:
+            awsAccessKeyJson: ""
+            awsSecretKeyJson: ""
+    - else:
+        - setGlobals:
+            awsAccessKeyJson: "\\\"access_key\\\": \\\"${settings.aws_access_key}\\\","
+            awsSecretKeyJson: "\\\"secret_key\\\": \\\"${settings.aws_secret_key}\\\","
+
+  setAzureElasticsearchConfig:
+    - if ('${this.esVersion}' >= '6.4.0'):
+        - getAzureSecret:
+            operation: "${this.operation}"
+            account: ${this.account}
+            logsPath: ${this.logsPath}
+
+        - cmd[es]: |-
+            if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+                /usr/share/elasticsearch/bin/elasticsearch-keystore create
+                echo "true"
+            fi
+            printf "${this.account}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.account
+            printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
+            curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+    - else:
+        - cmd[${nodes.es.first.id}]: |-
+            grep azure_storage_user /etc/elasticsearch/elasticsearch.yml || true
+        - if ("${response.out}" == ""):  # If azure config is not set
+            forEach(nodes.es):
+              cmd[${@i.id}]: |-
+                echo -e "cloud:\n  azure:\n    storage:\n      azure_storage_user:" >> /etc/elasticsearch/elasticsearch.yml
+                echo -e "        default: true\n        account: placeholder\n        key: placeholder" >> /etc/elasticsearch/elasticsearch.yml
+        - cmd[${nodes.es.first.id}]: |-
+            grep "${this.account}" /etc/elasticsearch/elasticsearch.yml || true
+        - if ("${response.out}" == ""):  # If we need to use a different account
+            # Done in a function because of the if... it's the way it works !
+            - getAzureSecret:
+                operation: "${this.operation}"
+                account: ${this.account}
+                logsPath: ${this.logsPath}
+            # Set azure credentials and restart ES
+            - forEach(nodes.es):
+                cmd[${@i.id}]: |-
+                  sed -i 's#\(^.*account\:\).*#\1 ${this.account}#g' /etc/elasticsearch/elasticsearch.yml
+                  sed -i 's#\(^.*key\:\).*#\1 ${globals.azure_secret}#g' /etc/elasticsearch/elasticsearch.yml
+                  service elasticsearch restart
+                  sleep 30
+
+  getAzureSecret:
+    - cmd[${nodes.es.first.id}]: |-
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        cd jelastic_backup
+        python3 elasticsearch.py --bucketname ${this.account} --backupname ${settings.backup_name} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
+    - cmd[${nodes.es.first.id}]: |-
+        cat /tmp/azurecred
+        rm -f /tmp/azurecred
+    - setGlobals:
+        azure_secret: "${response.out}"
+    - if ("${globals.azure_secret}" == ""):
+        - return:
+            type: error
+            message: "An error occurred during backup repository configuration."
