@@ -1,0 +1,23 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Enable or disable Full Read Only
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-fro-mode
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+
+onInstall:
+  - if(settings.enableFRO):
+      - enableFullReadOnlyOnCluster
+  - else:
+      - disableFullReadOnlyOnCluster
+
+settings:
+  fields:
+    - name: enableFRO
+      type: toggle
+      caption: Enable FRO
+      default: false
