@@ -99,7 +99,7 @@ nodes: definedInOnBeforeInstall
 
 # --Events --
 onInstall:
-  - if (settings.rootPassword):
+  - if(settings.rootPassword):
       setGlobals:
         unomi_root_password: ${settings.rootPassword}
   - environment.control.ApplyNodeGroupData [cp, es]:
@@ -114,10 +114,10 @@ onInstall:
   - setReplica
   - updateReplica
   - setupUnomi:
-      unomi_root_password: ${settings.rootPassword}
+      unomi_root_password: ${globals.unomi_root_password}
   - setupDatadogAgentUnomi:
       target: cp
-      unomi_root_password: ${settings.rootPassword}
+      unomi_root_password: ${globals.unomi_root_password}
   - setupDatadogAgentEs: es
   - setEnvVersion: ${globals.jcustomer_env_version}
   - install:
