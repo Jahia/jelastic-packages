@@ -99,7 +99,28 @@ Once it is completed, you need to apply `jahia/perf-test-step2.yml` package to t
 
 ## Packages
 
+### augsearch
+
+#### augsearch/augsearch-redeploy-es-nodes.yml
+
+This manifest will redeploy Elasticsearch nodes while Full ReadOnly mode is enable on jahia env.
+
+| parameter        | comment                      |
+|------------------|------------------------------|
+| augSearchEnvName | The AugmentedSearch env name |
+
 ### common
+
+#### common/update-datadog-apikey.yml
+
+This manifest allow to update a env's DataDog API key.
+
+The script will check that the key currently used is the one you think before set the new key.
+
+| parameter            | comment                |
+|----------------------|------------------------|
+| currentDataDogApikey | The key currently used |
+| newDataDogApikey     | The new API key yo use |
 
 #### common/reset-polling.yml
 
@@ -145,6 +166,18 @@ This manifest will create or update a Strongswan IPSec connection on each tomcat
 | vault_secret_path | The Vault path where the connection conf is stored.               |
 | ipsec_should_be   | Boolean.<br>Tell if the previous connection should be up or down. |
 
+#### jahia/galera-restart-nodes.yml
+
+This manifest will gracefuly restart all galera nodes with the jahia's Full ReadOnly mode enabled.
+
+#### jahia/jahia-full-read-only.yml
+
+The manifest will enable or disable Jahia's Full ReadOnly mode.
+
+| parameter | comment  |
+|-----------|----------|
+| enableFRO | Boolean. |
+
 #### jahia/jahia-rolling-restart.yml
 
 This manifest will rolling restart all Jahia nodes (cp & proc).
@@ -171,7 +204,7 @@ Enable or disable an Auth Basic at haproxy level.
 
 #### jahia/redeploy-galera-nodes.yml
 
-This manifest will redeploy all galera nodes whith the jahia's Full ReadOnly mode enabled.
+This manifest will redeploy all galera nodes with the jahia's Full ReadOnly mode enabled.
 
 | parameter       | comment                                                                  |
 |-----------------|--------------------------------------------------------------------------|
@@ -288,6 +321,10 @@ This manifest will create a jCustomer environment.
 This manifest will rolling restart all jCustomer nodes (not the Elasticsearch nodes).
 
 Be aware that it is not a redeployment, only karaf service are restarted.
+
+#### jcustomer/redeploy-es-nodes.yml
+
+This manifest will redeploy Elasticsearch nodes.
 
 #### jcustomer/set-unomi-root-password.yml
 
