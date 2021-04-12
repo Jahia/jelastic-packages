@@ -7,6 +7,10 @@ id: unomi-upgrade
 description:
   short: Unomi - Upgrade
 
+mixins:
+  - ../../mixins/common.yml
+
+
 onInstall:
   # By default we assume it is a (rolling) redeploy only
   - setGlobals:
@@ -49,6 +53,7 @@ onInstall:
     isSequential: false
     envName: ${env.envName}
 
+  - setGlobalRepoRootUrl
   - script: |-
       var oldVersion = "${globals.currentDockerTag}";
       var newVersion = "${globals.targetDockerTag}";
@@ -80,7 +85,7 @@ onInstall:
           data = {
             "targetAppid": jahiaEnvname,
             "settings": {"unomienv": "${env.envName}"},
-            "manifest": "${baseUrl}/unomi_update_dx.yml"
+            "manifest": "${globals.repoRootUrl}/packages/jahia/link-to-jcustomer.yml"
           };
           res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
         }
