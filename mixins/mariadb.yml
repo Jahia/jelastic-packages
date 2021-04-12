@@ -265,6 +265,12 @@ actions:
       echo "Node $HOSTNAME is now Synced !"
     user: root
 
+  rollingRestartGaleraNodes:
+    - forEach(nodes.sqldb):
+        - log: "Restarting MariaDB on node ${@i.id}..."
+        - stopGaleraNode: ${@i.id}
+        - startGaleraNode: ${@i.id}
+
   checkGaleraClusterSize:
     # Ensure the cluster size match the node count
     - cmd[${nodes.sqldb.first.id}]: |-
