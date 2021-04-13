@@ -318,8 +318,15 @@ actions:
     - cmd [bl]: |-
         cd jelastic_backup
         gunzip haproxy-00-global.cfg.gz
-        mv haproxy-00-global.cfg /etc/haproxy/haproxy.cfg.d/00-global.cfg
+        HAPROXY_MAIN_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
+        mv haproxy-00-global.cfg $HAPROXY_MAIN_CONF
         sed -i 's/use_backend proc\(.*\)beg s\(.*\)/use_backend proc\1beg s${nodes.proc.first.id} }/g' /etc/haproxy/haproxy.cfg.d/00-global.cfg
+
+        DD_PWD=$(cat /etc/datadog-agent/conf.d/haproxy.d/conf.yaml | awk '/password/ {print $2 }')
+        if [ "$(grep $DD_PWD $HAPROXY_MAIN_CONF)" = "" ]; then
+          sed -i "s/\(.*stats auth admin:\).*/\1$DD_PWD/" $HAPROXY_MAIN_CONF
+        fi
+
         checkLine=$(head /etc/haproxy/haproxy.cfg.d/00-global.cfg | grep external-check)
         if [ "$checkLine" = "" ]; then
           sed -i '8 a\    external-check' /etc/haproxy/haproxy.cfg.d/00-global.cfg
