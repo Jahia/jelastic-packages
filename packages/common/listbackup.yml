@@ -9,7 +9,7 @@ globals:
   logAction: "List"
 
 mixins:
-  - mixins/common.yml
+  - "../../mixins/common.yml"
 
 onInstall:
   - if (nodes.proc):  # Jahia

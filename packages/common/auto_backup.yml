@@ -2,11 +2,11 @@
 type: install
 version: 1.5.2
 name: Jahia Cloud - Scheduled backup
-logo: /images/jahia-logo-70x70.png
+logo: ../../assets/common/jahia-logo-70x70.png
 id: jahia-cloud-scheduled-backup
 description:
   short: Jahia Cloud - Scheduled backup
-  text: blabla bla
+  text: Creates an environment to handle scheduled backups
 
 ssl: true
 skipNodeEmails: true

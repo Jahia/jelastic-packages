@@ -21,13 +21,6 @@ onInstall:
 
 actions:
   initVars:
-    - script: |-
-        var newUrl = "${baseUrl}".split('/')
-        newUrl.pop();
-        newUrl.pop();
-        return {result: 0, "backup_url": newUrl.join('/')};
-    - setGlobals:
-        backup_url: ${response.backup_url}
     - if('${settings.action}' == 'list'):
         setGlobals:
           urlApi: ${globals.baseApiUrl}/listcronjobs

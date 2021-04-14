@@ -239,8 +239,8 @@ actions:
         cd jelastic_backup
         for file in backrest.py lib_aws.py lib_azure.py revisionNode.py; do
           curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file
-        curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py
         done
+        curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py
 
   clearJelasticLogs:
     - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
