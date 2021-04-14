@@ -1,0 +1,105 @@
+---
+type: update
+version: 1.5.2
+name: Jahia Cloud - Control Scheduled backup
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-cloud-control-scheduled-backup
+description:
+  short: Jahia Cloud - Control Scheduled backup
+  text: This package is used to interact with the auto_backup.yml node
+ssl: true
+skipNodeEmails: true
+
+globals:
+  baseApiUrl: http://localhost:8080/api
+  httpHeader: 'Content-Type: application/json'
+  listjobs: ''
+
+onInstall:
+  - initVars
+  - launchCurl: cp
+
+actions:
+  initVars:
+    - if('${settings.action}' == 'list'):
+        setGlobals:
+          urlApi: ${globals.baseApiUrl}/listcronjobs
+          httpMethod: GET
+    - if('${settings.action}' != 'list'):
+        - script: |-
+            var settings = {
+              "backtype": "auto",
+              "retention": "${settings.retention}",
+              "aws_access_key": "${AWS_ACCESS_KEY}",
+              "aws_secret_key": "${AWS_SECRET_KEY}",
+              "backup_name": "${settings.backup_name}"
+            }
+
+            var data = {
+              "schedule": "${settings.schedule}",
+              "uid": "${settings.uid}",
+              "envname": "${settings.envname}",
+              "url": "${globals.backupUrl}/backup.yml",
+              "settings": settings,
+              "sudo": "${settings.sudo}",
+            }
+
+            return {'result': 0, 'data': String(data)}
+        - setGlobals:
+            data: ${response.data}
+            urlApi: ${globals.baseApiUrl}/cronjob
+        - if('${settings.action}' == 'add'):
+            setGlobals:
+              httpMethod: POST
+        - if('${settings.action}' == 'del'):
+            setGlobals:
+              httpMethod: DELETE
+  launchCurl:
+    - cmd[${this}]: |-
+        curl -s -X ${globals.httpMethod} -H '${globals.httpHeader}' '${globals.urlApi}' -d '${globals.data}'
+    - if('${settings.action}' == 'list'):
+        - setGlobals:
+            listjobs: ${response.out}
+
+success: ${globals.listjobs}
+
+settings:
+  fields:
+    - name: action
+      caption: action
+      type: radio-fieldset
+      values:
+        list: list backup
+        add: add backup
+        del: remove backup
+      required: true
+      showIf:
+        add:
+          - name: schedule
+            caption: cron style schedule
+            type: string
+            required: true
+          - name: envname
+            caption: targeted envname
+            type: string
+            required: true
+          - name: sudo
+            caption: envname's owner email
+            type: string
+            required: true
+          - name: uid
+            caption: envname's owner UID
+            type: string
+            required: true
+          - name: backup_name
+            caption: backup name
+            type: string
+            required: true
+          - name: retention
+            caption: how many backup do we keep
+            type: string
+        del:
+          - name: envname
+            caption: targeted envname
+            type: string
+            required: true

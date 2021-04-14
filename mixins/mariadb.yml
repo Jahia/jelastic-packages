@@ -254,13 +254,19 @@ actions:
       i=1
       it=66
       until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" == "Synced"  ]; do
-        echo "$(date) not ready yet (iteration $i/$it)"
         if [ $i -ge $it ]; then
           echo "Too long to start, something is wrong here... EXITING"
           exit 1
         fi
-        sleep 1
-        ((i++))
+        # As long as there is a rsync going, we don't increment the timeout count
+        if ps -e -o command | grep -Eq "^rsync .* rsync_sst\.conf$"; then
+          echo "$(date) SSTs sync still in progress"
+          sleep 15
+        else
+          echo "$(date) not ready yet (iteration $i/$it)"
+          ((i++))
+          sleep 1
+        fi
       done
       echo "Node $HOSTNAME is now Synced !"
     user: root
@@ -317,3 +323,11 @@ actions:
                 return:
                   type: error
                   message: "Galera node ${globals.currentNode} was not able to join the cluster after being redeployed"
+
+  installMariaDBBackup:
+    - cmd[${this}]: |-
+        if [[ ! -x /usr/bin/mariabackup ]]; then
+          yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+          yum install -y MariaDB-backup qpress
+        fi
+      user: root

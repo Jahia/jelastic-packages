@@ -227,3 +227,21 @@ actions:
     - else:
         - setGlobals:
             ${this.res}: false
+
+  installBackupTools:
+    - setGlobalRepoRootUrl
+    - cmd [${this.target}]: |-
+        ## [${this.logAction}] - 1/5
+        sudo yum install -y python36 python36-pip
+        sudo python3 -m pip install --upgrade pip
+        sudo python3 -m pip install --upgrade boto3 "azure==4.0.0" adal
+        [ -d jelastic_backup ] || mkdir jelastic_backup
+        cd jelastic_backup
+        for file in backrest.py lib_aws.py lib_azure.py revisionNode.py; do
+          curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file
+        done
+        curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py
+
+  clearJelasticLogs:
+    - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
+      user: root

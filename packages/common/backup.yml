@@ -1,0 +1,335 @@
+---
+type: update
+version: 1.5
+name: Jahia - Snapshots an environment and stores it in the appropriate object storage
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-backup-to-bucket
+
+globals:
+  timestamp: ${settings.timestamp}
+  argTimestamp: '-t "${globals.timestamp}"'
+  logAction: "${settings.backtype} Backup"
+  logsPath: "/var/log/jelastic-packages/backup.log"
+  lowerDBConnection: 100000
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - if ('${globals.timestamp}' == ''):
+      - setTimestamp
+  - if (nodes.proc):  # Jahia
+      - chooseTheBestDatabaseNodeToBackup
+      - clearJelasticLogs:
+          target: proc
+          user: tomcat
+          logsPath: ${globals.logsPath}
+      - clearJelasticLogs:
+          target: ${globals.dbBackupNode}
+          user: mysql
+          logsPath: ${globals.logsPath}
+      - clearJelasticLogs:
+          target: bl
+          user: haproxy
+          logsPath: ${globals.logsPath}
+      - installBackupTools: 
+          target: ${globals.dbBackupNode}
+          logAction: ${globals.logAction}
+      - installBackupTools: 
+          target: proc
+          logAction: ${globals.logAction}
+      - if (nodes.bl):  # Haproxy
+          - installBackupTools: 
+              target: bl
+              logAction: ${globals.logAction}
+      - backupMariadb: ${globals.dbBackupNode}
+      - backupJahia
+      - if (nodes.bl):  # Haproxy
+          - backupHaproxy
+      - addMetadata: proc
+      - rotateBackups: proc
+  - else:  # Jcustomer
+      - clearJelasticLogs:
+          target: ${nodes.es.first.id}
+          user: root
+          logsPath: ${globals.logsPath}
+      - installBackupTools: 
+          target: ${nodes.es.first.id}
+          logAction: ${globals.logAction}
+      - backupElasticsearch
+      - addMetadata: ${nodes.es.first.id}
+      - rotateElasticsearchBackup
+
+actions:
+  setTimestamp:
+    - script: |
+          var diso = new Date()
+          var m = diso.getMonth() + 1
+          var H = diso.getHours()
+          var M = diso.getMinutes()
+          var d = diso.getDate()
+          if(m.toString().length != 2) {m = "0" + m}
+          if(H.toString().length != 2) {H = "0" + H}
+          if(M.toString().length != 2) {M = "0" + M}
+          if(d.toString().length != 2) {d = "0" + d}
+          var timestamp = diso.getFullYear() + "-" + m + "-" + d + "T" + H + ":" + M + ":00"
+          return {'result': 0, 'timestamp': timestamp}
+    - setGlobals:
+        timestamp: ${response.timestamp}
+        argTimestamp: '-t "${response.timestamp}"'
+
+  backupJahia:
+    - cmd [proc]: |-
+        ## [${globals.logAction}] - 3/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        tar -czf digital-factory-data.tar.gz -C / data/digital-factory-data/ 2>>${globals.logsPath}
+        if [ "$?" -gt 1 ]; then
+          echo "tar command return an error code greater than 1. Exiting" >>${globals.logsPath}
+          exit 1
+        fi
+        python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f digital-factory-data.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
+        rm -f digital-factory-data.tar.gz
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during jahia data backup. ${response.errOut}"
+    - cmd [proc]: |-
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        tar -czf digital-factory-config.tar.gz -C / opt/tomcat/conf/digital-factory-config/ 2>>${globals.logsPath} || exit 1
+        python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f digital-factory-config.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
+        rm -f digital-factory-config.tar.gz
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during jahia configuration backup. ${response.errOut}"
+    - cmd [proc]: |-
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        grep -e "^jahia_cfg_" /.jelenv > jahia-env-vars 2>>${globals.logsPath} || exit 1
+        gzip jahia-env-vars 2>>${globals.logsPath} || exit 1
+        python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f jahia-env-vars.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
+        rm -f jahia-env-vars.gz
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during environment variables backup. ${response.errOut}"
+
+  addMetadata:
+    - cmd [${this}]: |-
+        ## [${globals.logAction}] - 4/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a addmeta --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during backup's metadata definition. ${response.errOut}"
+
+  rotateBackups:
+    - cmd [${this}]: |-
+        ## [${globals.logAction}] - 5/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a rotate --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} -k ${settings.retention} 2>>${globals.logsPath} || exit 1
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during backup rotation. ${response.errOut}"
+
+  backupElasticsearch:
+    - cmd[${nodes.es.first.id}]: |-
+        ## [${globals.logAction}] - 2/5
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g')
+        echo jc${cluster_role}${env.uid}${env_region}
+    - setGlobals:
+        account: ${response.out}
+    - cmd[${nodes.es.first.id}]: |-
+        awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
+    - setGlobals:
+        region: ${response.out}
+
+    - cmd[${nodes.es.first.id}]: |-
+        awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST
+    - setGlobals:
+        provider: ${response.out}
+
+    - cmd[${nodes.es.first.id}]: |-
+        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
+    - setGlobals:
+        esVersion: ${response.out}
+
+    # Configure backup depending on cloud provider
+    - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
+        - setAwsElasticsearchConfig:
+            esVersion: ${globals.esVersion}
+            logsPath: ${globals.logsPath}
+        - cmd[${nodes.es.first.id}]: |-
+            # Create the bucket if doesn't exists
+            export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+            cd jelastic_backup
+            python3 elasticsearch.py --bucketname ${globals.account} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
+        - if ("${globals.provider}" == "aws"):
+            - set:
+                region: ${globals.region}
+        - else:
+            - set:
+                region: "eu-west-1"
+        - setAwsSnapshotRepository:
+            region: ${this.region}
+            account: ${globals.account}
+            awsSecretKeyJson: ${globals.awsSecretKeyJson}
+            awsAccessKeyJson: ${globals.awsAccessKeyJson}
+            logsPath: ${globals.logsPath}
+    - else:
+        - setAzureElasticsearchConfig:
+            esVersion: ${globals.esVersion}
+            operation: "backup"
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+        - setAzureSnapshotRepository:
+            logsPath: ${globals.logsPath}
+
+    # start backup
+    - cmd[${nodes.es.first.id}]: |-
+        ## [${globals.logAction}] - 3/5
+        timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
+        curl -o /tmp/backup-res -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}?wait_for_completion=true" 2>>${globals.logsPath} || exit 1
+        return_code=$?
+        error=$(grep error /tmp/backup-res)
+        res=$(wc -l<<<$error)
+        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
+        rm -f /tmp/backup-res
+    - if ("${response.out}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the backup process."
+
+  rotateElasticsearchBackup:
+    - cmd[${nodes.es.first.id}]: |-
+        ## [${globals.logAction}] - 5/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        cd jelastic_backup
+        # filter and format snapshot list
+        snapshots=$(curl -s $(hostname):9200/_snapshot/backup_repository/_all?pretty |grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}' )
+        delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
+        snapshots_to_delete=$(head -n $delete_count <<<"$snapshots")
+        for snapshot in $snapshots_to_delete;  do
+          timestamp=$(echo $snapshot |awk '{print toupper(substr($0,0,19))}')
+          python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
+          if [ $? -eq 0 ]; then
+            curl -XDELETE "$(hostname):9200/_snapshot/backup_repository/$snapshot"
+            echo "snapshot $snapshot deleted"
+          fi
+        done
+
+  backupHaproxy:
+    - cmd [${nodes.bl.first.id}]: |-
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        cp /etc/haproxy/haproxy.cfg.d/00-global.cfg haproxy-00-global.cfg
+        gzip haproxy-00-global.cfg
+        python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f haproxy-00-global.cfg.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
+        rm -f haproxy-00-global.cfg.gz
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during haproxy backup."
+
+  backupMariadb:
+    - installMariaDBBackup: ${this}
+    - cmd[${this}]: |-
+        ## [${globals.logAction}] - 2/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        BACKUP_DIR=database-backup
+        BACKUP_NAME=database.tar
+        cd jelastic_backup
+        rm -rf $BACKUP_DIR
+        mkdir $BACKUP_DIR
+        GALERA_INFOS=""
+        if [ "$(mysql -sNe  "show global status like 'wsrep_ready'"|grep ON)" != "" ]; then
+          GALERA_INFOS="--galera-info"
+        fi
+        ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
+        tar -C "$PWD/$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
+        python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f $BACKUP_NAME ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
+        rm -rf $BACKUP_DIR $BACKUP_NAME
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during database backup."
+
+  chooseTheBestDatabaseNodeToBackup:
+    - if (nodes.sqldb.length > 1):
+      # choose the node having the lowest number of openened connections
+      - forEach(i:nodes.sqldb):
+          chooseIfLessConnections: ${@i.id}
+    - else:
+        - setGlobals:
+            dbBackupNode: ${nodes.sqldb.first.id}
+
+  chooseIfLessConnections:
+    - cmd[${this}]: mysql -sNe "select count(host) from information_schema.processlist"
+    - if (${response.out} < ${globals.lowerDBConnection}):
+        - setGlobals:
+            lowerDBConnection: ${response.out}
+            dbBackupNode: ${this}
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during database backup."
+
+settings:
+  fields:
+    - name: backup_name
+      type: string
+      caption: Backup Name
+      vtype: text
+      required: true
+    - name: aws_access_key
+      type: string
+      caption: AWS Access Key
+      vtype: text
+      required: true
+    - name: aws_secret_key
+      type: string
+      caption: AWS Secret Key
+      vtype: text
+      required: true
+    - name: timestamp
+      caption: timestamp in format %Y-%m-%dT%H:%M:00
+      required: false
+      type: string
+    - name: retention
+      caption: how many backup do you want to keep
+      type: string
+      default: 15
+    - name: backtype
+      caption: is this a manual or auto backup
+      type: string
+      default: manual

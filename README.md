@@ -11,6 +11,8 @@ Progress report:
 |----------------------------|--------------------|------------------------------|
 | paas_jelastic_dx_universal | :heavy_check_mark: | missing `region_migrate.yml` |
 | paas_jelastic_unomi        | :heavy_check_mark: | missing `region_migrate.yml` |
+| paas-jelastic-dx-perf-test | :heavy_check_mark: |                              |
+| paas_jelastic_backup       | :heavy_check_mark: |                              |
 
 ## Rules
 
@@ -41,7 +43,7 @@ Here are some rules that should be observed:
     └── one-shot
 ```
 
-## Jahia Environments
+## Environments
 
 ### Infrasctructure overview
 
@@ -73,7 +75,7 @@ A jCustomer environment contains:
 Images used by Jahia environment nodes:
 
 | Node type        | Docker image          |
-| ---------------- | --------------------- |
+|------------------|-----------------------|
 | Haproxy          | jelastic/haproxy      |
 | Jahia Browsing   | jahia/jahiastic-jahia |
 | Jahia Processing | jahia/jahiastic-jahia |
@@ -85,21 +87,82 @@ Images used by Jahia environment nodes:
 Images used by jCustomer environment nodes:
 
 | Node type     | Docker image              |
-| ------------- | ------------------------- |
+|---------------|---------------------------|
 | jCustomer     | jahia/jahiastic-jcustomer |
 | Elasticsearch | jahiadev/elasticsearch    |
-
-### Performance tests
-
-In order to run performance tests against a Jahia Cloud environment, required steps must be completed first by running `jahia/perf-test-step1.yml` and `jahia/perf-test-step2.yml` to the environment.
-
-The `jahia/perf-test-step1.yml` package will trigger asynchrounous actions (site import on Jahia) which can take a lot of time, so you have to wait for the processing's tomcat logs to go silent before proceeding to the next step.
-
-Once it is completed, you need to apply `jahia/perf-test-step2.yml` package to the environment. It will also trigger asychronous actions so you will have to wait for the processing's tomcat logs to go silent again before running any performance test.
 
 ## Packages
 
 ### common
+
+#### common/auto_backup.yml
+
+Creates an autobackup environment to handle schedule backups.
+
+| parameter   | comment                                                                      |
+|-------------|------------------------------------------------------------------------------|
+| masterLogin | login used to connect to Jelastic                                            |
+| masterPwd   | password used to connect to Jelastic                                         |
+| awsAccess   | AWS Access Key                                                               |
+| awsSecret   | AWS Secret Key                                                               |
+| dd_api_key  | Datadog Apikey to use                                                        |
+
+#### common/auto_backup_control.yml
+
+Allows to interact with the autobackup environment API.
+
+##### Add a new scheduled backup
+
+| parameter  | comment                                                                      |
+|------------|------------------------------------------------------------------------------|
+| action     | `add`                                                                        |
+| schedule   | _cron_ schedule style<br>eg: `* */8 * * *`                                   |
+| envname    | the _envName_ you want to get scheduled backup<br>eg: `mysuperenv`           |
+| region     | the _Jelastic_'s region where the targeted env is<br>eg: `default_hn_region` |
+| sudo       | the targeted env's owner mail<br>eg: `iamanuser@mydomain.com`                |
+| uid        | the targeted env's owner UID<br>eg: `21135`                                  |
+| backupname | how to call this scheduled backup<br>eg: `myregularautobackup`               |
+| retention  | how many backups do we keep<br>eg: `15`                                      |
+
+
+##### Del a scheduled backup
+
+| parameter | comment                                                              |
+|-----------|----------------------------------------------------------------------|
+| action    | `del`                                                                |
+| envname   | for which _envName_ do you want to remove backup<br>eg: `mysuperenv` |
+
+
+##### List scheduled backup
+
+| parameter | comment |
+|-----------|---------|
+| action    | `list`  |
+
+#### common/backup.yml
+
+Backups an environment. Works both for jahia (files + database, Haproxy conf) and jCustomer (Elasticsearch indices).
+
+| parameter      | comment                                          |
+|----------------|--------------------------------------------------|
+| backup_name    | Backup Name                                      |
+| aws_access_key | AWS Access Key                                   |
+| aws_secret_key | AWS Secret Key                                   |
+| env            | Enviroment mode (dev or prod)                    |
+| timestamp      | The backup timestamp in format %Y-%m-%dT%H:%M:00 |
+| retention      | How many auto-backups do you want to keep        |
+| backtype       | Is this a manual or auto backup                  |
+
+#### common/listbackup.yml
+
+__DEPRECATED__
+List backups for a given user.
+
+| parameter      | comment                       |
+|----------------|-------------------------------|
+| aws_access_key | AWS Access Key                |
+| aws_secret_key | AWS Secret Key                |
+| env            | Enviroment mode (dev or prod) |
 
 #### common/update-datadog-apikey.yml
 
@@ -120,6 +183,26 @@ Used by Jahia Cloud to reset polling when an action fails (especially during bac
 |-----------|------------------|
 | feature   | Feature involved |
 | datetime  | Date & Time      |
+
+#### common/restore.yml
+
+Restores a backup. Works both for jahia (files + database, Haproxy conf) and jCustomer (Elasticsearch indices).
+
+| pame           | comment                                                             |
+|----------------|---------------------------------------------------------------------|
+| backup_name    | Backup Name                                                         |
+| aws_access_key | AWS Access Key                                                      |
+| aws_secret_key | AWS Secret Key                                                      |
+| env            | Enviroment mode (dev or prod)                                       |
+| source_env     | Source environment appid (if still exists)                          |
+| envrole_source | [If source_env not defined] Enviroment source mode (dev or prod)    |
+| cloud_source   | [If source_env not defined] Enviroment source cloud provider        |
+| region_source  | [If source_env not defined] Enviroment source cloud provider region |
+| uid_source     | [If source_env not defined] Environment owner's UID                 |
+| timestamp      | The backup timestamp in format %Y-%m-%dT%H:%M:00                    |
+| retention      | How many auto-backups do you want to keep                           |
+| backtype       | Is this a manual or auto backup                                     |
+| removeEnvlink  | Remove (1) or keep (0) Env links                                    |
 
 ### jahia
 
@@ -343,3 +426,75 @@ Be aware that Elasticsearch version need to be compliant with the new jCustomer 
 Each node is monitored on Datadog thanks to an agent directly installed on containers.
 
 Datadog API key (pointing to a specific organization) is set as an envvar, and a periodic script update Datadog conf in case this envvar or any tag is changed so that the agent is still sending metrics to the right place.
+
+## Specific
+
+### Performance tests
+
+In order to run performance tests against a Jahia Cloud environment, required steps must be completed first by running `jahia/perf-test-step1.yml` and `jahia/perf-test-step2.yml` to the environment.
+
+The `jahia/perf-test-step1.yml` package will trigger asynchrounous actions (site import on Jahia) which can take a lot of time, so you have to wait for the processing's tomcat logs to go silent before proceeding to the next step.
+
+Once it is completed, you need to apply `jahia/perf-test-step2.yml` package to the environment. It will also trigger asychronous actions so you will have to wait for the processing's tomcat logs to go silent again before running any performance test.
+
+### Backup/restore
+
+#### Scheduled Backup
+
+Automated backups are handled by a specific _Jelastic_ environment scheduling backups with Cron, and accessible through an API (add, list, delete).
+
+The `common/auto_backup.yml` will create an environment with a single _cp_ node using this image: [jahia/paas_autobackup](https://hub.docker.com/repository/docker/jahia/paas_autobackup)
+
+Note: only *one* _scheduled backup env_ is needed by _Jelastic_ cluster.
+
+#### Assets
+
+##### common/backrest.py
+
+Can execute multiple tasks like :
+
+- upload a backup
+- download a backup
+- add backup metadata
+- remove backup metadata
+- list backups __DEPRECATED__
+- rotate backups
+
+| parameter        | comment                                                                         |
+|------------------|---------------------------------------------------------------------------------|
+| -a _--action_    | The operation you want to do (upload, download, list, addmeta, delmeta, rotate) |
+| _--bucketname_   | The bucket name you want to use                                                 |
+| _--backupname_   | The backup name                                                                 |
+| _--displayname_  | The environment display name (for metadata)                                     |
+| -f _--file_      | The local file you want to upload or download                                   |
+| -k _--keep_      | How many auto backups you want to keep (in case of backup rotation)             |
+| -F _--foreign_   | If the backup is from another cloud/region/role ex: aws,eu-west-1,prod          |
+| -t _--timestamp_ | Backup timestamp in format %%Y-%%m-%%dT%%H:%%M:00                               |
+| -m _--mode_      | The backup mode: manual or auto                                                 |
+
+##### common/elasticsearch.py
+
+Used to backup jCustomer environments. Retrieves azure secrets if necessary and create folders if not existing
+
+| parameter            | comment                         |
+|----------------------|---------------------------------|
+| _--bucketname_       | The bucket name you want to use |
+| _--backupname_       | The backup name                 |
+| -c _--cloudprovider_ | The backup cloudprovider        |
+| -o _--operation_     | backup or restore               |
+
+
+##### common/revisionNode.py
+
+Creates revisionNode file
+
+| parameter     | comment                              |
+|---------------|--------------------------------------|
+| -n _--number_ | Decimal number to set in file        |
+| -f _--file_   | File path                            |
+| -r _--read_   | Reads the file instead of writing it |
+
+
+##### common/lib_aws.py & common/lib_azure.py
+
+Python libs used to handle authentication and manipulate files on AWS S3 buckets and Azure Resource Groups.
