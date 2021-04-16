@@ -1,0 +1,54 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v5
+id: migrate-jahia-env-v5
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+
+globals:
+  version: 5
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - eventsUpdate
+  ### End Pre-checks
+
+  - fixHaproxyAdminPasswordIfNeeded
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  fixHaproxyAdminPasswordIfNeeded:
+    cmd[bl]: |-
+      HAPROXY_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
+      DD_PWD=$(cat /etc/datadog-agent/conf.d/haproxy.d/conf.yaml | awk '/password/ {print $2 }')
+      if [ "$(grep $DD_PWD $HAPROXY_CONF)" = "" ]; then
+        sed -i "s/\(.*stats auth admin:\).*/\1$DD_PWD/" $HAPROXY_CONF
+        service haproxy reload
+      fi
+    user: root

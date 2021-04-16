@@ -49,6 +49,18 @@ actions:
     - else:
         - log: "The parameter '${this}' is not an integer, nothing to do"
 
+
+  checkEnvVersion:
+    - script: |-
+        const currentVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+            return object.name == "cp";
+        }).pop().envVersion;
+        if (${this} <= currentVersion) {
+            return {'result': 1, 'error': 'Environment is already up-to-date'}
+        } else {
+            return {'result': 0, 'out': 'Environment needs to be updated'}
+        }
+
   getLogEventScript:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
