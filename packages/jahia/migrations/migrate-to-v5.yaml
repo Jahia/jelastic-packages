@@ -25,6 +25,7 @@ onInstall:
   ### End Pre-checks
 
   - fixHaproxyAdminPasswordIfNeeded
+  - datadogCustomCheckForJahiaNodes: cp, proc     #PAAS-1534
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -51,4 +52,14 @@ actions:
         sed -i "s/\(.*stats auth admin:\).*/\1$DD_PWD/" $HAPROXY_CONF
         service haproxy reload
       fi
+    user: root
+
+  datadogCustomCheckForJahiaNodes:
+    cmd[${this}]: |-
+      CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+      CUSTOM_CHECK_CONFIG=/etc/datadog-agent/conf.d/jahia_node_not_in_haproxy_pool.yaml
+      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/jahia_node_not_in_haproxy_pool.py
+      wget -qO $CUSTOM_CHECK_CONFIG ${baseUrl}/jahia_node_not_in_haproxy_pool.yaml
+      chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT $CUSTOM_CHECK_CONFIG
+      systemctl restart datadog-agent
     user: root
