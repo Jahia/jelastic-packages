@@ -58,8 +58,8 @@ actions:
     cmd[${this}]: |-
       CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
       CUSTOM_CHECK_CONFIG=/etc/datadog-agent/conf.d/jahia_node_not_in_haproxy_pool.yaml
-      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/jahia_node_not_in_haproxy_pool.py
-      wget -qO $CUSTOM_CHECK_CONFIG ${baseUrl}/jahia_node_not_in_haproxy_pool.yaml
+      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.py
+      wget -qO $CUSTOM_CHECK_CONFIG ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.yaml
       chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT $CUSTOM_CHECK_CONFIG
       systemctl restart datadog-agent
     user: root
