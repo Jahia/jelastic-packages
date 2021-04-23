@@ -16,7 +16,7 @@ actions:
             break
           }
         }
-        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'=' '$1~/ROOT_PASSWORD$/ {print $2}' {} \\;";
+        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'\"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' {} \\; | base64 -d";
         var command = toJSON([{"command": cmd}]);
         var res = jelastic.env.control.ExecCmdById(unomi_env_name, session, unomi_nodeid, command)
         var unomi_pwd = res['responses'][0]['out'];
@@ -47,7 +47,7 @@ actions:
     cmd [${this}]: |-
       if service karaf status > /dev/null; then
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-        karaf_pwd=$(grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g')
+        karaf_pwd=$(awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv | base64 -d)
         karaf_credentials="karaf:$karaf_pwd"
         curl -fsI /dev/null -u "$karaf_credentials" http://localhost:80/cxs/privacy/info && exit 0
       fi
@@ -57,7 +57,7 @@ actions:
   saveUnomiRootPassword:
     - cmd [${nodes.cp.first.id}]: |-
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-        grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g'
+        awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv | base64 -d
     - environment.control.ApplyNodeGroupData[cp]:
         data:
           temp_unomi_root_password: ${response.out}
@@ -80,7 +80,7 @@ actions:
     - setGlobalRepoRootUrl
     - forEach(nodes.${this.target}):
         cmd[${@i.id}]: |-
-          sed -i 's/\(password: \).*/\1${this.unomi_root_password}/' /etc/datadog-agent/conf.d/jmx.d/conf.yaml
+          sed -i "s/\(password: \).*/\1$(echo ${this.unomi_root_password.toBase64()} | base64 -d)/" /etc/datadog-agent/conf.d/jmx.d/conf.yaml
           mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
           chown root:root /var/log/jelastic-packages
           chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
@@ -132,7 +132,8 @@ actions:
               -i $envfile
           echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=${@i.url}" >> $envfile
           echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=${@i.url}:9443" >> $envfile
-          echo "export UNOMI_ROOT_PASSWORD=${this.unomi_root_password}" >> $envfile
+          echo "UNOMI_ROOT_PASSWORD_B64=\"${this.unomi_root_password.toBase64()}\"" >> $envfile
+          echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
           systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
         user: root
     - if ("${response.errOut}" != ""):
@@ -201,7 +202,7 @@ actions:
     cmd [${this}]: |-
         log_file="/var/log/jelastic-packages/checkJcustomerHealthWhenStarting"
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-        karaf_pwd=$(grep UNOMI_ROOT_PASSWORD $setenv | cut -d"=" -f2 | sed 's,\s\+,,g')
+        karaf_pwd=$(awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv | base64 -d)
         timeout=120
         echo "Jcustomer is starting...." >> $log_file
         echo "Waiting for cxs/privacy/info to be ok" >> $log_file
@@ -243,7 +244,7 @@ actions:
             data = {
               "targetAppid": jahiaEnvname,
               "settings": {"pwd": "${this.new_password}"},
-              "manifest": "${globals.repoRootUrl}/package/jahia/set-jcustomer-password-in-jahia.yml"
+              "manifest": "${globals.repoRootUrl}/packages/jahia/set-jcustomer-password-in-jahia.yml"
             };
             res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
           }
