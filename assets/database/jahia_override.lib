@@ -1,0 +1,84 @@
+#!/bin/bash
+
+include extendperm;
+$PROGRAM 'systemctl';
+$PROGRAM 'grep';
+
+if [ "x$action" != "xservice" ] ; then return 0; fi
+
+[ -f /.jelenv ] && . /.jelenv
+
+RamMin=200
+MY_CNF_CONFIG="/etc/my.cnf"
+
+get_mysql_key_buffer_size() {
+    if [[ $1 -gt $RamMin ]]; then
+        Result=$(($1 / 4))
+    else
+        Result=$(($1 / 8))
+    fi
+    echo "${Result}"
+}
+
+get_mysql_table_open_cache() {
+    Default=64
+    if [[ $1 -gt $RamMin ]]; then
+        Result=256
+    else
+        Result=$Default
+    fi
+    echo "${Result}"
+}
+
+get_mysql_myisam_sort_buffer_size() {
+    echo "$(($1 / 3))"
+}
+
+get_mysql_innodb_buffer_pool_size(){
+    echo "$(($1 / 2))"
+}
+
+function doRestart(){
+    local result=0 message="Ok";
+    serviceToRestart="mysql";
+    AutoChangeConfig=$(grep -o -P "^#Jelastic autoconfiguration mark." $MY_CNF_CONFIG)
+    if [[ $AutoChangeConfig == "#Jelastic autoconfiguration mark." ]]; then
+        TotalMem=$(free -m | grep Mem | awk '{print $2}')
+        innodb_buffer_pool_size=$(get_mysql_innodb_buffer_pool_size $TotalMem)
+        current_innodb_buffer_pool_size=$(grep 'innodb_buffer_pool_size' $MY_CNF_CONFIG|grep -o [0-9]*)
+        if [ "$innodb_buffer_pool_size" -gt "$current_innodb_buffer_pool_size" ]; then
+            key_buffer_size=$(get_mysql_key_buffer_size $TotalMem)
+            table_open_cache=$(get_mysql_table_open_cache $TotalMem)
+            myisam_sort_buffer_size=$(get_mysql_myisam_sort_buffer_size $TotalMem)
+            mysql -e "SET GLOBAL innodb_buffer_pool_size=$innodb_buffer_pool_size*1024*1024; \
+                SET GLOBAL key_buffer_size=$key_buffer_size*1024*1024; \
+                SET GLOBAL table_open_cache=$table_open_cache; \
+                SET GLOBAL myisam_sort_buffer_size=$myisam_sort_buffer_size*1024*1024;" &&
+            /etc/rc.d/init.d/mysql regenerate-config  >> $ACTIONS_LOG 2>&1 &&
+            writeJSONResponseOut "result=>${result}" "message=>'New database options are applied without restart'" && return 0;
+        fi
+    fi
+    stopService "$serviceToRestart ">> "$ACTIONS_LOG" 2>&1;
+    result=$?;
+    if [[ "${result}" -eq "0" ]]
+    then
+        startService "$serviceToRestart" >> "$ACTIONS_LOG" 2>&1;
+        result=$?;
+        if [[ "${result}" -eq "0" ]]
+        then
+            [ -n "$FIREWALL_ENABLED" -a "${FIREWALL_ENABLED+xxx}" = "xxx" ] && [ "${FIREWALL_ENABLED}" -eq "1" ] && [ "$USER" == "root" ] && {
+                local msg=$( doAction "firewall" "Start" )  || message="Failed to apply firewall rules";
+            }
+        else
+            message="Failed to start $1";
+        fi
+    else
+        message="Failed to stop $1";
+    fi
+    if [[ "${result}" -ne "0" ]]; then
+        local resultMessage="result ${result} "
+        result="4182" #Pre-defined error code for non-successul restart
+    fi
+    writeJSONResponseOut "result=>${result}" "message=>${resultMessage}${message}";
+    return 0;
+}

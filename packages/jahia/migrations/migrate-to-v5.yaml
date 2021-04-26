@@ -26,6 +26,7 @@ onInstall:
 
   - fixHaproxyAdminPasswordIfNeeded
   - datadogCustomCheckForJahiaNodes: cp, proc     #PAAS-1534
+  - preventMariadbAutoRestart: sqldb              #PAAS-1437
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -62,4 +63,10 @@ actions:
       wget -qO $CUSTOM_CHECK_CONFIG ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.yaml
       chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT $CUSTOM_CHECK_CONFIG
       systemctl restart datadog-agent
+    user: root
+
+  preventMariadbAutoRestart:
+    cmd[${this}]: |-
+      wget -qP /var/lib/jelastic/customizations ${baseUrl}../../../assets/database/jahia_override.lib
+      chown -R mysql:mysql /var/lib/jelastic/customizations
     user: root

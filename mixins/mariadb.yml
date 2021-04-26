@@ -21,9 +21,11 @@ actions:
         sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
-        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M" > /etc/mysql/conf.d/mysql.cnf
+        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M\ninnodb_buffer_pool_instances = 4\ninnodb_buffer_pool_chunk_size = 32M" > /etc/mysql/conf.d/mysql.cnf
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024;"
         wget -qO /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql
+        wget -qP /var/lib/jelastic/customizations ${globals.repoRootUrl}/assets/database/jahia_override.lib
+        chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
       user: root
     - if ("${response.errOut}" != ""):
