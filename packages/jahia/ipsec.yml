@@ -129,21 +129,13 @@ actions:
           reload_secret=true
         fi
 
-        # reload everything, reload the secrets file, or start daemon as needed
-        if $ipsec_is_active; then
-          if $reload_all; then
-            strongswan reload 2>&1  # because always output to stderr even all is ok
-          elif $reload_secret; then
-            strongswan rereadsecrets 2>&1
-          fi
-        else
-          systemctl start strongswan
-        fi
-        # We force the link to be brought up in case an option like "auto = route" is set
+        # reloading doesn't work as expected so we (re)start the whole daemon
+          systemctl restart strongswan
 
         # check connection is alive, rollback if needed
         sleep 5  # little wait to be sure
         conn_name=$(awk '$1=="conn" {print $2; exit}' $confdir/$confname.conf)
+        # We force the link to be brought up in case an option like "auto = route" is set
         strongswan up $conn_name
         conn_status=$(strongswan status $conn_name | awk '$1=="Security" && $2=="Associations" {getline; if($2=="ESTABLISHED") {print "true"}else{print "false"}}')
         if ! $conn_status; then
@@ -158,7 +150,7 @@ actions:
           if ! $ipsec_is_active; then
             systemctl stop strongswan
           else
-            strongswan reload
+            systemctl restart strongswan
           fi
           echo "[INFO] Reverting to previous configuration"
           exit 1
