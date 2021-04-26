@@ -11,6 +11,7 @@ description:
 mixins:
   - ../../mixins/common.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
 
 
 onInstall:
@@ -18,8 +19,10 @@ onInstall:
   - environment.control.ApplyNodeGroupData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
+  - getUnomiDnsAndPwd:
+      unomi_env_name: ${settings.unomienv}
+  - getJahiaVersion
   - allowIP
-  - getUnomiDNSandPwd
   - upgradeJahiaModule:
       module: jExperience
       version: ${globals.jexperience_version}
@@ -57,27 +60,6 @@ actions:
           return {'result': new_prop.result, 'new_prop': new_prop};
 
   allowIP:
-    - script: |
-        const unomi_env_name = "${settings.unomienv}";
-        const nodes_infos = jelastic.env.control.GetEnvInfo(
-                unomi_env_name,
-                session
-              ).nodes;
-        const node_id = nodes_infos.filter(function (node) {
-                          return node.nodeGroup == "cp";
-                        }).pop().id;
-        const container_env_vars = jelastic.env.control.GetContainerEnvVars(
-                                     unomi_env_name,
-                                     session,
-                                     node_id
-                                   );
-        const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
-
-        return allowed_ips === undefined?
-          {"result": 0, "value": ""} :
-          {"result": 0, "value": allowed_ips};
-    - setGlobals:
-        unomi_allowed_ips: ${response.value}
     - script: |
         var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
         if (resp.result != 0) return resp;
@@ -120,28 +102,6 @@ actions:
         return {"result": 0}
     - log: "## unomi nodes get order to restart"
 
-  getUnomiDNSandPwd:
-    - script: |
-        var resp = jelastic.env.control.GetEnvInfo('${settings.unomienv}', session)
-        for (var i = 0, g = resp.nodes; i < g.length; i++) {
-          if (g[i].nodeGroup == "cp") {
-            var unomi_nodeid = g[i].id
-            var unomi_version = g[i].version.split("-", 1)[0]
-            break
-          }
-        }
-        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'=' '$1~/ROOT_PASSWORD$/ {print $2}' {} \\;"
-        var command = toJSON([{"command": cmd}])
-        var res = jelastic.env.control.ExecCmdById('${settings.unomienv}', session, unomi_nodeid, command)
-        var unomi_pwd = res['responses'][0]['out']
-        return {'result': 0, 'domain': resp.env.domain, 'unomi_pwd': unomi_pwd, 'unomi_version': unomi_version}
-    - setGlobals:
-        unomidns: ${response.domain}
-        unomi_pwd: ${response.unomi_pwd}
-        unomi_version: ${response.unomi_version}
-
-    - getJahiaVersion
-
     # Get jExperience version to install according to Jahia env version:
     # - Jahia 7.3.x ==> jExperience 1.11.4
     # - Jahia 8 < 8.0.2 ==> jExperience 1.12.2
@@ -175,7 +135,7 @@ actions:
         wget -qO - ${globals.repoRootUrl}/assets/jahia/$CONF_FILENAME \
         | sed -r -e 's;(\w+URL\s*=\s*).*;\1http://${globals.unomidns};' \
                    -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" \
-                   -e 's;(\w+Password\s*=\s*).*;\1${globals.unomi_pwd};' \
+                   -e "s;(\w+Password\s*=\s*).*;\1$(echo ${globals.unomi_pwd.toBase64()} | base64 -d);" \
                 > $CONF_PATH
         chown tomcat:tomcat "$CONF_PATH"
     - if ("${response.errOut}" != ""):

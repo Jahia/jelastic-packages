@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 3
+  jcustomer_env_version: 4
   unomi_version: ${settings.productVersion}
   unomi_root_password: ${fn.password(20)}
 ssl: true
