@@ -13,7 +13,7 @@ datadog_conf_file = sys.argv[3]
 
 pwd_set = False
 password_line = f'UNOMI_ROOT_PASSWORD_B64="{new_password_b64}"\n'
-export_password_line = "export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)"
+export_password_line = "export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)\n"
 with fileinput.FileInput(unomi_env_file, inplace=True) as file:
     for line in file:
         if "UNOMI_ROOT_PASSWORD_B64=" in line or "export UNOMI_ROOT_PASSWORD=" in line:

@@ -46,3 +46,4 @@ actions:
       sed -i "/$pmatch/d" $setenv
       echo "UNOMI_ROOT_PASSWORD_B64=\"$(echo $karaf_pwd | base64)\"" >> $setenv
       echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $setenv
+      echo >> $setenv

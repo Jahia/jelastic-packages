@@ -134,6 +134,7 @@ actions:
           echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=${@i.url}:9443" >> $envfile
           echo "UNOMI_ROOT_PASSWORD_B64=\"${this.unomi_root_password.toBase64()}\"" >> $envfile
           echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
+          echo >> $envfile
           systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
         user: root
     - if ("${response.errOut}" != ""):
