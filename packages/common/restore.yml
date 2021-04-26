@@ -162,7 +162,7 @@ actions:
             case ${DB_ENDPOINT} in "mysqldb") mysql_host="mysqldb" ;; "proxy") mysql_host=${PROXYSQL_MASTER_IP} ;; "galera") mysql_host="galera";; *) mysql_host="mysqldb"; esac
             query="select max(revision_id) from JR_J_LOCAL_REVISIONS\G"
             num=$(mysql -u $DB_USER -p$DB_PASSWORD -h $mysql_host -e "$query" jahia | awk '$1~/revision_id/ {print $2}')
-            ~/jelastic_backup/revisionNode.py -n $num
+            python3 ~/jelastic_backup/revisionNode.py -n $num
           fi
     - restoreMariadb
     - cmd [proc,cp]: |-
