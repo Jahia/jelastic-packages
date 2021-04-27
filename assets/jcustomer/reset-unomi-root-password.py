@@ -7,7 +7,7 @@ import re
 import os.path
 
 new_password_b64 = sys.argv[1]
-new_password = a2b_base64(str.encode(sys.argv[1])).decode("utf-8")
+new_password = a2b_base64(str.encode(sys.argv[1])).decode("utf-8").replace("\\", "\\\\")
 unomi_env_file = sys.argv[2]
 datadog_conf_file = sys.argv[3]
 
