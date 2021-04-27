@@ -80,7 +80,7 @@ actions:
     - setGlobalRepoRootUrl
     - forEach(nodes.${this.target}):
         cmd[${@i.id}]: |-
-          sed -i "s/\(password: \).*/\1$(echo ${this.unomi_root_password.toBase64()} | base64 -d)/" /etc/datadog-agent/conf.d/jmx.d/conf.yaml
+          sed -i "s/\(password: \).*/\1$(echo ${this.unomi_root_password.toBase64()} | base64 -d | sed 's;\\;\\\\;')/" /etc/datadog-agent/conf.d/jmx.d/conf.yaml
           mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
           chown root:root /var/log/jelastic-packages
           chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
