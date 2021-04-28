@@ -23,9 +23,6 @@ with fileinput.FileInput(unomi_env_file, inplace=True) as file:
 with open(unomi_env_file, 'a') as file:
     file.write(password_line + export_password_line)
 
-if not os.path.exists(datadog_conf_file):
-    exit(0)
-
 with fileinput.FileInput(datadog_conf_file, inplace=True) as file:
     for line in file:
         line = re.sub(r'^(\s*password:).*$', r'\1 ' + new_password, line)
