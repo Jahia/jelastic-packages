@@ -47,3 +47,19 @@ actions:
       echo "UNOMI_ROOT_PASSWORD_B64=\"$(echo $karaf_pwd | base64)\"" >> $setenv
       echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $setenv
       echo >> $setenv
+
+  # This action is temporary overriding the one in jcustomer.yml
+  checkJcustomerHealth:
+    cmd [${this}]: |-
+      if service karaf status > /dev/null; then
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        if grep -q UNOMI_ROOT_PASSWORD_B64 $setenv; then
+          karaf_pwd=$(awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv | base64 -d)
+        else 
+          karaf_pwd=$(awk -F'=' '$1~/export UNOMI_ROOT_PASSWORD$/ {print $2}' $setenv)
+        fi
+        karaf_credentials="karaf:$karaf_pwd"
+        curl -fsI /dev/null -u "$karaf_credentials" http://localhost:80/cxs/privacy/info && exit 0
+      fi
+      echo "[ERROR] jCustomer is unavailable, exiting" 1>&2 && exit 1
+    user: root
