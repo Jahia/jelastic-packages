@@ -41,8 +41,12 @@ onAfterRestartNode[cp]:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
 
+onBeforeRestartNode[proc]:
+  removeProcNodeFromHaproxy
+
 onAfterRestartNode[proc]:
-  startupJahiaHealthCheck: ${event.params.nodeId}
+  - startupJahiaHealthCheck: ${event.params.nodeId}
+  - addProcNodeToHaproxy
 
 onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
@@ -78,6 +82,7 @@ onAfterRedeployContainer[cp]:
                 nodeIp: ${@i.intIP}
 
 onBeforeRedeployContainer[proc]:
+  - removeProcNodeFromHaproxy
   - cmd [proc]: |-
       service tomcat stop
     user: root
@@ -90,11 +95,13 @@ onAfterRedeployContainer[proc]:
           echo $JAHIA_UPGRADE
         user: root
       - if ('${response.out}' == ''):
-          startupJahiaHealthCheck: ${event.params.nodeGroup}
+          - startupJahiaHealthCheck: ${event.params.nodeGroup}
+          - addProcNodeToHaproxy
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
+      - addProcNodeToHaproxy
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
