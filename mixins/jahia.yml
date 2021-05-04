@@ -801,8 +801,8 @@ actions:
             message: "jCustomer url is wrong."
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
-        PWD=$(grep jexperience.jCustomerPassword $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g')
-        if [ "$PWD" != "$(echo -n ${this.jcustomerPwdB64} | base64 -d)" ]; then
+        PASSWD=$(sed -n 's/\( *jexperience.jCustomerPassword *= *\)\(.*\) *$/\2/p' $CONFIG_FILE | tr -d '\n' | base64)
+        if [ "$PASSWD" != "$(echo -n ${this.jcustomerPwdB64})" ]; then
           >&2 echo "error"
         fi
     - if ("${response.errOut}" != ""):

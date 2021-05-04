@@ -354,17 +354,9 @@ This *upgrade* package aims at upgrading Jahia version by redeploying Jahia node
 
 This manifest will update the _jExperience_ module's configuration with the provided password.
 
-| parameter | comment                                |
-|-----------|----------------------------------------|
-| pwd       | The password _jExperience_ have to use |
-
-#### jahia/set-jahia-root-password.yml
-
-Prepare a jahia's env root password update by setting a file on the processing node. Customers will still have to restart the processing node for being effective.
-
-| parameter | comment              |
-|-----------|----------------------|
-| rootpwd   | The password to set. |
+| parameter | comment                                                     |
+|-----------|-------------------------------------------------------------|
+| pwd_b64       | The password _jExperience_ have to use (base64 encoded) |
 
 #### jahia/set-jahia-tools-password.yml
 
