@@ -788,7 +788,7 @@ actions:
   checkJexperienceCfg:
     # Parameters:
     #   - jcustomerDns: jahia env name to fetch info from
-    #   - jcustomerPwd: jahia env name to fetch info from
+    #   - jcustomerPwdB64: Jcustomer password (base64 encoded)
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         URL=$(grep jexperience.jCustomerURL $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g' |sed 's/https\?...//g')
@@ -802,7 +802,7 @@ actions:
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         PWD=$(grep jexperience.jCustomerPassword $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g')
-        if [ "$PWD" != "$(echo -n ${this.jcustomerPwd} | base64 -d)" ]; then
+        if [ "$PWD" != "$(echo -n ${this.jcustomerPwdB64} | base64 -d)" ]; then
           >&2 echo "error"
         fi
     - if ("${response.errOut}" != ""):

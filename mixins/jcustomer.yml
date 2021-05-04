@@ -19,7 +19,7 @@ actions:
         var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'\"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' {} \\;";
         var command = toJSON([{"command": cmd}]);
         var res = jelastic.env.control.ExecCmdById(unomi_env_name, session, unomi_nodeid, command)
-        var unomi_pwd = res['responses'][0]['out'];
+        var unomi_pwd_b64 = res['responses'][0]['out'];
 
 
         const container_env_vars = jelastic.env.control.GetContainerEnvVars(
@@ -32,14 +32,14 @@ actions:
         return {
           'result': 0,
           'domain': resp.env.domain,
-          'unomi_pwd': unomi_pwd,
+          'unomi_pwd_b64': unomi_pwd_b64,
           'unomi_version': unomi_version,
           'allowed_ips': allowed_ips
         }
 
     - setGlobals:
         unomidns: ${response.domain}
-        unomi_pwd: ${response.unomi_pwd}
+        unomi_pwd_b64: ${response.unomi_pwd_b64}
         unomi_version: ${response.unomi_version}
         unomi_allowed_ips: ${response.allowed_ips}
 
@@ -218,7 +218,7 @@ actions:
 
   updateJahia:
     # Parameters:
-    #   - new_password
+    #   - new_password_b64
     # Update the jcustomer's root password in all linked jahia env(s)
     - setGlobalRepoRootUrl
     - script: |-
@@ -244,7 +244,7 @@ actions:
           function(jahiaEnvname) {
             data = {
               "targetAppid": jahiaEnvname,
-              "settings": {"pwd": "${this.new_password}"},
+              "settings": {"pwd": "${this.new_password_b64}"},
               "manifest": "${globals.repoRootUrl}/packages/jahia/set-jcustomer-password-in-jahia.yml"
             };
             res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
