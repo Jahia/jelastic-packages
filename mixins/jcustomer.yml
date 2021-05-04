@@ -16,7 +16,7 @@ actions:
             break
           }
         }
-        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'\"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' {} \\; | base64 -d";
+        var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'\"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' {} \\;";
         var command = toJSON([{"command": cmd}]);
         var res = jelastic.env.control.ExecCmdById(unomi_env_name, session, unomi_nodeid, command)
         var unomi_pwd = res['responses'][0]['out'];

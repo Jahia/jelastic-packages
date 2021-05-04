@@ -802,7 +802,7 @@ actions:
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         PWD=$(grep jexperience.jCustomerPassword $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g')
-        if [ "$PWD" != "${this.jcustomerPwd}" ]; then
+        if [ "$PWD" != "$(echo -n ${this.jcustomerPwd} | base64 -d)" ]; then
           >&2 echo "error"
         fi
     - if ("${response.errOut}" != ""):
