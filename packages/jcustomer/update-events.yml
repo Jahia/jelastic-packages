@@ -19,7 +19,7 @@ onBeforeScaleIn[cp]:
 onAfterScaleIn[cp]:
   - getUnomiRootPassword
   - updateHazelcast:
-      unomi_root_password: ${globals.unomi_root_password}
+      unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - forEach(event.response.nodes):
       - setReplica
 
@@ -29,7 +29,7 @@ onBeforeServiceScaleOut[cp]:
 onAfterServiceScaleOut[cp]:
   - getUnomiRootPassword
   - updateHazelcast:
-      unomi_root_password: ${globals.unomi_root_password}
+      unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - forEach(event.response.nodes):
       - setReplica
   - setupDatadogAgentUnomi: cp
@@ -58,10 +58,10 @@ onAfterRedeployContainer[cp]:
   - getUnomiRootPassword
   - setReplica
   - setupUnomi:
-      unomi_root_password: ${globals.unomi_root_password}
+      unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - setupDatadogAgentUnomi:
       target: cp
-      unomi_root_password: ${globals.unomi_root_password}
+      unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - if ('${event.params.nodeGroup.print()}' != ''):
       checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId.print()}' != ''):

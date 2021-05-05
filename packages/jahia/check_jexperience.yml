@@ -23,7 +23,7 @@ onInstall:
       unomi_env_name: ${globals.unomi_env_name}
   - checkJexperienceCfg:
       jcustomerDns: ${globals.unomidns}
-      jcustomerPwd: ${globals.unomi_pwd}
+      jcustomerPwdB64: ${globals.unomi_pwd_b64}
   - checkAllowedIps
 
 actions:
