@@ -1,0 +1,43 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v5
+id: migrate-jcustomer-env-v5
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/elasticsearch.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 5
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkEsClusterStatus
+  - eventsUpdate
+
+  - updateJcustomerApiKey                   # PAAS-1557
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkEsClusterStatus
+
+actions:
+  updateJcustomerApiKey:
+    - cmd[${nodes.cp.first.id}]: |-
+        charset='a-zA-Z0-9!@#$%^&*()/\?'
+        cat /dev/urandom | tr -dc $charset | fold -w 32 | head -n 1 | sha1sum | cut -d' ' -f1
+    - setGlobals:
+        apiKey: ${response.out}
+    - api[${this}]: env.control.AddContainerEnvVars
+      vars: {"UNOMI_THIRDPARTY_PROVIDER1_KEY": "${globals.apiKey}"}
+    - cmd[cp]: systemctl restart karaf
