@@ -158,3 +158,17 @@ actions:
       user: root
     - env.control.AddContainerEnvVars[bl]:
       vars: {"auth_basic_enabled": "${this.enable_auth_basic}"}
+
+  removeProcNodeFromHaproxy:
+    - log: "Removing node ${nodes.proc.first.id} from HAProxy"
+    - cmd[bl]: |-
+        sed -i "/${env.appid}-${nodes.proc.first.id}/d" /etc/haproxy/haproxy.cfg.d/11-proc.cfg
+        sudo service haproxy reload
+      user: haproxy
+
+  addProcNodeToHaproxy:
+    - log: "Adding node ${nodes.proc.first.id} to HAProxy"
+    - cmd[bl]: |-
+        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
+        sudo service haproxy reload
+      user: haproxy
