@@ -27,6 +27,7 @@ onInstall:
 
   - addHaproxyOneRemainingBrowsingScript # PAAS-1598
   - updateJcustomerApiKey                # PAAS-1557
+  - switchSSTtoMariabackup               # PAAS-1504
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -77,3 +78,35 @@ actions:
             sed -i -r -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" $CONF_PATH
     - cmd[cp,proc]: rm -rf /root/.secrets
       user: root
+
+  switchSSTtoMariabackup:
+    - setGlobalRepoRootUrl
+    - cmd [sqldb]: |-
+        mariadb_repo_md5="8a433d1bb35b8a99c00f6c09d4b2424a"
+        if [ "$mariadb_repo_md5" = "$(md5sum /etc/yum.repos.d/MariaDB.repo | awk '{print $1}')" ]; then
+          exit 0
+        fi
+        find /etc/yum.repos.d -maxdepth 1 -iname "*mariadb*" -delete
+        curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/MariaDB.repo > /etc/yum.repos.d/MariaDB.repo
+      user: root
+    - cmd [sqldb]: |-
+        if [[ ! -x /usr/bin/mariabackup ]]; then
+          yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm && \
+          yum install -y MariaDB-backup qpress socat
+        fi
+      user: root
+    - cmd [sqldb]: |-
+        init_mysql="/etc/init.d/mysql"
+        redeploy_conf="/etc/jelastic/redeploy.conf"
+        if ! grep -s MariaDB-backup $init_mysql; then
+          curl -fsSL ${globals.repoRootUrl}/assets/database/mysql-init.d > $init_mysql || exit 1
+        fi
+        if ! grep -s "$init_mysql" $redeploy_conf; then
+          echo "$init_mysql" >> $redeploy_conf
+        fi
+      user: root
+    - cmd [sqldb]: |-
+        if ! grep -s wsrep_sst_auth /etc/mysql/conf.d/mysql.cnf; then
+          printf "\nwsrep_sst_auth = mysql:\nwsrep_sst_method = mariabackup" >> /etc/mysql/conf.d/mysql.cnf
+          mysql -e "set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
+        fi

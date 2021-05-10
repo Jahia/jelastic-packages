@@ -388,6 +388,15 @@ regenerate_config(){
 
 case "$mode" in
   'start')
+  # install mariabackup if not present
+  if [[ ! -x /usr/bin/mariabackup ]]; then
+    yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm 2>&1 && \
+    yum install -y MariaDB-backup qpress socat 2>&1
+    if [ $? -ne 0 ]; then
+      echo "An error occured when installing MariaDB-backup, aborting"
+      exit 1
+    fi
+  fi
     # Start daemon
   PHPMYADMIN_ENABLED=${PHPMYADMIN_ENABLED^^}
   if [ "x$PHPMYADMIN_ENABLED" == "x1" ] ||  [ "x$PHPMYADMIN_ENABLED" == "xENABLED" ] || [ "x$PHPMYADMIN_ENABLED" == "xTRUE" ]
