@@ -341,7 +341,6 @@ actions:
       vars: {"auth_basic_enabled": "${response.out}"}
 
   restoreMariadb:
-    - installMariaDBBackup: sqldb
     - cmd[sqldb]: |-
         ## [${globals.logAction}] - 4/5
         export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
