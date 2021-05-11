@@ -32,10 +32,13 @@ onInstall:
   - checkEsClusterStatus
 
 actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
   updateJcustomerApiKey:
     - cmd[${nodes.cp.first.id}]: |-
-        charset='a-zA-Z0-9!@#$%^&*()/\?'
-        cat /dev/urandom | tr -dc $charset | fold -w 32 | head -n 1 | sha1sum | cut -d' ' -f1
+        openssl rand -hex 256 | sha1sum | cut -d' ' -f1
     - setGlobals:
         apiKey: ${response.out}
     - api[${this}]: env.control.AddContainerEnvVars

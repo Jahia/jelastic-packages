@@ -25,6 +25,7 @@ onInstall:
   ### End Pre-checks
 
   - addHaproxyOneRemainingBrowsingScript # PAAS-1598
+  - updateJcustomerApiKey                # PAAS-1557
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -55,3 +56,24 @@ actions:
         curl -fsSL -o $script_path/$script_name ${globals.repoRootUrl}/assets/haproxy/$script_name || exit 1
         systemctl restart datadog-agent || exit 1
       user: root
+
+  updateJcustomerApiKey:
+    - script: |
+        const envName = "${env.envName}"
+        envLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                             return object.name == "cp";
+                          }).pop().envLink;
+        return {'result': 0, 'out': envLinked};
+    - if ("${response.out}" != "null"):
+        - setGlobals:
+            jCustomerEnv: ${response.out}
+        - script: |
+            resp = jelastic.env.control.GetContainerEnvVarsByGroup('${globals.jCustomerEnv}', session, nodeGroup='cp');
+            return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
+        - setGlobals:
+            jCustomerKey: ${response.out}
+        - cmd[cp,proc]: |-
+            CONF_FILENAME=org.jahia.modules.jexperience.settings-global.cfg
+            CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
+            jcustomer_key=${globals.jCustomerKey}
+            sed -i -r -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" $CONF_PATH
