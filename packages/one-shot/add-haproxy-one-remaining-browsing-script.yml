@@ -1,0 +1,23 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Add missing haproxy_one_remaining_browsing.py script 
+id: jahia-add-haproxy-one-remaining-browsing-script
+description:
+  short: Jahia - Add missing haproxy_one_remaining_browsing.py script
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - cmd [bl]: |-
+      script_name="haproxy_one_remaining_browsing.py"
+      script_path="/etc/datadog-agent/checks.d"
+      if [ "960bd0e47ec25c3bd645187d008c8871" = "$(md5sum $script_path/$script_name | awk '{print $1}')" ]; then
+        echo "haproxy_one_remaining_browsing.py script present, nothing to do"
+        exit 0
+      fi
+      curl -fsSL -o $script_path/$script_name ${globals.repoRootUrl}/assets/haproxy/$script_name || exit 1
+      systemctl restart datadog-agent || exit 1
+    user: root
