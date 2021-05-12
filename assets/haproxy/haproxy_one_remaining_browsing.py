@@ -21,7 +21,7 @@ class CheckNumberBrowsingRemaining(AgentCheck):
 
     def check(self, instance):
         try:
-            res = requests.get('http://localhost:80/haproxy_adm_panel;csv;norefresh',
+            res = requests.get('http://localhost:80/haproxy_adm_panel?stats;csv;norefresh',
                                auth=(instance["username"], instance["password"]))
             haproxy_stats = res.text.splitlines()
             # With this regexp, we only keep individual backend lines, not the global BACKEND one

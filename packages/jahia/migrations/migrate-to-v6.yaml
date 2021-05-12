@@ -48,8 +48,8 @@ actions:
     - cmd [bl]: |-
         script_name="haproxy_one_remaining_browsing.py"
         script_path="/etc/datadog-agent/checks.d"
-        if [ "960bd0e47ec25c3bd645187d008c8871" = "$(md5sum $script_path/$script_name | awk '{print $1}')" ]; then
-          echo "haproxy_one_remaining_browsing.py script present, nothing to do"
+        if [ "194de187655afaa01c0226c99f8241ad" = "$(md5sum $script_path/$script_name | awk '{print $1}')" ]; then
+          echo "haproxy_one_remaining_browsing.py script up-to-date, nothing to do"
           exit 0
         fi
         curl -fsSL -o $script_path/$script_name ${globals.repoRootUrl}/assets/haproxy/$script_name || exit 1
