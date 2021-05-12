@@ -10,6 +10,7 @@ mixins:
   - "../../../mixins/jahia.yml"
   - "../../../mixins/mariadb.yml"
   - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
 
 globals:
   version: 6
@@ -66,14 +67,11 @@ actions:
         return {'result': 0, 'out': envLinked};
     - if ("${response.out}" != "null"):
         - setGlobals:
-            jCustomerEnv: ${response.out}
-        - script: |
-            resp = jelastic.env.control.GetContainerEnvVarsByGroup('${globals.jCustomerEnv}', session, nodeGroup='cp');
-            return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
-        - setGlobals:
-            jCustomerKey: ${response.out}
+            envLinked: ${response.out}
+        - getJcustomerKey:
+            jcustomerEnv: ${globals.envLinked}
         - cmd[cp,proc]: |-
             CONF_FILENAME=org.jahia.modules.jexperience.settings-global.cfg
             CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
-            jcustomer_key=${globals.jCustomerKey}
+            jcustomer_key=${globals.jcustomerKey}
             sed -i -r -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" $CONF_PATH

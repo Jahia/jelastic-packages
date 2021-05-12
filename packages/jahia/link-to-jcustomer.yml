@@ -26,7 +26,8 @@ onInstall:
   - upgradeJahiaModule:
       module: jExperience
       version: ${globals.jexperience_version}
-  - getJcustomerKey
+  - getJcustomerKey:
+      jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
 
@@ -143,13 +144,6 @@ actions:
         - return:
             type: error
             message: "An error occurred during jexperience installation."
-
-  getJcustomerKey:
-    - script: |
-        resp = jelastic.env.control.GetContainerEnvVarsByGroup('${settings.unomienv}', session, nodeGroup='cp');
-        return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
-    - setGlobals:
-        jcustomerKey: ${response.out}
 
 settings:
   fields:

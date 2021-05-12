@@ -126,7 +126,7 @@ onInstall:
       unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - setupDatadogAgentEs: es
   - setEnvVersion: ${globals.jcustomer_env_version}
-  - setJcustomerApiKey: cp
+  - setJcustomerApiKey
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp

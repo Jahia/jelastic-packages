@@ -20,7 +20,7 @@ onInstall:
   - checkEsClusterStatus
   - eventsUpdate
 
-  - updateJcustomerApiKey                   # PAAS-1557
+  - setJcustomerApiKey                   # PAAS-1557
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -35,12 +35,3 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}/../update-events.yml"
-
-  updateJcustomerApiKey:
-    - cmd[${nodes.cp.first.id}]: |-
-        openssl rand -hex 256 | sha1sum | cut -d' ' -f1
-    - setGlobals:
-        apiKey: ${response.out}
-    - api[${this}]: env.control.AddContainerEnvVars
-      vars: {"UNOMI_THIRDPARTY_PROVIDER1_KEY": "${globals.apiKey}"}
-    - cmd[cp]: systemctl restart karaf

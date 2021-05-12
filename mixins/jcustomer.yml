@@ -257,6 +257,14 @@ actions:
         openssl rand -hex 256 | sha1sum | cut -d' ' -f1
     - setGlobals:
         apiKey: ${response.out}
-    - api[${this}]: env.control.AddContainerEnvVars
+    - api[cp]: env.control.AddContainerEnvVars
       vars: {"UNOMI_THIRDPARTY_PROVIDER1_KEY": "${globals.apiKey}"}
     - cmd[cp]: systemctl restart karaf
+
+  getJcustomerKey:
+    - script: |
+        const jcustomerEnv = "${this.jcustomerEnv}"
+        resp = jelastic.env.control.GetContainerEnvVarsByGroup(jcustomerEnv, session, nodeGroup='cp');
+        return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
+    - setGlobals:
+        jcustomerKey: ${response.out}
