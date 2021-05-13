@@ -20,7 +20,8 @@ onInstall:
   - checkEsClusterStatus
   - eventsUpdate
 
-  - setJcustomerApiKey                   # PAAS-1557
+  - setJcustomerApiKey                           # PAAS-1557
+  - checkJcustomerHealthWhenStarting: cp         # PAAS-1557
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
