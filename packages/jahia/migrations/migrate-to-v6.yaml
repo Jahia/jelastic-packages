@@ -65,7 +65,7 @@ actions:
                              return object.name == "cp";
                           }).pop().envLink;
         return {'result': 0, 'out': envLinked};
-    - if ("${response.out}" != "null"):
+    - if ("${response.out}" != "null" & "${response.out}" != ""):
         - setGlobals:
             envLinked: ${response.out}
         - getJcustomerKey:
@@ -75,3 +75,5 @@ actions:
             CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
             jcustomer_key=${globals.jcustomerKey}
             sed -i -r -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" $CONF_PATH
+    - cmd[cp,proc]: rm -rf /root/.secrets
+      user: root
