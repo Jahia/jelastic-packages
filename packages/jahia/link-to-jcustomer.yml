@@ -26,6 +26,8 @@ onInstall:
   - upgradeJahiaModule:
       module: jExperience
       version: ${globals.jexperience_version}
+  - getJcustomerKey:
+      jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
 
@@ -131,7 +133,7 @@ actions:
         CONF_FILENAME=org.jahia.modules.jexperience.settings-global.cfg
         CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
         # Set up jExperience configuration
-        jcustomer_key=$(sudo cat /root/.secrets/jcustomer.key)
+        jcustomer_key=${globals.jcustomerKey}
         wget -qO - ${globals.repoRootUrl}/assets/jahia/$CONF_FILENAME \
         | sed -r -e 's;(\w+URL\s*=\s*).*;\1http://${globals.unomidns};' \
                    -e "s;[ #]*(\w+\.jCustomerKey\s*=\s*).*;\1${jcustomer_key};" \

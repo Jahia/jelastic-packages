@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 4
+  jcustomer_env_version: 5
   unomi_version: ${settings.productVersion}
 ssl: true
 skipNodeEmails: true
@@ -126,6 +126,7 @@ onInstall:
       unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - setupDatadogAgentEs: es
   - setEnvVersion: ${globals.jcustomer_env_version}
+  - setJcustomerApiKey
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp
