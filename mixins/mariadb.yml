@@ -21,12 +21,14 @@ actions:
         sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
-        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M\ninnodb_buffer_pool_instances = 4\ninnodb_buffer_pool_chunk_size = 32M" > /etc/mysql/conf.d/mysql.cnf
-        mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024;"
+        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M\ninnodb_buffer_pool_instances = 4\ninnodb_buffer_pool_chunk_size = 32M\nwsrep_sst_auth = mysql:\nwsrep_sst_method = mariabackup" > /etc/mysql/conf.d/mysql.cnf
+        mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
+        echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
         wget -qO /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql
         wget -qP /var/lib/jelastic/customizations ${globals.repoRootUrl}/assets/database/jahia_override.lib
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
+        curl -fsSL ${globals.repoRootUrl}/assets/database/mysql-init.d > /etc/init.d/mysql
       user: root
     - if ("${response.errOut}" != ""):
         - return:
@@ -34,6 +36,10 @@ actions:
             message: "An error occurred during mariadb setup."
     - if (nodes.sqldb.length > 1):
         - installGaleraCluster
+    - else:
+        # Trigger mariabackup installation
+        - cmd [sqldb]: service mysql restart
+          user: root
     - log: "## Create DX's Jahia database and user"
     - cmd[${nodes.sqldb.master.id}]: |-
         mysql -e "CREATE DATABASE IF NOT EXISTS jahia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
@@ -156,6 +162,7 @@ actions:
   # galera related #
   ##################
   installGaleraCluster:
+    - setGlobalRepoRootUrl
     - resetCluster
     - initialSetup
     - setupSeeds
@@ -184,7 +191,6 @@ actions:
     - setNodeDisplayName[sqldb]: Galera
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        wget -q ${globals.repoRootUrl}/assets/database/mysql-init.d -O /etc/init.d/mysql
         wget -q ${globals.repoRootUrl}/assets/database/galera.cnf -O /etc/mysql/conf.d/galera.cnf &>> /var/log/run.log
       user: root
     - if ("${response.errOut}" != ""):
