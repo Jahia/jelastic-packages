@@ -331,11 +331,3 @@ actions:
                 return:
                   type: error
                   message: "Galera node ${globals.currentNode} was not able to join the cluster after being redeployed"
-
-  installMariaDBBackup:
-    - cmd[${this}]: |-
-        if [[ ! -x /usr/bin/mariabackup ]]; then
-          yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
-          yum install -y MariaDB-backup qpress
-        fi
-      user: root
