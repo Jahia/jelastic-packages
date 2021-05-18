@@ -55,6 +55,7 @@ onBeforeRedeployContainer[cp]:
           removeNodeFromHaproxy:
             nodeId: ${@i.id}
       - cmd [cp]: |-
+          systemctl disable strongswan.service
           service tomcat stop
         user: root
   - elif ('${event.params.nodeId:}'):
@@ -62,6 +63,7 @@ onBeforeRedeployContainer[cp]:
       - removeNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
       - cmd [${event.params.nodeId}]: |-
+          service strongswan stop
           service tomcat stop
         user: root
 
@@ -84,6 +86,7 @@ onAfterRedeployContainer[cp]:
 onBeforeRedeployContainer[proc]:
   - removeProcNodeFromHaproxy
   - cmd [proc]: |-
+      systemctl disable strongswan.service
       service tomcat stop
     user: root
 
