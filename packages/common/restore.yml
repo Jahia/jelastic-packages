@@ -261,8 +261,6 @@ actions:
         - setAwsSnapshotRepository:
             region: ${this.region}
             account: ${globals.account}
-            awsSecretKeyJson: ${globals.awsSecretKeyJson}
-            awsAccessKeyJson: ${globals.awsAccessKeyJson}
             logsPath: ${globals.logsPath}
     - else:
         - setAzureElasticsearchConfig:

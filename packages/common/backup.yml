@@ -34,14 +34,14 @@ onInstall:
           target: bl
           user: haproxy
           logsPath: ${globals.logsPath}
-      - installBackupTools: 
+      - installBackupTools:
           target: ${globals.dbBackupNode}
           logAction: ${globals.logAction}
-      - installBackupTools: 
+      - installBackupTools:
           target: proc
           logAction: ${globals.logAction}
       - if (nodes.bl):  # Haproxy
-          - installBackupTools: 
+          - installBackupTools:
               target: bl
               logAction: ${globals.logAction}
       - backupMariadb: ${globals.dbBackupNode}
@@ -55,7 +55,7 @@ onInstall:
           target: ${nodes.es.first.id}
           user: root
           logsPath: ${globals.logsPath}
-      - installBackupTools: 
+      - installBackupTools:
           target: ${nodes.es.first.id}
           logAction: ${globals.logAction}
       - backupElasticsearch
@@ -197,8 +197,6 @@ actions:
         - setAwsSnapshotRepository:
             region: ${this.region}
             account: ${globals.account}
-            awsSecretKeyJson: ${globals.awsSecretKeyJson}
-            awsAccessKeyJson: ${globals.awsAccessKeyJson}
             logsPath: ${globals.logsPath}
     - else:
         - setAzureElasticsearchConfig:

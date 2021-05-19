@@ -5,8 +5,6 @@
 actions:
   setupES:
     cmd[${this}]: |-
-      /usr/share/elasticsearch/bin/elasticsearch --version
-      es_major_version=$(/usr/share/elasticsearch/bin/elasticsearch --version | cut -d"." -f1 | cut -d" " -f2)
       es_conf=/etc/elasticsearch/elasticsearch.yml
       ipadd=$(ip a s scope global | awk '$1=="inet" {split($2, ipad, "/"); print ipad[1]}')
       node_name=$(awk -v ipadd=$ipadd '$1==ipadd && $2~/^es_[0-9]+$/ {print $2; exit}' /etc/hosts)
@@ -20,12 +18,8 @@ actions:
       sed 's/\(^discovery.type: single-node\)/#\1/' -i $es_conf
       echo "node.name: $node_name" >> $es_conf
       hosts_list=$(awk '$2~/^es_[0-9]+$/ {nodes[$2]} END{asorti(nodes);printf "["; for(n=1;n<=length(nodes);n++){if(n<length(nodes)){sep=", "}else{sep="]"}; printf "\"%s\"%s",nodes[n],sep}}' /etc/hosts)
-      discovery_hosts_parameter_name="discovery.zen.ping.unicast.hosts"
-      if [ $es_major_version -ge 7 ]; then
-        discovery_hosts_parameter_name="discovery.seed_hosts"
-        echo "cluster.initial_master_nodes: $hosts_list" >> $es_conf
-      fi
-      echo "$discovery_hosts_parameter_name: $hosts_list" >> $es_conf
+      echo "cluster.initial_master_nodes: $hosts_list" >> $es_conf
+      echo "discovery.seed_hosts: $hosts_list" >> $es_conf
       echo "discovery.zen.minimum_master_nodes: $(expr ${nodes.es.length} / 2 + 1)" >> $es_conf
       systemctl enable elasticsearch
       systemctl restart elasticsearch
@@ -231,8 +225,6 @@ actions:
             \"settings\": {
                 \"bucket\": \"${this.account}\",
                 \"region\": \"${this.region}\",
-                ${this.awsAccessKeyJson}
-                ${this.awsSecretKeyJson}
                 \"base_path\" : \"${settings.backup_name}/elasticsearch\"
             }
           }" 2>>${this.logsPath} || exit 1
@@ -250,60 +242,28 @@ actions:
 
   # Using an Elasticsearch keystore to add AWS keys
   setAwsElasticsearchConfig:
-    - if ('${this.esVersion}' >= '6.4.0'):
-        - cmd[es]: |-
-            if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
-                /usr/share/elasticsearch/bin/elasticsearch-keystore create
-            fi
-            printf "${settings.aws_access_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
-            printf "${settings.aws_secret_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
-            curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
-        - setGlobals:
-            awsAccessKeyJson: ""
-            awsSecretKeyJson: ""
-    - else:
-        - setGlobals:
-            awsAccessKeyJson: "\\\"access_key\\\": \\\"${settings.aws_access_key}\\\","
-            awsSecretKeyJson: "\\\"secret_key\\\": \\\"${settings.aws_secret_key}\\\","
+    - cmd[es]: |-
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+        fi
+        printf "${settings.aws_access_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
+        printf "${settings.aws_secret_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
 
   setAzureElasticsearchConfig:
-    - if ('${this.esVersion}' >= '6.4.0'):
-        - getAzureSecret:
-            operation: "${this.operation}"
-            account: ${this.account}
-            logsPath: ${this.logsPath}
+    - getAzureSecret:
+        operation: "${this.operation}"
+        account: ${this.account}
+        logsPath: ${this.logsPath}
 
-        - cmd[es]: |-
-            if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
-                /usr/share/elasticsearch/bin/elasticsearch-keystore create
-                echo "true"
-            fi
-            printf "${this.account}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.account
-            printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
-            curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
-    - else:
-        - cmd[${nodes.es.first.id}]: |-
-            grep azure_storage_user /etc/elasticsearch/elasticsearch.yml || true
-        - if ("${response.out}" == ""):  # If azure config is not set
-            forEach(nodes.es):
-              cmd[${@i.id}]: |-
-                echo -e "cloud:\n  azure:\n    storage:\n      azure_storage_user:" >> /etc/elasticsearch/elasticsearch.yml
-                echo -e "        default: true\n        account: placeholder\n        key: placeholder" >> /etc/elasticsearch/elasticsearch.yml
-        - cmd[${nodes.es.first.id}]: |-
-            grep "${this.account}" /etc/elasticsearch/elasticsearch.yml || true
-        - if ("${response.out}" == ""):  # If we need to use a different account
-            # Done in a function because of the if... it's the way it works !
-            - getAzureSecret:
-                operation: "${this.operation}"
-                account: ${this.account}
-                logsPath: ${this.logsPath}
-            # Set azure credentials and restart ES
-            - forEach(nodes.es):
-                cmd[${@i.id}]: |-
-                  sed -i 's#\(^.*account\:\).*#\1 ${this.account}#g' /etc/elasticsearch/elasticsearch.yml
-                  sed -i 's#\(^.*key\:\).*#\1 ${globals.azure_secret}#g' /etc/elasticsearch/elasticsearch.yml
-                  service elasticsearch restart
-                  sleep 30
+    - cmd[es]: |-
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+            echo "true"
+        fi
+        printf "${this.account}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.account
+        printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
 
   getAzureSecret:
     - cmd[${nodes.es.first.id}]: |-
