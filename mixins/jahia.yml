@@ -76,6 +76,21 @@ actions:
           fi
       user: root
 
+    - script: |-
+        ipsec_enabled = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                          return object.name == "cp";
+                        }).pop().ipsec
+        return {"result": 0, "out": ipsec_enabled}
+
+    - setGlobals:
+        strongswanServiceStatus: ${response.out}
+
+    - if ("${globals.strongswanServiceStatus}" == "enable"):
+        - cmd[${this}]: |-
+            systemctl enable strongswan.service
+            systemctl start strongswan.service
+          user: root
+
   stopJahia:
     cmd[${this}]: "service tomcat stop"
     user: root

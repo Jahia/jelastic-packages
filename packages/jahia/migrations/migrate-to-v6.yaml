@@ -28,6 +28,7 @@ onInstall:
   - addHaproxyOneRemainingBrowsingScript # PAAS-1598
   - updateJcustomerApiKey                # PAAS-1557
   - switchSSTtoMariabackup               # PAAS-1504
+  - removeStrongSwanServiceFromRedeploy  # PAAS-1587
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -110,3 +111,7 @@ actions:
           printf "\nwsrep_sst_auth = mysql:\nwsrep_sst_method = mariabackup" >> /etc/mysql/conf.d/mysql.cnf
           mysql -e "set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
         fi
+
+  removeStrongSwanServiceFromRedeploy:
+    - cmd[cp, proc]: |-
+        sed -i '/strongswan.service/d' /etc/jelastic/redeploy.conf
