@@ -31,14 +31,8 @@ onBeforeInstall: |
     nodes: []
   }
 
-  // Elasticsearch port and version changes from jCustomer 1.5
-  if (unomiVersion >= "1.5") {
-    esPort = "9200";
-    esVersion = 7;
-  } else {
-    esPort = "9300";
-    esVersion = 5;
-  }
+  esPort = "9200";
+  esVersion = 7;
 
   node_es = {
     nodeType: "jahiastic-elasticsearch",
