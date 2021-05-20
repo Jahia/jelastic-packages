@@ -115,3 +115,4 @@ actions:
   removeStrongSwanServiceFromRedeploy:
     - cmd[cp, proc]: |-
         sed -i '/strongswan.service/d' /etc/jelastic/redeploy.conf
+      user: root
