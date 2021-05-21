@@ -150,8 +150,8 @@ actions:
     - else:
         - log: remove env link
         - cmd[proc, cp]: |-
-            rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.marketingfactory.settings-mf.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-            rm -f /data/digital-factory-data/modules/jexperience-*.jar /data/digital-factory-data/modules/marketing-factory-core*.jar
+            sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+            rm -f /data/digital-factory-data/modules/jexperience-*.jar
         - environment.control.ApplyNodeGroupData [proc, cp]:
             data:
               envLink: ""
