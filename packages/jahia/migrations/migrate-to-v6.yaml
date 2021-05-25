@@ -29,6 +29,7 @@ onInstall:
   - updateJcustomerApiKey                # PAAS-1557
   - switchSSTtoMariabackup               # PAAS-1504
   - removeStrongSwanServiceFromRedeploy  # PAAS-1587
+  - datadogCustomCheckForJahiaNodes      # PAAS-1596
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -116,3 +117,11 @@ actions:
     - cmd[cp, proc]: |-
         sed -i '/strongswan.service/d' /etc/jelastic/redeploy.conf
       user: root
+
+  datadogCustomCheckForJahiaNodes:
+    cmd[cp, proc]: |-
+      CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/v6_assets/jahia_node_not_in_haproxy_pool.py
+      chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
+      systemctl restart datadog-agent
+    user: root
