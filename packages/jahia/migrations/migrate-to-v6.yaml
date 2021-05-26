@@ -30,6 +30,7 @@ onInstall:
   - switchSSTtoMariabackup               # PAAS-1504
   - removeStrongSwanServiceFromRedeploy  # PAAS-1587
   - datadogCustomCheckForJahiaNodes      # PAAS-1596
+  - addJahiaTcpBindAddressEnvVar         # PAAS-1580
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -125,3 +126,8 @@ actions:
       chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
       systemctl restart datadog-agent
     user: root
+
+  addJahiaTcpBindAddressEnvVar:
+    env.control.AddContainerEnvVars [cp,proc]:
+    vars:
+      jahia_cfg_cluster_tcp_bindAddress: "$(hostname -i)"
