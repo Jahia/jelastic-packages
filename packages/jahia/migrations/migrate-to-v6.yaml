@@ -30,7 +30,7 @@ onInstall:
   - switchSSTtoMariabackup               # PAAS-1504
   - removeStrongSwanServiceFromRedeploy  # PAAS-1587
   - datadogCustomCheckForJahiaNodes      # PAAS-1596
-  - addJahiaTcpBindAddressEnvVar         # PAAS-1580
+  - setJahiaTcpBindAddress               # PAAS-1580
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -127,7 +127,8 @@ actions:
       systemctl restart datadog-agent
     user: root
 
-  addJahiaTcpBindAddressEnvVar:
-    env.control.AddContainerEnvVars [cp,proc]:
-    vars:
-      jahia_cfg_cluster_tcp_bindAddress: "$(hostname -i)"
+  setJahiaTcpBindAddress:
+    cmd[cp, proc]: |-
+      if [ "$(grep jahia_cfg_cluster_tcp_bindAddress /opt/tomcat/conf/tomcat-env.sh)" == "" ]; then
+        sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' /opt/tomcat/conf/tomcat-env.sh
+      fi
