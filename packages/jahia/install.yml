@@ -60,7 +60,6 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
-        "jahia_cfg_cluster_tcp_bindAddress": "$(hostname -i)"
       },
     "distribution": {
         "mode": "STRICT",
@@ -144,6 +143,7 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "HEALTHCHECK_DURATION": "240",
+        "jahia_cfg_cluster_tcp_bindAddress": "$(hostname -i)"
       },
     "distribution": {
         "mode": "STRICT",
