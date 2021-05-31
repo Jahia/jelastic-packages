@@ -31,6 +31,7 @@ onInstall:
   - removeStrongSwanServiceFromRedeploy  # PAAS-1587
   - datadogCustomCheckForJahiaNodes      # PAAS-1596
   - setJahiaTcpBindAddress               # PAAS-1580
+  - installIPSecDNSSplit                 # PAAS-1592
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -132,3 +133,26 @@ actions:
       if [ "$(grep jahia_cfg_cluster_tcp_bindAddress /opt/tomcat/conf/tomcat-env.sh)" == "" ]; then
         sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' /opt/tomcat/conf/tomcat-env.sh
       fi
+
+  installIPSecDNSSplit:
+    - cmd[cp, proc]: |-
+        if [ -x /usr/sbin/dnsmasq ]; then
+          yum install -y dnsmasq
+          systemctl disable dnsmasq
+        fi
+        f_resolve="/etc/strongswan/strongswan.d/charon/resolve.conf"
+        md5_resolve="2bc40fdfbf39ef56a41348b5fe0e36ab"
+        if ! (echo "$md5_resolve $f_resolve" | md5sum -c --status); then
+          curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/charon_resolve.conf > $f_resolve || exit 1
+        fi
+        f_updown="/usr/local/bin/ipsec_updown.sh"
+        if [ -x $f_updown ]; then
+          curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/strongswan_updown_script.sh > $f_updown || exit 1
+          chmod +x /usr/local/bin/ipsec_updown.sh
+        fi
+        if ! (grep -q "$f_updown"); then
+          l1='\  # script to start when connection up/down\n'
+          l2='  leftupdown=/usr/local/bin/ipsec_updown.sh\n'
+          sed -i "/^include/i$l1$l2" /etc/strongswan/ipsec.conf
+        fi
+      user: root
