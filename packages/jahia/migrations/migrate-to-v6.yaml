@@ -146,7 +146,7 @@ actions:
           curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/charon_resolve.conf > $f_resolve || exit 1
         fi
         f_updown="/usr/local/bin/ipsec_updown.sh"
-        if [ -x $f_updown ]; then
+        if [ ! -x $f_updown ]; then
           curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/strongswan_updown_script.sh > $f_updown || exit 1
           chmod +x /usr/local/bin/ipsec_updown.sh
         fi
