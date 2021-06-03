@@ -150,7 +150,7 @@ actions:
           curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/strongswan_updown_script.sh > $f_updown || exit 1
           chmod +x /usr/local/bin/ipsec_updown.sh
         fi
-        if ! (grep -q "$f_updown"); then
+        if ! (grep -q "$f_updown" /etc/strongswan/ipsec.conf); then
           l1='\  # script to start when connection up/down\n'
           l2='  leftupdown=/usr/local/bin/ipsec_updown.sh\n'
           sed -i "/^include/i$l1$l2" /etc/strongswan/ipsec.conf
