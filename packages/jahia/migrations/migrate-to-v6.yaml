@@ -136,7 +136,7 @@ actions:
 
   installIPSecDNSSplit:
     - cmd[cp, proc]: |-
-        if [ -x /usr/sbin/dnsmasq ]; then
+        if [ ! -x /usr/sbin/dnsmasq ]; then
           yum install -y dnsmasq
           systemctl disable dnsmasq
         fi
