@@ -87,7 +87,7 @@ actions:
         fi
 
         # check if right subnets overlap with env's subnet
-        pip install ipconflict
+        pip install ipconflict -qq
 
         infra_subnet=192.168.0.0/16
         subnets_file=$(mktemp)
