@@ -485,7 +485,12 @@ actions:
             group: "proc"
             fullreadmode: "ON"
 
-        - if(globals.jahiaVersion < '7.3.3.0'):
+        - isVersionLower:
+            a: ${globals.jahiaVersion}
+            b: 7.3.3.0
+            res: enableVersionLowerThan7330
+
+        - if( ${globals.enableVersionLowerThan7330} ):
             - enableKarafLogin: cp
             - switchFullReadonly:
                 group: "cp"
@@ -501,7 +506,12 @@ actions:
             fullreadmode: "OFF"
         - disableKarafLogin: proc
 
-        - if(globals.jahiaVersion < '7.3.3.0'):
+        - isVersionLower:
+            a: ${globals.jahiaVersion}
+            b: 7.3.3.0
+            res: disableVersionLowerThan7330
+
+        - if( ${globals.disableVersionLowerThan7330} ):
             - switchFullReadonly:
                 group: "cp"
                 fullreadmode: "OFF"

@@ -109,7 +109,7 @@ actions:
         chown tomcat:tomcat -R /opt/tomcat/conf
         rm -f digital-factory-config.tar.gz
         rm -rf /data/digital-factory-data/repository/.lock /data/digital-factory-data/repository/workspace /data/digital-factory-data/repository/index
-        if [ $(echo $DX_VERSION | sed 's/\.//g') -lt 7232 ]; then touch /data/digital-factory-data/backup-restore; else touch /data/digital-factory-data/safe-env-clone; fi;
+        touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - if ("${response.errOut}" != ""):

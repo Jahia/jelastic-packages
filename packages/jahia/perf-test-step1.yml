@@ -11,9 +11,16 @@ globals:
 
 mixins:
   - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
 
 onInstall:
-  - if("${nodes.proc.first.version}" >= "8.0.0.0"):
+  - getJahiaVersion
+  - isVersionLower:
+      a: ${globals.jahiaVersion}
+      b: 8.0.0.0
+      res: isVersionLowerThan8000
+
+  - if( ! ${globals.isVersionLowerThan8000} ):
       - setGlobals:
           calendar_version: 3.1.0
           event_version: 3.0.0
