@@ -95,7 +95,7 @@ actions:
       user: root
     - cmd [sqldb]: |-
         if [[ ! -x /usr/bin/mariabackup ]]; then
-          yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm && \
+          yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
           yum install -y MariaDB-backup qpress socat
         fi
       user: root
