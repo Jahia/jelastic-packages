@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 5
+  jcustomer_env_version: 6
   unomi_version: ${settings.productVersion}
 ssl: true
 skipNodeEmails: true

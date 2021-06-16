@@ -130,8 +130,8 @@ actions:
               -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
               -e '/UNOMI_ROOT_PASSWORD/d' \
               -i $envfile
-          echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=${@i.url}" >> $envfile
-          echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=${@i.url}:9443" >> $envfile
+          echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
+          echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
           echo "UNOMI_ROOT_PASSWORD_B64=\"${this.unomi_root_password_b64}\"" >> $envfile
           echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
           echo >> $envfile
