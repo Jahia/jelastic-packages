@@ -485,7 +485,7 @@ actions:
             group: "proc"
             fullreadmode: "ON"
 
-        - isVersionLower:
+        - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
             b: 7.3.3.0
             res: enableVersionLowerThan7330
@@ -506,7 +506,7 @@ actions:
             fullreadmode: "OFF"
         - disableKarafLogin: proc
 
-        - isVersionLower:
+        - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
             b: 7.3.3.0
             res: disableVersionLowerThan7330
@@ -764,17 +764,17 @@ actions:
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
     # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
     # in case we upgrade from a version that does not handle it to a version that does.
-    - isVersionLower:
+    - isVersionStrictlyLower:
         a: "${this.targetDockerTag}"
         b: "7.3.8.0"
         res: isTargetVersionLowerThan7380
 
     - if ( ! ${globals.isTargetVersionLowerThan7380} ):
-        - isVersionLower:
+        - isVersionStrictlyLower:
             a: "${this.targetDockerTag}"
             b: "8.0.0.0"
             res: isTargetVersionLowerThan8000
-        - isVersionLower:
+        - isVersionStrictlyLower:
             a: "${this.targetDockerTag}"
             b: "8.0.2.0"
             res: isTargetVersionLowerThan8020

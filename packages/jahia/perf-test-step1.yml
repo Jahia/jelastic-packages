@@ -15,12 +15,12 @@ mixins:
 
 onInstall:
   - getJahiaVersion
-  - isVersionLower:
+  - isVersionHigherOrEqual:
       a: ${globals.jahiaVersion}
       b: 8.0.0.0
-      res: isVersionLowerThan8000
+      res: isVersionHigherOrEqualThan8000
 
-  - if( ! ${globals.isVersionLowerThan8000} ):
+  - if( ${globals.isVersionHigherOrEqualThan8000} ):
       - setGlobals:
           calendar_version: 3.1.0
           event_version: 3.0.0
