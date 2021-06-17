@@ -1,0 +1,15 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Install qpress and socat on DB nodes
+id: jahia-install-qpress-socat
+
+onInstall:
+  - cmd [sqldb]: |-
+      if [[ ! -x /usr/bin/qpress ]]; then
+        yum install -y qpress
+      fi
+      if [[ ! -x /usr/bin/socat ]]; then
+        yum install -y socat
+      fi
+    user: root
