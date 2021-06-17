@@ -6,6 +6,9 @@ id: jahia-install-qpress-socat
 
 onInstall:
   - cmd [sqldb]: |-
+      if ! rpm --quiet -q percona-release; then
+        yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+      fi
       if [[ ! -x /usr/bin/qpress ]]; then
         yum install -y qpress
       fi

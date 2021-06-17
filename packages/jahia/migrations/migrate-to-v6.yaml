@@ -94,8 +94,10 @@ actions:
         curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/MariaDB.repo > /etc/yum.repos.d/MariaDB.repo
       user: root
     - cmd [sqldb]: |-
-        if [[ ! -x /usr/bin/mariabackup ]]; then
+        if ! rpm --quiet -q percona-release; then
           yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        fi
+        if [[ ! -x /usr/bin/mariabackup ]]; then
           yum install -y MariaDB-backup
         fi
         if [[ ! -x /usr/bin/qpress ]]; then
