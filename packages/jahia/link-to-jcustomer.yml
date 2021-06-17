@@ -80,13 +80,18 @@ actions:
         ipadd_to_allow: ${response.ipadd}
     - log: "## these ip addresses should be allowed for unomi: ${globals.ipadd_to_allow}"
     - script: |
-        // Filter the list in order to remove empty strings
-        var allowed_ips = '${globals.unomi_allowed_ips}'.split(',')
-                          .filter( function(e) {
-                            return e;
-                          });
-        var new_ip_to_allow = '${globals.ipadd_to_allow}'.split(',');
-        var ip_to_allow = allowed_ips.concat(new_ip_to_allow).join(',');
+        // Check if globals.unomi_allowed_ips is empty
+        if ('${globals.unomi_allowed_ips}' === "null") {
+          var ip_to_allow = '${globals.ipadd_to_allow}'
+        } else {
+          // Filter the list in order to remove empty strings
+          var allowed_ips = '${globals.unomi_allowed_ips}'.split(',')
+                            .filter( function(e) {
+                              return e;
+                            });
+          var new_ip_to_allow = '${globals.ipadd_to_allow}'.split(',');
+          var ip_to_allow = allowed_ips.concat(new_ip_to_allow).join(',');
+        }
         var resp = jelastic.env.control.AddContainerEnvVars('${settings.unomienv}',
           session,
           nodeGroup='cp',

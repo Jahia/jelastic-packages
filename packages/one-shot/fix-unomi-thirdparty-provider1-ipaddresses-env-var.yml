@@ -1,0 +1,31 @@
+---
+type: update
+version: 1.5.2
+name: Jcustomer - fix UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES env var
+id: jcustomer-fix-unomi-thirdparty-provider1-ipaddresses-env-var
+description:
+  short: 'Jcustomer: remove "null," if present in UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES'
+
+onInstall:
+  - script: |-
+      const container_env_vars = jelastic.env.control.GetContainerEnvVars(
+                                   '${env.envName}',
+                                   session,
+                                   ${nodes.cp.first.id}
+                                 );
+      const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
+      if (allowed_ips == null)
+        return {'result': 0}
+
+      const clean_ips = allowed_ips.replace("null,","")
+      if (allowed_ips != clean_ips) {
+        var resp = jelastic.env.control.AddContainerEnvVars(
+          '${env.envName}',
+          session,
+          nodeGroup='cp',
+          vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': clean_ips }
+        );
+        if (resp.result != 0)
+          return resp
+      }
+      return {'result': 0}
