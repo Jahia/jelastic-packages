@@ -34,6 +34,6 @@ onInstall:
         return {'result': 0, "restart_required": 0}
       }
   - if ("${response.restart_required}" == "1"):
-    cmd[cp]: |-
-      service karaf restart
-    user: root
+      foreach (nodes.cp):
+        api: environment.control.RestartNodeById
+        nodeId: ${@i.id}
