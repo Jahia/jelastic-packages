@@ -15,7 +15,7 @@ onInstall:
                                  );
       const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
       if (allowed_ips == null)
-        return {'result': 0}
+        return {'result': 0, "restart_required": 0}
 
       const clean_ips = allowed_ips.replace("null,","")
       if (allowed_ips != clean_ips) {
@@ -25,7 +25,15 @@ onInstall:
           nodeGroup='cp',
           vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': clean_ips }
         );
+
         if (resp.result != 0)
           return resp
+
+        return {'result': 0, "restart_required": 1}
+      } else {
+        return {'result': 0, "restart_required": 0}
       }
-      return {'result': 0}
+  - if ("${response.restart_required}" == "1"):
+    cmd[cp]: |-
+      service karaf restart
+    user: root
