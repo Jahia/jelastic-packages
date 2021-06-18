@@ -20,7 +20,8 @@ onInstall:
   - checkEsClusterStatus
   - eventsUpdate
 
-  - updateHazelcast                               # PAAS-1578
+  - updateClusterAddresses                        # PAAS-1578
+  - rollingRestartJc
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -35,3 +36,20 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}/../update-events.yml"
+
+  rollingRestartJc:
+    install:
+      jps: "${baseUrl}/../jcustomer-rolling-restart.yml"
+
+  updateClusterAddresses:
+    - cmd[cp]:
+        envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
+            -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
+            -i $envfile
+        echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
+        echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the update of UNOMI_CLUSTER_*_ADDRESS envvars."
