@@ -59,14 +59,14 @@ actions:
     cmd[${this}]: |-
       CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
       CUSTOM_CHECK_CONFIG=/etc/datadog-agent/conf.d/jahia_node_not_in_haproxy_pool.yaml
-      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.py
-      wget -qO $CUSTOM_CHECK_CONFIG ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.yaml
+      curl -fLSso $CUSTOM_CHECK_SCRIPT ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.py || exit 1
+      curl -fLSso $CUSTOM_CHECK_CONFIG ${baseUrl}/v5_assets/jahia_node_not_in_haproxy_pool.yaml || exit 1
       chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT $CUSTOM_CHECK_CONFIG
       systemctl restart datadog-agent
     user: root
 
   preventMariadbAutoRestart:
     cmd[${this}]: |-
-      wget -qP /var/lib/jelastic/customizations ${baseUrl}../../../assets/database/jahia_override.lib
+      curl -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${baseUrl}../../../assets/database/jahia_override.lib || exit 1
       chown -R mysql:mysql /var/lib/jelastic/customizations
     user: root

@@ -24,11 +24,11 @@ actions:
         printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M\ninnodb_buffer_pool_instances = 4\ninnodb_buffer_pool_chunk_size = 32M\nwsrep_sst_auth = mysql:\nwsrep_sst_method = mariabackup" > /etc/mysql/conf.d/mysql.cnf
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
         echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
-        wget -qO /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql
-        wget -qP /var/lib/jelastic/customizations ${globals.repoRootUrl}/assets/database/jahia_override.lib
+        curl -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
+        curl -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
-        curl -fsSL ${globals.repoRootUrl}/assets/database/mysql-init.d > /etc/init.d/mysql
+        curl -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
       user: root
     - if ("${response.errOut}" != ""):
         - return:
@@ -117,9 +117,9 @@ actions:
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown mysql:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
-        wget -qO /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh
-        wget -qO /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron
+        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
+        curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
         chmod 644 /var/log/mysql/mysqld.log
         chmod 644 /var/log/mysql/slow-queries.log  > /dev/null 2>&1
@@ -191,7 +191,7 @@ actions:
     - setNodeDisplayName[sqldb]: Galera
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        wget -q ${globals.repoRootUrl}/assets/database/galera.cnf -O /etc/mysql/conf.d/galera.cnf &>> /var/log/run.log
+        curl -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
       user: root
     - if ("${response.errOut}" != ""):
         - return:

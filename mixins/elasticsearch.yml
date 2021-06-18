@@ -33,7 +33,7 @@ actions:
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown root:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         systemctl restart crond datadog-agent
 
   updateReplica:

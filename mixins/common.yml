@@ -64,7 +64,7 @@ actions:
   getLogEventScript:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
-        wget -qO /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh
+        curl -fLSso /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh || exit 1
         chmod u+x /usr/local/bin/log_event.sh
       user: root
 
@@ -288,9 +288,9 @@ actions:
         [ -d jelastic_backup ] || mkdir jelastic_backup
         cd jelastic_backup
         for file in backrest.py lib_aws.py lib_azure.py revisionNode.py; do
-          curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file
+          curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file || exit 1
         done
-        curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py
+        curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py || exit 1
 
   clearJelasticLogs:
     - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
