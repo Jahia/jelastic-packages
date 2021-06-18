@@ -24,17 +24,13 @@ actions:
   retrieveHaproxyConf:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
-        wget -qO /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http
+        curl -fLSso /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         mkdir /etc/haproxy/haproxy.cfg.d && chmod 775 /etc/haproxy/haproxy.cfg.d
-        wget -qO /etc/haproxy/haproxy.cfg.d/00-global.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-00-global.cfg
-        wget -qO /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg
-        wget -qO /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg
-        wget -qO /etc/sysconfig/haproxy ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig
+        curl -fLSso /etc/haproxy/haproxy.cfg.d/00-global.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-00-global.cfg || exit 1
+        curl -fLSso /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg || exit 1
+        curl -fLSso /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg || exit 1
+        curl -fLSso /etc/sysconfig/haproxy ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
       user: root
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred while retrieving haproxy configuration."
 
   splitHaproxyConf:
     # "Hack" to split the haproxy conf file and isolate jahia backend conf
@@ -106,23 +102,23 @@ actions:
         echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
         echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
         echo " - envmode:${jahia_cfg_operatingMode}" >> /etc/datadog-agent/datadog.yaml
-        curl -fsSL -o /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py ${globals.repoRootUrl}/assets/haproxy/haproxy_one_remaining_browsing.py
+        curl -fLSso /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py ${globals.repoRootUrl}/assets/haproxy/haproxy_one_remaining_browsing.py
         chown dd-agent:dd-agent /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
         ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_browsing.yaml
-        wget -qO /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml
+        curl -fLSso /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml || exit 1
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown haproxy:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         STATS_PWD=$(grep "stats auth admin" /etc/haproxy/haproxy.cfg.d/00-global.cfg | head -n1 | cut -d":" -f2)
         sed -i "s/my_awesome_password/${STATS_PWD}/g" /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
-        wget -qO /etc/datadog-agent/conf.d/process.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_process_conf.yml
-        wget -qO /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh
-        wget -qO /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron
+        curl -fLSso /etc/datadog-agent/conf.d/process.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_process_conf.yml || exit 1
+        curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
+        curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
-        wget -qO /etc/rsyslog.d/haproxy.conf ${globals.repoRootUrl}/assets/haproxy/rsyslog_haproxy
-        wget -qO /etc/logrotate.d/haproxy ${globals.repoRootUrl}/assets/haproxy/logrotate_haproxy
+        curl -fLSso /etc/rsyslog.d/haproxy.conf ${globals.repoRootUrl}/assets/haproxy/rsyslog_haproxy || exit 1
+        curl -fLSso /etc/logrotate.d/haproxy ${globals.repoRootUrl}/assets/haproxy/logrotate_haproxy || exit 1
         chmod 644 /etc/logrotate.d/haproxy
         chown root:dd-agent /var/log/haproxy/* && chmod 640 /var/log/haproxy/*
         systemctl restart rsyslog crond datadog-agent
@@ -151,7 +147,7 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[bl]: |-
         yum install python3
-        wget -O ${this.auth_basic_script} ${globals.repoRootUrl}/assets/haproxy/manage-auth-basic.py
+        curl -fLSso ${this.auth_basic_script} ${globals.repoRootUrl}/assets/haproxy/manage-auth-basic.py || exit 1
         chmod u+x ${this.auth_basic_script}
         ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" "${this.new_password.toBase64()}"
         service haproxy reload

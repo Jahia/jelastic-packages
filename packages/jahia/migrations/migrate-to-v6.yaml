@@ -111,7 +111,7 @@ actions:
         init_mysql="/etc/init.d/mysql"
         redeploy_conf="/etc/jelastic/redeploy.conf"
         if ! grep -s MariaDB-backup $init_mysql; then
-          curl -fsSL ${globals.repoRootUrl}/assets/database/mysql-init.d > $init_mysql || exit 1
+          curl -fLSso $init_mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
         fi
         if ! grep -s "$init_mysql" $redeploy_conf; then
           echo "$init_mysql" >> $redeploy_conf
@@ -131,7 +131,7 @@ actions:
   datadogCustomCheckForJahiaNodes:
     cmd[cp, proc]: |-
       CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
-      wget -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/v6_assets/jahia_node_not_in_haproxy_pool.py
+      curl -fLSso -qO $CUSTOM_CHECK_SCRIPT ${baseUrl}/v6_assets/jahia_node_not_in_haproxy_pool.py || exit 1
       chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
       systemctl restart datadog-agent
     user: root
@@ -151,7 +151,7 @@ actions:
         f_resolve="/etc/strongswan/strongswan.d/charon/resolve.conf"
         md5_resolve="2bc40fdfbf39ef56a41348b5fe0e36ab"
         if ! (echo "$md5_resolve $f_resolve" | md5sum -c --status); then
-          curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/charon_resolve.conf > $f_resolve || exit 1
+          curl -fLSso $f_resolve ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/charon_resolve.conf || exit 1
         fi
         f_updown="/usr/local/bin/ipsec_updown.sh"
         if [ ! -x $f_updown ]; then

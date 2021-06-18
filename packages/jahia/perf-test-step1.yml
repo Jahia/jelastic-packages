@@ -41,22 +41,22 @@ onInstall:
   - setGlobalRepoRootUrl
   - cmd [proc]:
       - credentials="${settings.rootCredentials}"
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/calendar/${globals.calendar_version}/calendar-${globals.calendar_version}.jar
-      - curl -f --user ${credentials} --form bundle=@calendar-${globals.calendar_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/event/${globals.event_version}/event-${globals.event_version}.jar
-      - curl -f --user ${credentials} --form bundle=@event-${globals.event_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/ldap/${globals.ldap_version}/ldap-${globals.ldap_version}.jar
-      - curl -f --user ${credentials} --form bundle=@ldap-${globals.ldap_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/news/${globals.news_version}/news-${globals.news_version}.jar
-      - curl -f --user ${credentials} --form bundle=@news-${globals.news_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/publication/${globals.publication_version}/publication-${globals.publication_version}.jar
-      - curl -f --user ${credentials} --form bundle=@publication-${globals.publication_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/remotepublish/${globals.remotepublish_version}/remotepublish-${globals.remotepublish_version}.jar
-      - curl -f --user ${credentials} --form bundle=@remotepublish-${globals.remotepublish_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/sitemap/${globals.sitemap_version}/sitemap-${globals.sitemap_version}.jar
-      - curl -f --user ${credentials} --form bundle=@sitemap-${globals.sitemap_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
-      - wget "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar"
-      - curl -f --user ${credentials} --form bundle=@templates-web-blue-qa-2.0.2-SNAPSHOT.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/calendar/${globals.calendar_version}/calendar-${globals.calendar_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@calendar-${globals.calendar_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/event/${globals.event_version}/event-${globals.event_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@event-${globals.event_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/ldap/${globals.ldap_version}/ldap-${globals.ldap_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@ldap-${globals.ldap_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/news/${globals.news_version}/news-${globals.news_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@news-${globals.news_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/publication/${globals.publication_version}/publication-${globals.publication_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@publication-${globals.publication_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/remotepublish/${globals.remotepublish_version}/remotepublish-${globals.remotepublish_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@remotepublish-${globals.remotepublish_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/sitemap/${globals.sitemap_version}/sitemap-${globals.sitemap_version}.jar || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@sitemap-${globals.sitemap_version}.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
+      - curl -fLSsO "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar" || exit 1
+      - curl -fLSs --user ${credentials} --form bundle=@templates-web-blue-qa-2.0.2-SNAPSHOT.jar --form start=true http://localhost:8080/modules/api/bundles/ || exit 1
   - cmd [cp,proc]:
       - sudo yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && sudo yum install -y ffmpeg
       - sed -i 's/#jahia.dm.thumbnails.video.enabled.*/jahia.dm.thumbnails.video.enabled = true/' ${globals.jahiaPropertiesPath}
@@ -80,7 +80,7 @@ onInstall:
       - sudo service tomcat restart || exit 1
       - sleep 30
   - cmd [proc]:
-      - wget "${globals.repoRootUrl}/assets/jahia/DXPerformanceTestSite_staging_7231.zip"
+      - curl -fLSsO "${globals.repoRootUrl}/assets/jahia/DXPerformanceTestSite_staging_7231.zip" || exit 1
       - mv DXPerformanceTestSite_staging_7231.zip /data/digital-factory-data/imports
 
 settings:

@@ -205,7 +205,7 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[proc]: |-
         if [ ! -f /usr/local/bin/reset-jahia-tools-manager-password.py ]; then
-          wget -qO /usr/local/bin/reset-jahia-tools-manager-password.py ${globals.repoRootUrl}/assets/jahia/reset-jahia-tools-manager-password.py
+          curl -fLSso /usr/local/bin/reset-jahia-tools-manager-password.py ${globals.repoRootUrl}/assets/jahia/reset-jahia-tools-manager-password.py || exit 1
           chmod u+x /usr/local/bin/reset-jahia-tools-manager-password.py
         fi
         /usr/local/bin/reset-jahia-tools-manager-password.py "${this.toolspwd.toBase64()}" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
@@ -241,7 +241,7 @@ actions:
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown tomcat:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         systemctl restart crond
         systemctl enable datadog-agent
       user: root
@@ -259,7 +259,7 @@ actions:
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown tomcat:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        wget -qO /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml
+        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         /usr/local/bin/set_dd_tags.sh
         systemctl restart crond
         systemctl enable datadog-agent
@@ -566,11 +566,9 @@ actions:
         - cmd[${this}]: |-
             dashed_name=$(echo "${globals.moduleName}" | awk '{gsub("[[:blank:]]+", "-", $0); print tolower($0)}')
             url="${this.modulesUrl}/${dashed_name}/${globals.moduleVersion}/${dashed_name}-${globals.moduleVersion}.jar"
-            if (curl -fIs $url > /dev/null); then
-              cd /data/digital-factory-data/modules
-              wget -nv -O ${globals.moduleName}-${globals.moduleVersion}.jar $url
+            cd /data/digital-factory-data/modules
+            curl -fLSso ${globals.moduleName}-${globals.moduleVersion}.jar $url || exit 1
             sleep 20
-            fi
     - else:
         log: Module ${globals.moduleName} v${globals.moduleVersion} is already on ${this}
 
