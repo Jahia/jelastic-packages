@@ -21,10 +21,10 @@ onInstall:
   - eventsUpdate
 
   - updateClusterAddresses                        # PAAS-1578
+  - rollingRestartJc
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
-  - rollingRestartJc
   - logEvent:
       target: ${nodes.cp.first.id}
       title: "Environment $envName migrated"
