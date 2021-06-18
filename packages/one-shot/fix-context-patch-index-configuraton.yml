@@ -1,0 +1,77 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Fix context-patch index configuration on existing environments
+id: jcustomer-fix-context-patch-index-configuration
+description:
+  short: jCustomer - Fix context-patch index configuration on existing environments
+
+onInstall:
+  - cmd[cp]: |-
+      curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index | grep 'dx_*'
+      if [ $? -eq 0 ]; then
+        echo "[INFO] This is an Augmented Search env. Nothing to do here" >&2
+        exit 1
+      fi
+      curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index | grep 'context-patch'
+      if [ $? -ne 0 ]; then
+        echo "[ERROR] Index 'context-patch' not present" >&2
+        exit 2
+      fi
+
+      current_shards=$(curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices/context-patch?h=pri)
+      current_replicas=$(curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices/context-patch?h=rep)
+      desired_shards=5
+      desired_replicas=$(egrep "ELASTIC.*(REPLICAS)" /opt/jcustomer/jcustomer/bin/setenv | cut -d'=' -f2 | head -1)
+
+      if [[ $current_shards -eq $desired_shards && $current_replicas -eq $desired_replicas ]]; then
+        echo "[INFO] 'context-patch' index configuration is up-to-date " >&2
+        exit 3
+      fi
+
+      [ -x /usr/bin/jq ] || yum install jq -y
+
+      # Create a new temp index
+      curl -s -XPUT $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp -H 'Content-Type: application/json' \
+        -d '{"settings": {"number_of_shards": '"$desired_shards"',"number_of_replicas": '"$desired_replicas"'}}' || exit 1
+
+      # Reindex context-patch to temp index
+      curl -s -XPOST $UNOMI_ELASTICSEARCH_ADDRESSES/_reindex -H 'Content-Type: application/json' \
+        -d '{"source": {"index": "context-patch"},"dest": {"index": "context-patch-temp"}}' || exit 1
+
+      old_index_count=$(curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch/_count | jq -r .count)
+      new_index_count=$(curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp/_count | jq -r .count)
+      if [[ $old_index_count -ne $new_index_count ]]; then
+        echo "[ERROR] Reindexing 'context-patch' to temp index failed" >&2
+        exit 4
+      fi
+
+      curl -s -XDELETE $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch
+
+      # Enable read-only for temp index
+      curl -s -XPUT $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp/_settings -H 'Content-Type: application/json' \
+        -d '{"settings": {"index.blocks.write": true}}' || exit 1
+
+      # Clone temp index to context-patch
+      curl -s -XPOST $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp/_clone/context-patch -H 'Content-Type: application/json' \
+        -d '{"settings": {"index.number_of_replicas": '"$desired_replicas"'}}' || exit 1
+
+      # Disable read-only for temp index and cloned context-patch
+      curl -s -XPUT $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp/_settings -H 'Content-Type: application/json' \
+        -d '{"settings": {"index.blocks.write": null}}' || exit 1
+      curl -s -XPUT $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch/_settings -H 'Content-Type: application/json' \
+        -d '{"settings": {"index.blocks.write": null}}' || exit 1
+      
+      # Reindex temp index to context-patch
+      curl -s -X POST $UNOMI_ELASTICSEARCH_ADDRESSES/_reindex -H 'Content-Type: application/json' \
+        -d '{"source": {"index": "context-patch-temp"},"dest": {"index": "context-patch"}}' || exit 1
+      
+      if [[ $new_index_count -ne $old_index_count ]]; then
+        echo "[ERROR] Reindexing temp index to 'context-patch' failed" >&2
+        exit 5
+      fi
+      
+      curl -s -XDELETE $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch-temp
+
+      # Create an alias for the deleted temp index
+      curl -s -XPUT $UNOMI_ELASTICSEARCH_ADDRESSES/context-patch/_alias/context-patch-temp || exit 1
