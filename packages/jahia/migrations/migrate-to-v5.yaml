@@ -67,6 +67,6 @@ actions:
 
   preventMariadbAutoRestart:
     cmd[${this}]: |-
-      curl -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${baseUrl}../../../assets/database/jahia_override.lib || exit 1
+      curl -fLSso --create-dirs /var/lib/jelastic/customizations/jahia_override.lib ${baseUrl}../../../assets/database/jahia_override.lib || exit 1
       chown -R mysql:mysql /var/lib/jelastic/customizations
     user: root
