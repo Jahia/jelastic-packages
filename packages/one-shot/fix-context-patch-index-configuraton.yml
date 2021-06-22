@@ -8,15 +8,10 @@ description:
 
 onInstall:
   - cmd[cp]: |-
-      curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index | grep 'dx_*'
-      if [ $? -eq 0 ]; then
-        echo "[INFO] This is an Augmented Search env. Nothing to do here" >&2
-        exit 1
-      fi
       curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index | grep 'context-patch'
       if [ $? -ne 0 ]; then
         echo "[ERROR] Index 'context-patch' not present" >&2
-        exit 2
+        exit 1
       fi
 
       current_shards=$(curl -s $UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices/context-patch?h=pri)
@@ -26,7 +21,7 @@ onInstall:
 
       if [[ $current_shards -eq $desired_shards && $current_replicas -eq $desired_replicas ]]; then
         echo "[INFO] 'context-patch' index configuration is up-to-date " >&2
-        exit 3
+        exit 2
       fi
 
       [ -x /usr/bin/jq ] || yum install jq -y
