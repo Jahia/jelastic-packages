@@ -218,9 +218,12 @@ Takes as parameters:
 | productVersion     | Jahia version (eg: `8.0.2.0`)                                                            |
 | rootpwd            | Jahia root password                                                                      |
 | toolspwd           | Jahia tools password                                                                     |
+| haproxyNodeCount   | Number of HAProxy nodes                                                                  |
 | browsingNodeCount  | Number of Jahia browsing nodes                                                           |
 | browsingNodeSize   | Size of Jahia browsing nodes (`small`, `medium` or `large`)                              |
 | processingNodeSize | Size of Jahia processing node (`small`, `medium` or `large`)                             |
+| sqldbNodeCount     | Number of MariaDB nodes                                                                  |
+| sqldbNodeSize      | Size of MariaDB nodes (`small`, `medium` or `large`)                                     |
 | shortdomain        | Environment name                                                                         |
 | ddogApikey         | Datadog Apikey to use                                                                    |
 | jahiaDockerImage   | Hidden settings for use a docker image instead of a tag of the jahia's jelastic template |
