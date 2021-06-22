@@ -104,7 +104,6 @@ actions:
     #   - jahiaVersion
     #   - rootpwd: Jahia root user password
     #   - toolspwd: Jahia Tools password
-    #   - topology: "production" or "development"
     - setSudoer: proc, cp
     - getLogEventScript: proc, cp
 
@@ -124,8 +123,7 @@ actions:
               ;;
         esac
         sed -e '2isource /.jelenv' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
-    - setJahiaPropertiesEnvvars:
-        topology: ${this.topology}
+    - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
     - cmd[proc]: |-
         base64 -d <<< "${settings.rootpwd.toBase64()}" > $DATA_PATH/digital-factory-data/root.pwd
@@ -140,22 +138,10 @@ actions:
     - env.control.ExecDockerRunCmd [${nodes.cp.join(id,)}]
 
   setJahiaPropertiesEnvvars:
-    # Parameters:
-    #   - topology: "production" or "development"
     - log: "## Setting jahia.properties envvars"
     - cmd [${nodes.proc.first.id}]: echo $(ls -d /opt/*maven*/bin/mvn)
     - setGlobals:
         jahia_cfg_mvnPath: ${response.out}
-    - if (this.topology == "production"):
-        - setGlobals:
-            jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.org_jahia_ehcachemanager_maxBytesLocalHeap_prod}
-            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_cp}
-            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_prod_proc}
-    - else:
-        - setGlobals:
-            jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.org_jahia_ehcachemanager_maxBytesLocalHeap_dev}
-            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev}
-            jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc: ${globals.org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev}
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
         jahia_cfg_expandImportedFilesOnDisk: ${globals.expandImportedFilesOnDisk}
@@ -163,16 +149,9 @@ actions:
         jahia_cfg_imageService: ${globals.imageService}
         jahia_cfg_imageMagickPath: ${globals.jahiaImageMagickPath}
         jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
-        jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap}
-    - env.control.AddContainerEnvVars [cp]:
-      vars:
-        jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_cp}
-    - env.control.AddContainerEnvVars [proc]:
-      vars:
-        jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap: ${globals.jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap_proc}
 
   copyApp:
-    - log: "## Copying Jahia app and settings its properties"
+    - log: "## Copying Jahia app and setting its properties"
     - cmd[${this}]: |-
         [ "$_ROLE" == "Browsing" ] && sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
         rm -rf $STACK_PATH/webapps/*
@@ -181,7 +160,6 @@ actions:
         sed "s/loadbalance:/$replace/" -i /$DATA_PATH/jahia/tomcat/webapps/ROOT/META-INF/context.xml
         cp -rf $DATA_PATH/jahia/tomcat/webapps/* $STACK_PATH/webapps
         chown -R tomcat:tomcat $STACK_PATH/webapps
-        sed -i "s/operatingMode/#operatingMode/" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
         sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" /opt/tomcat/conf/tomcat-env.sh

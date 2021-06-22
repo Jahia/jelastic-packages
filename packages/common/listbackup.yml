@@ -49,7 +49,3 @@ settings:
       caption: AWS Secret Key
       vtype: text
       required: true
-    - name: env
-      type: string
-      required: true
-      default: prod

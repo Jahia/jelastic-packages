@@ -82,7 +82,6 @@ actions:
         echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
         echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
         echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
-        echo " - envmode:${jahia_cfg_operatingMode}" >> /etc/datadog-agent/datadog.yaml
         echo "---" > /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "logs:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "  - type: file" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
