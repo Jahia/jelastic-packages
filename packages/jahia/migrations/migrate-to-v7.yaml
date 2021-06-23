@@ -10,6 +10,7 @@ mixins:
   - "../../../mixins/jahia.yml"
   - "../../../mixins/mariadb.yml"
   - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
 
 globals:
   version: 7
@@ -26,6 +27,7 @@ onInstall:
 
   - updateIPSecScript         # PAAS-1651
   - updateDnsmasqConf         # PAAS-1651
+  - datadogCustomCheckForJahiaNodes               # PAAS-1653
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -69,3 +71,11 @@ actions:
       sed -i '/127.0.0.1/d' /etc/resolv.conf
       systemctl restart dnsmasq
       sed -i '1 i nameserver 127.0.0.1' /etc/resolv.conf
+  datadogCustomCheckForJahiaNodes:
+    - setGlobalRepoRootUrl
+    - cmd[cp, proc]: |-
+        CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+        curl -fLSso -qO $CUSTOM_CHECK_SCRIPT ${globals.repoRootUrl}/packages/jahia/migrations/v7_assets/jahia_node_not_in_haproxy_pool.py || exit 1
+        chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
+        systemctl restart datadog-agent
+      user: root
