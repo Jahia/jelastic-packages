@@ -1,0 +1,71 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v7
+id: migrate-jahia-env-v7
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+
+globals:
+  version: 7
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - eventsUpdate
+  ### End Pre-checks
+
+  - updateIPSecScript         # PAAS-1651
+  - updateDnsmasqConf         # PAAS-1651
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  updateIPSecScript:
+    cmd[cp, proc]: |-
+      target=/usr/local/bin/ipsec_updown.sh
+      curl -fLSso $target ${baseUrl}/v7_assets/ipsec_updown.sh || exit 1
+      chmod 755 $target
+
+  updateDnsmasqConf:
+    cmd[cp, proc]: |-
+      if ! (systemctl is-active -q dnsmasq); then
+        echo "No need to update dnsmasq conf"
+        exit 0
+      fi
+      infra_conf=$dnsmasq_dir/infra_internals
+      infra_root_dns=(j.jahia.com cloud.jahia.com azure.jahia.com)
+      [ -f $infra_conf ] && rm $infra_conf
+      awk '$1=="nameserver" && $2!~/^(127\.|8\.8\.)/ {print $2}' /etc/resolv.conf | while read dns_infra; do
+        for internal_dns in ${infra_root_dns[*]}; do
+          line="server=/$internal_dns/$dns_infra"
+          echo "add this line in $infra_conf: $line"
+          echo "$line" >> $infra_conf
+        done
+      done
+      sed -i '/127.0.0.1/d' /etc/resolv.conf
+      systemctl restart dnsmasq
+      sed -i '1 i nameserver 127.0.0.1' /etc/resolv.conf
