@@ -75,13 +75,13 @@ onBeforeInstall: |
   switch ("${settings.browsingNodeSize}") {
     case 'large':
       var browsingCloudlets = 80;
-      var browsingXmx = "7.5G";
+      var browsingXmx = "7680M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "3000M";
       break;
     case 'medium':
       var browsingCloudlets = 64;
-      var browsingXmx = "5.5G";
+      var browsingXmx = "5632M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "2500M";
       break;
@@ -143,13 +143,13 @@ onBeforeInstall: |
   switch ("${settings.processingNodeSize}") {
     case 'large':
       var procCloudlets = 80;
-      var procXmx = "7.5G";
+      var procXmx = "7680M";
       var procMaxBytesLocalHeap = "700M";
       var procBigMaxBytesLocalHeap = "800M";
       break;
     case 'medium':
       var procCloudlets = 64;
-      var procXmx = "5.5G";
+      var procXmx = "5632M";
       var procMaxBytesLocalHeap = "700M";
       var procBigMaxBytesLocalHeap = "800M";
       break;
