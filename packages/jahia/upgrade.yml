@@ -30,8 +30,13 @@ onInstall:
       useExistingVolumes: true
   # If a Jahia version/docker tag was passed as parameter
   - if ('${settings.targetVersion.print()}' != ''):
-      - setGlobals:
-          targetDockerTag: ${settings.targetVersion}
+      # If a Docker tag suffix was passed we need to append it to the Jahia version
+      - if ('${settings.dockerTagSuffix.print()}' == ''):
+          - setGlobals:
+              targetDockerTag: ${settings.targetVersion}
+      - else:
+          - setGlobals:
+              targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
   # If it is a new version of Jahia
   - if ('${globals.targetDockerTag}' != '${nodes.proc.first.version}'):
       - setGlobals:
@@ -85,6 +90,11 @@ settings:
       vtype: text
       required: false
       tooltip: Optional. If you don't specify a version, the current Jahia version of the target environment will be selected.
+    - name: dockerTagSuffix
+      type: string
+      caption: Docker tag suffix
+      required: false
+      tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
     - name: rollingUpgrade
       type: toggle
       caption: Rolling upgrade ?
