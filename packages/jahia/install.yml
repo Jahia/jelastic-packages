@@ -22,7 +22,6 @@ globals:
   mngr_user: manager
   dbnodeType: mariadb-dockerized
   xms: 256M
-  xmx: 2584M
 
 ssl: true
 skipNodeEmails: true
@@ -35,21 +34,18 @@ mixins:
 
 onBeforeInstall: |
   nodes = []
-  var cp_cloudlets = '${settings.mode}' == 'production' ? 64 : 40;
-  var proc_cloudlets = cp_cloudlets;
-  var db_cloudlets = '${settings.mode}' == 'production' ? 40 : 32;
-  var db_scheme = '${settings.mode}' == 'production' ? 'galera' : 'galera';
-  var db_count = '${settings.mode}' == 'production' ? 3 : 1;
-  var xmx_browsing = '${settings.mode}' == 'production' ? '5000M' : '${globals.xmx}';
-  var xmx_processing = '${settings.mode}' == 'production' ? '3584M' : '${globals.xmx}';
+  var envmode = ${settings.sqldbNodeCount} > 1 ? 'production' : 'development';
+  var db_scheme = "galera";
   var dockerImage = "${settings.jahiaDockerImage}";
+
+  // HAProxy nodes
 
   node_haproxy = {
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
     "tag": "2.1.4",
-    "count": 2,
+    "count": ${settings.haproxyNodeCount},
     "cloudlets": 8,
     "env": {
         "DATADOGAPIKEY": "${settings.ddogApikey}",
@@ -60,6 +56,7 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "envmode": envmode,
       },
     "distribution": {
         "mode": "STRICT",
@@ -73,10 +70,33 @@ onBeforeInstall: |
   }
   nodes.push(node_haproxy);
 
+  // Browsing nodes
+
+  switch ("${settings.browsingNodeSize}") {
+    case 'large':
+      var browsingCloudlets = 80;
+      var browsingXmx = "7680M";
+      var browsingMaxBytesLocalHeap = "700M";
+      var browsingBigMaxBytesLocalHeap = "3000M";
+      break;
+    case 'medium':
+      var browsingCloudlets = 64;
+      var browsingXmx = "5632M";
+      var browsingMaxBytesLocalHeap = "700M";
+      var browsingBigMaxBytesLocalHeap = "2500M";
+      break;
+    case 'small':
+    default:
+      var browsingCloudlets = 40;
+      var browsingXmx = "2584M";
+      var browsingMaxBytesLocalHeap = "500M";
+      var browsingBigMaxBytesLocalHeap = "500M";
+  }
+
   node_cp = {
     "displayName": "Browsing",
-    "count": "${settings.browsingCount}",
-    "cloudlets": cp_cloudlets,
+    "count": "${settings.browsingNodeCount}",
+    "cloudlets": browsingCloudlets,
     "nodeGroup": "cp",
     "links": "sqldb:" + db_scheme,
     "startServiceOnCreation": false,
@@ -86,10 +106,9 @@ onBeforeInstall: |
         "DB_PASSWORD": "${globals.db_pass}",
         "MANAGER_USER": "${globals.mngr_user}",
         "XMS": "${globals.xms}",
-        "XMX": xmx_browsing,
+        "XMX": browsingXmx,
         "DATADOGAPIKEY": "${settings.ddogApikey}",
         "DX_VERSION": "${settings.productVersion}",
-        "jahia_cfg_operatingMode": "${settings.mode}",
         "_PROVIDE": "jahia",
         "_ROLE": "Browsing",
         "envName": "${settings.shortdomain}",
@@ -99,6 +118,9 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "HEALTHCHECK_DURATION": "240",
+        "envmode": envmode,
+        "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
+        "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
       },
     "distribution": {
         "mode": "STRICT",
@@ -116,10 +138,33 @@ onBeforeInstall: |
 
   nodes.push(node_cp);
 
+  // Processing node
+
+  switch ("${settings.processingNodeSize}") {
+    case 'large':
+      var procCloudlets = 80;
+      var procXmx = "7680M";
+      var procMaxBytesLocalHeap = "700M";
+      var procBigMaxBytesLocalHeap = "800M";
+      break;
+    case 'medium':
+      var procCloudlets = 64;
+      var procXmx = "5632M";
+      var procMaxBytesLocalHeap = "700M";
+      var procBigMaxBytesLocalHeap = "800M";
+      break;
+    case 'small':
+    default:
+      var procCloudlets = 40;
+      var procXmx = "2584M";
+      var procMaxBytesLocalHeap = "500M";
+      var procBigMaxBytesLocalHeap = "500M";
+  }
+
   node_proc = {
     "displayName": "Processing",
     "count": "1",
-    "cloudlets": proc_cloudlets,
+    "cloudlets": procCloudlets,
     "nodeGroup": "proc",
     "links": "sqldb:" + db_scheme,
     "startServiceOnCreation": false,
@@ -129,10 +174,9 @@ onBeforeInstall: |
         "DB_PASSWORD": "${globals.db_pass}",
         "MANAGER_USER": "${globals.mngr_user}",
         "XMS": "${globals.xms}",
-        "XMX": xmx_processing,
+        "XMX": procXmx,
         "DATADOGAPIKEY": "${settings.ddogApikey}",
         "DX_VERSION": "${settings.productVersion}",
-        "jahia_cfg_operatingMode": "${settings.mode}",
         "_PROVIDE": "jahia",
         "_ROLE": "Processing",
         "envName": "${settings.shortdomain}",
@@ -142,6 +186,9 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "HEALTHCHECK_DURATION": "240",
+        "envmode": envmode,
+        "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
+        "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
       },
     "distribution": {
         "mode": "STRICT",
@@ -158,12 +205,26 @@ onBeforeInstall: |
   }
   nodes.push(node_proc);
 
+  // MariaDB nodes
+
+  switch ("${settings.sqldbNodeSize}") {
+    case 'large':
+      var mariadbCloudlets = 80;
+      break;
+    case 'medium':
+      var mariadbCloudlets = 64;
+      break;
+    case 'small':
+    default:
+      var mariadbCloudlets = 40;
+  }
+
   node_mariadb = {
     "nodeType": "${globals.dbnodeType}",
     "nodeGroup": "sqldb",
     "tag": "10.4.13",
-    "count": db_count,
-    "cloudlets": db_cloudlets,
+    "count": ${settings.sqldbNodeCount},
+    "cloudlets": mariadbCloudlets,
     "isSLBAccessEnabled": false,
     "env": {
         "ADMINPANEL_ENABLED": false,
@@ -175,7 +236,7 @@ onBeforeInstall: |
         "_PROVIDE": "Database",
         "_ROLE": db_scheme,
         "envName": "${settings.shortdomain}",
-        "jahia_cfg_operatingMode": "${settings.mode}",
+        "envmode": envmode,
       },
     "distribution": {
         "mode": "STRICT",
@@ -205,7 +266,6 @@ onInstall:
       jahiaVersion: ${settings.productVersion}
       rootpwd: ${settings.rootpwd}
       toolspwd: ${settings.toolspwd}
-      topology: ${settings.mode}
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb
   - setupDatadogAgentSql: sqldb
@@ -233,24 +293,47 @@ settings:
       caption: Jahia tools password
       vtype: string
       required: true
-    - name: browsingCount
+    - name: haproxyNodeCount
+      type: string
+      caption: Number of HAProxy nodes
+      default: 2
+    - name: browsingNodeCount
       type: string
       caption: Number of Jahia browsing nodes
-      vtype: string
-      required: true
-      default: 2
+      default: 1
+    - name: browsingNodeSize
+      type: list
+      caption: Jahia browsing node size
+      values:
+        small: small
+        medium: medium
+        large: large
+      default: small
+    - name: processingNodeSize
+      type: list
+      caption: Jahia processing node size
+      values:
+        small: small
+        medium: medium
+        large: large
+      default: small
+    - name: sqldbNodeCount
+      type: string
+      caption: Number of MariaDB nodes
+      default: 1
+    - name: sqldbNodeSize
+      type: list
+      caption: MariaDB node size
+      values:
+        small: small
+        medium: medium
+        large: large
+      default: small
 
     - name: shortdomain
       type: envname
       caption: Environment
       required: true
-    - name: mode
-      type: radio-fieldset
-      caption: Operating Mode
-      values:
-        production: production
-        development: development
-      default: production
     - name: ddogApikey
       type: string
       caption: Datadog API KEY

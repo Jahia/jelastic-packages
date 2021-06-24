@@ -28,12 +28,12 @@ Here are some rules that should be observed:
 ```
 .
 ├── assets
-│   ├── common
-│   ├── database
-│   ├── elasticsearch
-│   ├── haproxy
-│   ├── jahia
-│   └── jcustomer
+│   ├── common
+│   ├── database
+│   ├── elasticsearch
+│   ├── haproxy
+│   ├── jahia
+│   └── jcustomer
 ├── mixins
 └── packages
     ├── augsearch
@@ -148,7 +148,6 @@ Backups an environment. Works both for jahia (files + database, Haproxy conf) an
 | backup_name    | Backup Name                                      |
 | aws_access_key | AWS Access Key                                   |
 | aws_secret_key | AWS Secret Key                                   |
-| env            | Enviroment mode (dev or prod)                    |
 | timestamp      | The backup timestamp in format %Y-%m-%dT%H:%M:00 |
 | retention      | How many auto-backups do you want to keep        |
 | backtype       | Is this a manual or auto backup                  |
@@ -162,7 +161,6 @@ List backups for a given user.
 |----------------|-------------------------------|
 | aws_access_key | AWS Access Key                |
 | aws_secret_key | AWS Secret Key                |
-| env            | Enviroment mode (dev or prod) |
 
 #### common/update-datadog-apikey.yml
 
@@ -193,7 +191,6 @@ Restores a backup. Works both for jahia (files + database, Haproxy conf) and jCu
 | backup_name    | Backup Name                                                         |
 | aws_access_key | AWS Access Key                                                      |
 | aws_secret_key | AWS Secret Key                                                      |
-| env            | Enviroment mode (dev or prod)                                       |
 | source_env     | Source environment appid (if still exists)                          |
 | envrole_source | [If source_env not defined] Enviroment source mode (dev or prod)    |
 | cloud_source   | [If source_env not defined] Enviroment source cloud provider        |
@@ -216,19 +213,23 @@ The base JPS, called by Jahia Cloud to create an environment.
 
 Takes as parameters:
 
-| parameter        | comment                                                                                                                                                       |
-|------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| productVersion   | Jahia version (eg: `8.0.2.0`)                                                                                                                                 |
-| rootpwd          | Jahia root password                                                                                                                                           |
-| toolspwd         | jahia tools password                                                                                                                                          |
-| browsingCount    | Number of jahia browsing nodes                                                                                                                                |
-| shortdomain      | Environment name                                                                                                                                              |
-| mode             | The topology type: `production` or `development`<br>Involves several things like:<ul><li>cloudlets</li><li>1 or 3 galera nodes</li><li>_Xmx_ values</li></ul> |
-| ddogApikey       | Datadog Apikey to use                                                                                                                                         |
-| jahiaDockerImage | Hidden settings for use a docker image instead of a tag of the jahia's jelastic template                                                                      |
-| vaultClusterUrl  | The Vault server to use                                                                                                                                       |
-| vaultRoleId      | Vault's Role Id to use                                                                                                                                        |
-| vaultSecretId    | Vault Role Id secret to use                                                                                                                                   |
+| parameter          | comment                                                                                  |
+|--------------------|------------------------------------------------------------------------------------------|
+| productVersion     | Jahia version (eg: `8.0.2.0`)                                                            |
+| rootpwd            | Jahia root password                                                                      |
+| toolspwd           | Jahia tools password                                                                     |
+| haproxyNodeCount   | Number of HAProxy nodes                                                                  |
+| browsingNodeCount  | Number of Jahia browsing nodes                                                           |
+| browsingNodeSize   | Size of Jahia browsing nodes (`small`, `medium` or `large`)                              |
+| processingNodeSize | Size of Jahia processing node (`small`, `medium` or `large`)                             |
+| sqldbNodeCount     | Number of MariaDB nodes                                                                  |
+| sqldbNodeSize      | Size of MariaDB nodes (`small`, `medium` or `large`)                                     |
+| shortdomain        | Environment name                                                                         |
+| ddogApikey         | Datadog Apikey to use                                                                    |
+| jahiaDockerImage   | Hidden settings for use a docker image instead of a tag of the jahia's jelastic template |
+| vaultClusterUrl    | The Vault server to use                                                                  |
+| vaultRoleId        | Vault's Role Id to use                                                                   |
+| vaultSecretId      | Vault Role Id secret to use                                                              |
 
 #### jahia/ipsec.yml
 
@@ -372,14 +373,15 @@ Prepare a jahia's env _/tools_ password update on each tomcat nodes. Customers w
 
 This manifest will create a jCustomer environment.
 
-| parameter      | comment                                            |
-|----------------|----------------------------------------------------|
-| productVersion | jCustomer version (eg: `1.5.4`)                    |
-| UnomiMode      | Number of jCustomer nodes<br>(from `1` to `7`)     |
-| ESMode         | Number of Elasticsearch nodes<br>(`1`, `3` or `5`) |
-| mode           | The env type: `production` or `development`        |
-| ddogApikey     | Datadog Apikey to use                              |
-| rootPassword   | The jCustomer karaf's password                     |
+| parameter          | comment                                                    |
+|--------------------|------------------------------------------------------------|
+| productVersion     | jCustomer version (eg: `1.5.4`)                            |
+| jCustomerNodeCount | Number of jCustomer nodes (from `1` to `7`)                |
+| jCustomerNodeSize  | Size of jCustomer nodes (`small`, `medium` or `large`)     |
+| esNodeCount        | Number of Elasticsearch nodes (`1`, `3` or `5`)            |
+| esNodeSize         | Size of Elasticsearch nodes (`small`, `medium` or `large`) |
+| ddogApikey         | Datadog Apikey to use                                      |
+| rootPassword       | The jCustomer karaf's password                             |
 
 #### jcustomer/jcustomer-rolling-restart.yml
 
