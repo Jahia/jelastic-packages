@@ -16,6 +16,7 @@ class CheckJahiaNodeNotInHaproxyPool(AgentCheck):
     SERVICE_CHECK_NAME = "jahia_node_not_in_haproxy_pool"
     LOCALHOST = "127.0.0.1"
     PATTERN = "modules/healthcheck?token="
+    SOURCE = "HAProxy"
     FILENAME = "/opt/tomcat/logs/access_log.txt"
     DURATION = float(30)
 
@@ -34,7 +35,7 @@ class CheckJahiaNodeNotInHaproxyPool(AgentCheck):
             if diff_in_minutes > self.DURATION:
                 with open(self.FILENAME, 'r') as f:
                     for line in f.read().splitlines():
-                        if self.LOCALHOST not in line and self.PATTERN in line:
+                        if self.LOCALHOST not in line and self.PATTERN in line and self.SOURCE in line:
                             ip = line.strip().split(' - - ')[0]
                             date = line.strip().split('[')[1].split(' +0000')[0]
                             dict[ip] = date
