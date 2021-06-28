@@ -25,13 +25,10 @@ onInstall:
   - eventsUpdate
   ### End Pre-checks
 
-<<<<<<< HEAD
   - updateIPSecScript         # PAAS-1651
   - updateDnsmasqConf         # PAAS-1651
-=======
   - updateHaproxyHealthcheckRequests              # PAAS-1653
-  - changeAccessLogPatternForJahiaNode            # PAAS-1653
->>>>>>> 33e8e6c (PAAS-1653: Change HAPrxoy healthcheck requests and update access log pattern for Jahia nodes)
+  - changeAccessLogPatternAndRestart              # PAAS-1653
   - datadogCustomCheckForJahiaNodes               # PAAS-1653
 
   ### Post-actions
@@ -76,6 +73,7 @@ actions:
       sed -i '/127.0.0.1/d' /etc/resolv.conf
       systemctl restart dnsmasq
       sed -i '1 i nameserver 127.0.0.1' /etc/resolv.conf
+
   datadogCustomCheckForJahiaNodes:
     - setGlobalRepoRootUrl
     - cmd[cp, proc]: |-
@@ -99,8 +97,17 @@ actions:
         service haproxy reload
       user: root
 
-  changeAccessLogPatternForJahiaNode:
-    - cmd[proc]: |-
+  changeAccessLogPatternAndRestart:
+    - updateLogPattern: proc
+    - restartJahiaNode:
+        nodeId: ${nodes.proc.first.id}
+    - forEach(nodes.cp):
+        - updateLogPattern: ${@i.id}
+        - restartJahiaNode:
+            nodeId: ${@i.id}
+
+  updateLogPattern:
+    - cmd[${this}]: |-
         CONFIG_FILE=/opt/tomcat/conf/server.xml
         USER_AGENT="\&quot\;%{User-Agent}i\&quot"
         if ( grep -q "$USER_AGENT" CONFIG_FILE ); then
@@ -110,20 +117,9 @@ actions:
         CURRENT_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b"
         NEW_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b \&quot\;%{User-Agent}i\&quot\;"
         sed -i "s/$CURRENT_PATTERN/$NEW_PATTERN/" $CONFIG_FILE
+
+  restartJahiaNode:
     - if ("${response.out}" == ""):
+        - log: "Jahia node ${this.nodeId} is going to be restarted"
         - api: environment.control.RestartNodeById
-          nodeId: ${nodes.proc.first.id}
-    - cmd[cp]: |-
-        CONFIG_FILE=/opt/tomcat/conf/server.xml
-        USER_AGENT="\&quot\;%{User-Agent}i\&quot"
-        if ( grep -q "$USER_AGENT" CONFIG_FILE ); then
-          echo "[INFO] Pattern is up-to-date"
-          exit 0
-        fi
-        CURRENT_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b"
-        NEW_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b \&quot\;%{User-Agent}i\&quot\;"
-        sed -i "s/$CURRENT_PATTERN/$NEW_PATTERN/" $CONFIG_FILE
-    - if ("${response.out}" == ""):
-        - forEach(nodes.cp):
-            - api: environment.control.RestartNodeById
-              nodeId: ${@i.id}
+          nodeId: ${this.nodeId}
