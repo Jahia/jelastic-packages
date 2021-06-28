@@ -242,6 +242,7 @@ onBeforeInstall: |
         "_ROLE": db_scheme,
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
+        "JELASTIC_EXPOSE": false,
       },
     "distribution": {
         "mode": "STRICT",
