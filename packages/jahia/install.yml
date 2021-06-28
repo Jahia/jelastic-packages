@@ -176,6 +176,7 @@ onBeforeInstall: |
         "_ROLE": db_scheme,
         "envName": "${settings.shortdomain}",
         "jahia_cfg_operatingMode": "${settings.mode}",
+        "JELASTIC_EXPOSE": false,
       },
     "distribution": {
         "mode": "STRICT",
