@@ -12,7 +12,7 @@ globals:
   expandImportedFilesOnDisk: "true"
   jahiaFileUploadMaxSize: 268435456
   imageService: ImageMagickImageService
-  jahiaImageMagickPath: /opt/magick/bin
+  jahiaImageMagickPath: /usr/bin
   java_opts:
     -DDB_USER=${DB_USER}
     -DDB_PASSWORD=${DB_PASSWORD}
