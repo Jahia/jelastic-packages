@@ -10,6 +10,7 @@ mixins:
   - "../../../mixins/jahia.yml"
   - "../../../mixins/mariadb.yml"
   - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
 
 globals:
   version: 7
@@ -26,6 +27,9 @@ onInstall:
 
   - updateIPSecScript         # PAAS-1651
   - updateDnsmasqConf         # PAAS-1651
+  - updateHaproxyHealthcheckRequests              # PAAS-1653
+  - changeAccessLogPatternAndRestart              # PAAS-1653
+  - datadogCustomCheckForJahiaNodes               # PAAS-1653
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -69,3 +73,53 @@ actions:
       sed -i '/127.0.0.1/d' /etc/resolv.conf
       systemctl restart dnsmasq
       sed -i '1 i nameserver 127.0.0.1' /etc/resolv.conf
+
+  datadogCustomCheckForJahiaNodes:
+    - setGlobalRepoRootUrl
+    - cmd[cp, proc]: |-
+        CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+        curl -fLSso $CUSTOM_CHECK_SCRIPT ${globals.repoRootUrl}/packages/jahia/migrations/v7_assets/jahia_node_not_in_haproxy_pool.py || exit 1
+        chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
+        systemctl restart datadog-agent
+      user: root
+
+  updateHaproxyHealthcheckRequests:
+    - setGlobalRepoRootUrl
+    - cmd[bl]: |-
+        curl -fLSso /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg || exit 1
+        curl -fLSso /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg || exit 1
+        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
+      user: root
+    - forEach(nodes.cp):
+        cmd[bl]: |-
+          echo "    server ${env.appid}-${@i.id} ${@i.intIP}:80 check cookie s${@i.id}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+    - cmd[bl]: |-
+        service haproxy reload
+      user: root
+
+  changeAccessLogPatternAndRestart:
+    - updateLogPattern: proc
+    - restartJahiaNode:
+        nodeId: ${nodes.proc.first.id}
+    - forEach(nodes.cp):
+        - updateLogPattern: ${@i.id}
+        - restartJahiaNode:
+            nodeId: ${@i.id}
+
+  updateLogPattern:
+    - cmd[${this}]: |-
+        CONFIG_FILE=/opt/tomcat/conf/server.xml
+        USER_AGENT="\&quot\;%{User-Agent}i\&quot"
+        if ( grep -q "$USER_AGENT" CONFIG_FILE ); then
+          echo "[INFO] Pattern is up-to-date"
+          exit 0
+        fi
+        CURRENT_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b"
+        NEW_PATTERN="%{org.apache.catalina.AccessLog.RemoteAddr}r %l %u %t \&quot\;%r\&quot\; %s %b \&quot\;%{User-Agent}i\&quot\;"
+        sed -i "s/$CURRENT_PATTERN/$NEW_PATTERN/" $CONFIG_FILE
+
+  restartJahiaNode:
+    - if ("${response.out}" == ""):
+        - log: "Jahia node ${this.nodeId} is going to be restarted"
+        - api: environment.control.RestartNodeById
+          nodeId: ${this.nodeId}
