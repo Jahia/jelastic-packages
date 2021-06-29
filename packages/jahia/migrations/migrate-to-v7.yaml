@@ -29,6 +29,7 @@ onInstall:
   - updateDnsmasqConf                 # PAAS-1651
   - addJelasticExposeFalse            # PAAS-1658
   - updateStrongswanOverride          # PAAS-1667
+  - updateIMFlavor                    # PAAS-1645
   - updateHaproxyHealthcheckRequests  # PAAS-1653
   - changeAccessLogPatternAndRestart  # PAAS-1653
   - datadogCustomCheckForJahiaNodes   # PAAS-1653
@@ -138,3 +139,13 @@ actions:
   addJelasticExposeFalse:
     - env.control.AddContainerEnvVars[sqldb]:
       vars: {"JELASTIC_EXPOSE": "false"}
+
+  updateIMFlavor:
+    - cmd[cp, proc]: |-
+        yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm
+        yum --enablerepo=remi install -y ImageMagick7
+        [ -f /usr/bin/magick ] || exit 1
+      user: root
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        jahia_cfg_imageMagickPath: /usr/bin
