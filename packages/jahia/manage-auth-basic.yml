@@ -11,7 +11,7 @@ mixins:
   - ../../mixins/haproxy.yml
 
 globals:
-  haproxy_frontend_file: "/etc/haproxy/haproxy.cfg.d/00-global.cfg"
+  haproxy_frontend_file: "/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg"
   auth_basic_script: "/usr/local/bin/manage-auth-basic.py"
 
 onInstall:

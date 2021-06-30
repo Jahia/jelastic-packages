@@ -19,12 +19,13 @@ onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJahiaHealth: "cp, proc"
-  - checkHaproxyHealth: bl
+  - checkHaproxyHealthOld: bl ########### Temporary healthcheck specific to this migration, please keep that in mind for future migration scripts #############
   - checkMariadbHealth: sqldb
   - checkGaleraClusterHealth: sqldb
   - eventsUpdate
   ### End Pre-checks
 
+  - haproxyNewConf                    # PAAS-1321
   - updateIPSecScript                 # PAAS-1651
   - updateDnsmasqConf                 # PAAS-1651
   - addJelasticExposeFalse            # PAAS-1658
@@ -50,6 +51,16 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  # Temporary healthcheck since haproxy configuration is changed during the migration
+  checkHaproxyHealthOld:
+    cmd [${this}]: |-
+      if service haproxy status > /dev/null; then
+        adm_user=$(awk '/ stats auth / {print $3}' /etc/haproxy/haproxy.cfg.d/00-global.cfg)
+        curl -fsI /dev/null -u "$adm_user" localhost:80/haproxy_adm_panel && exit 0
+      fi
+      echo "[ERROR] Haproxy is unavailable, exiting" 1>&2 && exit 1
+    user: root
 
   updateIPSecScript:
     - cmd[cp, proc]: |-
@@ -77,6 +88,7 @@ actions:
       sed -i '/127.0.0.1/d' /etc/resolv.conf
       systemctl restart dnsmasq
       sed -i '1 i nameserver 127.0.0.1' /etc/resolv.conf
+    user: root
 
   datadogCustomCheckForJahiaNodes:
     - setGlobalRepoRootUrl
@@ -151,3 +163,64 @@ actions:
         - env.control.AddContainerEnvVars [cp, proc]:
           vars:
             jahia_cfg_imageMagickPath: /usr/bin
+
+  haproxyNewConf:
+    - cmd [bl]: |-
+        [ -d /etc/haproxy/haproxy.cfg.jahia ] && echo true || echo false
+    - if ("${response.out}" == "false"):
+        - improveHaproxyConf
+
+  improveHaproxyConf:
+    # Conf
+    - cmd [bl]: |-
+        HAPROXY_DIR=/etc/haproxy
+        HAPROXY_CONF_DIR=$HAPROXY_DIR/haproxy.cfg.jahia
+        HAPROXY_SYSCONFIG=/etc/sysconfig/haproxy
+        mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d
+        curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        curl -fLSso $HAPROXY_SYSCONFIG ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
+        echo $HAPROXY_SYSCONFIG >> /etc/jelastic/redeploy.conf
+        chown -R haproxy:haproxy $HAPROXY_DIR
+        sed -i "s|cfgfile=.*|cfgfile=$HAPROXY_DIR/haproxy.cfg|g" /etc/init.d/haproxy
+      user: root
+    # Rewrite rules
+    - cmd [bl]: |-
+        OLD_HAPROXY_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
+        CUSTOMER_RULES_FILE=/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d/customer_rules.cfg
+        HAPROXY_SYSCONFIG=/etc/sysconfig/haproxy
+        awk '/## START_REWRITES ##/{flag=1; next} /## END_REWRITES ##/{flag=0} flag' $OLD_HAPROXY_CONF > $CUSTOMER_RULES_FILE
+        [ -s $CUSTOMER_RULES_FILE ] || rm -f $CUSTOMER_RULES_FILE
+    # Backends
+    - resetHaproxyBackends: bl
+    - configureProcessingDirectAccessHaproxy: bl
+    # Basic auth
+    - cmd [bl]: |-
+        OLD_HAPROXY_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
+        if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF; then
+          echo $(awk '/user .* password .*/ {print $2" "$3}' $OLD_HAPROXY_CONF)
+        fi
+    # - should be enabled: we get the credentials from the response
+    - if ("${response.out}" != ""):
+        - script: |-
+            creds="${response.out}"
+            return {"result": 0, "user": creds.split(" ")[0], "password": creds.split(" ")[1]}
+        - set:
+            basic_auth_user: ${response.user}
+            basic_auth_password: ${response.password}
+            enable: true
+    # - should be disabled, dummy values
+    - else:
+        - set:
+            basic_auth_user: dummy
+            basic_auth_password: dummy
+            enable: false
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/manage-auth-basic.yml"
+        settings:
+          enable: ${this.enable}
+          login: ${this.basic_auth_user}
+          pwd: ${this.basic_auth_password}
+    - checkHaproxyHealth: bl
+    - cmd [bl]: |-
+        tar -czf /root/haproxy.cfg.d-migrationv7-backup.tar.gz /etc/haproxy/haproxy.cfg.d
+        rm -rf /etc/haproxy/haproxy.cfg.d

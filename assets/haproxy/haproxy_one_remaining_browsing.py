@@ -16,7 +16,6 @@ __version__ = "1.0.0"
 class CheckNumberBrowsingRemaining(AgentCheck):
     __NAMESPACE__ = "haproxy"
     SERVICE_CHECK_NAME = "number_browsing_remaining"
-    HAPROXY_CONF_FILE = '/etc/haproxy/haproxy.cfg.d/00-global.cfg'
     BROWSING_BACKEND_NAME = 'bk_jahia'
 
     def check(self, instance):

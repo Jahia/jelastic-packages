@@ -17,7 +17,7 @@ onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
       - removeNodeFromHaproxy:
           nodeId: ${@i.id}
-          nodeIp: ${@i.intIP}
+          reload: true
 
 onAfterScaleIn[cp]:
   - refreshProxysqlInstancesList
@@ -32,6 +32,7 @@ onAfterServiceScaleOut[cp]:
 onBeforeRestartNode[cp]:
   removeNodeFromHaproxy:
     nodeId: ${event.params.nodeId}
+    reload: true
 
 onAfterRestartNode[cp]:
   forEach(nodes.cp):
@@ -40,6 +41,7 @@ onAfterRestartNode[cp]:
       - addNodeToHaproxy:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
+          reload: true
 
 onBeforeRestartNode[proc]:
   removeProcNodeFromHaproxy
@@ -54,6 +56,7 @@ onBeforeRedeployContainer[cp]:
       - forEach(nodes.cp):
           removeNodeFromHaproxy:
             nodeId: ${@i.id}
+            reload: true
       - cmd [cp]: |-
           service tomcat stop
         user: root
@@ -61,6 +64,7 @@ onBeforeRedeployContainer[cp]:
       # Handle RedeployContainerById
       - removeNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
+          reload: true
       - cmd [${event.params.nodeId}]: |-
           service tomcat stop
         user: root
@@ -80,6 +84,7 @@ onAfterRedeployContainer[cp]:
             - addNodeToHaproxy:
                 nodeId: ${@i.id}
                 nodeIp: ${@i.intIP}
+                reload: true
 
 onBeforeRedeployContainer[proc]:
   - removeProcNodeFromHaproxy
@@ -107,7 +112,6 @@ onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - setSudoer: ${event.params.nodeGroup}
-      - splitHaproxyConf: ${event.params.nodeGroup}
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
       - environment.control.ApplyNodeGroupData [bl]:
           data:
@@ -116,7 +120,6 @@ onAfterRedeployContainer[bl]:
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setSudoer: ${event.params.nodeId}
-      - splitHaproxyConf: ${event.params.nodeId}
       - setupDatadogAgentHaproxy: ${event.params.nodeId}
       - environment.control.ApplyNodeGroupData [bl]:
           data:
