@@ -49,10 +49,11 @@ actions:
       jps: "${baseUrl}../update-events.yml"
 
   updateIPSecScript:
-    cmd[cp, proc]: |-
-      target=/usr/local/bin/ipsec_updown.sh
-      curl -fLSso $target ${baseUrl}/v7_assets/ipsec_updown.sh || exit 1
-      chmod 755 $target
+    - cmd[cp, proc]: |-
+        target=/usr/local/bin/ipsec_updown.sh
+        curl -fLSso $target ${baseUrl}/v7_assets/ipsec_updown.sh || exit 1
+        chmod 755 $target
+      user: root
 
   updateDnsmasqConf:
     cmd[cp, proc]: |-
