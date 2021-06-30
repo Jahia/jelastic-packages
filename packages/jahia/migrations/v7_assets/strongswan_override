@@ -1,0 +1,4 @@
+[Service]
+ExecStartPre=/usr/bin/bash -c "/usr/bin/sed -i -E \"s/(^\s+leftid=@).*/\1$(/usr/bin/hostname)/\" /etc/strongswan/ipsec.conf"
+ExecStartPost=/usr/bin/sleep 2
+ExecStartPost=/usr/bin/bash -c "/usr/bin/ping -c1 -W1 -b $(/usr/bin/ipcalc -b $(/usr/sbin/ip route list table 220| /usr/bin/cut -d' ' -f1) | /usr/bin/cut -d'=' -f2) || exit 0"
