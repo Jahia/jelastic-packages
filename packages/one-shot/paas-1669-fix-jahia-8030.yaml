@@ -1,0 +1,41 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1669 - Fix Jahia 8.0.3.0
+id: paas-1669-fix-jahia-8030
+
+onInstall:
+  - removeStrongSwanServiceFromRedeploy  # PAAS-1587
+  - installIPSecDNSSplit                 # PAAS-1592
+
+globals:
+  repoRootUrl: https://raw.githubusercontent.com/Jahia/jelastic-packages/v1.1.1
+
+actions:
+  removeStrongSwanServiceFromRedeploy:
+    - cmd[cp, proc]: |-
+        sed -i '/strongswan.service/d' /etc/jelastic/redeploy.conf
+      user: root
+
+  installIPSecDNSSplit:
+    - cmd[cp, proc]: |-
+        if [ ! -x /usr/sbin/dnsmasq ]; then
+          yum install -y dnsmasq
+          systemctl disable dnsmasq
+        fi
+        f_resolve="/etc/strongswan/strongswan.d/charon/resolve.conf"
+        md5_resolve="2bc40fdfbf39ef56a41348b5fe0e36ab"
+        if ! (echo "$md5_resolve $f_resolve" | md5sum -c --status); then
+          curl -fLSso $f_resolve ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/charon_resolve.conf || exit 1
+        fi
+        f_updown="/usr/local/bin/ipsec_updown.sh"
+        if [ ! -x $f_updown ]; then
+          curl -fsSL ${globals.repoRootUrl}/packages/jahia/migrations/v6_assets/strongswan_updown_script.sh > $f_updown || exit 1
+          chmod +x /usr/local/bin/ipsec_updown.sh
+        fi
+        if ! (grep -q "$f_updown" /etc/strongswan/ipsec.conf); then
+          l1='\  # script to start when connection up/down\n'
+          l2='  leftupdown=/usr/local/bin/ipsec_updown.sh\n'
+          sed -i "/^include/i$l1$l2" /etc/strongswan/ipsec.conf
+        fi
+      user: root
