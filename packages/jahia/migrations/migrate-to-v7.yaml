@@ -27,6 +27,7 @@ onInstall:
 
   - updateIPSecScript         # PAAS-1651
   - updateDnsmasqConf         # PAAS-1651
+  - updateStrongswanOverride          # PAAS-1667
   - updateHaproxyHealthcheckRequests              # PAAS-1653
   - changeAccessLogPatternAndRestart              # PAAS-1653
   - datadogCustomCheckForJahiaNodes               # PAAS-1653
@@ -96,6 +97,14 @@ actions:
           echo "    server ${env.appid}-${@i.id} ${@i.intIP}:80 check cookie s${@i.id}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
     - cmd[bl]: |-
         service haproxy reload
+      user: root
+
+  updateStrongswanOverride:
+    - setGlobalRepoRootUrl
+    - cmd[cp, proc]: |-
+        curl -fLSso /etc/systemd/system/strongswan.service.d/override.conf ${globals.repoRootUrl}/packages/jahia/migrations/v7_assets/strongswan_override || exit 1
+        chmod 644 /etc/systemd/system/strongswan.service.d/override.conf
+        systemctl daemon-reload
       user: root
 
   changeAccessLogPatternAndRestart:
