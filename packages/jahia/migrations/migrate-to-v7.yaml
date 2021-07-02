@@ -25,12 +25,13 @@ onInstall:
   - eventsUpdate
   ### End Pre-checks
 
-  - updateIPSecScript         # PAAS-1651
-  - updateDnsmasqConf         # PAAS-1651
+  - updateIPSecScript                 # PAAS-1651
+  - updateDnsmasqConf                 # PAAS-1651
+  - addJelasticExposeFalse            # PAAS-1658
   - updateStrongswanOverride          # PAAS-1667
-  - updateHaproxyHealthcheckRequests              # PAAS-1653
-  - changeAccessLogPatternAndRestart              # PAAS-1653
-  - datadogCustomCheckForJahiaNodes               # PAAS-1653
+  - updateHaproxyHealthcheckRequests  # PAAS-1653
+  - changeAccessLogPatternAndRestart  # PAAS-1653
+  - datadogCustomCheckForJahiaNodes   # PAAS-1653
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -133,3 +134,7 @@ actions:
         - log: "Jahia node ${this.nodeId} is going to be restarted"
         - api: environment.control.RestartNodeById
           nodeId: ${this.nodeId}
+
+  addJelasticExposeFalse:
+    - env.control.AddContainerEnvVars[sqldb]:
+      vars: {"JELASTIC_EXPOSE": "false"}
