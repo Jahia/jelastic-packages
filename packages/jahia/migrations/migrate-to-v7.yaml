@@ -142,10 +142,12 @@ actions:
 
   updateIMFlavor:
     - cmd[cp, proc]: |-
-        yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm
-        yum --enablerepo=remi install -y ImageMagick7
-        [ -f /usr/bin/magick ] || exit 1
+        [ -f /etc/yum.repos.d/remi.repo ] || yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm
+        [ -f /usr/bin/magick  ] || yum --enablerepo=remi install -y ImageMagick7
       user: root
-    - env.control.AddContainerEnvVars [cp, proc]:
-      vars:
-        jahia_cfg_imageMagickPath: /usr/bin
+    - api: env.control.GetContainerEnvVars
+      nodeId: ${nodes.proc.first.id}
+    - if ("${response.object.jahia_cfg_imageMagickPath}" != "/usr/bin"):
+        - env.control.AddContainerEnvVars [cp, proc]:
+          vars:
+            jahia_cfg_imageMagickPath: /usr/bin
