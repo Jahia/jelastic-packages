@@ -11,7 +11,6 @@ actions:
     - cmd[bl]: yum install -y jq
       user: root
     - retrieveHaproxyConf: bl
-    - splitHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
     - environment.control.ApplyNodeGroupData [bl]:
@@ -24,21 +23,16 @@ actions:
   retrieveHaproxyConf:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_SYSCONFIG=/etc/sysconfig/haproxy
         curl -fLSso /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
-        mkdir /etc/haproxy/haproxy.cfg.d && chmod 775 /etc/haproxy/haproxy.cfg.d
-        curl -fLSso /etc/haproxy/haproxy.cfg.d/00-global.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-00-global.cfg || exit 1
-        curl -fLSso /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg || exit 1
-        curl -fLSso /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg || exit 1
-        curl -fLSso /etc/sysconfig/haproxy ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
-      user: root
-
-  splitHaproxyConf:
-    # "Hack" to split the haproxy conf file and isolate jahia backend conf
-    - cmd[${this}]: |-
+        mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d
+        curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        curl -fLSso $HAPROXY_SYSCONFIG ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
+        echo $HAPROXY_SYSCONFIG >> /etc/jelastic/redeploy.conf
         # We empty the file instead of deleting it because of Jelastic trying to update it
         # when scaling
         echo "### WARNING : this config file is not used for haproxy configuration" > /etc/haproxy/haproxy.cfg
-        sed -i "s|cfgfile=.*|cfgfile=/etc/haproxy/haproxy.cfg.d|g" /etc/init.d/haproxy
         chown -R haproxy:haproxy /etc/haproxy
         systemctl daemon-reload
         service haproxy restart
@@ -52,40 +46,63 @@ actions:
     - cmd[bl]: |-
         # Various configuration changes
         stats_pwd="${globals.haproxy_admin_stats_pass}"
-        sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.d/00-global.cfg
+        sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
       user: haproxy
     - resetHaproxyBackends
 
+  # Parameters:
+  # - nodeId: the nodeID to remove
+  # - reload: "true" or "false", if haproxy service should be reloaded or not
   removeNodeFromHaproxy:
     - log: "Removing node ${this.nodeId} from HAProxy"
-    - cmd[bl]: |-
-        grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
-        if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg; fi
-        sudo service haproxy reload
-      user: haproxy
+    - cmd [bl]: |-
+        grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
+    - if ('${this.reload.print()}' == 'true'):
+        - cmd [bl]: sudo service haproxy reload
 
+  # Parameters:
+  # - nodeId: the ID of the node to remove
+  # - nodeIp: the IP of the node to remove
+  # - reload: "true" or "false", if haproxy service should be reloaded or not
   addNodeToHaproxy:
     - log: "Adding node ${this.nodeId} to HAProxy"
     - cmd[bl]: |-
-        echo "    server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
+        sed -i "/^backend bk_jahia$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+    - if ('${this.reload.print()}' == 'true'):
+        - cmd [bl]: sudo service haproxy reload
+
+  resetHaproxyBackends:
+    - forEach (nodes.cp):
+        - removeNodeFromHaproxy:
+            nodeId: ${@i.id}
+            reload: false
+    - forEach (nodes.cp):
+        - addNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: false
+    - cmd [bl]: sudo service haproxy reload
+      user: haproxy
+
+  removeProcNodeFromHaproxy:
+    - log: "Removing node ${nodes.proc.first.id} from HAProxy"
+    - cmd[bl]: |-
+        sed -i "/${env.appid}-${nodes.proc.first.id}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        sudo service haproxy reload
+      user: haproxy
+
+  addProcNodeToHaproxy:
+    - log: "Adding node ${nodes.proc.first.id} to HAProxy"
+    - cmd[bl]: |-
+        sed -i "/^backend proc$/a\ \ \ \ server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         sudo service haproxy reload
       user: haproxy
 
   configureProcessingDirectAccessHaproxy:
     - cmd[bl]: |-
-        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
-        sed -i 's/beg sPROCESSING_NODE_ID/beg s${nodes.proc.first.id}/g' /etc/haproxy/haproxy.cfg.d/00-global.cfg
-        sudo service haproxy reload
-
-  resetHaproxyBackends:
-    - cmd[bl]: |-
-        sed -i -e "/$server.*:80 check cookie/d" /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
-    - forEach(nodes.cp):
-        cmd[bl]: |-
-          echo "    server ${env.appid}-${@i.id} ${@i.intIP}:80 check cookie s${@i.id}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
-    - cmd[bl]: |-
-        sudo service haproxy reload
-      user: haproxy
+        sed -i 's/beg sPROCESSING_NODE_ID/beg s${nodes.proc.first.id}/g' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+    - addProcNodeToHaproxy
 
   setupDatadogAgentHaproxy:
     - log: "## Finalize Datadog agent setup on ${this}"
@@ -110,7 +127,7 @@ actions:
         chown haproxy:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
         curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
-        STATS_PWD=$(grep "stats auth admin" /etc/haproxy/haproxy.cfg.d/00-global.cfg | head -n1 | cut -d":" -f2)
+        STATS_PWD=$(grep "stats auth admin" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg | head -n1 | cut -d":" -f2)
         sed -i "s/my_awesome_password/${STATS_PWD}/g" /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
         curl -fLSso /etc/datadog-agent/conf.d/process.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_process_conf.yml || exit 1
         curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
@@ -130,7 +147,7 @@ actions:
   checkHaproxyHealth:
     cmd [${this}]: |-
       if service haproxy status > /dev/null; then
-        adm_user=$(awk '/ stats auth / {print $3}' /etc/haproxy/haproxy.cfg.d/00-global.cfg)
+        adm_user=$(awk '/ stats auth / {print $3}' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg)
         curl -fsI /dev/null -u "$adm_user" localhost:80/haproxy_adm_panel && exit 0
       fi
       echo "[ERROR] Haproxy is unavailable, exiting" 1>&2 && exit 1
@@ -153,17 +170,3 @@ actions:
       user: root
     - env.control.AddContainerEnvVars[bl]:
       vars: {"auth_basic_enabled": "${this.enable_auth_basic}"}
-
-  removeProcNodeFromHaproxy:
-    - log: "Removing node ${nodes.proc.first.id} from HAProxy"
-    - cmd[bl]: |-
-        sed -i "/${env.appid}-${nodes.proc.first.id}/d" /etc/haproxy/haproxy.cfg.d/11-proc.cfg
-        sudo service haproxy reload
-      user: haproxy
-
-  addProcNodeToHaproxy:
-    - log: "Adding node ${nodes.proc.first.id} to HAProxy"
-    - cmd[bl]: |-
-        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
-        sudo service haproxy reload
-      user: haproxy
