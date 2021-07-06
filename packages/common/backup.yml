@@ -230,13 +230,16 @@ actions:
         # filter and format snapshot list
         snapshots=$(curl -s $(hostname):9200/_snapshot/backup_repository/_all?pretty |grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}' )
         delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
+        if [ $delete_count -lt 1 ]; then
+          exit 0;
+        fi
         snapshots_to_delete=$(head -n $delete_count <<<"$snapshots")
         for snapshot in $snapshots_to_delete;  do
           timestamp=$(echo $snapshot |awk '{print toupper(substr($0,0,19))}')
           python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
           if [ $? -eq 0 ]; then
             curl -XDELETE "$(hostname):9200/_snapshot/backup_repository/$snapshot"
-            echo "snapshot $snapshot deleted"
+            echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
         done
 
