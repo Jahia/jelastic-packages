@@ -327,7 +327,7 @@ actions:
           [ -s $CUSTOMER_RULES_FILE ] && mv $CUSTOMER_RULES_FILE $HAPROXY_CUSTOMER_CONF_DIR || rm -f $CUSTOMER_RULES_FILE
           # Basic auth
           if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF; then
-            echo $(awk '/user .* password .*/ {print $2" "$3}' $OLD_HAPROXY_CONF)
+            echo $(awk '/user .* password .*/ {print $2" "$4}' $OLD_HAPROXY_CONF)
           fi
           rm -f $OLD_HAPROXY_CONF
         else
