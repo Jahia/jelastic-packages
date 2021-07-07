@@ -195,7 +195,7 @@ actions:
     - cmd [bl]: |-
         OLD_HAPROXY_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
         if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF; then
-          echo $(awk '/user .* password .*/ {print $2" "$3}' $OLD_HAPROXY_CONF)
+          echo $(awk '/user .* password .*/ {print $2" "$4}' $OLD_HAPROXY_CONF)
         fi
     # - should be enabled: we get the credentials from the response
     - if ("${response.out}" != ""):
@@ -222,3 +222,4 @@ actions:
     - cmd [bl]: |-
         tar -czf /root/haproxy.cfg.d-migrationv7-backup.tar.gz /etc/haproxy/haproxy.cfg.d
         rm -rf /etc/haproxy/haproxy.cfg.d
+      user: root
