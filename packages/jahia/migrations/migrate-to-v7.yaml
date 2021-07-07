@@ -32,8 +32,8 @@ onInstall:
   - addJelasticExposeFalse            # PAAS-1658
   - updateStrongswanOverride          # PAAS-1667
   - updateIMFlavor                    # PAAS-1645
-  - updateHaproxyHealthcheckRequests  # PAAS-1653
   - changeAccessLogPatternAndRestart  # PAAS-1653
+  - restartJahiaNode                  # for PAAS-1645 and PAAS-1653
   - datadogCustomCheckForJahiaNodes   # PAAS-1653
 
   ### Post-actions
@@ -99,19 +99,6 @@ actions:
         systemctl restart datadog-agent
       user: root
 
-  updateHaproxyHealthcheckRequests:
-    - cmd[bl]: |-
-        curl -fLSso /etc/haproxy/haproxy.cfg.d/10-jahia.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-10-jahia.cfg || exit 1
-        curl -fLSso /etc/haproxy/haproxy.cfg.d/11-proc.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-11-proc.cfg || exit 1
-        echo "    server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" >> /etc/haproxy/haproxy.cfg.d/11-proc.cfg
-      user: root
-    - forEach(nodes.cp):
-        cmd[bl]: |-
-          echo "    server ${env.appid}-${@i.id} ${@i.intIP}:80 check cookie s${@i.id}" >> /etc/haproxy/haproxy.cfg.d/10-jahia.cfg
-    - cmd[bl]: |-
-        service haproxy reload
-      user: root
-
   updateStrongswanOverride:
     - cmd[cp, proc]: |-
         curl -fLSso /etc/systemd/system/strongswan.service.d/override.conf ${globals.repoRootUrl}/packages/jahia/migrations/v7_assets/strongswan_override || exit 1
@@ -121,12 +108,8 @@ actions:
 
   changeAccessLogPatternAndRestart:
     - updateLogPattern: proc
-    - restartJahiaNode:
-        nodeId: ${nodes.proc.first.id}
     - forEach(nodes.cp):
         - updateLogPattern: ${@i.id}
-        - restartJahiaNode:
-            nodeId: ${@i.id}
 
   updateLogPattern:
     - cmd[${this}]: |-
@@ -141,10 +124,12 @@ actions:
         sed -i "s/$CURRENT_PATTERN/$NEW_PATTERN/" $CONFIG_FILE
 
   restartJahiaNode:
-    - if ("${response.out}" == ""):
-        - log: "Jahia node ${this.nodeId} is going to be restarted"
-        - api: environment.control.RestartNodeById
-          nodeId: ${this.nodeId}
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+        settings:
+          enable: ${this.enable}
+          login: ${this.basic_auth_user}
+          pwd: ${this.basic_auth_password}
 
   addJelasticExposeFalse:
     - env.control.AddContainerEnvVars[sqldb]:
