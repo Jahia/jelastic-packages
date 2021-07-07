@@ -115,7 +115,7 @@ actions:
     - cmd[${this}]: |-
         CONFIG_FILE=/opt/tomcat/conf/server.xml
         USER_AGENT="\&quot\;%{User-Agent}i\&quot"
-        if ( grep -q "$USER_AGENT" CONFIG_FILE ); then
+        if ( grep -q "$USER_AGENT" $CONFIG_FILE ); then
           echo "[INFO] Pattern is up-to-date"
           exit 0
         fi
