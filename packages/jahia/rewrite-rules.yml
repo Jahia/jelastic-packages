@@ -57,6 +57,7 @@ actions:
         - log: "reload failed"
         - cmd [bl]: |-
             mv -f "${globals.backup_rules_file}" "${globals.rules_file}"
+            service haproxy reload || true
         - return:
             type: error
             message: "${this.error-out}"
