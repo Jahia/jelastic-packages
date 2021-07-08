@@ -178,31 +178,21 @@ actions:
     - configureProcessingDirectAccessHaproxy: bl
     # Basic auth
     - cmd [bl]: |-
-        OLD_HAPROXY_CONF=/etc/haproxy/haproxy.cfg.d/00-global.cfg
-        if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF; then
-          echo $(awk '/user .* password .*/ {print $2" "$4}' $OLD_HAPROXY_CONF)
+        HAPROXY_DIR=/etc/haproxy
+        OLD_HAPROXY_CONF=$HAPROXY_DIR/haproxy.cfg.d/00-global.cfg
+        HAPROXY_CONF=$HAPROXY_DIR/haproxy.cfg.jahia/jahia-cloud.cfg
+        user=$(awk '/user .* password .*/ {print $2}' $OLD_HAPROXY_CONF)
+        password=$(awk '/user .* password .*/ {print $4}' $OLD_HAPROXY_CONF)
+        sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
+        old_auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF)
+        auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)
+        [ $old_auth_basic_disabled -eq $auth_basic_disabled ] && exit 0
+        if [ $old_auth_basic_disabled -eq 1 ]; then
+          sed -i "s;^\(\s*\)\(.*#HTTP_AUTH_BASIC.*\)$;\1#\2;" $HAPROXY_CONF
+        else
+          sed -i "s;^\(\s*\)#\+\(.*#HTTP_AUTH_BASIC.*\)$;\1\2;" $HAPROXY_CONF
         fi
-    # - should be enabled: we get the credentials from the response
-    - if ("${response.out}" != ""):
-        - script: |-
-            creds="${response.out}"
-            return {"result": 0, "user": creds.split(" ")[0], "password": creds.split(" ")[1]}
-        - set:
-            basic_auth_user: ${response.user}
-            basic_auth_password: ${response.password}
-            enable: true
-    # - should be disabled, dummy values
-    - else:
-        - set:
-            basic_auth_user: dummy
-            basic_auth_password: dummy
-            enable: false
-    - install:
-        jps: "${globals.repoRootUrl}/packages/jahia/manage-auth-basic.yml"
-        settings:
-          enable: ${this.enable}
-          login: ${this.basic_auth_user}
-          pwd: ${this.basic_auth_password}
+        sudo service haproxy reload
     - checkHaproxyHealth: bl
     - cmd [bl]: |-
         tar -czf /root/haproxy.cfg.d-migrationv7-backup.tar.gz /etc/haproxy/haproxy.cfg.d
