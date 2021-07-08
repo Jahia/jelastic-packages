@@ -299,9 +299,8 @@ actions:
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        if python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}; then
-          ls haproxy.tar.gz || exit 0
-        fi
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}
+        [ -f haproxy.tar.gz ] && exit 0
         python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy-00-global.cfg.gz 2>>${globals.logsPath} || exit 1
         ls haproxy-00-global.cfg.gz || exit 0
     - if ("${response.errOut}" == ""):
@@ -316,6 +315,7 @@ actions:
         AUTH_BASIC=auth_basic
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
         HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
         HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
         rm -f $HAPROXY_CUSTOMER_CONF_DIR/* 2>/dev/null
@@ -326,45 +326,38 @@ actions:
           awk '/## START_REWRITES ##/{flag=1; next} /## END_REWRITES ##/{flag=0} flag' $OLD_HAPROXY_CONF > $CUSTOMER_RULES_FILE
           [ -s $CUSTOMER_RULES_FILE ] && mv $CUSTOMER_RULES_FILE $HAPROXY_CUSTOMER_CONF_DIR || rm -f $CUSTOMER_RULES_FILE
           # Basic auth
-          if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF; then
-            echo $(awk '/user .* password .*/ {print $2" "$4}' $OLD_HAPROXY_CONF)
-          fi
+          old_auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF)
+          user=$(awk '/user .* password .*/ {print $2}' $OLD_HAPROXY_CONF)
+          password=$(awk '/user .* password .*/ {print $4}' $OLD_HAPROXY_CONF)
           rm -f $OLD_HAPROXY_CONF
         else
           tar -xzf $BACKUP_FILE
           # Rules
           mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
           # Basic auth
-          [ -s $AUTH_BASIC ] && cat $AUTH_BASIC
+          old_auth_basic_disabled=1
+          user=env-admin
+          password=XXXXXXX
+          if [ -s $AUTH_BASIC ]; then
+            old_auth_basic_disabled=0
+            user=$(awk '{print $1}' $AUTH_BASIC)
+            password=$(awk '{print $2}' $AUTH_BASIC)
+          fi
           rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC
+        fi
+        # Basic auth
+        sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
+        auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)
+        [ $old_auth_basic_disabled -eq $auth_basic_disabled ] && exit 0
+        if [ $old_auth_basic_disabled -eq 1 ]; then
+          sed -i "s;^\(\s*\)\(.*#HTTP_AUTH_BASIC.*\)$;\1#\2;" $HAPROXY_CONF
+        else
+          sed -i "s;^\(\s*\)#\+\(.*#HTTP_AUTH_BASIC.*\)$;\1\2;" $HAPROXY_CONF
         fi
     - if ("${response.errOut}" != ""):
         - return:
             type: error
             message: "An error occurred while restoring haproxy configuration."
-    # Basic auth
-    # - should be enabled: we get the credentials from the response
-    - if ("${response.out}" != ""):
-        - script: |-
-            creds="${response.out}"
-            return {"result": 0, "user": creds.split(" ")[0], "password": creds.split(" ")[1]}
-        - set:
-            basic_auth_user: ${response.user}
-            basic_auth_password: ${response.password}
-            enable: true
-    # - should be disabled, dummy values
-    - else:
-        - set:
-            basic_auth_user: dummy
-            basic_auth_password: dummy
-            enable: false
-    - install:
-        jps: "${globals.repoRootUrl}/packages/jahia/manage-auth-basic.yml"
-        settings:
-          enable: ${this.enable}
-          login: ${this.basic_auth_user}
-          pwd: ${this.basic_auth_password}
-    # Now we can finally restart haproxy service
     - cmd [bl]: sudo service haproxy restart
 
   restoreMariadb:
