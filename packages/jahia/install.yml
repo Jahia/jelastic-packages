@@ -126,6 +126,7 @@ onBeforeInstall: |
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
+        "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
       },
     "distribution": {
         "mode": "STRICT",
@@ -194,6 +195,7 @@ onBeforeInstall: |
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
+        "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
       },
     "distribution": {
         "mode": "STRICT",
