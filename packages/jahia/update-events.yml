@@ -126,6 +126,19 @@ onAfterRedeployContainer[bl]:
             productName: haproxy
             productVersion: ${nodes.bl.first.version}
 
+onAfterScaleIn[bl]:
+  - env.control.AddContainerEnvVars[cp, proc]:
+    vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
+  - cmd[cp,proc]: service datadog-agent restart
+    user: root
+
+onAfterScaleOut[bl]:
+  - env.control.AddContainerEnvVars[cp, proc]:
+    vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
+  - cmd[cp,proc]: service datadog-agent restart
+    user: root
+
+
 onBeforeRedeployContainer[sqldb]:
   # disable mysql autostart because JEM will do it
   - if ('${event.params.nodeGroup:}'):

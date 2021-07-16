@@ -14,7 +14,7 @@ description:
 success: ../../assets/jahia/success_install.md
 
 globals:
-  jahia_env_version: 7
+  jahia_env_version: 8
   healthcheck_token: ${fn.password(20)}
   db_user: jahia-db-${fn.random}
   db_pass: ${fn.password(20)}
@@ -126,6 +126,7 @@ onBeforeInstall: |
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
+        "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
       },
     "distribution": {
         "mode": "STRICT",
@@ -194,6 +195,7 @@ onBeforeInstall: |
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
+        "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
       },
     "distribution": {
         "mode": "STRICT",

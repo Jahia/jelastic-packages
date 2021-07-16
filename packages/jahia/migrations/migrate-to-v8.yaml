@@ -1,0 +1,56 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v8
+id: migrate-jahia-env-v8
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 8
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - addHaproxyNodesCountOnJahiaNodes # PAAS-1674
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  addHaproxyNodesCountOnJahiaNodes:
+    - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
+    - cmd[cp, proc]: |-
+        target=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+        curl -fLSso $target ${baseUrl}v8_assets/jahia_node_not_in_haproxy_pool.py || exit 1
+        chown dd-agent: $target
+        service datadog-agent restart
+      user: root
