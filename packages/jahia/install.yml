@@ -22,6 +22,7 @@ globals:
   mngr_user: manager
   dbnodeType: mariadb-dockerized
   xms: 256M
+  tomcat_maxpostsize: 2097152  # tomcat9's default value
 
 ssl: true
 skipNodeEmails: true
@@ -127,6 +128,7 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
+        "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
       },
     "distribution": {
         "mode": "STRICT",
@@ -196,6 +198,7 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
+        "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
       },
     "distribution": {
         "mode": "STRICT",

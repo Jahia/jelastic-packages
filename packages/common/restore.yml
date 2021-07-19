@@ -131,7 +131,7 @@ actions:
             cd jelastic_backup
             gunzip jahia-env-vars.gz
             mv jahia-env-vars /tmp/
-            grep -ve "^jahia_cfg_" /.jelenv >> /tmp/jahia-env-vars
+            grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
             # We want keep the jahia_cfg_healthcheck_token value
             sed -i '/jahia_cfg_healthcheck_token/g' /tmp/jahia-env-vars
             grep "jahia_cfg_healthcheck_token" /.jelenv >> /tmp/jahia-env-vars
