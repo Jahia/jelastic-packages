@@ -27,6 +27,7 @@ onInstall:
   ### End Pre-checks
 
   - addHaproxyNodesCountOnJahiaNodes # PAAS-1674
+  - enableGCMetricsOnJahiaNodes      # PAAS-1664
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -53,4 +54,16 @@ actions:
         curl -fLSso $target ${baseUrl}v8_assets/jahia_node_not_in_haproxy_pool.py || exit 1
         chown dd-agent: $target
         service datadog-agent restart
+      user: root
+
+  enableGCMetricsOnJahiaNodes:
+    - cmd[cp,proc]: |-
+        CONF_FILE=/etc/datadog-agent/conf.d/tomcat.d/conf.yaml
+        LINE_TO_ADD="new_gc_metrics: true"
+        if ( grep -q "$LINE_TO_ADD" $CONF_FILE ); then
+          echo "[INFO] Config is already updated"
+          exit 0
+        fi
+        sed -i "/init_config/a\ \ \ \ $LINE_TO_ADD" $CONF_FILE
+        systemctl restart datadog-agent
       user: root
