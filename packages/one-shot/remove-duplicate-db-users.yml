@@ -1,0 +1,20 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Remove duplicate db users on existing environments
+id: jahia-remove-duplicate-db-users
+description:
+  short: Jahia - Remove duplicate db users on existing environments
+
+onInstall:
+  - cmd[sqldb]: |-
+      host_1="%"
+      host_2="localhost"
+      duplicate_user1=$(mysql -e "SELECT user FROM mysql.user WHERE host = '${host_1}' AND user LIKE 'jahia-db-%' AND user != '${DB_USER}'" | sed 1d)
+      if [ "$duplicate_user1" != "" ]; then
+        mysql -e "DROP USER '${duplicate_user1}'@'${host_1}'; flush privileges"
+      fi
+      duplicate_user2=$(mysql -e "SELECT user FROM mysql.user WHERE host = '${host_2}' AND user LIKE 'jahia-db-%'" | sed 1d)
+      if [ "$duplicate_user2" != "" ]; then
+        mysql -e "DROP USER '${duplicate_user2}'@'${host_2}'; flush privileges"
+      fi
