@@ -1,0 +1,27 @@
+---
+type: update
+version: 1.5.2
+name: fix v1.2.0 migration, haproxy's stats auth not working
+id: fix-datadog-haproxy-auth-on-migrate-to-v7-from-commit-79e9964
+
+onInstall:
+  - updateHaproxyAuth
+
+actions:
+  updateHaproxyAuth:
+    - cmd[bl]: |-
+        hp_conf=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        if (grep -q admin-stat-password $hp_conf); then
+          echo "the password isn't up-to-date in haproxy conf"
+        else
+          echo "auth is ok, exiting"
+          exit 0
+        fi
+
+        dd_conf=/etc/datadog-agent/conf.d/haproxy.d/conf.yaml
+        password="$(awk '/password/ {print $NF}' $dd_conf)"
+
+        sed -i "s/admin-stat-password/$password/" $hp_conf 
+        service haproxy reload
+
+      user: root

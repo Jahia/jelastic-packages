@@ -162,6 +162,11 @@ actions:
         mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d
         curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
         curl -fLSso $HAPROXY_SYSCONFIG ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
+        # Get actual haproxy's stats auth password from datadog
+        password="$(awk '/password/ {print $NF}' /etc/datadog-agent/conf.d/haproxy.d/conf.yaml)"
+        # and set it in jahia-cloud.cfg
+        sed -i "s/admin-stat-password/$password/" $HAPROXY_CONF_DIR/jahia-cloud.cfg
+
         echo $HAPROXY_SYSCONFIG >> /etc/jelastic/redeploy.conf
         chown -R haproxy:haproxy $HAPROXY_DIR
         sed -i "s|cfgfile=.*|cfgfile=$HAPROXY_DIR/haproxy.cfg|g" /etc/init.d/haproxy
