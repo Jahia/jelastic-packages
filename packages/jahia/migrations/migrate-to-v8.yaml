@@ -26,8 +26,9 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - addHaproxyNodesCountOnJahiaNodes # PAAS-1674
-  - enableGCMetricsOnJahiaNodes      # PAAS-1664
+  - addHaproxyNodesCountOnJahiaNodes  # PAAS-1674
+  - enableGCMetricsOnJahiaNodes       # PAAS-1664
+  - fixTomcatInitScript               # PAAS-1685
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -66,4 +67,9 @@ actions:
         fi
         sed -i "/init_config/a\ \ \ \ $LINE_TO_ADD" $CONF_FILE
         systemctl restart datadog-agent
+      user: root
+
+  fixTomcatInitScript:
+    - cmd[cp, proc]: |-
+        sed -e '/JVM_PID=/,/^}$/!b' -e '/^}$/!d;i \    JVM_PID="$(pgrep -f "jvm=$JVM_ID" | head -n 1)"' -i /etc/init.d/tomcat
       user: root
