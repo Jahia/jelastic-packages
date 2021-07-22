@@ -72,7 +72,7 @@ actions:
 
   fixTomcatInitScript:
     - cmd[cp, proc]: |-
-        sed -e '/JVM_PID=/,/^}$/!b' -e '/^}$/!d;i \    JVM_PID="$(pgrep -f "jvm=$JVM_ID" | head -n 1)"' -i /etc/init.d/tomcat
+        sed -e '/^\s\+JVM_PID=/,/^}$/!b' -e '/^}$/!d;i \    JVM_PID="$(pgrep -f "jvm=$JVM_ID" | head -n 1)"' -i /etc/init.d/tomcat
       user: root
 
   addMaxPostSize:
