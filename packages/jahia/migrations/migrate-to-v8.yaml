@@ -29,6 +29,7 @@ onInstall:
   - addHaproxyNodesCountOnJahiaNodes  # PAAS-1674
   - enableGCMetricsOnJahiaNodes       # PAAS-1664
   - fixTomcatInitScript               # PAAS-1685
+  - addMaxPostSize                    # PAAS-1579
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -72,4 +73,12 @@ actions:
   fixTomcatInitScript:
     - cmd[cp, proc]: |-
         sed -e '/JVM_PID=/,/^}$/!b' -e '/^}$/!d;i \    JVM_PID="$(pgrep -f "jvm=$JVM_ID" | head -n 1)"' -i /etc/init.d/tomcat
+      user: root
+
+  addMaxPostSize:
+    - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"tomcat_cfg_maxpostsize": "2097152"}
+    - cmd[cp, proc]: |-
+        sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' /opt/tomcat/conf/tomcat-env.sh
+        sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
       user: root

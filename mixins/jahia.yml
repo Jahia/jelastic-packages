@@ -168,7 +168,9 @@ actions:
         indent="      " && printf "$indent<cookie-config>\n$indent$indent<secure>true</secure>\n$indent$indent<http-only>true</http-only>\n$indent</cookie-config>\n" > /tmp/cookies-config
         sed -i '/<session-config>/r /tmp/cookies-config' /opt/tomcat/conf/web.xml && rm /tmp/cookies-config
         sed -e '/maxHttpHeaderSize/d' -e "s/^\(.*Connector port=\"80.*HTTP.*\)$/\1\n\t\tmaxHttpHeaderSize=\"65536\"/g" -i /opt/tomcat/conf/server.xml
+        sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
         sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' /opt/tomcat/conf/tomcat-env.sh
+        sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' /opt/tomcat/conf/tomcat-env.sh
     - if ("${response.errOut}" != ""):
         - return:
             type: error
