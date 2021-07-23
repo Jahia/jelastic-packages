@@ -30,6 +30,7 @@ onInstall:
   - enableGCMetricsOnJahiaNodes       # PAAS-1664
   - fixTomcatInitScript               # PAAS-1685
   - addMaxPostSize                    # PAAS-1579
+  - addGaleraNodeCustomCheck          # PAAS-1677
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -81,4 +82,15 @@ actions:
     - cmd[cp, proc]: |-
         sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' /opt/tomcat/conf/tomcat-env.sh
         sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
+      user: root
+
+  addGaleraNodeCustomCheck:
+    - cmd[sqldb]: |-
+        custom_check_script=/etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
+        custom_check_config=/etc/datadog-agent/conf.d/check_galera_wsrep_ready_status.yaml
+        curl -fLSso $custom_check_script ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
+        chown dd-agent: $custom_check_script
+        ln -s /etc/datadog-agent/conf.d/mysql.d/conf.yaml $custom_check_config
+        chown -h dd-agent: $custom_check_config
+        systemctl restart datadog-agent
       user: root

@@ -113,6 +113,10 @@ actions:
         echo "       extra_performance_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       schema_size_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       disable_innodb_metrics: false" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        curl -fLSso /etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
+        chown dd-agent: /etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
+        ln -s /etc/datadog-agent/conf.d/mysql.d/conf.yaml /etc/datadog-agent/conf.d/check_galera_wsrep_ready_status.yaml
+        chown -h dd-agent: /etc/datadog-agent/conf.d/check_galera_wsrep_ready_status.yaml
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown mysql:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
