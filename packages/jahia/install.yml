@@ -38,6 +38,7 @@ onBeforeInstall: |
   var envmode = ${settings.sqldbNodeCount} > 1 ? 'production' : 'development';
   var db_scheme = "galera";
   var dockerImage = "${settings.jahiaDockerImage}";
+  var organizationName = "${user.email}".split('@')[0];
 
   // HAProxy nodes
 
@@ -58,6 +59,7 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "envmode": envmode,
+        "ORGANIZATION_NAME": organizationName,
       },
     "distribution": {
         "mode": "STRICT",
@@ -129,6 +131,7 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
+        "ORGANIZATION_NAME": organizationName,
       },
     "distribution": {
         "mode": "STRICT",
@@ -199,6 +202,7 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
+        "ORGANIZATION_NAME": organizationName,
       },
     "distribution": {
         "mode": "STRICT",
@@ -248,6 +252,7 @@ onBeforeInstall: |
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false,
+        "ORGANIZATION_NAME": organizationName,
       },
     "distribution": {
         "mode": "STRICT",
