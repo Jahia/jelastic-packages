@@ -26,7 +26,7 @@ actions:
     - cmd [bl]: |-
         [ -f "${globals.rules_file}" ] && cp -a "${globals.rules_file}" "${globals.backup_rules_file}"
         VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data '{"role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'"}' | jq -r .auth.client_token)
-        VAULT_SECRET_PATH="${settings.vault_secret_path}"
+        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/haproxy"
         curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -r .data.data[] > "${globals.temp_rules_file}"
 
         if [ $(( PIPESTATUS[0] + PIPESTATUS[1] )) -gt 0 ]; then
@@ -70,10 +70,6 @@ actions:
 
 settings:
   fields:
-    - name: vault_secret_path
-      type: string
-      caption: Vault Secret Path
-      required: true
     - name: md5sum
       type: string
       caption: The md5 sum of the rewrite rules
