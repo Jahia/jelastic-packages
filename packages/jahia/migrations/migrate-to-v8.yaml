@@ -26,11 +26,12 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - addHaproxyNodesCountOnJahiaNodes  # PAAS-1674
-  - enableGCMetricsOnJahiaNodes       # PAAS-1664
-  - fixTomcatInitScript               # PAAS-1685
-  - addMaxPostSize                    # PAAS-1579
-  - addGaleraNodeCustomCheck          # PAAS-1677
+  - addHaproxyNodesCountOnJahiaNodes                       # PAAS-1674
+  - enableGCMetricsOnJahiaNodes                            # PAAS-1664
+  - fixTomcatInitScript                                    # PAAS-1685
+  - addMaxPostSize                                         # PAAS-1579
+  - addGaleraNodeCustomCheck                               # PAAS-1677
+  - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -94,3 +95,12 @@ actions:
         chown -h dd-agent: $custom_check_config
         systemctl restart datadog-agent
       user: root
+
+  setOrganizationNameEnvVar:
+    - if (!globals.organization_name):
+        - script: |
+            return {"result": 0, "orgname": "${user.email}".split('@')[0]}
+        - setGlobals:
+            organization_name: ${response.orgname}
+    - env.control.AddContainerEnvVars[${this}]:
+      vars: {"ORGANIZATION_NAME": "${globals.organization_name}"}

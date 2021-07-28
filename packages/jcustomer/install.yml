@@ -26,6 +26,7 @@ mixins:
 onBeforeInstall: |
   var unomiVersion = '${settings.productVersion}';
   var envmode = ${settings.esNodeCount} > 1 ? 'production' : 'development';
+  var organizationName = "${user.email}".split('@')[0];
 
   var resp = {
     result: 0,
@@ -63,7 +64,8 @@ onBeforeInstall: |
       _ROLE: 'unomi',
       _PROVIDE: 'elasticsearch',
       ES_VERSION: esVersion,
-      envmode: envmode
+      envmode: envmode,
+      ORGANIZATION_NAME: organizationName
     },
     "volumes": [
       "/var/lib/elasticsearch"
@@ -101,7 +103,8 @@ onBeforeInstall: |
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       ES_VERSION: esVersion,
-      envmode: envmode
+      envmode: envmode,
+      ORGANIZATION_NAME: organizationName
     },
     "distribution": {
         "mode": "STRICT",
