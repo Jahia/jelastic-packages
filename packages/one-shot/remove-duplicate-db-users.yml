@@ -7,14 +7,14 @@ description:
   short: Jahia - Remove duplicate db users on existing environments
 
 onInstall:
-  - cmd[sqldb]: |-
-      host_1="%"
-      host_2="localhost"
-      duplicate_user1=$(mysql -e "SELECT user FROM mysql.user WHERE host = '${host_1}' AND user LIKE 'jahia-db-%' AND user != '${DB_USER}'" | sed 1d)
-      if [ "$duplicate_user1" != "" ]; then
-        mysql -e "DROP USER '${duplicate_user1}'@'${host_1}'; flush privileges"
+  - cmd[${nodes.sqldb.first.id}]: |-
+      query=$(mysql -e "select host,user from mysql.user WHERE user LIKE 'jahia-db-%' AND (user != '${DB_USER}' OR host != '%')" | sed 1d)
+      if [ "$query" == "" ]; then
+        echo "[INFO] No wrong users to remove."
+        exit 0
       fi
-      duplicate_user2=$(mysql -e "SELECT user FROM mysql.user WHERE host = '${host_2}' AND user LIKE 'jahia-db-%'" | sed 1d)
-      if [ "$duplicate_user2" != "" ]; then
-        mysql -e "DROP USER '${duplicate_user2}'@'${host_2}'; flush privileges"
-      fi
+      while read line; do
+        host=$(echo $line | awk '{print $1}')
+        wrong_user=$(echo $line | awk '{print $2}')
+        mysql -e "DROP USER '${wrong_user}'@'${host}'; FLUSH PRIVILEGES"
+      done <<< "$query"
