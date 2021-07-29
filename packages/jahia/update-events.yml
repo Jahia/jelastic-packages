@@ -15,7 +15,7 @@ mixins:
 
 onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
-      - removeNodeFromHaproxy:
+      - removeBrowsingNodeFromHaproxy:
           nodeId: ${@i.id}
           reload: true
 
@@ -30,7 +30,7 @@ onAfterServiceScaleOut[cp]:
   - refreshProxysqlInstancesList
 
 onBeforeRestartNode[cp]:
-  removeNodeFromHaproxy:
+  removeBrowsingNodeFromHaproxy:
     nodeId: ${event.params.nodeId}
     reload: true
 
@@ -38,23 +38,25 @@ onAfterRestartNode[cp]:
   forEach(nodes.cp):
     if ("${event.params.nodeId}" == "${@i.id}"):
       - startupJahiaHealthCheck: ${event.params.nodeId}
-      - addNodeToHaproxy:
+      - addBrowsingNodeToHaproxy:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
           reload: true
 
 onBeforeRestartNode[proc]:
-  removeProcNodeFromHaproxy
+  removeProcNodeFromHaproxy:
+    reload: true
 
 onAfterRestartNode[proc]:
   - startupJahiaHealthCheck: ${event.params.nodeId}
-  - addProcNodeToHaproxy
+  - addProcNodeToHaproxy:
+      reload: true
 
 onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - forEach(nodes.cp):
-          removeNodeFromHaproxy:
+          removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: true
       - cmd [cp]: |-
@@ -62,7 +64,7 @@ onBeforeRedeployContainer[cp]:
         user: root
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
-      - removeNodeFromHaproxy:
+      - removeBrowsingNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
           reload: true
       - cmd [${event.params.nodeId}]: |-
@@ -81,13 +83,14 @@ onAfterRedeployContainer[cp]:
       - forEach(nodes.cp):
           if ("${event.params.nodeId}" == "${@i.id}"):
             - startupJahiaHealthCheck: ${event.params.nodeId}
-            - addNodeToHaproxy:
+            - addBrowsingNodeToHaproxy:
                 nodeId: ${@i.id}
                 nodeIp: ${@i.intIP}
                 reload: true
 
 onBeforeRedeployContainer[proc]:
-  - removeProcNodeFromHaproxy
+  - removeProcNodeFromHaproxy:
+      reload: true
   - cmd [proc]: |-
       service tomcat stop
     user: root
@@ -101,12 +104,14 @@ onAfterRedeployContainer[proc]:
         user: root
       - if ('${response.out}' == ''):
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
-          - addProcNodeToHaproxy
+          - addProcNodeToHaproxy:
+              reload: true
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
-      - addProcNodeToHaproxy
+      - addProcNodeToHaproxy:
+          reload: true
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
@@ -176,6 +181,7 @@ onBeforeStop:
 
 onAfterStart:
   - startupJahiaHealthCheck: cp, proc
+  - resetHaproxyBackends
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "$envName environment started"

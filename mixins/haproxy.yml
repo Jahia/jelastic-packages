@@ -51,9 +51,9 @@ actions:
     - resetHaproxyBackends
 
   # Parameters:
-  # - nodeId: the nodeID to remove
+  # - nodeId: the ID of the browsing node to remove
   # - reload: "true" or "false", if haproxy service should be reloaded or not
-  removeNodeFromHaproxy:
+  removeBrowsingNodeFromHaproxy:
     - log: "Removing node ${this.nodeId} from HAProxy"
     - cmd [bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
@@ -62,10 +62,10 @@ actions:
         - cmd [bl]: sudo service haproxy reload
 
   # Parameters:
-  # - nodeId: the ID of the node to remove
-  # - nodeIp: the IP of the node to remove
+  # - nodeId: the ID of the browsing node to add
+  # - nodeIp: the IP of the browsing node to add
   # - reload: "true" or "false", if haproxy service should be reloaded or not
-  addNodeToHaproxy:
+  addBrowsingNodeToHaproxy:
     - log: "Adding node ${this.nodeId} to HAProxy"
     - cmd[bl]: |-
         sed -i "/^backend bk_jahia$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
@@ -73,36 +73,48 @@ actions:
         - cmd [bl]: sudo service haproxy reload
 
   resetHaproxyBackends:
+    # Reset browsing nodes
     - forEach (nodes.cp):
-        - removeNodeFromHaproxy:
+        - removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: false
     - forEach (nodes.cp):
-        - addNodeToHaproxy:
+        - addBrowsingNodeToHaproxy:
             nodeId: ${@i.id}
             nodeIp: ${@i.intIP}
             reload: false
+    # Reset processing node
+    - removeProcNodeFromHaproxy:
+        reload: false
+    - addProcNodeToHaproxy:
+        reload: false
+    # Reload haproxy conf
     - cmd [bl]: sudo service haproxy reload
       user: haproxy
 
+  # Parameters:
+  # - reload: "true" or "false", if haproxy service should be reloaded or not
   removeProcNodeFromHaproxy:
     - log: "Removing node ${nodes.proc.first.id} from HAProxy"
     - cmd[bl]: |-
         sed -i "/${env.appid}-${nodes.proc.first.id}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-        sudo service haproxy reload
-      user: haproxy
+    - if ('${this.reload.print()}' == 'true'):
+        - cmd [bl]: sudo service haproxy reload
 
+  # Parameters:
+  # - reload: "true" or "false", if haproxy service should be reloaded or not
   addProcNodeToHaproxy:
     - log: "Adding node ${nodes.proc.first.id} to HAProxy"
     - cmd[bl]: |-
         sed -i "/^backend proc$/a\ \ \ \ server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-        sudo service haproxy reload
-      user: haproxy
+    - if ('${this.reload.print()}' == 'true'):
+        - cmd [bl]: sudo service haproxy reload
 
   configureProcessingDirectAccessHaproxy:
     - cmd[bl]: |-
         sed -i 's/beg sPROCESSING_NODE_ID/beg s${nodes.proc.first.id}/g' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-    - addProcNodeToHaproxy
+    - addProcNodeToHaproxy:
+        reload: true
 
   setupDatadogAgentHaproxy:
     - log: "## Finalize Datadog agent setup on ${this}"
