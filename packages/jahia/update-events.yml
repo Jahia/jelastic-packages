@@ -44,11 +44,13 @@ onAfterRestartNode[cp]:
           reload: true
 
 onBeforeRestartNode[proc]:
-  removeProcNodeFromHaproxy
+  removeProcNodeFromHaproxy:
+    reload: true
 
 onAfterRestartNode[proc]:
   - startupJahiaHealthCheck: ${event.params.nodeId}
-  - addProcNodeToHaproxy
+  - addProcNodeToHaproxy:
+      reload: true
 
 onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
@@ -87,7 +89,8 @@ onAfterRedeployContainer[cp]:
                 reload: true
 
 onBeforeRedeployContainer[proc]:
-  - removeProcNodeFromHaproxy
+  - removeProcNodeFromHaproxy:
+      reload: true
   - cmd [proc]: |-
       service tomcat stop
     user: root
@@ -101,12 +104,14 @@ onAfterRedeployContainer[proc]:
         user: root
       - if ('${response.out}' == ''):
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
-          - addProcNodeToHaproxy
+          - addProcNodeToHaproxy:
+              reload: true
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
-      - addProcNodeToHaproxy
+      - addProcNodeToHaproxy:
+          reload: true
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
@@ -176,6 +181,7 @@ onBeforeStop:
 
 onAfterStart:
   - startupJahiaHealthCheck: cp, proc
+  - resetHaproxyBackends
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "$envName environment started"
