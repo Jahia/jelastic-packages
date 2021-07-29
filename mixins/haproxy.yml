@@ -51,9 +51,9 @@ actions:
     - resetHaproxyBackends
 
   # Parameters:
-  # - nodeId: the nodeID to remove
+  # - nodeId: the ID of the browsing node to remove
   # - reload: "true" or "false", if haproxy service should be reloaded or not
-  removeNodeFromHaproxy:
+  removeBrowsingNodeFromHaproxy:
     - log: "Removing node ${this.nodeId} from HAProxy"
     - cmd [bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
@@ -62,10 +62,10 @@ actions:
         - cmd [bl]: sudo service haproxy reload
 
   # Parameters:
-  # - nodeId: the ID of the node to remove
-  # - nodeIp: the IP of the node to remove
+  # - nodeId: the ID of the browsing node to add
+  # - nodeIp: the IP of the browsing node to add
   # - reload: "true" or "false", if haproxy service should be reloaded or not
-  addNodeToHaproxy:
+  addBrowsingNodeToHaproxy:
     - log: "Adding node ${this.nodeId} to HAProxy"
     - cmd[bl]: |-
         sed -i "/^backend bk_jahia$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
@@ -74,11 +74,11 @@ actions:
 
   resetHaproxyBackends:
     - forEach (nodes.cp):
-        - removeNodeFromHaproxy:
+        - removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: false
     - forEach (nodes.cp):
-        - addNodeToHaproxy:
+        - addBrowsingNodeToHaproxy:
             nodeId: ${@i.id}
             nodeIp: ${@i.intIP}
             reload: false

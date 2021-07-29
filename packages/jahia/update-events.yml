@@ -15,7 +15,7 @@ mixins:
 
 onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
-      - removeNodeFromHaproxy:
+      - removeBrowsingNodeFromHaproxy:
           nodeId: ${@i.id}
           reload: true
 
@@ -30,7 +30,7 @@ onAfterServiceScaleOut[cp]:
   - refreshProxysqlInstancesList
 
 onBeforeRestartNode[cp]:
-  removeNodeFromHaproxy:
+  removeBrowsingNodeFromHaproxy:
     nodeId: ${event.params.nodeId}
     reload: true
 
@@ -38,7 +38,7 @@ onAfterRestartNode[cp]:
   forEach(nodes.cp):
     if ("${event.params.nodeId}" == "${@i.id}"):
       - startupJahiaHealthCheck: ${event.params.nodeId}
-      - addNodeToHaproxy:
+      - addBrowsingNodeToHaproxy:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
           reload: true
@@ -54,7 +54,7 @@ onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - forEach(nodes.cp):
-          removeNodeFromHaproxy:
+          removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: true
       - cmd [cp]: |-
@@ -62,7 +62,7 @@ onBeforeRedeployContainer[cp]:
         user: root
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
-      - removeNodeFromHaproxy:
+      - removeBrowsingNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
           reload: true
       - cmd [${event.params.nodeId}]: |-
@@ -81,7 +81,7 @@ onAfterRedeployContainer[cp]:
       - forEach(nodes.cp):
           if ("${event.params.nodeId}" == "${@i.id}"):
             - startupJahiaHealthCheck: ${event.params.nodeId}
-            - addNodeToHaproxy:
+            - addBrowsingNodeToHaproxy:
                 nodeId: ${@i.id}
                 nodeIp: ${@i.intIP}
                 reload: true
