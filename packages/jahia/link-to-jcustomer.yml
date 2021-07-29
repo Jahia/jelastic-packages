@@ -110,7 +110,7 @@ actions:
     - log: "## unomi nodes get order to restart"
 
     # Get jExperience version to install according to Jahia env version:
-    # - Jahia 7.3.x ==> jExperience 1.11.5
+    # - Jahia 7.3.x ==> jExperience 1.11.6
     # - Jahia 8 < 8.0.2 ==> jExperience 1.12.2
     # - Jahia 8.0.2+ ==> jExperience 2.2.0
     - isVersionStrictlyLower:
@@ -119,7 +119,7 @@ actions:
         res: isLowerThan8000
     - if( ${globals.isLowerThan8000} ):
         - setGlobals:
-            jexperience_version: 1.11.5
+            jexperience_version: 1.11.6
     - else:
         - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
