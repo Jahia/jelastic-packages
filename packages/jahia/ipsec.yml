@@ -36,7 +36,7 @@ actions:
 
   setIPsecConf:
     - cmd [${this}]: |-
-        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/ipsec/conn1"
+        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/ipsec/conn-1"
         confname=$(echo $VAULT_SECRET_PATH | awk -F'/' '{print $NF}')
         confdir=${globals.ipsec_conf_dir}
         secretsfile=${globals.ipsec_secrets_file}
