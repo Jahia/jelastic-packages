@@ -12,10 +12,9 @@ globals:
 
 
 onInstall:
-  - if (settings.vault_secret_path != ""):
-      - setIPsecConf: proc
-      - foreach(nodes.cp):
-          - setIPsecConf: ${@i.id}
+  - setIPsecConf: proc
+  - foreach(nodes.cp):
+      - setIPsecConf: ${@i.id}
   - if (settings.ipsec_should_be != ""):
       - daemonControl
       - setNodeGroupData
@@ -37,7 +36,7 @@ actions:
 
   setIPsecConf:
     - cmd [${this}]: |-
-        VAULT_SECRET_PATH="${settings.vault_secret_path}"
+        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/ipsec/conn1"
         confname=$(echo $VAULT_SECRET_PATH | awk -F'/' '{print $NF}')
         confdir=${globals.ipsec_conf_dir}
         secretsfile=${globals.ipsec_secrets_file}
@@ -185,10 +184,6 @@ actions:
 
 settings:
   fields:
-    - name: vault_secret_path
-      type: string
-      caption: Vault Secret Path
-      required: false
     - name: ipsec_should_be
       type: list
       caption: ipsec should be
