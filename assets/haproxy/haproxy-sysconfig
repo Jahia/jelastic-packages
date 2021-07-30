@@ -9,6 +9,7 @@ case $1 in
 
         echo "" > $customer_rules_file 
         for f in $(ls $customer_rules_dir/*.cfg 2>/dev/null); do 
+            echo "## CUSTOMER_FILENAME $f" >> $customer_rules_file
             cat $f >> $customer_rules_file 
         done 
 
