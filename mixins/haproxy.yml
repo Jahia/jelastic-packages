@@ -13,6 +13,7 @@ actions:
     - retrieveHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
+    - resetHaproxyBackends
     - environment.control.ApplyNodeGroupData [bl]:
         data:
           productName: haproxy
@@ -48,7 +49,6 @@ actions:
         stats_pwd="${globals.haproxy_admin_stats_pass}"
         sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
       user: haproxy
-    - resetHaproxyBackends
 
   # Parameters:
   # - nodeId: the ID of the browsing node to remove
@@ -113,8 +113,6 @@ actions:
   configureProcessingDirectAccessHaproxy:
     - cmd[bl]: |-
         sed -i 's/beg sPROCESSING_NODE_ID/beg s${nodes.proc.first.id}/g' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-    - addProcNodeToHaproxy:
-        reload: true
 
   setupDatadogAgentHaproxy:
     - log: "## Finalize Datadog agent setup on ${this}"
