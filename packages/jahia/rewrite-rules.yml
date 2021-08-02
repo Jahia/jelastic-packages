@@ -58,6 +58,7 @@ actions:
         - cmd [bl]: |-
             mv -f "${globals.backup_rules_file}" "${globals.rules_file}"
             /usr/local/bin/haproxy-reload.sh || true
+          user: root
         - return:
             type: error
             message: "${this.error-out}"
