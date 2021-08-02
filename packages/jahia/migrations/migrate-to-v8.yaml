@@ -32,6 +32,7 @@ onInstall:
   - addMaxPostSize                                         # PAAS-1579
   - addGaleraNodeCustomCheck                               # PAAS-1677
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
+  - addHAProxyReturnErrorScript                            # PAAS-1575
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -104,3 +105,10 @@ actions:
             organization_name: ${response.orgname}
     - env.control.AddContainerEnvVars[${this}]:
       vars: {"ORGANIZATION_NAME": "${globals.organization_name}"}
+
+  addHAProxyReturnErrorScript:
+    - cmd[bl]: |-
+        HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
+        curl -fLSso $HAPROXY_RELOAD ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
+        chmod +x $HAPROXY_RELOAD
+      user: root

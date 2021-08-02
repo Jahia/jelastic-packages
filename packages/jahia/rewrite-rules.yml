@@ -49,15 +49,15 @@ actions:
 
   reloadHAProxy:
     - cmd [bl]: |-
-        service haproxy reload || true
+        /usr/local/bin/haproxy-reload.sh || true
       user: root
     - if ("${response.responses.errOut}" != ""):
         - set:
-            error-out: "${response.responses.out} -- ${response.responses.errOut}"
+            error-out: "${response.responses.errOut}"
         - log: "reload failed"
         - cmd [bl]: |-
             mv -f "${globals.backup_rules_file}" "${globals.rules_file}"
-            service haproxy reload || true
+            /usr/local/bin/haproxy-reload.sh || true
         - return:
             type: error
             message: "${this.error-out}"
