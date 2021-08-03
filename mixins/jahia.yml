@@ -737,32 +737,28 @@ actions:
 
   setVersionPropertiesValue:
     # Parameters:
-    #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    #   - currentJahiaVersion: Jahia version string (eg: "7.3.7.0")
+    #   - targetJahiaVersion: Jahia version string (eg: "8.0.3.0")
     # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
-    # in case we upgrade from a version that does not handle it to a version that does.
+    # in case we upgrade from a version that does not handle it to a version that does,
+    # namely if we upgrade from Jahia < 7.3.8.0 to Jahia >= 7.3.8.0
     - isVersionStrictlyLower:
-        a: "${this.targetDockerTag}"
+        a: "${this.currentJahiaVersion}"
         b: "7.3.8.0"
-        res: isTargetVersionLowerThan7380
+        res: isCurrentVersionStriclyLowerThan7380
+    - isVersionHigherOrEqual:
+        a: "${this.targetJahiaVersion}"
+        b: "7.3.8.0"
+        res: isTargetVersionHigherOrEqual7380
 
-    - if ( ! ${globals.isTargetVersionLowerThan7380} ):
-        - isVersionStrictlyLower:
-            a: "${this.targetDockerTag}"
-            b: "8.0.0.0"
-            res: isTargetVersionLowerThan8000
-        - isVersionStrictlyLower:
-            a: "${this.targetDockerTag}"
-            b: "8.0.2.0"
-            res: isTargetVersionLowerThan8020
-        - if ( ${globals.isTargetVersionLowerThan8000} || ! ${globals.isTargetVersionLowerThan8020} ):
-            # If the targetDockerTag < 8.0.0.0 or >= 8.0.2.0
-            cmd[proc,cp]: |-
-              INFO_DIR="/data/digital-factory-data/info"
-              if [ ! -f $INFO_DIR/version.properties ]; then
-                mkdir -p $INFO_DIR
-                echo "version=${nodes.proc.version}" > $INFO_DIR/version.properties
-              fi
-            user: tomcat
+    - if ( ${globals.isCurrentVersionStriclyLowerThan7380} && ${globals.isTargetVersionHigherOrEqual7380} ):
+        cmd[proc,cp]: |-
+          INFO_DIR="/data/digital-factory-data/info"
+          if [ ! -f $INFO_DIR/version.properties ]; then
+            mkdir -p $INFO_DIR
+            echo "version=${this.currentJahiaVersion}" > $INFO_DIR/version.properties
+          fi
+        user: tomcat
 
   #######################
   # jexperience related #
