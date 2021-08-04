@@ -10,6 +10,10 @@ actions:
     - setSudoer: bl
     - cmd[bl]: yum install -y jq
       user: root
+    - env.control.AddContainerEnvVars[bl]:
+      vars:
+        auth_basic_enabled: "false"
+        haproxy_cfg_timeout_server: "5m"
     - retrieveHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
@@ -18,8 +22,6 @@ actions:
         data:
           productName: haproxy
           productVersion: ${nodes.bl.first.version}
-    - env.control.AddContainerEnvVars[bl]:
-      vars: {"auth_basic_enabled": "false"}
 
   retrieveHaproxyConf:
     - setGlobalRepoRootUrl
