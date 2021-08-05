@@ -32,7 +32,7 @@ onInstall:
   - addMaxPostSize                                         # PAAS-1579
   - addGaleraNodeCustomCheck                               # PAAS-1677
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
-  - updateHaproxyReloadScriptAndSysconfig                  # PAAS-1575 + PAAS-1708
+  - updateHaproxyConfig                                    # PAAS-1575 + PAAS-1708
   - enableNativeMemoryTracking                             # PAAS-1705
   - jahiaRollingRestart                                    # needed for PAAS-1705
 
@@ -112,13 +112,15 @@ actions:
     - env.control.AddContainerEnvVars[${this}]:
       vars: {"ORGANIZATION_NAME": "${globals.organization_name}"}
 
-  updateHaproxyReloadScriptAndSysconfig:
+  updateHaproxyConfig:
     - env.control.AddContainerEnvVars[bl]:
       vars:
         haproxy_cfg_timeout_server: "5m"
     - cmd[bl]: |-
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
         HAPROXY_SYSCONFIG=/etc/sysconfig/haproxy
         HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
+        curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
         curl -fLSso $HAPROXY_SYSCONFIG ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
         curl -fLSso $HAPROXY_RELOAD ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $HAPROXY_RELOAD
