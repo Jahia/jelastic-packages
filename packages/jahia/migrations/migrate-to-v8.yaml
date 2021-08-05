@@ -33,6 +33,8 @@ onInstall:
   - addGaleraNodeCustomCheck                               # PAAS-1677
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
   - addHAProxyReturnErrorScript                            # PAAS-1575
+  - enableNativeMemoryTracking                             # PAAS-1705
+  - jahiaRollingRestart                                    # needed for PAAS-1705
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -82,8 +84,12 @@ actions:
     - env.control.AddContainerEnvVars[cp, proc]:
       vars: {"tomcat_cfg_maxpostsize": "2097152"}
     - cmd[cp, proc]: |-
-        sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' /opt/tomcat/conf/tomcat-env.sh
-        sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
+        if ! (grep -q '\-DmaxPostSize=' /opt/tomcat/conf/tomcat-env.sh); then
+          sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' /opt/tomcat/conf/tomcat-env.sh
+        fi
+        if ! (grep -q 'maxPostSize=' /opt/tomcat/conf/server.xml); then
+          sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
+        fi
       user: root
 
   addGaleraNodeCustomCheck:
@@ -114,3 +120,14 @@ actions:
         curl -fLSso $HAPROXY_RELOAD ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $HAPROXY_RELOAD
       user: root
+
+  enableNativeMemoryTracking:
+    - cmd[cp, proc]: |-
+        if ! (grep -q '\-XX:NativeMemoryTracking=summary' /opt/tomcat/conf/tomcat-env.sh); then
+          sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' /opt/tomcat/conf/tomcat-env.sh
+        fi
+      user: root
+
+  jahiaRollingRestart:
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
