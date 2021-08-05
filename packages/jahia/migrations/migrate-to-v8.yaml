@@ -33,6 +33,8 @@ onInstall:
   - addGaleraNodeCustomCheck                               # PAAS-1677
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
   - addHAProxyReturnErrorScript                            # PAAS-1575
+  - enableNativeMemoryTracking                             # PAAS-1705
+  - jahiaRollingRestart                                    # needed for PAAS-1705
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -114,3 +116,14 @@ actions:
         curl -fLSso $HAPROXY_RELOAD ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $HAPROXY_RELOAD
       user: root
+
+  enableNativeMemoryTracking:
+    - cmd[cp, proc]: |-
+        if ! (grep -q '\-XX:NativeMemoryTracking=summary' /opt/tomcat/conf/tomcat-env.sh); then
+          sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' /opt/tomcat/conf/tomcat-env.sh
+        fi
+      user: root
+
+  jahiaRollingRestart:
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
