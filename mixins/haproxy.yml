@@ -18,8 +18,6 @@ actions:
         data:
           productName: haproxy
           productVersion: ${nodes.bl.first.version}
-    - env.control.AddContainerEnvVars[bl]:
-      vars: {"auth_basic_enabled": "false"}
 
   retrieveHaproxyConf:
     - setGlobalRepoRootUrl

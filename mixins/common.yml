@@ -14,7 +14,7 @@ actions:
         - setGlobals:
             repoRootUrl: ${response.root_url}
     - else:
-        log: "[INFO] global repoRootUrl is already define with value '${globals.repoRootUrl}'"
+        log: "[INFO] global repoRootUrl is already defined with value '${globals.repoRootUrl}'"
 
   setSudoer:
     - log: "## Set sudoer on ${this}"

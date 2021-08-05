@@ -1,5 +1,6 @@
-eval $(grep "^jahia_cfg_healthcheck_token=" /.jelenv)
-export jahia_cfg_healthcheck_token
+# Export some envvars so that we can use them in haproxy conf:
+eval "export $(grep -E "^(jahia_cfg_healthcheck_token|haproxy_cfg_\w+)=" /.jelenv | sed -z 's/\n/ /g')"
+
 case $1 in
     "start"|"restart"|"reload")
         haproxy_cfg=/etc/haproxy/haproxy.cfg 

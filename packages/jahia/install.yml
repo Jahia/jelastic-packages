@@ -60,6 +60,8 @@ onBeforeInstall: |
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "envmode": envmode,
         "ORGANIZATION_NAME": organizationName,
+        "auth_basic_enabled": "false",
+        "haproxy_cfg_timeout_server": "5m"
       },
     "distribution": {
         "mode": "STRICT",
