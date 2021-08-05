@@ -8,10 +8,8 @@ description:
 
 globals:
   rules_dir: "/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d"
-  rules_filename: "customer_rules.cfg"
-  rules_file: "${globals.rules_dir}/${globals.rules_filename}"
-  backup_rules_file: "/var/lib/haproxy/${globals.rules_filename}.bak"
-  temp_rules_file: "/var/lib/haproxy/${globals.rules_filename}.cfg"
+  backup_rules_dir: "/var/lib/haproxy/customer.configuration.d"
+  temp_rules_dir: "/var/lib/haproxy/customer.configuration.tmp"
 
 onInstall:
   - getRewritesRules
@@ -24,24 +22,41 @@ actions:
         [ -x /usr/bin/jq ] || yum install -y jq
       user: root
     - cmd [bl]: |-
-        [ -f "${globals.rules_file}" ] && cp -a "${globals.rules_file}" "${globals.backup_rules_file}"
+        # Backup current rule files dir
+        mkdir -p ${globals.backup_rules_dir} ${globals.temp_rules_dir}
+        if find ${globals.rules_dir}/* -maxdepth 0 -empty > /dev/null 2>&1; then
+          mv -f ${globals.rules_dir}/* ${globals.backup_rules_dir}
+        fi
+
+        # Connect to Vault and check if rules exist
         VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data '{"role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'"}' | jq -r .auth.client_token)
         VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/haproxy"
-        curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -r .data.data[] > "${globals.temp_rules_file}"
-
-        if [ $(( PIPESTATUS[0] + PIPESTATUS[1] )) -gt 0 ]; then
+        rules_sets=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -e .data.data)
+        if [ $? -ne 0 ]; then
           echo "Failed to fetch secret" >&2
           exit 0
         fi
 
-        if echo "${settings.md5sum} ${globals.temp_rules_file}" | md5sum --check --status ; then
-          mv -f ${globals.temp_rules_file} ${globals.rules_file}
-        else
-          echo "MD5 sum mismatch. Aborting" >&2
-        fi
+        # Get all rules as individual files in temp dir, check md5sum with values from front
+        # and handle escape character interpretation while populating rules dir
+        for rules_set in $(echo $rules_sets | jq -r 'keys[]'); do
+          echo "$rules_sets" | jq -r ".\"$rules_set\"" > ${globals.temp_rules_dir}/$rules_set.cfg
+        done
+        for rules_file in $(echo '${settings.md5sum}' | jq -r 'keys[]'); do
+          md5=$(echo '${settings.md5sum}' | jq -r ".\"$rules_file\"")
+          if echo "$md5 ${globals.temp_rules_dir}/$rules_file.cfg" | md5sum --check --status; then
+            printf "%b\n" "$(<${globals.temp_rules_dir}/$rules_file.cfg)" > ${globals.rules_dir}/$rules_file.cfg
+          else
+            echo "MD5 sum mismatch. Aborting" >&2
+          fi
+        done
     - if ("${response.errOut}" != ""):
         - cmd [bl]: |-
-            mv -f "${globals.backup_rules_file}" "${globals.rules_file}"
+            rm -f ${globals.rules_dir}/*
+            if find ${globals.backup_rules_dir}/* -maxdepth 0 -empty > /dev/null 2>&1; then
+              mv -f ${globals.backup_rules_dir}/* ${globals.rules_dir}
+            fi
+            rm -rf ${globals.backup_rules_dir} ${globals.temp_rules_dir}
         - log: "Get Rewrite Rules Failed"
         - return:
             type: error
@@ -56,7 +71,11 @@ actions:
             error-out: "${response.responses.errOut}"
         - log: "reload failed"
         - cmd [bl]: |-
-            mv -f "${globals.backup_rules_file}" "${globals.rules_file}"
+            rm -f ${globals.rules_dir}/*
+            if find ${globals.backup_rules_dir}/* -maxdepth 0 -empty > /dev/null 2>&1; then
+              mv -f ${globals.backup_rules_dir}/* ${globals.rules_dir}
+            fi
+            rm -rf ${globals.backup_rules_dir} ${globals.temp_rules_dir}
             /usr/local/bin/haproxy-reload.sh || true
           user: root
         - return:
@@ -65,7 +84,7 @@ actions:
 
   removeBackup:
     - cmd [bl]: |-
-        rm -f "${globals.backup_rules_file}"
+        rm -rf ${globals.backup_rules_dir} ${globals.temp_rules_dir}
     - return:
         type: success
 
