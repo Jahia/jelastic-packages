@@ -12,6 +12,14 @@ mixins:
 
 globals:
   version: 7
+  stack_connect_ip_adds:
+    - 3.65.225.246
+    - 3.66.45.94
+    - 18.198.249.58
+    - 34.226.132.221
+    - 52.5.142.59
+    - 52.54.43.157
+    - 188.165.59.149
 
 onInstall:
   ### Pre-checks
@@ -22,6 +30,7 @@ onInstall:
   ### End Pre-checks
 
   - setOrganizationNameEnvVar: cp, es             # PAAS-1631
+  - allowJahiaStackConnect                        # PAAS-1325
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -46,3 +55,36 @@ actions:
           organization_name: ${response.orgname}          
     - env.control.AddContainerEnvVars[${this}]:
       vars: {"ORGANIZATION_NAME": "${globals.organization_name}"}
+
+  allowJahiaStackConnect:
+    - addWorkatoIPadds
+    - enableXforwardedFor
+
+  enableXforwardedFor:
+    - cmd[cp]: |-
+        file=$(find $JCUSTOMER_HOME/jcustomer/etc -name custom.system.properties)
+        line_exists=$(grep checkForwardedHeaders $file)
+        if [ "$line_exists" != "" ]; then
+          sed -i "s/\(org.osgi.service.http.checkForwardedHeaders=\)false/\1true/" $file
+        else
+          echo "org.osgi.service.http.checkForwardedHeaders=true" >> $file
+        fi
+      user: root
+
+  addWorkatoIPadds:
+    - script: |-
+        container_env_vars = jelastic.env.control.GetContainerEnvVars(
+                                     "${env.envName}",
+                                     session,
+                                     ${nodes.cp.first.id}
+                                   );
+        allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
+        if (allowed_ips != "") {
+          allowed_ips = "," + allowed_ips
+        }
+        return jelastic.env.control.AddContainerEnvVars(
+          '${env.envName}',
+          session,
+          nodeGroup='cp',
+          vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': "127.0.0.1,::1,${globals.stack_connect_ip_adds.join(,)}," + allowed_ips}
+        );
