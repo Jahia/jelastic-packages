@@ -34,7 +34,8 @@ onInstall:
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
   - updateHaproxyConfig                                    # PAAS-1575 + PAAS-1708
   - enableNativeMemoryTracking                             # PAAS-1705
-  - jahiaRollingRestart                                    # needed for PAAS-1705
+  - configureDatadogAPM                                    # PAAS-1712
+  - jahiaRollingRestart                                    # needed for PAAS-1705 + PAAS-1712
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -131,6 +132,25 @@ actions:
     - cmd[cp, proc]: |-
         if ! (grep -q '\-XX:NativeMemoryTracking=summary' /opt/tomcat/conf/tomcat-env.sh); then
           sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' /opt/tomcat/conf/tomcat-env.sh
+        fi
+      user: root
+
+  configureDatadogAPM:
+    - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"DATADOG_APM_ENABLED": "false"}
+    - cmd[cp, proc]: |-
+        # Update set_dd_tags.sh and run it to update dd-agent config (disable APM by default)
+        curl -fLSso /usr/local/bin/set_dd_tags.sh ${baseUrl}/v8_assets/set_dd_tags.sh || exit 1
+        /usr/local/bin/set_dd_tags.sh
+        # Install dd-java-agent.jar
+        if [ ! -f /opt/tomcat/datadog/dd-java-agent.jar ]; then
+          mkdir /opt/tomcat/datadog
+          curl -fLSso /opt/tomcat/datadog/dd-java-agent.jar https://dtdg.co/latest-java-tracer || exit 1
+          chown tomcat: -R /opt/tomcat/datadog/
+        fi
+        # Add required JAVA_OPTS (tomcat restart needed to be taken into account)
+        if ! (grep -q '\-javaagent:/opt/tomcat/datadog/dd-java-agent.jar' /opt/tomcat/conf/tomcat-env.sh); then
+          sed -i -E '/^JAVA_OPTS/ s#(.)$# -Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}\1#g' /opt/tomcat/conf/tomcat-env.sh
         fi
       user: root
 
