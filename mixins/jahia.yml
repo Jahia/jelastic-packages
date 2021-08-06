@@ -160,18 +160,19 @@ actions:
         sed "s/loadbalance:/$replace/" -i /$DATA_PATH/jahia/tomcat/webapps/ROOT/META-INF/context.xml
         cp -rf $DATA_PATH/jahia/tomcat/webapps/* $STACK_PATH/webapps
         chown -R tomcat:tomcat $STACK_PATH/webapps
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-        sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" /opt/tomcat/conf/tomcat-env.sh
+        grep -q '^JMX_OPTS=\-XX:+UseParallelGC$' ${tomcat_env} || sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" ${tomcat_env}
         sed -i '/<!-- Access log processes all example./i \\t<!-- Remote IP Valve -->\n \t<Valve className="org.apache.catalina.valves.RemoteIpValve" protocolHeader="X-Forwarded-Proto" />\n' /opt/tomcat/conf/server.xml
         #Secure cookies from cross scripting
         indent="      " && printf "$indent<cookie-config>\n$indent$indent<secure>true</secure>\n$indent$indent<http-only>true</http-only>\n$indent</cookie-config>\n" > /tmp/cookies-config
         sed -i '/<session-config>/r /tmp/cookies-config' /opt/tomcat/conf/web.xml && rm /tmp/cookies-config
         sed -e '/maxHttpHeaderSize/d' -e "s/^\(.*Connector port=\"80.*HTTP.*\)$/\1\n\t\tmaxHttpHeaderSize=\"65536\"/g" -i /opt/tomcat/conf/server.xml
-        sed -i '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
-        sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' /opt/tomcat/conf/tomcat-env.sh
-        sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' /opt/tomcat/conf/tomcat-env.sh
-        sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' /opt/tomcat/conf/tomcat-env.sh
+        sed -i -e '/maxPostSize=/d' -e '/Connector port="80"/a \               maxPostSize="${maxPostSize}"' /opt/tomcat/conf/server.xml
+        grep -q '^jahia_cfg_cluster_tcp_bindAddress=' ${tomcat_env} || sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' ${tomcat_env}
+        grep -q '^JAVA_OPTS.*maxPostSize' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' ${tomcat_env}
+        grep -q '^JAVA_OPTS.*NativeMemoryTracking' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' ${tomcat_env}
     - if ("${response.errOut}" != ""):
         - return:
             type: error
