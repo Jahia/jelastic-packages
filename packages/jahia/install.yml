@@ -287,7 +287,7 @@ onInstall:
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb
   - setupDatadogAgentSql: sqldb
-  - setupDatadogAgent: cp, proc
+  - setupDatadogAgentJahia: cp, proc
   - setupDatadogAgentHaproxy: bl
   - setEnvVersion: ${globals.jahia_env_version}
   - install:
