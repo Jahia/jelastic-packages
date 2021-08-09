@@ -38,7 +38,7 @@ actions:
     - setSudoer: ${this.newNode}
     - copyApp: ${this.newNode}
     - setToolsPwd: ${this.newNode}
-    - setupDatadogAgentPerNode: ${this.newNode}
+    - setupDatadogAgentJahia: ${this.newNode}
     - cmd[${this.newNode}]: |-
         if (service tomcat status); then
           echo "Now Restarting Tomcat"
@@ -62,7 +62,7 @@ actions:
     - if ("${this}" == "cp"):
         cmd[${this}]:
           - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-    - setupDatadogAgent: ${this}
+    - setupDatadogAgentJahia: ${this}
     - cmd[${this}]: |-
           touch "/data/digital-factory-data/[persisted-configurations].dorestore"
           chown tomcat: "/data/digital-factory-data/[persisted-configurations].dorestore"
@@ -173,6 +173,8 @@ actions:
         grep -q '^jahia_cfg_cluster_tcp_bindAddress=' ${tomcat_env} || sed -i '/TOMCAT_USER=/ a jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' ${tomcat_env}
         grep -q '^JAVA_OPTS.*-DmaxPostSize=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' ${tomcat_env}
         grep -q '^JAVA_OPTS.*-XX:NativeMemoryTracking=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' ${tomcat_env}
+        # Datadog APM
+        sed -i -E '/^JAVA_OPTS/ s#(.)$# -Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}\1#g' ${tomcat_env}
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -207,31 +209,17 @@ actions:
     - cmd[${this}]: |-
          sed -i "s|^jahiaToolManagerPassword .*$|jahiaToolManagerPassword = $MANAGER_PASSWORD|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
 
-  setupDatadogAgent:
+  setupDatadogAgentJahia:
     - log: "## Finalize Datadog agent setup on ${this}"
-    - setGlobalRepoRootUrl
-    - cmd [${this}]: |-
-        NODE_NAME=${HOSTNAME/-*}
-        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
-        chmod 644 /opt/tomcat/logs/catalina.out
-        /usr/local/bin/set_dd_tags.sh
-        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
-        chown tomcat:root /var/log/jelastic-packages
-        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
-        systemctl restart crond
-        systemctl enable datadog-agent
-      user: root
-
-  setupDatadogAgentPerNode:
-    - log: "## Finalize Datadog agent on ${this}"
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+
+        # Disable APM by default
+        echo "apm_config:" >> /etc/datadog-agent/datadog.yaml
+        echo "  enabled: ${DATADOG_APM_ENABLED:-false}" >> /etc/datadog-agent/datadog.yaml
+
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml

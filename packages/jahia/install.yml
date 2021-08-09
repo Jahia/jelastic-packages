@@ -118,6 +118,7 @@ onBeforeInstall: |
         "XMS": "${globals.xms}",
         "XMX": browsingXmx,
         "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DATADOG_APM_ENABLED": "false",
         "DX_VERSION": "${settings.productVersion}",
         "_PROVIDE": "jahia",
         "_ROLE": "Browsing",
@@ -189,6 +190,7 @@ onBeforeInstall: |
         "XMS": "${globals.xms}",
         "XMX": procXmx,
         "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DATADOG_APM_ENABLED": "false",
         "DX_VERSION": "${settings.productVersion}",
         "_PROVIDE": "jahia",
         "_ROLE": "Processing",
@@ -287,7 +289,7 @@ onInstall:
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb
   - setupDatadogAgentSql: sqldb
-  - setupDatadogAgent: cp, proc
+  - setupDatadogAgentJahia: cp, proc
   - setupDatadogAgentHaproxy: bl
   - setEnvVersion: ${globals.jahia_env_version}
   - install:
