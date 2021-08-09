@@ -26,16 +26,18 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - addHaproxyNodesCountOnJahiaNodes                       # PAAS-1674
-  - enableGCMetricsOnJahiaNodes                            # PAAS-1664
   - fixTomcatInitScript                                    # PAAS-1685
-  - addMaxPostSize                                         # PAAS-1579
-  - addGaleraNodeCustomCheck                               # PAAS-1677
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
   - updateHaproxyConfig                                    # PAAS-1575 + PAAS-1708
+  - addMaxPostSize                                         # PAAS-1579
+  - addHaproxyNodesCountOnJahiaNodes                       # PAAS-1674
+  - enableGCMetricsOnJahiaNodes                            # PAAS-1664
+  - addGaleraNodeCustomCheck                               # PAAS-1677
   - enableNativeMemoryTracking                             # PAAS-1705
   - configureDatadogAPM                                    # PAAS-1712
-  - jahiaRollingRestart                                    # needed for PAAS-1705 + PAAS-1712
+  - disableIoCheck                                         # PAAS-1542
+  - restartDDAgentOnJahiaNodes                             # needed for PAAS-1674, PAAS-1664, PAAS-1677, PAAS-1712 and PAAS-1542
+  - jahiaRollingRestart                                    # needed for PAAS-1579, PAAS-1705 and PAAS-1712
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -61,7 +63,6 @@ actions:
         target=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
         curl -fLSso $target ${baseUrl}v8_assets/jahia_node_not_in_haproxy_pool.py || exit 1
         chown dd-agent: $target
-        service datadog-agent restart
       user: root
 
   enableGCMetricsOnJahiaNodes:
@@ -73,7 +74,6 @@ actions:
           exit 0
         fi
         sed -i "/init_config/a\ \ \ \ $LINE_TO_ADD" $CONF_FILE
-        systemctl restart datadog-agent
       user: root
 
   fixTomcatInitScript:
@@ -101,7 +101,6 @@ actions:
         chown dd-agent: $custom_check_script
         ln -s /etc/datadog-agent/conf.d/mysql.d/conf.yaml $custom_check_config
         chown -h dd-agent: $custom_check_config
-        systemctl restart datadog-agent
       user: root
 
   setOrganizationNameEnvVar:
@@ -141,7 +140,6 @@ actions:
     - cmd[cp, proc]: |-
         # Update set_dd_tags.sh and run it to update dd-agent config (disable APM by default)
         curl -fLSso /usr/local/bin/set_dd_tags.sh ${baseUrl}/v8_assets/set_dd_tags.sh || exit 1
-        /usr/local/bin/set_dd_tags.sh
         # Install dd-java-agent.jar
         if [ ! -f /opt/tomcat/datadog/dd-java-agent.jar ]; then
           mkdir /opt/tomcat/datadog
@@ -151,6 +149,28 @@ actions:
         # Add required JAVA_OPTS (tomcat restart needed to be taken into account)
         if ! (grep -q '\-javaagent:/opt/tomcat/datadog/dd-java-agent.jar' /opt/tomcat/conf/tomcat-env.sh); then
           sed -i -E '/^JAVA_OPTS/ s#(.)$# -Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}\1#g' /opt/tomcat/conf/tomcat-env.sh
+        fi
+      user: root
+
+  disableIoCheck:
+    - cmd[cp,proc,sqldb]: |-
+        io_conf_path=/etc/datadog-agent/conf.d/io.d/conf.yaml.default
+        if [ -f "$io_conf_path" ]; then
+          mv $io_conf_path $io_conf_path.disabled
+        fi
+      user: root
+    # Only restart agent on DB nodes, since jahia nodes are handled in a another action
+    - cmd[sqldb]: |-
+        systemctl restart datadog-agent
+
+  restartDDAgentOnJahiaNodes:
+    - cmd[cp,proc]: |-
+        # Launch "set_dd_tags" script (needed for "configureDatadogAPM")
+        output="$(/usr/local/bin/set_dd_tags.sh)"
+        # Force agent restart in case "set_dd_tags" didn't already do it
+        if [ "$output" = "Tags are up to date, exiting." ]; then
+          echo "Force datadog-agent restart"
+          systemctl restart datadog-agent
         fi
       user: root
 
