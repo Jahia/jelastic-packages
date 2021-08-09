@@ -36,7 +36,8 @@ onInstall:
   - enableNativeMemoryTracking                             # PAAS-1705
   - configureDatadogAPM                                    # PAAS-1712
   - disableIoCheck                                         # PAAS-1542
-  - restartDDAgentOnJahiaNodes                             # needed for PAAS-1674, PAAS-1664, PAAS-1677, PAAS-1712 and PAAS-1542
+  - updateDDIPSecConnStatus                                # PAAS-1694
+  - restartDDAgentOnJahiaNodes                             # needed for PAAS-1674, PAAS-1664, PAAS-1677, PAAS-1712, PAAS-1542 and PAAS-1694
   - jahiaRollingRestart                                    # needed for PAAS-1579, PAAS-1705 and PAAS-1712
 
   ### Post-actions
@@ -162,6 +163,13 @@ actions:
     # Only restart agent on DB nodes, since jahia nodes are handled in a another action
     - cmd[sqldb]: |-
         systemctl restart datadog-agent
+
+  updateDDIPSecConnStatus:
+    - cmd[proc, cp]: |-
+        filename="strongswan_connections_status.py"
+        curl -fLSso /etc/datadog-agent/checks.d/$filename ${baseUrl}/v8_assets/$filename || exit 1
+        chown dd-agent: /etc/datadog-agent/checks.d/$filename
+      user: root
 
   restartDDAgentOnJahiaNodes:
     - cmd[cp,proc]: |-
