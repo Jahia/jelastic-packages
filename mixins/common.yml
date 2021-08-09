@@ -271,7 +271,7 @@ actions:
         a: "${this.a}"
         b: "${this.b}"
         res: isVersionHigherOrEqualComparison
-    - if (${globals.isVersionLowerOrEqualComparison} >= 0):
+    - if (${globals.isVersionHigherOrEqualComparison} >= 0):
         setGlobals:
           ${this.res}: true
     - else:

@@ -121,16 +121,8 @@ actions:
         - setGlobals:
             jexperience_version: 1.11.6
     - else:
-        - isVersionStrictlyLower:
-            a: ${globals.jahiaVersion}
-            b: 8.0.2.0
-            res: isLowerThan8020
-        - if( ${globals.isLowerThan8020} ):
-            - setGlobals:
-                jexperience_version: 1.12.2
-        - else:
-            - setGlobals:
-                jexperience_version: 2.2.0
+        - setGlobals:
+            jexperience_version: 2.2.0
 
   confJexperience:
     - setGlobalRepoRootUrl
