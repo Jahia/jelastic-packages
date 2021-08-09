@@ -126,6 +126,10 @@ actions:
         chmod u+x /usr/local/bin/set_dd_tags.sh
         chmod 644 /var/log/mysql/mysqld.log
         chmod 644 /var/log/mysql/slow-queries.log  > /dev/null 2>&1
+
+        # Temporarily disable IO check (cf. PAAS-1543)
+        mv /etc/datadog-agent/conf.d/io.d/conf.yaml.default /etc/datadog-agent/conf.d/io.d/conf.yaml.default.disabled
+
         systemctl restart crond datadog-agent
       user: root
     - if ("${response.errOut}" != ""):

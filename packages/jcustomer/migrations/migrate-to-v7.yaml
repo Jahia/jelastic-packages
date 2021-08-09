@@ -31,6 +31,7 @@ onInstall:
 
   - setOrganizationNameEnvVar: cp, es             # PAAS-1631
   - allowJahiaStackConnect                        # PAAS-1325
+  - disableIoCheck                                # PAAS-1542
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -88,3 +89,12 @@ actions:
           nodeGroup='cp',
           vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': "127.0.0.1,::1,${globals.stack_connect_ip_adds.join(,)}," + allowed_ips}
         );
+
+  disableIoCheck:
+    - cmd[cp,es]: |-
+        io_conf_path=/etc/datadog-agent/conf.d/io.d/conf.yaml.default
+        if [ -f "$io_conf_path" ]; then
+          mv $io_conf_path $io_conf_path.disabled
+          systemctl restart datadog-agent
+        fi
+      user: root
