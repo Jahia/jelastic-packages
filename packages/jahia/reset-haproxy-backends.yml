@@ -1,0 +1,13 @@
+---
+type: update
+version: 1.5.2
+id: jahia-reset-haproxy-backends
+name: Jahia reset HAProxy backends
+description: Resets browsing and proc backends in HAProxy config
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/haproxy.yml
+
+onInstall:
+  - resetHaproxyBackends
