@@ -153,15 +153,16 @@ actions:
       user: root
 
   disableIoCheck:
-    - cmd[cp,proc,sqldb]: |-
+    - cmd[cp,proc,sqldb,bl]: |-
         io_conf_path=/etc/datadog-agent/conf.d/io.d/conf.yaml.default
         if [ -f "$io_conf_path" ]; then
           mv $io_conf_path $io_conf_path.disabled
         fi
       user: root
-    # Only restart agent on DB nodes, since jahia nodes are handled in a another action
-    - cmd[sqldb]: |-
+    # Only restart agent on DB and HAProxy nodes, since jahia nodes are handled in a another action
+    - cmd[sqldb,bl]: |-
         systemctl restart datadog-agent
+      user: root
 
   restartDDAgentOnJahiaNodes:
     - cmd[cp,proc]: |-
