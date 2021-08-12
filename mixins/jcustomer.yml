@@ -54,6 +54,11 @@ actions:
       echo "[ERROR] jCustomer is unavailable, exiting" 1>&2 && exit 1
     user: root
 
+  checkJcustomerDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: jcustomer_status
+
   saveUnomiRootPassword:
     - cmd [${nodes.cp.first.id}]: |-
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)

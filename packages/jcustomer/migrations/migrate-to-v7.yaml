@@ -25,7 +25,9 @@ onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
   - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
   - eventsUpdate
   ### End Pre-checks
 
@@ -40,7 +42,9 @@ onInstall:
       title: "Environment $envName migrated"
       text: "Environment $envName migrated to v${globals.version}"
   - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
   - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
   ### End Post-actions
 
 actions:

@@ -19,9 +19,12 @@ onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
   - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
   - checkMariadbHealth: sqldb
   - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
   - eventsUpdate
   - setGlobalRepoRootUrl
   ### End Pre-checks
@@ -47,9 +50,12 @@ onInstall:
       title: "Environment $envName migrated"
       text: "Environment $envName migrated to v${globals.version}"
   - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
   - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
   - checkMariadbHealth: sqldb
   - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
   ### End Post-actions
 
 actions:
