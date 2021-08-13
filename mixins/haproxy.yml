@@ -168,6 +168,17 @@ actions:
       echo "[ERROR] Haproxy is unavailable, exiting" 1>&2 && exit 1
     user: root
 
+  checkHaproxyDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: haproxy
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: haproxy_one_remaining_browsing
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: process
+
   setAuthBasic:
     # Parameters:
     #   - auth_basic_script

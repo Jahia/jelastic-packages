@@ -327,6 +327,17 @@ actions:
         fi
         echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
 
+  checkJahiaDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: proxysql
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: jahia_node_not_in_haproxy_pool
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: strongswan_connections_status
+
   deleteEnvLink:
     - script: |-
         const envName = "${env.envName}";

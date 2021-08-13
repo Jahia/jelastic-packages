@@ -221,6 +221,11 @@ actions:
         exit 1
       user: root
 
+  checkElasticsearchDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: elastic
+
   setAwsSnapshotRepository:
     - cmd[${nodes.es.first.id}]: |-
         curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"

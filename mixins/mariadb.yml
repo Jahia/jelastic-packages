@@ -247,6 +247,11 @@ actions:
         fi
       user: root
 
+  checkMariadbDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: mysql
+
   stopGaleraNode:
     cmd[${this}]: |-
       service mysql stop || exit 1
