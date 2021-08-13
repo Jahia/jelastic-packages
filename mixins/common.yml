@@ -301,6 +301,7 @@ actions:
     #  - target: target node group or id
     #  - checkName: name of the Datadog agent check to check
     - cmd[${this.target}]: |-
+        # "tail -n +2" is needed because the command outputs "=== JSON ===" before the JSON content...
         error_count=$(datadog-agent check ${this.checkName} --json | tail -n +2 | jq '.[].runner.TotalErrors')
         if [ $error_count -gt 0 ]; then
           echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
