@@ -42,6 +42,7 @@ onInstall:
   - updateDDIPSecConnStatus                                # PAAS-1694
   - restartDDAgentOnJahiaNodes                             # needed for PAAS-1674, PAAS-1664, PAAS-1677, PAAS-1712, PAAS-1542 and PAAS-1694
   - jahiaRollingRestart                                    # needed for PAAS-1579, PAAS-1705 and PAAS-1712
+  - updateStrongswanOverride                               # PAAS-1690
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -187,6 +188,15 @@ actions:
           echo "Force datadog-agent restart"
           systemctl restart datadog-agent
         fi
+      user: root
+
+  updateStrongswanOverride:
+    - cmd[cp, proc]: |-
+        curl -fLSso /etc/systemd/system/strongswan.service.d/override.conf ${globals.repoRootUrl}/packages/jahia/migrations/v8_assets/strongswan_override || exit 1
+        curl -fLSso /usr/local/bin/strongswan_connection.sh ${globals.repoRootUrl}/packages/jahia/migrations/v8_assets/strongswan_connection.sh || exit 1
+        chmod 644 /etc/systemd/system/strongswan.service.d/override.conf
+        chmod 755 /usr/local/bin/strongswan_connection.sh
+        systemctl daemon-reload
       user: root
 
   jahiaRollingRestart:
