@@ -27,7 +27,8 @@ class CheckStrongswanConnections(AgentCheck):
 
     def check(self, instance):
         try:
-            self.__checkService()
+            if not self.__checkServiceRunning():
+                return
         except Exception:
             self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL)
             self.log.exception("Can't get strongswan service status.")
@@ -39,21 +40,22 @@ class CheckStrongswanConnections(AgentCheck):
             self.log.exception("Can't get strongswan connections status.")
             raise
 
-    def __checkService(self):
+    def __checkServiceRunning(self):
         # If strongswan service is not enabled, it means there is no connection, so successful check
         service_enabled = system(
             'systemctl -q is-enabled ' + self.SYSTEMD_UNIT_NAME)
         if service_enabled != 0:
             self.service_check(
                 self.SERVICE_CHECK_NAME, AgentCheck.OK, message=self.CHECK_MESSAGES['disabled'])
-            return
+            return False
         # If strongswan service is enabled but not active, it is a problem
         service_active = system(
             'systemctl -q is-active ' + self.SYSTEMD_UNIT_NAME)
         if service_active != 0:
             self.service_check(
                 self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, message=self.CHECK_MESSAGES['inactive'])
-            return
+            return False
+        return True
 
     def __checkConnections(self):
         # We get the status of all connections
