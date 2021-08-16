@@ -31,6 +31,7 @@ onInstall:
 
   - fixTomcatInitScript                                    # PAAS-1685
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
+  - updateHAProxyRulesFile                                 # PAAS-1498
   - updateHaproxyConfig                                    # PAAS-1575 + PAAS-1708
   - addMaxPostSize                                         # PAAS-1579
   - addHaproxyNodesCountOnJahiaNodes                       # PAAS-1674
@@ -198,6 +199,13 @@ actions:
         chmod 755 /usr/local/bin/strongswan_connection.sh
         systemctl daemon-reload
       user: root
+  updateHAProxyRulesFile:
+    - cmd[bl]: |-
+        OLD_CUSTOMER_RULES_FILE=/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d/customer_rules.cfg
+        NEW_CUSTOMER_RULES_FILE=/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d/rewrite-rules.cfg
+        if find $OLD_CUSTOMER_RULES_FILE -maxdepth 0 -empty > /dev/null 2>&1; then
+          mv -f $OLD_CUSTOMER_RULES_FILE $NEW_CUSTOMER_RULES_FILE
+        fi
 
   jahiaRollingRestart:
     - install:
