@@ -33,6 +33,9 @@ onInstall:
   - setOrganizationNameEnvVar: bl, cp, proc, sqldb         # PAAS-1631
   - updateHAProxyRulesFile                                 # PAAS-1498
   - updateHaproxyConfig                                    # PAAS-1575 + PAAS-1708
+  - updateStrongswanOverride                               # PAAS-1690
+
+  # Actions that require a restart:
   - addMaxPostSize                                         # PAAS-1579
   - addHaproxyNodesCountOnJahiaNodes                       # PAAS-1674
   - enableGCMetricsOnJahiaNodes                            # PAAS-1664
@@ -41,9 +44,10 @@ onInstall:
   - configureDatadogAPM                                    # PAAS-1712
   - disableIoCheck                                         # PAAS-1542
   - updateDDIPSecConnStatus                                # PAAS-1694
+
+  # Restart actions:
   - restartDDAgentOnJahiaNodes                             # needed for PAAS-1674, PAAS-1664, PAAS-1677, PAAS-1712, PAAS-1542 and PAAS-1694
   - jahiaRollingRestart                                    # needed for PAAS-1579, PAAS-1705 and PAAS-1712
-  - updateStrongswanOverride                               # PAAS-1690
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -199,6 +203,7 @@ actions:
         chmod 755 /usr/local/bin/strongswan_connection.sh
         systemctl daemon-reload
       user: root
+
   updateHAProxyRulesFile:
     - cmd[bl]: |-
         OLD_CUSTOMER_RULES_FILE=/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d/customer_rules.cfg
