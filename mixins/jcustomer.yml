@@ -174,39 +174,52 @@ actions:
             type: error
             message: "An error occurred during journald configuration."
 
-  deleteEnvLink:
+  getLinkedJahiaEnvs:
+    # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global
+    # Parameters:
+    #   - unomiEnvName (optional, defaults to current envName)
     script: |-
-      jahia_linked = [];
+      unomiEnvName = "${this.unomiEnvName.print()}" ? "${this.unomiEnvName}" : "${env.envName}";
+      linkedJahiaEnvs = [];
       envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
 
       for (i in envs) {
         nodeGroups = envs[i]["nodeGroups"];
         for (j in nodeGroups) {
-          if (nodeGroups[j]["envLink"] == "${env.envName}") {
-            jahia_linked.push(envs[i]["env"]["envName"]);
+          if (nodeGroups[j]["envLink"] == unomiEnvName) {
+            linkedJahiaEnvs.push(envs[i]["env"]["envName"]);
             break;
           }
         }
       }
 
-      if (jahia_linked.length == 0) {
-        return {"result": 0, "out": "No jahia linked"};
-      }
+      return {"result": 0, "envs": linkedJahiaEnvs.toString()};
+    setGlobals:
+      linkedJahiaEnvs: ${response.envs}
 
-      res = ""
-      jahia_linked.forEach(
-        function(jahiaEnvname) {
-          var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
-            nodeGroup='cp',
-            data={'envLink': ''}
-          );
-          var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
-            nodeGroup='proc',
-            data={'envLink': ''}
-          );
+  deleteEnvLink:
+    - getLinkedJahiaEnvs
+    - script: |-
+        linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
+
+        if (linkedJahiaEnvs.lenght == 0) {
+          return {"result": 0, "out": "No jahia linked"};
         }
-      );
-      return {"result": 0, "out": "Unlinked following environments: " + jahia_linked};
+
+        res = ""
+        linkedJahiaEnvs.forEach(
+          function(jahiaEnvname) {
+            var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+              nodeGroup='cp',
+              data={'envLink': ''}
+            );
+            var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+              nodeGroup='proc',
+              data={'envLink': ''}
+            );
+          }
+        );
+        return {"result": 0, "out": "Unlinked following environments: " + jahia_linked};
 
   checkJcustomerHealthWhenStarting:
     cmd [${this}]: |-
@@ -230,26 +243,16 @@ actions:
     #   - new_password_b64
     # Update the jcustomer's root password in all linked jahia env(s)
     - setGlobalRepoRootUrl
+    - getLinkedJahiaEnvs
     - script: |-
-        jahia_linked = [];
-        envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
+        linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
 
-        for (i in envs) {
-          nodeGroups = envs[i]["nodeGroups"];
-          for (j in nodeGroups) {
-            if (nodeGroups[j]["envLink"] == "${env.envName}") {
-              jahia_linked.push(envs[i]["env"]["envName"]);
-              break;
-            }
-          }
-        }
-
-        if (jahia_linked.length == 0) {
+        if (linkedJahiaEnvs.lenght == 0) {
           return {"result": 0, "out": "No jahia linked"};
         }
 
         res = ""
-        jahia_linked.forEach(
+        linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
             data = {
               "targetAppid": jahiaEnvname,
@@ -277,3 +280,56 @@ actions:
         return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
     - setGlobals:
         jcustomerKey: ${response.out}
+
+  getWorkatoIps:
+    setGlobals:
+      workatoIps: "3.65.225.246,3.66.45.94,18.198.249.58,34.226.132.221,52.5.142.59,52.54.43.157,188.165.59.149"
+
+  refreshUnomiAllowedIPs:
+    # Parameters:
+    #   - unomiEnvName (optional, defaults to current envName)
+    - if ('${this.unomiEnvName.print()}' == ''):
+        set:
+          unomiEnvName: ${env.envName}
+    - else:
+        set:
+          unomiEnvName: ${this.unomiEnvName}
+    - getLinkedJahiaEnvs:
+        unomiEnvName: ${this.unomiEnvName}
+    - getWorkatoIps
+    - script: |
+        var ipsToAllow = "127.0.0.1,::1,${globals.workatoIps}";
+
+        // Add IPs of all Jahia nodes of all linked Jahia envs
+        linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
+        linkedJahiaEnvs.forEach(
+          function(jahiaEnvname) {
+            var resp = jelastic.env.control.GetEnvInfo(jahiaEnvname, session);
+            if (resp.result != 0) return resp;
+            for (var i = 0, n = resp.nodes; i < n.length; i++) {
+              var dockername = n[i].nodeGroup;
+              if (dockername == 'cp' || dockername == 'proc') {
+                ipsToAllow += "," + n[i].address;
+              };
+            };
+          }
+        );
+
+        // Update UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES envvar
+        var resp = jelastic.env.control.AddContainerEnvVars(
+          '${this.unomiEnvName}',
+          session,
+          nodeGroup='cp',
+          vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': ipsToAllow}
+        );
+        if (resp.result != 0) return resp;
+        return {"result": 0, "allowed_ips": ipsToAllow}
+    - log: "## 'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES=${response.allowed_ips}' set in unomi nodes"
+    - script: |
+        var resp = jelastic.env.control.RestartNodes('${this.unomiEnvName}',
+          session,
+          nodeGroup='cp'
+        );
+        if (resp.result != 0) return resp;
+        return {"result": 0}
+    - log: "## unomi nodes got order to restart"

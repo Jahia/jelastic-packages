@@ -10,6 +10,7 @@ description:
 mixins:
   - ../../mixins/common.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
 
@@ -21,6 +22,11 @@ onBeforeScaleIn[cp]:
 
 onAfterScaleIn[cp]:
   - refreshProxysqlInstancesList
+  - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+  - if (${globals.unomi_env_linked}):
+      - refreshUnomiAllowedIPs:
+          unomiEnvName: ${globals.unomi_env_name}
 
 onAfterServiceScaleOut[cp]:
   - forEach(event.response.nodes):
@@ -28,6 +34,11 @@ onAfterServiceScaleOut[cp]:
           newNode: ${@i.id}
   - resetHaproxyBackends
   - refreshProxysqlInstancesList
+  - getEnvLinkedJcustomer:
+      envName: ${env.envName}
+  - if (${globals.unomi_env_linked}):
+      - refreshUnomiAllowedIPs:
+          unomiEnvName: ${globals.unomi_env_name}
 
 onBeforeRestartNode[cp]:
   removeBrowsingNodeFromHaproxy:
