@@ -135,6 +135,7 @@ onAfterStart:
       - setShardAllocation:
           target: ${nodes.es.master.id}
           allocation: "null"
+  - refreshUnomiAllowedIPs
   - checkJcustomerHealthWhenStarting: cp
 
 onBeforeMigrate:

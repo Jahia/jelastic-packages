@@ -297,11 +297,13 @@ actions:
     - getLinkedJahiaEnvs:
         unomiEnvName: ${this.unomiEnvName}
     - getWorkatoIps
+    # Compute new value for UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES
     - script: |
         var ipsToAllow = "127.0.0.1,::1,${globals.workatoIps}";
 
         // Add IPs of all Jahia nodes of all linked Jahia envs
         linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
+        jahiaIpList = [];
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
             var resp = jelastic.env.control.GetEnvInfo(jahiaEnvname, session);
@@ -309,27 +311,30 @@ actions:
             for (var i = 0, n = resp.nodes; i < n.length; i++) {
               var dockername = n[i].nodeGroup;
               if (dockername == 'cp' || dockername == 'proc') {
-                ipsToAllow += "," + n[i].address;
+                jahiaIpList.push(n[i].address);
               };
             };
           }
         );
+        // We sort the array so that IPs don't appear in a random order (to make comparison possible)
+        jahiaIpList.sort();
+        ipsToAllow += jahiaIpList.join(',');
 
-        // Update UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES envvar
-        var resp = jelastic.env.control.AddContainerEnvVars(
-          '${this.unomiEnvName}',
-          session,
-          nodeGroup='cp',
-          vars={'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES': ipsToAllow}
-        );
-        if (resp.result != 0) return resp;
         return {"result": 0, "allowed_ips": ipsToAllow}
-    - log: "## 'UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES=${response.allowed_ips}' set in unomi nodes"
-    - script: |
-        var resp = jelastic.env.control.RestartNodes('${this.unomiEnvName}',
-          session,
-          nodeGroup='cp'
-        );
-        if (resp.result != 0) return resp;
-        return {"result": 0}
-    - log: "## unomi nodes got order to restart"
+    - set:
+        newIPList: "${response.allowed_ips}"
+    # Get current envvar value and compare to new one
+    - api: env.control.GetContainerEnvVarsByGroup
+      envName: ${this.unomiEnvName}
+      nodeGroup: cp
+    - if ("${response.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES}" != "${this.newIPList}"):
+        # Update envvar and restart if value changed
+        - api: env.control.AddContainerEnvVars
+          envName: ${this.unomiEnvName}
+          nodeGroup: cp
+          vars: {"UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES": "${this.newIPList}"}
+        - api: env.control.RestartNodes
+          envName: ${this.unomiEnvName}
+          nodeGroup: cp
+    - else:
+        log: "UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES unchanged, no update needed"
