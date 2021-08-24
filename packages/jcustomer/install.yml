@@ -15,14 +15,6 @@ description:
 globals:
   jcustomer_env_version: 7
   unomi_version: ${settings.productVersion}
-  stack_connect_ip_adds:
-    - 3.65.225.246
-    - 3.66.45.94
-    - 18.198.249.58
-    - 34.226.132.221
-    - 52.5.142.59
-    - 52.54.43.157
-    - 188.165.59.149
 ssl: true
 skipNodeEmails: true
 
@@ -31,101 +23,103 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/elasticsearch.yml
 
-onBeforeInstall: |
-  var unomiVersion = '${settings.productVersion}';
-  var envmode = ${settings.esNodeCount} > 1 ? 'production' : 'development';
-  var organizationName = "${user.email}".split('@')[0];
+onBeforeInstall:
+  - getWorkatoIps
+  - script: |
+      var unomiVersion = '${settings.productVersion}';
+      var envmode = ${settings.esNodeCount} > 1 ? 'production' : 'development';
+      var organizationName = "${user.email}".split('@')[0];
 
-  var resp = {
-    result: 0,
-    nodes: []
-  }
+      var resp = {
+        result: 0,
+        nodes: []
+      }
 
-  // Elasticsearch nodes
+      // Elasticsearch nodes
 
-  esPort = "9200";
-  esVersion = 7;
+      esPort = "9200";
+      esVersion = 7;
 
-  switch ("${settings.esNodeSize}") {
-    case 'large':
-      var esCloudlets = 80;
-      break;
-    case 'medium':
-      var esCloudlets = 64;
-      break;
-    case 'small':
-    default:
-      var esCloudlets = 40;
-  }
+      switch ("${settings.esNodeSize}") {
+        case 'large':
+          var esCloudlets = 80;
+          break;
+        case 'medium':
+          var esCloudlets = 64;
+          break;
+        case 'small':
+        default:
+          var esCloudlets = 40;
+      }
 
-  node_es = {
-    nodeType: "jahiastic-elasticsearch",
-    tag: esVersion,
-    displayName: "Elasticsearch v" + esVersion,
-    count: ${settings.esNodeCount},
-    cloudlets: esCloudlets,
-    nodeGroup: 'es',
-    isSLBAccessEnabled: false,
-    startServiceOnCreation: false,
-    env: {
-      UNOMI_VERSION: unomiVersion,
-      _ROLE: 'unomi',
-      _PROVIDE: 'elasticsearch',
-      ES_VERSION: esVersion,
-      envmode: envmode,
-      ORGANIZATION_NAME: organizationName
-    },
-    "volumes": [
-      "/var/lib/elasticsearch"
-    ]
-  }
-
-  // jCustomer nodes
-
-  switch ("${settings.jCustomerNodeSize}") {
-    case 'large':
-      var jCustomerCloudlets = 40;
-      break;
-    case 'medium':
-      var jCustomerCloudlets = 32;
-      break;
-    case 'small':
-    default:
-      var jCustomerCloudlets = 26;
-  }
-
-  node_unomi = {
-    nodeType: "jcustomer",
-    tag: unomiVersion,
-    displayName: "Unomi v" + unomiVersion,
-    count: ${settings.jCustomerNodeCount},
-    cloudlets: jCustomerCloudlets,
-    nodeGroup: 'cp',
-    links: 'es:es',
-    startServiceOnCreation: false,
-    env: {
-      UNOMI_VERSION: unomiVersion,
-      UNOMI_HTTP_PORT: '80',
-      UNOMI_ELASTICSEARCH_ADDRESSES: 'es:' + esPort,
-      UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
-      UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.stack_connect_ip_adds.join(,)}",
-      _ROLE: 'unomi',
-      _PROVIDE: 'unomi',
-      ES_VERSION: esVersion,
-      envmode: envmode,
-      ORGANIZATION_NAME: organizationName
-    },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
+      node_es = {
+        nodeType: "jahiastic-elasticsearch",
+        tag: esVersion,
+        displayName: "Elasticsearch v" + esVersion,
+        count: ${settings.esNodeCount},
+        cloudlets: esCloudlets,
+        nodeGroup: 'es',
+        isSLBAccessEnabled: false,
+        startServiceOnCreation: false,
+        env: {
+          UNOMI_VERSION: unomiVersion,
+          _ROLE: 'unomi',
+          _PROVIDE: 'elasticsearch',
+          ES_VERSION: esVersion,
+          envmode: envmode,
+          ORGANIZATION_NAME: organizationName
+        },
+        "volumes": [
+          "/var/lib/elasticsearch"
         ]
-    }
-  }
+      }
 
-  resp.nodes.push(node_unomi)
-  resp.nodes.push(node_es)
-  return resp
+      // jCustomer nodes
+
+      switch ("${settings.jCustomerNodeSize}") {
+        case 'large':
+          var jCustomerCloudlets = 40;
+          break;
+        case 'medium':
+          var jCustomerCloudlets = 32;
+          break;
+        case 'small':
+        default:
+          var jCustomerCloudlets = 26;
+      }
+
+      node_unomi = {
+        nodeType: "jcustomer",
+        tag: unomiVersion,
+        displayName: "Unomi v" + unomiVersion,
+        count: ${settings.jCustomerNodeCount},
+        cloudlets: jCustomerCloudlets,
+        nodeGroup: 'cp',
+        links: 'es:es',
+        startServiceOnCreation: false,
+        env: {
+          UNOMI_VERSION: unomiVersion,
+          UNOMI_HTTP_PORT: '80',
+          UNOMI_ELASTICSEARCH_ADDRESSES: 'es:' + esPort,
+          UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
+          UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.workatoIps}",
+          _ROLE: 'unomi',
+          _PROVIDE: 'unomi',
+          ES_VERSION: esVersion,
+          envmode: envmode,
+          ORGANIZATION_NAME: organizationName
+        },
+        "distribution": {
+            "mode": "STRICT",
+            "zones": [
+                {high_iops: false}
+            ]
+        }
+      }
+
+      resp.nodes.push(node_unomi)
+      resp.nodes.push(node_es)
+      return resp
 
 nodes: definedInOnBeforeInstall
 
