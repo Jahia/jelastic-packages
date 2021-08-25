@@ -21,7 +21,7 @@ onInstall:
         envLink: ${settings.unomienv}
   - getUnomiDnsAndPwd:
       unomi_env_name: ${settings.unomienv}
-  - getJahiaVersion
+  - getJexperienceVersion
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${settings.unomienv}
   - upgradeJahiaModule:
@@ -62,10 +62,11 @@ actions:
         var new_prop = jelastic.env.control.GetNodeGroups('${settings.unomienv}', session);
           return {'result': new_prop.result, 'new_prop': new_prop};
 
+  getJexperienceVersion:
     # Get jExperience version to install according to Jahia env version:
     # - Jahia 7.3.x ==> jExperience 1.11.6
-    # - Jahia 8 < 8.0.2 ==> jExperience 1.12.2
     # - Jahia 8.0.2+ ==> jExperience 2.2.0
+    - getJahiaVersion
     - isVersionStrictlyLower:
         a: ${globals.jahiaVersion}
         b: 8.0.0.0
