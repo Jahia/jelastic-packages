@@ -561,6 +561,7 @@ actions:
                   'NF==5 && $1>0 && $2!="Active" && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
                   {print $1}')"
         if [ -n "$bundle_id" ]; then
+          imax=120
           i=1
           until (${globals.karafConsole} bundle:start $bundle_id 2> /dev/null) || [ $i -gt $imax ]; do
             sleep 1
