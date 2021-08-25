@@ -314,7 +314,7 @@ actions:
         );
         // We sort the array so that IPs don't appear in a random order (to make comparison possible)
         jahiaIpList.sort();
-        var ipsToAllow = defaultIps + "," + workatoIps + "," jahiaIpList.join(',');
+        var ipsToAllow = defaultIps + "," + workatoIps + "," + jahiaIpList.join(',');
 
         return {"result": 0, "allowed_ips": ipsToAllow}
     - set:
