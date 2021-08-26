@@ -14,7 +14,7 @@ description:
 success: ../../assets/jahia/success_install.md
 
 globals:
-  jahia_env_version: 8
+  jahia_env_version: 9
   healthcheck_token: ${fn.password(20)}
   db_user: jahia-db-${fn.random}
   db_pass: ${fn.password(20)}
