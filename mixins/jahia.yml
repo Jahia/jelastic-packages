@@ -563,7 +563,11 @@ actions:
         if [ -n "$bundle_id" ]; then
           imax=120
           i=1
-          until (${globals.karafConsole} bundle:start $bundle_id 2> /dev/null) || [ $i -gt $imax ]; do
+          until (${globals.karafConsole} bundle:start $bundle_id 2> /dev/null); do
+            if [ $i -gt $imax ]; then
+              echo "Start module failed after 120 tries. Aborting"
+              exit 1
+            fi
             sleep 1
             ((i++))
           done
