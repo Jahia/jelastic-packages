@@ -1,0 +1,60 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v9
+id: migrate-jahia-env-v9
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 9
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - datadogCustomCheckForJahiaNodes                # PAAS-1693
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  datadogCustomCheckForJahiaNodes:
+    - cmd[cp, proc]: |-
+        CUSTOM_CHECK_SCRIPT=/etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+        curl -fLSso $CUSTOM_CHECK_SCRIPT ${globals.repoRootUrl}/packages/jahia/migrations/v9_assets/jahia_node_not_in_haproxy_pool.py || exit 1
+        chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
+        systemctl restart datadog-agent
+      user: root
