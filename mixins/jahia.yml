@@ -551,9 +551,23 @@ actions:
             url="${this.modulesUrl}/${dashed_name}/${globals.moduleVersion}/${dashed_name}-${globals.moduleVersion}.jar"
             cd /data/digital-factory-data/modules
             curl -fLSso ${globals.moduleName}-${globals.moduleVersion}.jar $url || exit 1
-            sleep 20
+            # Waiting for module to be installed
+            imax=120
+            i=1
+            until [ -n "$(${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+                'NF==5 && $1>0 && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ {print $1}')" ]; do
+              if [ $i -gt $imax ]; then
+                echo "Module not installed after 120 tries. Aborting"
+                exit 1
+              fi
+              sleep 1
+              ((i++))
+            done
+            echo "module installed"
+        - if ("${response.out}" == "module installed"):
+            log: Module ${globals.moduleName} v${globals.moduleVersion} installed on ${this}
     - else:
-        log: Module ${globals.moduleName} v${globals.moduleVersion} is already on ${this}
+        log: Module ${globals.moduleName} v${globals.moduleVersion} is already installed on ${this}
 
     - cmd[${this}]: |-
         # starts the module if not
