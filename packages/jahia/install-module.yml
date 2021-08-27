@@ -1,0 +1,27 @@
+---
+type: update
+version: 1.5.2
+id: jahia-install-module
+name: Jahia install or update module
+description:
+  Install given module to given version, or update it to given version if already installed.
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+
+onInstall:
+  - upgradeJahiaModule:
+      module: ${settings.moduleName}
+      version: ${settings.moduleVersion}
+
+settings:
+  fields:
+    - name: moduleName
+      type: string
+      caption: Module name
+      required: true
+    - name: moduleVersion
+      type: string
+      caption: Module version
+      required: true
