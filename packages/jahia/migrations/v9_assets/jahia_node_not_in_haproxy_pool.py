@@ -33,8 +33,10 @@ class CheckJahiaNodeNotInHaproxyPool(AgentCheck):
             current_time_dt = datetime.strptime(current_time, '%H:%M:%S')
             diff = current_time_dt - new_file_time_dt
             diff_in_minutes = diff.total_seconds()/60
-            # Run check only if it is 30 minutes past mid-night
-            if diff_in_minutes > self.DURATION:
+            node_uptime = float(open('/proc/uptime').read().split()[0])
+            node_uptime_mins = node_uptime/60
+            # Run check if it is 30 minutes past mid-night and node is up over 30 minutes
+            if diff_in_minutes > self.DURATION and node_uptime_mins > self.DURATION:
                 with open(self.FILENAME, 'r') as f:
                     for line in f.read().splitlines():
                         if self.LOCALHOST not in line and self.PATTERN in line and self.SOURCE in line:
