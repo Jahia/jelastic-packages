@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 7
+  jcustomer_env_version: 8
   unomi_version: ${settings.productVersion}
   workato_ips:
     - 3.65.225.246
@@ -145,6 +145,7 @@ onInstall:
         productVersion: ${settings.productVersion}
   - setJournaldLimit
   - getLogEventScript: cp, es
+  - installPapiScript: cp, es
   - env.control.AddContainerEnvVars [*]:
     vars: {"envName": "${env.envName}", "DATADOGAPIKEY": "${settings.ddogApikey}"}
   - setupES: es

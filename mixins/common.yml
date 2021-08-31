@@ -308,3 +308,10 @@ actions:
           exit 1
         fi
       user: root
+
+  installPapiScript:
+    - setGlobalRepoRootUrl
+    - cmd [${this}]: |-
+        curl -fLSso /usr/local/bin/papi ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+        chmod 755 /usr/local/bin/papi
+      user: root

@@ -288,6 +288,7 @@ onInstall:
       toolspwd: ${settings.toolspwd}
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb
+  - installPapiScript: bl, proc, cp, sqldb
   - setupDatadogAgentSql: sqldb
   - setupDatadogAgentJahia: cp, proc
   - setupDatadogAgentHaproxy: bl
