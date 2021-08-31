@@ -45,7 +45,7 @@ actions:
         for rules_file in $(echo '${settings.md5sum}' | jq -r 'keys[]'); do
           md5=$(echo '${settings.md5sum}' | jq -r ".\"$rules_file\"")
           if echo "$md5 ${globals.temp_rules_dir}/$rules_file.cfg" | md5sum --check --status; then
-            printf "%b\n" "$(<${globals.temp_rules_dir}/$rules_file.cfg)" > ${globals.rules_dir}/$rules_file.cfg
+            sed 's/\\n/\n/g' ${globals.temp_rules_dir}/$rules_file.cfg > ${globals.rules_dir}/$rules_file.cfg
           else
             echo "MD5 sum mismatch. Aborting" >&2
           fi
