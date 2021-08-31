@@ -9,6 +9,10 @@ from sys import exit, stderr
 
 
 PAPI_HEADER = 'X-PAPI-KEY'
+# The maximum value for a sys.exit() return code is 255 so we can't return
+# the HTTP code.
+# Those two digits return codes try to be as close as possible to the original
+# HTTP code.
 RETURN_CODES = {
     HTTPStatus.BAD_REQUEST: 40,
     HTTPStatus.FORBIDDEN: 43,
