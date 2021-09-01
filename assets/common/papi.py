@@ -3,9 +3,10 @@
 import argparse
 import json
 import requests
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
-from sys import exit, stderr
+from sys import exit, stderr, stdout
 
 
 PAPI_HEADER = 'X-PAPI-KEY'
@@ -21,6 +22,7 @@ RETURN_CODES = {
     HTTPStatus.INTERNAL_SERVER_ERROR: 50,
     HTTPStatus.SERVICE_UNAVAILABLE: 53,
 }
+JELASTIC_LOG_FILE='/tmp/test'
 
 
 def init():
@@ -47,56 +49,68 @@ def init():
     args = parser.parse_args()
     
     if args.token is None:
-        print("No token provided, aborting", file=stderr)
+        printerr("No token provided, aborting", args.url)
         exit(1)
 
     return args
+
+
+def printerr(msg, url):
+    print(f'{msg} ({url})', file=stderr)
+    with open(JELASTIC_LOG_FILE, 'a') as logfile:
+        print(f'{datetime.now()} [ERROR] {msg} ({url})', file=logfile)
+
+
+def printout(msg, url):
+    print(msg)
+    with open(JELASTIC_LOG_FILE, 'a') as logfile:
+        print(f'{datetime.now()} [INFO] {url}', file=logfile)
 
 
 def get(url, token):
     try:
         response = requests.get(url=url, headers={PAPI_HEADER: token})
         if response.status_code != HTTPStatus.OK:
-            print(f"HTTP/{response.status_code}: {response.reason}", file=stderr)
+            printerr(f"HTTP/{response.status_code}: {response.reason}", url)
             exit(RETURN_CODES[response.status_code])
     except requests.RequestException as exception:
-        print("Exception when trying to send the GET request", str(exception))
+        printerr("Exception when trying to send the GET request" + str(exception), url)
         exit(2)
-    print(response.json())
+    printout(response.json(), url)
 
 
 def put(url, token, data):
     try:
         response = requests.put(url=url, headers={PAPI_HEADER: token}, json=json.loads(data))
         if response.status_code != HTTPStatus.OK:
-            print(f"HTTP/{response.status_code}: {response.reason}", file=stderr)
+            printerr(f"HTTP/{response.status_code}: {response.reason}", url)
             exit(RETURN_CODES[response.status_code])
     except requests.RequestException as exception:
-        print("Exception when trying to send the PUT request", str(exception))
+        printerr("Exception when trying to send the PUT request" + str(exception), url)
         exit(3)
-    print(response.json())
+    printout(response.json(), url)
 
 
 def post(url, token, data):
     try:
         response = requests.post(url=url, headers={PAPI_HEADER: token}, json=json.loads(data))
         if response.status_code != HTTPStatus.OK:
-            print(f"HTTP/{response.status_code}: {response.reason}", file=stderr)
+            printerr(f"HTTP/{response.status_code}: {response.reason}", url)
             exit(RETURN_CODES[response.status_code])
     except requests.RequestException as exception:
-        print("Exception when trying to send the POST request", str(exception))
+        printerr("Exception when trying to send the POST request" + str(exception), url)
         exit(4)
-    print(response.json())
+    printout(response.json(), url)
 
 
 def delete(url, token):
     try:
         response = requests.delete(url=url, headers={PAPI_HEADER: token})
         if response.status_code != HTTPStatus.NO_CONTENT:
-            print(f"HTTP/{response.status_code}: {response.reason}", file=stderr)
+            printerr(f"HTTP/{response.status_code}: {response.reason}", url)
             exit(RETURN_CODES[response.status_code])
     except requests.RequestException as exception:
-        print("Exception when trying to send the DELETE request", str(exception))
+        printerr("Exception when trying to send the DELETE request" + str(exception), url)
         exit(5)
 
 
