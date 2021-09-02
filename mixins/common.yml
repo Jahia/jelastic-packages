@@ -312,6 +312,11 @@ actions:
   installPapiScript:
     - setGlobalRepoRootUrl
     - cmd [${this}]: |-
+        if ! rpm --quiet -q python3; then
+          yum --setopt=tsflags=nodocs install -y python36 python36-pip;
+          python3 -m pip install --upgrade pip
+        fi
+        python3 -m pip install requests
         curl -fLSso /usr/local/bin/papi ${globals.repoRootUrl}/assets/common/papi.py || exit 1
         chmod 755 /usr/local/bin/papi
       user: root
