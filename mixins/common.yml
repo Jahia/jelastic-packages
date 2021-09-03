@@ -320,3 +320,122 @@ actions:
         curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
         chmod 755 /usr/local/bin/papi.py
       user: root
+
+  ###################
+  # Vault actions   #
+  ###################
+  vaultAppRoleLogin:
+    # Returns:
+    #   ${globals.vaultToken}
+    - set:
+        generateNewToken: true
+    - if ("${globals.vaultToken.print()}" != ""):
+        - cmd [${this}}]: |-
+            curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/auth/token/lookup-self \
+              | jq -er .data &>/dev/null
+            if [ $? -ne 0 ]; then
+              echo "Token is not valid, it needs to be renewed"
+            fi
+        - if ("${response.out" == ""):
+            set:
+              generateNewToken: false
+    - if ("${this.generateNewToken}" == "true"):
+        - cmd [${this}]: |-
+            payloadfile=$(mktemp)
+            cat > $payloadfile <<END
+            {
+              "role_id": "$VAULT_ROLE_ID",
+              "secret_id": "$VAULT_SECRET_ID"
+            }
+            END
+            VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data @$payloadfile | jq -er .auth.client_token)
+            if [ $? -ne 0 ]; then
+              echo "[ERROR] Can't generate vault token with appRole login (VAULT_TOKEN=$VAULT_TOKEN)" >&2
+              exit 1
+            fi
+            echo $VAULT_TOKEN
+            rm -f $payloadfile
+        - setGlobals:
+            vaultToken: ${response.out}
+
+  vaultSecretReadAllKeysB64:
+    # Parameters:
+    #   - target: target node group or id
+    #   - secretPath: path (and name) of the secret to fetch
+    # Returns:
+    #   ${globals.vaultSecretData}: A JSON string with all key and data for the specified secret, base64 encoded
+    - vaultAppRoleLogin: ${this.target}
+    - cmd [${this.target}]: |-
+        secret_data=$(mktemp)
+        curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
+          | jq -cre ".data.data" \
+          > $secret_data
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't read secret ${this.secretPath}" >&2
+          cat $secret_data >&2
+          exit 1
+        fi
+        cat $secret_data | base64 -w 0
+        rm -f $secret_data
+    - setGlobals:
+        vaultSecretData: ${response.out}
+
+  vaultSecretReadKeyB64:
+    # Parameters:
+    #   - target: target node group or id
+    #   - secretPath: path (and name) of the secret to fetch
+    #   - secretKey: the secret's key
+    # Returns:
+    #   ${globals.vaultSecretData}: the specified secret's data, base64 encoded
+    - vaultAppRoleLogin: ${this.target}
+    - cmd [${this.target}]: |-
+        secret_data=$(mktemp)
+        curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
+          | jq -er ".data.data.\"${this.secretKey}\"" \
+          > $secret_data
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't read secret ${this.secretPath}" >&2
+          cat $secret_data >&2
+          exit 1
+        fi
+        cat $secret_data | base64 -w 0
+        rm -f $secret_data
+    - setGlobals:
+        vaultSecretData: ${response.out}
+
+  vaultSecretsList:
+    # Parameters:
+    #   - target: target node group or id
+    #   - path: path to list
+    # Returns:
+    #   ${globals.vaultSecretsList}: the list of secrets/subpaths seperated by semicolons
+    - vaultAppRoleLogin: ${this.target}
+    - cmd [${this.target}]: |-
+        secrets_list=$(mktemp)
+        curl -s -H "X-Vault-Token: ${globals.vaultToken}" -XLIST \
+          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.path} \
+          | jq -cre '.data.keys | join(";")' \
+          > $secrets_list
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't list secrets at ${this.path}" >&2
+          cat $secrets_list >&2
+          exit 1
+        fi
+        cat $secrets_list
+        rm -f $secrets_list
+    - setGlobals:
+        vaultSecretsList: ${response.out}
+
+  vaultSecretDelete:
+    # Parameters:
+    #   - target: target node group or id
+    #   - secretPath: path of the secret to delete
+    - vaultAppRoleLogin: ${this.target}
+    - cmd [${this.target}]: |-
+        resp=$(curl -fs -H "X-Vault-Token: ${globals.vaultToken}" -XDELETE \
+          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.path} | jq -re .errors)
+        if [ $? -eq 0 ]; then
+          echo "[ERROR] Can't delete secret ${this.path}" >&2
+          echo $resp >&2
+          exit 1
+        fi
