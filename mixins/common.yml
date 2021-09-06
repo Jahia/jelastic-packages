@@ -444,3 +444,50 @@ actions:
           echo $resp >&2
           exit 1
         fi
+
+ muteDatadogHost:
+    # Parameters:
+    #  - target: target node group or id
+    #  - duration: mute duration in minutes. Optional, default 60
+    - vaultSecretReadKey:
+        target: ${nodes.cp.first.id}
+        secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${this.target}]: |-
+        DD_HOSTNAME=$(echo $_ROLE| tr [A-Z] [a-z] |sed 's/_//g').$(hostname | sed 's/^[[:alpha:]]\+\([[:digit:]]\+\).*/\1/' | tr [A-Z] [a-z])
+        DD_APP_KEY="${globals.vaultSecretData}"
+
+        if [[ "${this.duration}" == "" ]]; then
+          DURATION=60
+        else
+          DURATION=${this.duration}
+        fi
+
+        MUTE_END=$(date -d "+${DURATION}min" +%s)
+
+        curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/mute" \
+          -XPOST \
+          -H 'Content-Type: application/json' \
+          -H "DD-API-KEY: $DATADOGAPIKEY" \
+          -H "DD-APPLICATION-KEY: $DD_APP_KEY"  \
+          -d "{\"end\": $MUTE_END, \"action\":\"Muted\", \"override\": \"true\"}"
+
+      user: root
+
+  unmuteDatadogHost:
+    # Parameters:
+    #  - target: target node group or id
+    - vaultSecretReadKey:
+        target: ${nodes.cp.first.id}
+        secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${this.target}]: |-
+        DD_HOSTNAME=$(echo $_ROLE| tr [A-Z] [a-z] |sed 's/_//g').$(hostname | sed 's/^[[:alpha:]]\+\([[:digit:]]\+\).*/\1/' | tr [A-Z] [a-z])
+        DD_APP_KEY="${globals.vaultSecretData}"
+
+        curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/unmute" \
+          -XPOST \
+          -H "DD-API-KEY: $DATADOGAPIKEY" \
+          -H "DD-APPLICATION-KEY: $DD_APP_KEY"
+
+      user: root
