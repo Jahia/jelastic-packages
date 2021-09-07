@@ -317,6 +317,6 @@ actions:
           python3 -m pip install --upgrade pip
         fi
         python3 -m pip install requests
-        curl -fLSso /usr/local/bin/papi ${globals.repoRootUrl}/assets/common/papi.py || exit 1
-        chmod 755 /usr/local/bin/papi
+        curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+        chmod 755 /usr/local/bin/papi.py
       user: root
