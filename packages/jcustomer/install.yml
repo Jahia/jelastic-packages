@@ -22,7 +22,6 @@ globals:
     - 34.226.132.221
     - 52.5.142.59
     - 52.54.43.157
-    - 188.165.59.149
 ssl: true
 skipNodeEmails: true
 
