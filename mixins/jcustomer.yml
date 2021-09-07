@@ -295,7 +295,7 @@ actions:
     # Compute new value for UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES
     - script: |
         var defaultIps = "127.0.0.1,::1";
-        var workatoIps = "3.65.225.246,3.66.45.94,18.198.249.58,34.226.132.221,52.5.142.59,52.54.43.157,188.165.59.149";
+        var workatoIps = "3.65.225.246,3.66.45.94,18.198.249.58,34.226.132.221,52.5.142.59,52.54.43.157";
         var ipsToAllow = defaultIps + "," + workatoIps;
 
         // Add IPs of all Jahia nodes of all linked Jahia envs

@@ -24,6 +24,7 @@ onInstall:
   ### End Pre-checks
 
   - installPapiScript: cp, es               # PAAS-1686
+  - refreshUnomiAllowedIPs: cp              # PAAS-1735
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
