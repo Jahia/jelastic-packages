@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
-import json
+from json import loads as jloads, JSONDecodeError
 import requests
 from datetime import datetime
 from http import HTTPStatus
@@ -43,6 +43,12 @@ class Papi():
         if token is None:
             self.__printerr("No token provided, aborting")
             exit(1)
+        if data is not None:
+            try:
+                jloads(data)
+            except JSONDecodeError:
+                self.__printerr("Bad format for data, JSON expected. Aborting")
+                exit(1)
         self.data = data
         self.endpoint = endpoint
         self.api_version = api_version
@@ -79,7 +85,7 @@ class Papi():
     def put(self):
         try:
             response = requests.put(
-                url=self.url, headers={self.PAPI_HEADER: self.token}, json=json.loads(self.data))
+                url=self.url, headers={self.PAPI_HEADER: self.token}, json=jloads(self.data))
             if response.status_code != HTTPStatus.OK:
                 self.__printerr(f'HTTP/{response.status_code}: {response.reason}')
                 exit(self.RETURN_CODES[response.status_code])
@@ -93,7 +99,7 @@ class Papi():
     def post(self):
         try:
             response = requests.post(
-                url=self.url, headers={self.PAPI_HEADER: self.token}, json=json.loads(self.data))
+                url=self.url, headers={self.PAPI_HEADER: self.token}, json=jloads(self.data))
             if response.status_code != HTTPStatus.OK:
                 self.__printerr(f'HTTP/{response.status_code}: {response.reason}')
                 exit(self.RETURN_CODES[response.status_code])
