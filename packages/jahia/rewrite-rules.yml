@@ -12,6 +12,7 @@ globals:
   temp_rules_dir: "/var/lib/haproxy/customer.configuration.tmp"
 
 onInstall:
+  - vaultGetRewriteRulesB64
   - getRewritesRules
   - reloadHAProxy
   - removeBackup
@@ -28,17 +29,9 @@ actions:
           mv -f ${globals.rules_dir}/* ${globals.backup_rules_dir}
         fi
 
-        # Connect to Vault and check if rules exist
-        VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data '{"role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'"}' | jq -r .auth.client_token)
-        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/haproxy"
-        rules_sets=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -e .data.data)
-        if [ $? -ne 0 ]; then
-          echo "Failed to fetch secret" >&2
-          exit 0
-        fi
-
         # Get all rules as individual files in temp dir, check md5sum with values from front
         # and handle escape character interpretation while populating rules dir
+        rules_sets=$(echo ${globals.rewriteRulesB64} | base64 -d)
         for rules_set in $(echo $rules_sets | jq -r 'keys[]'); do
           echo "$rules_sets" | jq -r ".\"$rules_set\"" > ${globals.temp_rules_dir}/$rules_set.cfg
         done
