@@ -6,6 +6,10 @@ id: jahia-set-ipsec
 description:
   short: Jahia - Set IPsec customer's conf
 
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
 globals:
   ipsec_conf_dir: "/etc/strongswan/ipsec.d"
   ipsec_secrets_file: "/etc/strongswan/ipsec.secrets"

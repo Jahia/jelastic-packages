@@ -6,6 +6,10 @@ id: jahia-set-rewrite-rules
 description:
   short: Jahia - Set HAProxy conf
 
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/haproxy.yml"
+
 globals:
   rules_dir: "/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d"
   backup_rules_dir: "/var/lib/haproxy/customer.configuration.d"
