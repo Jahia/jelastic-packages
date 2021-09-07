@@ -30,6 +30,7 @@ onInstall:
   ### End Pre-checks
 
   - datadogCustomCheckForJahiaNodes                # PAAS-1693
+  - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
