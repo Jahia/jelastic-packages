@@ -325,6 +325,8 @@ actions:
   # Vault actions   #
   ###################
   vaultAppRoleLogin:
+    # Parameters:
+    #   - this: target node group or id
     # Returns:
     #   ${globals.vaultToken}
     - set:
@@ -349,12 +351,12 @@ actions:
             }
             END
             VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data @$payloadfile | jq -er .auth.client_token)
+            rm -f $payloadfile
             if [ $? -ne 0 ]; then
               echo "[ERROR] Can't generate vault token with appRole login (VAULT_TOKEN=$VAULT_TOKEN)" >&2
               exit 1
             fi
             echo $VAULT_TOKEN
-            rm -f $payloadfile
         - setGlobals:
             vaultToken: ${response.out}
 
@@ -373,6 +375,7 @@ actions:
         if [ $? -ne 0 ]; then
           echo "[ERROR] Can't read secret ${this.secretPath}" >&2
           cat $secret_data >&2
+          rm -f $secret_data
           exit 1
         fi
         cat $secret_data | base64 -w 0
@@ -396,6 +399,7 @@ actions:
         if [ $? -ne 0 ]; then
           echo "[ERROR] Can't read secret ${this.secretPath}" >&2
           cat $secret_data >&2
+          rm -f $secret_data
           exit 1
         fi
         cat $secret_data | base64 -w 0
@@ -419,6 +423,7 @@ actions:
         if [ $? -ne 0 ]; then
           echo "[ERROR] Can't list secrets at ${this.path}" >&2
           cat $secrets_list >&2
+          rm -f $secrets_list
           exit 1
         fi
         cat $secrets_list
