@@ -17,12 +17,12 @@ globals:
 
 onInstall:
   - vaultGetRewriteRulesB64
-  - getRewritesRules
+  - setRewritesRules
   - reloadHAProxy
   - removeBackup
 
 actions:
-  getRewritesRules:
+  setRewritesRules:
     - cmd [bl]: |-
         [ -x /usr/bin/jq ] || yum install -y jq
       user: root
