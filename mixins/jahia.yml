@@ -831,3 +831,24 @@ actions:
         - return:
             type: error
             message: "jCustomer password is wrong."
+
+### Vault related actions ###
+  vaultGetIPsecConfB64:
+    # Returns:
+    #   ${globals.vaultSecretData}: the IPsec conf, base64 encoded
+    - vaultSecretReadKeyB64:
+        target: proc
+        secretPath: paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/ipsec/conn-1
+        secretKey: conf
+    - setGlobals:
+        IPsecConfB64: ${globals.vaultSecretData}
+
+  vaultGetIPsecPSKB64:
+    # Returns:
+    #   ${globals.vaultPSKB64}: the PSK, base64 encoded
+    - vaultSecretReadKeyB64:
+        target: proc
+        secretPath: paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/ipsec/conn-1
+        secretKey: secret
+    - setGlobals:
+        IPsecPSKB64: ${globals.vaultSecretData}
