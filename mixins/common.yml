@@ -474,6 +474,20 @@ actions:
           exit 1
         fi
 
+  removeAllSecrets:
+    - vaultSecretsList:
+        target: ${nodes.cp.first.id}
+        path: "paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}"
+        recursive: "true"
+
+    - script: |-
+        return {"result": 0, "secrets": "${globals.vaultSecretsList}".split(";")}
+
+    - forEach(response.secrets):
+        vaultSecretDelete:
+          target: ${nodes.cp.first.id}
+          secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/${@i}"
+
   muteDatadogHost:
     # Parameters:
     #  - target: target node group or id
