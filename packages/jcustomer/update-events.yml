@@ -110,6 +110,9 @@ onBeforeDelete:
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
   - deleteEnvLink
+  - muteDatadogHost:
+      target: "*"
+      duration: 2880 # 48h
 
 onBeforeStop:
   - logEvent:
@@ -124,6 +127,9 @@ onBeforeStop:
       - forEach(nodes.es):
           - forceESFlush:
               target: ${@i.id}
+  - muteDatadogHost:
+      target: "*"
+      duration: 2880 # 48h
 
 onAfterStart:
   - logEvent:
@@ -137,24 +143,34 @@ onAfterStart:
           allocation: "null"
   - refreshUnomiAllowedIPs
   - checkJcustomerHealthWhenStarting: cp
+  - unmuteDatadogHost:
+      target: "*"
 
 onBeforeMigrate:
-  logEvent:
-    target: ${nodes.cp.first.id}
-    title: "Migration triggered for $envName environment"
-    text: "$envName going to be migrate"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Migration triggered for $envName environment"
+      text: "$envName going to be migrate"
+  - muteDatadogHost:
+      target: "*"
+      duration: 60
 
 onAfterMigrate:
-  logEvent:
-    target: ${nodes.cp.first.id}
-    title: "Environment $envName migrated"
-    text: "$envName has been migrated"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "$envName has been migrated"
+  - unmuteDatadogHost:
+      target: "*"
 
 onBeforeRestartNode:
   - logEvent:
       target: ${event.params.nodeid}
       title: "Restarting node ${event.params.nodeid}"
       text: "${event.params.nodeid} node is going to be restarted"
+  - muteDatadogHost:
+      target: ${event.params.nodeId}
+      duration: 20
 
 onBeforeRestartNode[es]:
   - if (nodes.es.length > 1):
@@ -180,18 +196,26 @@ onAfterRestartNode:
       target: ${event.params.nodeid}
       title: "Node ${event.params.nodeid} restarted"
       text: "Node ${event.params.nodeid} has restarted"
+  - unmuteDatadogHost:
+      target: ${event.params.nodeId}
 
 onBeforeRedeployContainer:
   - if ('${event.params.nodeGroup.print()}' != ''):
-      logEvent:
-        target: ${event.params.nodeGroup}
-        title: "Redeploying ${event.params.nodeGroup} nodes to ${event.params.tag} version"
-        text: "${event.params.nodeGroup} nodes are going to be redeploy to ${event.params.tag} version"
+      - logEvent:
+          target: ${event.params.nodeGroup}
+          title: "Redeploying ${event.params.nodeGroup} nodes to ${event.params.tag} version"
+          text: "${event.params.nodeGroup} nodes are going to be redeploy to ${event.params.tag} version"
+      - muteDatadogHost:
+          target: ${event.params.nodeGroup}
+          duration: 20
   - elif ('${event.params.nodeid.print()}' != ''):
-      logEvent:
-        target: ${nodes.es.first.id}
-        title: "Redeploying node ${event.params.nodeid} to ${event.params.tag} version"
-        text: "Node ${event.params.nodeid} is going to be redeploy to ${event.params.tag} version"
+      - logEvent:
+          target: ${nodes.es.first.id}
+          title: "Redeploying node ${event.params.nodeid} to ${event.params.tag} version"
+          text: "Node ${event.params.nodeid} is going to be redeploy to ${event.params.tag} version"
+      - muteDatadogHost:
+          target: ${event.params.nodeId}
+          duration: 20
 
 onAfterRedeployContainer:
   - if ('${event.params.nodeGroup.print()}' != ''):
@@ -200,19 +224,26 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
           title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
           text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+      - unmuteDatadogHost:
+          target: ${event.params.nodeGroup}
   - elif ('${event.params.nodeid.print()}' != ''):
       - getLogEventScript: ${event.params.nodeid}
       - logEvent:
           target: ${event.params.nodeid}
           title: "Node ${event.params.nodeid} redeployed to ${event.params.tag} version"
           text: "Node ${event.params.nodeid} has been redeploy to ${event.params.tag} version"
+      - unmuteDatadogHost:
+          target: ${event.params.nodeId}
 
 onBeforeScaleIn:
   forEach(event.response.nodes):
-    logEvent:
-      target: ${@i.id}
-      title: "Scaling in ${event.params.nodeGroup} node group"
-      text: "Node ${@i.id} is going to be removed"
+    - logEvent:
+        target: ${@i.id}
+        title: "Scaling in ${event.params.nodeGroup} node group"
+        text: "Node ${@i.id} is going to be removed"
+    - muteDatadogHost:
+        target: ${@i.id}
+        duration: 2880 # 48h
 
 onAfterServiceScaleOut:
   forEach(event.response.nodes):
