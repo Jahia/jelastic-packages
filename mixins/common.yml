@@ -454,16 +454,10 @@ actions:
         secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
-        DD_HOSTNAME=$(echo $_ROLE| tr [A-Z] [a-z] |sed 's/_//g').$(hostname | sed 's/^[[:alpha:]]\+\([[:digit:]]\+\).*/\1/' | tr [A-Z] [a-z])
+        DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
         DD_APP_KEY="${globals.vaultSecretData}"
 
-        if [[ "${this.duration}" == "" ]]; then
-          DURATION=60
-        else
-          DURATION=${this.duration}
-        fi
-
-        MUTE_END=$(date -d "+${DURATION}min" +%s)
+        MUTE_END=$(date -d "+${this.duration:60}min" +%s)
 
         curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/mute" \
           -XPOST \
@@ -482,7 +476,7 @@ actions:
         secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
-        DD_HOSTNAME=$(echo $_ROLE| tr [A-Z] [a-z] |sed 's/_//g').$(hostname | sed 's/^[[:alpha:]]\+\([[:digit:]]\+\).*/\1/' | tr [A-Z] [a-z])
+        DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
         DD_APP_KEY="${globals.vaultSecretData}"
 
         curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/unmute" \
