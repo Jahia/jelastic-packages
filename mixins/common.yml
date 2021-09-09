@@ -411,23 +411,57 @@ actions:
     # Parameters:
     #   - target: target node group or id
     #   - path: path to list
+    #   - recursive: should be set to "true" if the secrets should be fetched
+    #     recursively. Default: false
     # Returns:
     #   ${globals.vaultSecretsList}: the list of secrets/subpaths seperated by semicolons
     - vaultAppRoleLogin: ${this.target}
+    - if ("${this.recursive.print()}" != "true"):
+        set:
+          recursive: false
     - cmd [${this.target}]: |-
-        secrets_list=$(mktemp)
-        curl -s -H "X-Vault-Token: ${globals.vaultToken}" -XLIST \
-          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.path} \
-          | jq -cre '.data.keys | join(";")' \
-          > $secrets_list
-        if [ $? -ne 0 ]; then
-          echo "[ERROR] Can't list secrets at ${this.path}" >&2
-          cat $secrets_list >&2
-          rm -f $secrets_list
-          exit 1
-        fi
-        cat $secrets_list
-        rm -f $secrets_list
+        final_secrets_list=$(mktemp)
+        tmp_secrets_list=$(mktemp)
+        # Remove the last slash if any
+        base_path=$(echo ${this.path} | sed "s;^\(.*\)/$;\1;")
+        recursive=${this.recursive}
+
+        # Recursive function to list secrets
+        list_secrets_to_file() {
+          local path=$1
+
+          resp=$(curl -fsS -H "X-Vault-Token: ${globals.vaultToken}" -XLIST $VAULT_CLUSTER_URL/v1/kv/metadata/$path 2>&1)
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Can't list secrets at ${path}" >&2
+            echo $resp >&2
+            rm -f $tmp_secrets_list $final_secrets_list
+            exit 1
+          fi
+
+          echo $resp | jq -cre '.data.keys | join("\n")' > $tmp_secrets_list
+          cat $tmp_secrets_list | while read path_end; do
+            full_path="$path/$path_end"
+            # If "secret" ends with a slash, means it's a subpath
+            if echo $path_end | grep -qE "/$"; then
+              # If recursive, then we list the secrets under this subpath
+              # else we just print the subpath with the trailing slash
+              if [ "$recursive" = "true" ]; then
+                # We remove the trailing slash from the full path
+                list_secrets_to_file $(echo -n $full_path | head -c -1)
+              else
+                echo $full_path >> $final_secrets_list
+              fi
+            else
+              echo $full_path >> $final_secrets_list
+            fi
+          done
+          rm -f $tmp_secrets_list
+        }
+
+        list_secrets_to_file $base_path
+        # We print all secrets semicolon separated, and without the base path
+        cat $final_secrets_list | sed "s#$base_path/*##" | paste -s -d ';'
+        rm -f $final_secrets_list
     - setGlobals:
         vaultSecretsList: ${response.out}
 
