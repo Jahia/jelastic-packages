@@ -438,14 +438,14 @@ actions:
     - vaultAppRoleLogin: ${this.target}
     - cmd [${this.target}]: |-
         resp=$(curl -fs -H "X-Vault-Token: ${globals.vaultToken}" -XDELETE \
-          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.path} | jq -re .errors)
-        if [ $? -eq 0 ]; then
-          echo "[ERROR] Can't delete secret ${this.path}" >&2
-          echo $resp >&2
+          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.secretPath})
+        if [ $? -ne 0 ]; then
+          echo "[ERROR] Can't delete secret ${this.secretPath}" >&2
+          echo $resp | jq -re .errors >&2
           exit 1
         fi
 
- muteDatadogHost:
+  muteDatadogHost:
     # Parameters:
     #  - target: target node group or id
     #  - duration: mute duration in minutes. Optional, default 60
