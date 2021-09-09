@@ -31,6 +31,7 @@ onInstall:
 
   - datadogCustomCheckForJahiaNodes                # PAAS-1693
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
+  - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -59,3 +60,7 @@ actions:
         chown dd-agent:dd-agent $CUSTOM_CHECK_SCRIPT
         systemctl restart datadog-agent
       user: root
+
+  updateProxySQLConfigForSingleDBNodes:
+    if (nodes.sqldb.length == 1):
+      configureProxysqlForSingleDBNode

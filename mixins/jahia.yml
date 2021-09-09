@@ -647,6 +647,14 @@ actions:
             exit 1
           fi
         done
+    - if (nodes.sqldb.length == 1):
+        configureProxysqlForSingleDBNode
+
+  configureProxysqlForSingleDBNode:
+    cmd[cp, proc]: |-
+      ${globals.proxysql_cli} -e "UPDATE mysql_galera_hostgroups SET active=0;"
+      ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
+      ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK;"
 
   setupMysqlServers:
     - cmd[proc]: |-
