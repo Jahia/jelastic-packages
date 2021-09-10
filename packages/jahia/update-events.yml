@@ -305,3 +305,4 @@ onBeforeDelete:
       target: "*"
       duration: 2880 # 48h
   - deleteEnvLink
+  - removeAllSecrets
