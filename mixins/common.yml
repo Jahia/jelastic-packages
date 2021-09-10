@@ -441,16 +441,11 @@ actions:
           echo $resp | jq -cre '.data.keys | join("\n")' > $tmp_secrets_list
           cat $tmp_secrets_list | while read path_end; do
             full_path="$path/$path_end"
-            # If "secret" ends with a slash, means it's a subpath
-            if echo $path_end | grep -qE "/$"; then
-              # If recursive, then we list the secrets under this subpath
-              # else we just print the subpath with the trailing slash
-              if [ "$recursive" = "true" ]; then
-                # We remove the trailing slash from the full path
+            # If recursive and "secret" ends with a slash, means it's a subpath
+            #     We remove the trailing slash from the full path
+            # else we just print the subpath with the trailing slash
+            if [ "$recursive" = "true" ] && echo $path_end | grep -qE "/$"; then
                 list_secrets_to_file $(echo -n $full_path | head -c -1)
-              else
-                echo $full_path >> $final_secrets_list
-              fi
             else
               echo $full_path >> $final_secrets_list
             fi
