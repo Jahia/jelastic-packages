@@ -449,13 +449,13 @@ actions:
     # Parameters:
     #  - target: target node group or id
     #  - duration: mute duration in minutes. Optional, default 60
-    - vaultSecretReadKey:
+    - vaultSecretReadKeyB64:
         target: ${nodes.cp.first.id}
         secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
-        DD_APP_KEY="${globals.vaultSecretData}"
+        DD_APP_KEY="echo -n ${globals.vaultSecretData} | base64 -d"
 
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
 
@@ -471,17 +471,16 @@ actions:
   unmuteDatadogHost:
     # Parameters:
     #  - target: target node group or id
-    - vaultSecretReadKey:
+    - vaultSecretReadKeyB64:
         target: ${nodes.cp.first.id}
         secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
-        DD_APP_KEY="${globals.vaultSecretData}"
+        DD_APP_KEY="echo -n ${globals.vaultSecretData} | base64 -d"
 
         curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/unmute" \
           -XPOST \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $DD_APP_KEY"
-
       user: root
