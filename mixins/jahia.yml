@@ -249,12 +249,6 @@ actions:
     - else:
         set:
           target: ${this.target}
-    - cmd [${this.target}]: |-
-        if ! rpm --quiet -q jq; then
-          echo "[INFO] Installing jq to parse healthcheck module response"
-          yum install -y jq
-        fi
-      user: root
     - log: "## Health check on Jahia startup, target: ${this.target}"
     - cmd [${this.target}]: |-
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
@@ -305,12 +299,6 @@ actions:
         exit 5
 
   checkJahiaHealth:
-    - cmd [${this}]: |-
-        if ! rpm --quiet -q jq; then
-          echo "[INFO] Installing jq to parse healthcheck module response"
-          yum install -y jq
-        fi
-      user: root
     - cmd [${this}]: |-
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
           echo "[ERROR] Tomcat process not found, please check" >&2

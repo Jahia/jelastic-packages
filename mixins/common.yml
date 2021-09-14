@@ -282,7 +282,6 @@ actions:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
         ## [${this.logAction}] - 1/5
-        sudo yum install -y python36 python36-pip
         sudo python3 -m pip install --upgrade pip
         sudo python3 -m pip install --upgrade boto3 "azure==4.0.0" adal
         [ -d jelastic_backup ] || mkdir jelastic_backup
@@ -309,13 +308,26 @@ actions:
         fi
       user: root
 
+  installRequiredPackages:
+    # Parameters :
+    #  - target: target node group or id
+    #  - packages: name of the packages to install, space separated
+    - setGlobalRepoRootUrl
+    - cmd [${this.target}]: |-
+        packages_to_install=()
+        for package in ${this.packages}; do
+          if ! rpm --quiet -q $package; then
+            echo "$package needs to be installed"
+            packages_to_install+=("$package")
+          fi
+        done
+        [[ "${packages_to_install[@]}" == "" ]] || yum --setopt=tsflags=nodocs install -y ${packages_to_install[@]};
+      user: root
+
   installPapiScript:
     - setGlobalRepoRootUrl
     - cmd [${this}]: |-
-        if ! rpm --quiet -q python3; then
-          yum --setopt=tsflags=nodocs install -y python36 python36-pip;
-          python3 -m pip install --upgrade pip
-        fi
+        python3 -m pip install --upgrade pip
         python3 -m pip install requests
         curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
         chmod 755 /usr/local/bin/papi.py

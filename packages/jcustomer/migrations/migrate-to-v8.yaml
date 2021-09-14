@@ -25,6 +25,7 @@ onInstall:
 
   - installPapiScript: cp, es               # PAAS-1686
   - refreshUnomiAllowedIPs: cp              # PAAS-1735
+  - installRequiredPackagesEverywhere       # PAAS-1760
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -42,3 +43,8 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}/../update-events.yml"
+
+  installRequiredPackagesEverywhere:
+    - installRequiredPackages:
+        target: "cp, es"
+        packages: "python36 python36-pip jq"

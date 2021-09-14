@@ -130,6 +130,9 @@ nodes: definedInOnBeforeInstall
 
 # --Events --
 onInstall:
+  - installRequiredPackages:
+      target: "cp, es"
+      packages: "python36 python36-pip jq"
   - if(settings.rootPassword):
       setGlobals:
         unomi_root_password_b64: ${settings.rootPassword.toBase64()}

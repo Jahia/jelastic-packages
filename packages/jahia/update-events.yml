@@ -267,6 +267,9 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
           title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
           text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
+      - installRequiredPackages:
+          target: ${event.params.nodeGroup}
+          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
@@ -276,6 +279,9 @@ onAfterRedeployContainer:
           target: ${event.params.nodeId}
           title: "Node ${event.params.nodeId} redeployed to ${event.params.tag} version"
           text: "Node ${event.params.nodeId} has been redeploy to ${event.params.tag} version"
+      - installRequiredPackages:
+          target: ${event.params.nodeId}
+          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
 
@@ -291,10 +297,13 @@ onBeforeScaleIn:
 
 onAfterServiceScaleOut:
   forEach(event.response.nodes):
-    logEvent:
-      target: ${@i.id}
-      title: "Scaled out ${event.params.nodeGroup} node group"
-      text: "Node ${@i.id} has been added"
+    - logEvent:
+        target: ${@i.id}
+        title: "Scaled out ${event.params.nodeGroup} node group"
+        text: "Node ${@i.id} has been added"
+    - installRequiredPackages:
+        target: ${@i.id}
+        packages: "python36 python36-pip jq"
 
 onBeforeDelete:
   - logEvent:
