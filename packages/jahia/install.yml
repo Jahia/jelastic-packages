@@ -277,6 +277,9 @@ nodes: definedInOnBeforeInstall
 # --Events --
 onInstall:
   - log: "## Beginning installation of Jahia"
+  - installRequiredPackages:
+      target: "cp, proc, bl, sqldb"
+      packages: "python36 python36-pip jq"
   - setJournaldLimit
   - installDatabase:
       user: ${globals.db_user}

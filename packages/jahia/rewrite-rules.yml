@@ -24,9 +24,6 @@ onInstall:
 actions:
   setRewritesRules:
     - cmd [bl]: |-
-        [ -x /usr/bin/jq ] || yum install -y jq
-      user: root
-    - cmd [bl]: |-
         # Backup current rule files dir
         mkdir -p ${globals.backup_rules_dir} ${globals.temp_rules_dir}
         if find ${globals.rules_dir}/* -maxdepth 0 -empty > /dev/null 2>&1; then

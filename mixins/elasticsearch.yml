@@ -120,8 +120,6 @@ actions:
     # Parameters:
     #   - target
     - cmd[${this.target}]: |-
-        [ ! -x /usr/bin/jq ] && yum install -y jq
-
         es_version=$(curl http://${HOSTNAME}:9200/ -s | jq -r .version.number)
         if printf '%s\n%s' '7.6.0' "$es_version" | sort -CV; then
           endpoint="_flush"         # since 7.6.0
@@ -192,7 +190,6 @@ actions:
     # initialized yet). If it is still not after 10s, exit 1.
     # For single node ES, we check green or yellow status
     - cmd[${nodes.es.first.id}]: |-
-        [ -x /usr/bin/jq ] || yum install -y jq
         health_file="/tmp/es_cluster_health.json"
         i=0
         prev_active_shards=0

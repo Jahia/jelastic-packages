@@ -8,8 +8,6 @@ globals:
 actions:
   installHaproxy:
     - setSudoer: bl
-    - cmd[bl]: yum install -y jq
-      user: root
     - retrieveHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
@@ -188,7 +186,6 @@ actions:
     #   - new_password
     - setGlobalRepoRootUrl
     - cmd[bl]: |-
-        yum install python3
         curl -fLSso ${this.auth_basic_script} ${globals.repoRootUrl}/assets/haproxy/manage-auth-basic.py || exit 1
         chmod u+x ${this.auth_basic_script}
         ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" "${this.new_password.toBase64()}"
