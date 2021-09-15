@@ -68,5 +68,5 @@ actions:
 
   installRequiredPackagesEverywhere:
     - installRequiredPackages:
-        target: "cp, es"
+        target: "cp, proc, bl, sqldb"
         packages: "python36 python36-pip jq"
