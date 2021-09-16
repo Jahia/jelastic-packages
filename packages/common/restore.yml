@@ -460,7 +460,7 @@ actions:
             gunzip jcustomer-env-vars.gz
             echo "Restoring jcustomer env vars" >> ${globals.logsPath}
             mv jcustomer-env-vars /tmp/
-            grep -v "^unomi_env_var" /.jelenv >> /tmp/jcustomer-env-vars
+            grep -v "^UNOMI_" /.jelenv >> /tmp/jcustomer-env-vars
             cat /tmp/jcustomer-env-vars > /.jelenv
             rm -f /tmp/jcustomer-env-vars
           user: root
