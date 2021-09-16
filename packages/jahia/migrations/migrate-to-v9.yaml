@@ -16,6 +16,9 @@ globals:
   version: 9
 
 onInstall:
+  ### Temporary placed here because it's required for different healthchecks
+  ### Should be removed in the next release's migration package
+  - installRequiredPackagesEverywhere       # PAAS-1760
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJahiaHealth: "cp, proc"
@@ -32,7 +35,6 @@ onInstall:
   - datadogCustomCheckForJahiaNodes                # PAAS-1693
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
-  - installRequiredPackagesEverywhere              # PAAS-1760
 
   ### Post-actions
   - setEnvVersion: ${globals.version}

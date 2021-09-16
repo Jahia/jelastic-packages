@@ -14,6 +14,9 @@ globals:
   version: 8
 
 onInstall:
+  ### Temporary placed here because it's required for different healthchecks
+  ### Should be removed in the next release's migration package
+  - installRequiredPackagesEverywhere       # PAAS-1760
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJcustomerHealth: cp
@@ -25,7 +28,6 @@ onInstall:
 
   - installPapiScript: cp, es               # PAAS-1686
   - refreshUnomiAllowedIPs: cp              # PAAS-1735
-  - installRequiredPackagesEverywhere       # PAAS-1760
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
