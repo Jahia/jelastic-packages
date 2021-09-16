@@ -323,7 +323,7 @@ actions:
 
         cd jelastic_backup
         echo "Backup unomi env vars" >> ${globals.logsPath}
-        grep "^unomi_env_var" /.jelenv > jcustomer-env-vars 2>>${globals.logsPath}
+        grep "^UNOMI_" /.jelenv > jcustomer-env-vars 2>>${globals.logsPath}
         gzip jcustomer-env-vars 2>>${globals.logsPath} || exit 1
 
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f jcustomer-env-vars.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
