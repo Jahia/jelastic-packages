@@ -67,13 +67,14 @@ onInstall:
           - restoreHaproxy
   - else:  # Jcustomer
       - clearJelasticLogs:
-          target: ${nodes.es.first.id}
+          target: ${nodes.es.first.id}, cp
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
-          target: ${nodes.es.first.id}
+          target: ${nodes.es.first.id}, cp
           logAction: ${globals.logAction}
       - restoreElasticsearch
+      - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
 
 
@@ -273,7 +274,7 @@ actions:
             logsPath: ${globals.logsPath}
 
     - cmd[${nodes.es.first.id}]: |-
-        ## [${globals.logAction}] - 5/5
+        ## [${globals.logAction}] - 4/5
         curl -o /dev/null -X DELETE http://${nodes.es.first.intIP}:9200/_all
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
         curl -o /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" 2>>${globals.logsPath} || exit 1
@@ -443,6 +444,35 @@ actions:
           fi
       user: mysql
 
+  restoreJcustomer:
+    - cmd [cp]: |-
+        ## [${globals.logAction}] - 5/5
+        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jcustomer-env-vars.gz 2>>${globals.logsPath}
+        ls jcustomer-env-vars.gz || exit 0
+    - if ("${response.errOut}" == ""):
+        - cmd [cp]: |-
+            cd jelastic_backup
+            gunzip jcustomer-env-vars.gz
+            echo "Restoring jcustomer env vars" >> ${globals.logsPath}
+            mv jcustomer-env-vars /tmp/
+            grep -v "^unomi_env_var" /.jelenv >> /tmp/jcustomer-env-vars
+            cat /tmp/jcustomer-env-vars > /.jelenv
+            rm -f /tmp/jcustomer-env-vars
+          user: root
+        - if ("${response.errOut}" != ""):
+            - return:
+                type: error
+                message: "An error occurred while restoring jcustomer environment variables. ${response.errOut}"
+        - api: env.control.RestartNodes
+          envName: ${env.envName}
+          nodeGroup: cp
+    - else:
+        log: "No env var backup available"
 
 settings:
   fields:
