@@ -249,11 +249,13 @@ actions:
   # Using an Elasticsearch keystore to add AWS keys
   setAwsElasticsearchConfig:
     - cmd[es]: |-
+        aws_access_key="${settings.aws_access_key}"
+        aws_secret_key="${settings.aws_secret_key}"
         if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
             /usr/share/elasticsearch/bin/elasticsearch-keystore create
         fi
-        printf "${settings.aws_access_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
-        printf "${settings.aws_secret_key}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
+        printf "$aws_access_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
+        printf "$aws_secret_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
         curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
 
   setAzureElasticsearchConfig:
