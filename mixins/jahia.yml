@@ -650,7 +650,7 @@ actions:
     - if (nodes.sqldb.length > 1):
         - cmd[proc]: |-
             ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_2',3306, 50)"
-            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_3',3306, 50)"
+            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 50, 1000)"
     - cmd[proc]: |-
         ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME"
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
@@ -683,6 +683,41 @@ actions:
   proxysqlSetMariadbBackendStatus:
     - cmd[cp, proc]: |-
         ${globals.proxysql_cli} -e "UPDATE mysql_servers SET status='${this.newStatus}' WHERE hostname='${this.targetHost}';"
+
+  getGaleraMaster:
+    # Return:
+    #   - galeraMasterIndex
+    - cmd[proc]: |-
+        ${globals.proxysql_cli} -BNe "select DISTINCT hostname from mysql_servers where weight = 1000"
+    - setGlobals:
+        - galeraMasterIndex: ${response.out}
+
+  proxysqlSwitchMaster:
+    # Parameter:
+    #   - target: galera number (1,2,3)
+    - cmd[proc]: |-
+        ${globals.proxysql_cli} -e "update mysql_servers set weight=1;"
+        ${globals.proxysql_cli} -e "update mysql_servers set weight=1000 where hostname='galera_${this.target}';"
+        ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
+        ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
+
+    - cmd[sqldb]: |-
+        my_ip=$(grep $(hostname) /etc/hosts | awk '{print $1}')
+        my_node_name_index=$(awk -v my_ip="$my_ip galera" '$0 ~my_ip {print $2}' /etc/hosts)
+        if [[ "$my_node_name_index" == "galera_${this.target}" ]]; then
+          exit 0
+        fi
+        timeout=330 # wait for 3min30
+        time=0
+        request="select COUNT(*) from INFORMATION_SCHEMA.PROCESSLIST where db='jahia' and user like 'jahia-db-%'"
+        while [[ $(mysql -BNe "$request") -gt 0 ]]; do
+          if [[ $time -ge $timeout ]]; then
+            echo "There are still open connections on $my_node_name_index"
+            exit 1
+          fi
+          tries=`expr $time + 10`
+          sleep 10
+        done
 
   disableDatadogCustomChecks:
     - cmd[cp, proc]: |-
