@@ -164,6 +164,7 @@ actions:
         - cmd [${this.target}]: |-
             echo "SERVICE=''" > /var/lib/jelastic/overrides/envinfo.lib
             echo "/var/lib/jelastic/overrides/envinfo.lib" >> /etc/jelastic/redeploy.conf
+          user: root
 
   ##################
   # galera related #
