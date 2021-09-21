@@ -36,6 +36,12 @@ onInstall:
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
 
+  # Actions that require a restart:
+  - improveTomcatJDBC                              # PAAS-1722
+
+  # Restart actions:
+  - jahiaRollingRestart                            # needed for PAAS-1722
+
   ### Post-actions
   - setEnvVersion: ${globals.version}
   - logEvent:
@@ -72,3 +78,12 @@ actions:
     - installRequiredPackages:
         target: "cp, proc, bl, sqldb"
         packages: "python36 python36-pip jq"
+
+  improveTomcatJDBC:
+    - cmd[cp, proc]: |-
+        f=/opt/tomcat/webapps/ROOT/META-INF/context.xml
+        curl -fLSso ${f} ${globals.repoRootUrl}/packages/jahia/migrations/v9_assets/context.xml || exit 1
+
+  jahiaRollingRestart:
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
