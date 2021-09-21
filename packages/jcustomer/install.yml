@@ -75,7 +75,10 @@ onBeforeInstall: |
       ORGANIZATION_NAME: organizationName,
       VAULT_ROLE_ID: "${settings.vaultRoleId}",
       VAULT_SECRET_ID: "${settings.vaultSecretId}",
-      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}"
+      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}",
+      PAPI_HOSTNAME: "${settings.papiHostname}",
+      PAPI_API_VERSION: "${settings.papiApiVersion}",
+      PAPI_ENV_ID: "${settings.papiEnvId}"
     },
     "volumes": [
       "/var/lib/elasticsearch"
@@ -118,7 +121,10 @@ onBeforeInstall: |
       ORGANIZATION_NAME: organizationName,
       VAULT_ROLE_ID: "${settings.vaultRoleId}",
       VAULT_SECRET_ID: "${settings.vaultSecretId}",
-      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}"
+      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}",
+      PAPI_HOSTNAME: "${settings.papiHostname}",
+      PAPI_API_VERSION: "${settings.papiApiVersion}",
+      PAPI_ENV_ID: "${settings.papiEnvId}"
     },
     "distribution": {
         "mode": "STRICT",
@@ -172,6 +178,9 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp
+  - updateEnvStatusInPapi:
+      status: running
+  - setEnvironmentAppId
 
 
 settings:
@@ -234,3 +243,12 @@ settings:
     - name: vaultClusterUrl
       type: string
       caption: Vault Cluster Url
+    - name: papiHostname
+      type: string
+      caption: Papi hostname
+    - name: papiApiVersion
+      type: string
+      caption: Papi API Version
+    - name: papiEnvId
+      type: string
+      caption: Papi Environment Id

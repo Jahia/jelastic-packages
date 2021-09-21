@@ -350,7 +350,7 @@ actions:
             if [ $? -ne 0 ]; then
               echo "Token is not valid, it needs to be renewed"
             fi
-        - if ("${response.out" == ""):
+        - if ("${response.out}" == ""):
             set:
               generateNewToken: false
     - if ("${this.generateNewToken}" == "true"):
@@ -406,7 +406,7 @@ actions:
     - cmd [${this.target}]: |-
         secret_data=$(mktemp)
         curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
-          | jq -er ".data.data.\"${this.secretKey}\"" \
+          | jq -er ".data.data.\"${this.secretKey}\"" | tr -d '\n' | tr -d '\r' \
           > $secret_data
         if [ $? -ne 0 ]; then
           echo "[ERROR] Can't read secret ${this.secretPath}" >&2
@@ -539,3 +539,49 @@ actions:
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $DD_APP_KEY"
       user: root
+
+
+  getPapiToken:
+    - vaultSecretReadKeyB64:
+        target: ${nodes.cp.first.id}
+        secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.envName}/papi"
+        secretKey: "token"
+    - setGlobals:
+        papiToken: '${globals.vaultSecretData.fromBase64()}'
+
+  updateEnvStatusInPapi:
+    # Parameters:
+    #  - status: stopped, running, creating
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiToken
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        papi.py -X PUT -d '{"status": "${this.status}"}' paas-environment/$PAPI_ENV_ID
+
+
+  updateProductVersionInPapi:
+    # Parameters:
+    #  - product: dx, unomi
+    #  - version: product verion
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiToken
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        version=$(echo "${this.product}_${this.version}" | tr -s '.' '-')
+        papi.py -X PUT -d "{\"paas_product_version_id\": \"$version\"}" paas-environment/$PAPI_ENV_ID
+
+  setEnvironmentAppId:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiToken
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        papi.py -X PUT -d '{"jelastic_appid": "${env.appid}"}' paas-environment/$PAPI_ENV_ID
+
+  deleteEnvironment:
+    - if ("${globals.papiToken.print()}" == ""):
+        - getPapiToken
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
+        papi.py -X DELETE paas-environment/$PAPI_ENV_ID
+        papi.py -X DELETE papier/$papier_id

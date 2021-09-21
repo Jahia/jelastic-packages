@@ -110,10 +110,11 @@ onBeforeDelete:
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
   - deleteEnvLink
-  - removeAllSecrets
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - deleteEnvironment
+  - removeAllSecrets
 
 onBeforeStop:
   - logEvent:
@@ -131,6 +132,8 @@ onBeforeStop:
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - updateEnvStatusInPapi:
+      status: stopped
 
 onAfterStart:
   - logEvent:
@@ -146,6 +149,8 @@ onAfterStart:
   - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
       target: "*"
+  - updateEnvStatusInPapi:
+      status: running
 
 onBeforeMigrate:
   - logEvent:
@@ -230,6 +235,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
+      - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeid.print()}' != ''):
       - getLogEventScript: ${event.params.nodeid}
       - logEvent:
@@ -241,6 +247,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
+      - installPapiScript: ${event.params.nodeId}
 
 onBeforeScaleIn:
   forEach(event.response.nodes):

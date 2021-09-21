@@ -82,6 +82,10 @@ onInstall:
   - env.control.AddContainerEnvVars[cp, proc]:
       vars: {"DX_VERSION": "${globals.targetJahiaVersion}"}
 
+  - updateProductVersionInPapi:
+      version: "${globals.targetJahiaVersion}"
+      product: "dx"
+
 
 settings:
   fields:
