@@ -46,6 +46,10 @@ onInstall:
 
   - setGlobalRepoRootUrl
 
+  - updateProductVersionInPapi:
+      version: "${globals.targetVersion}"
+      product: "unomi"
+
 settings:
   fields:
     - name: targetVersion

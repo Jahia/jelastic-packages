@@ -114,6 +114,7 @@ onBeforeDelete:
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - deleteEnvironment
 
 onBeforeStop:
   - logEvent:

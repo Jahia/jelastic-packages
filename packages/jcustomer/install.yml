@@ -111,6 +111,8 @@ onBeforeInstall: |
       UNOMI_ELASTICSEARCH_ADDRESSES: 'es:' + esPort,
       UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
       UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.workato_ips.join(,)}",
+      "PAPI_ENDPOINT": "${settings.papiHostname}",
+      "PAPI_API_VERSION": "${settings.papiApiVersion}",
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       ES_VERSION: esVersion,
@@ -172,6 +174,7 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp
+  - setEnvironmentAppId
 
 
 settings:
@@ -234,3 +237,9 @@ settings:
     - name: vaultClusterUrl
       type: string
       caption: Vault Cluster Url
+    - name: papiHostname
+      type: string
+      caption: Papi hostname
+    - name: papiApiVersion
+      type: string
+      caption: Papi API Version

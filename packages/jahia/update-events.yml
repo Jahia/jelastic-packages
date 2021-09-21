@@ -188,6 +188,8 @@ onBeforeStop:
       duration: 2880 # 48h
   - stopJahia: cp, proc
   - stopGalera
+  - updateStatusInPapi:
+      status: stopped
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "Stopping environment $envName"
@@ -196,6 +198,8 @@ onBeforeStop:
 onAfterStart:
   - startupJahiaHealthCheck: cp, proc
   - resetHaproxyBackends
+  - updateEnvStatusInPapi:
+      status: started
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "$envName environment started"
@@ -315,3 +319,4 @@ onBeforeDelete:
       duration: 2880 # 48h
   - deleteEnvLink
   - removeAllSecrets
+  - deleteEnvironment
