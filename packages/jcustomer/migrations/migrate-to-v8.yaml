@@ -28,6 +28,7 @@ onInstall:
 
   - installPapiScript: cp, es               # PAAS-1686
   - refreshUnomiAllowedIPs: cp              # PAAS-1735
+  - vaultAccount                            # PAAS-1764
 
   # Actions that require a restart:
   - addJettyIODebug                         # PAAS-1380
@@ -68,3 +69,91 @@ actions:
       echo "log4j2.logger.jetty.name = org.eclipse.jetty.io" >> ${f}
       echo "log4j2.logger.jetty.level = DEBUG" >> ${f}
     user: root
+
+  vaultAccount:
+    - script: |
+        const envVars = jelastic.env.control.GetContainerEnvVars(
+            "${env.envName}",
+            session,
+            "${nodes.cp.first.id}"
+        );
+        return {'result': 0, 'done': "VAULT_SECRET_ID" in envVars.object}
+    - if ("${response.done}" == "false"):
+        setupVaultAccount
+
+  setupVaultAccount:
+    - log: Generate vault credentials
+    - cmd[${nodes.cp.first.id}]: |-
+        PAPI_HOSTNAME="${settings.papi_hostname}"
+        PAPI_TOKEN="${settings.papi_token}"
+        VAULT_CLUSTER_URL="${settings.vault_cluster_url}"
+        VAULT_TOKEN="${settings.vault_token}"
+        MAIL="${user.email}"
+        SHORTDOMAIN="paas_${env.shortdomain}"
+        ORGANISATION=$(curl -s -H "X-PAPI-KEY:$PAPI_TOKEN" https://$PAPI_HOSTNAME/api/v1/paas-organization?jelastic_login=$MAIL | jq -r .[0].name)
+
+        VAULT_CURL_CONSTS="-s -H X-Vault-Token:$VAULT_TOKEN https://$VAULT_CLUSTER_URL/v1"
+        VAULT_CURL_APPROLE="$VAULT_CURL_CONSTS/auth/approle/role/$SHORTDOMAIN"
+
+        # Get role-id
+        role_id=$(curl $VAULT_CURL_APPROLE/role-id | jq -r '.data.role_id')
+
+        # Delete lost secretid
+        old_secret_id_accessor=$(curl $VAULT_CURL_APPROLE/secret-id -XLIST | jq -r '.data.keys[0]')
+        curl $VAULT_CURL_APPROLE/secret-id-accessor/destroy -XPOST -d "{\"secret_id_accessor\":\"$old_secret_id_accessor\"}"
+
+        # Create and fetch new secret id
+        secret_id=$(curl $VAULT_CURL_APPROLE/secret-id -XPOST | jq -r .data.secret_id)
+        echo "$role_id,$secret_id"
+      user: root
+    - log: Check that received data are what we are expecting
+    - script: |-
+        output = "${response.out}";
+        match = /^[0-9a-z\-]+,[0-9a-z\-]+$/.exec(output);
+        if (match == null)
+          return {'result':1, "error": "wrong secret_id or app_id"};
+        splitted_output = output.split(",")
+        return {
+          'result': 0,
+          "role_id":splitted_output[0],
+          'secret_id':splitted_output[1]
+        }
+    - set:
+        role_id: ${response.role_id}
+        secret_id: ${response.secret_id}
+
+    - log: Check that credentials are actually working
+    - cmd[${nodes.cp.first.id}]: |-
+        curl -s -XPOST https://${settings.vault_cluster_url}/v1/auth/approle/login --data '{"secret_id": "${this.secret_id}", "role_id": "${this.role_id}"}' | jq -r .auth.policies | grep paas_environment
+    - if ( "${response.errOut}" != "" || "${response.out}" == "" ):
+        return:
+        type: error
+        message: "Generated vault credentials are not working"
+
+    - log: Store vault creds in env vars
+    - env.control.AddContainerEnvVars[cp,es]:
+      vars: {
+        "VAULT_CLUSTER_URL": "https://${settings.vault_cluster_url}",
+        "VAULT_SECRET_ID": "${this.secret_id}",
+        "VAULT_ROLE_ID": "${this.role_id}"
+      }
+
+
+settings:
+  fields:
+    - name: vault_token
+      type: string
+      caption: Vault token to perform operations
+      required: true
+    - name: vault_cluster_url
+      type: string
+      caption: vault dns
+      required: true
+    - name: papi_token
+      type: string
+      caption: papi token to perform operations
+      required: true
+    - name: papi_hostname
+      type: string
+      caption: papi dns
+      required: true
