@@ -202,7 +202,7 @@ actions:
     - script: |-
         linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
 
-        if (linkedJahiaEnvs.lenght == 0) {
+        if (linkedJahiaEnvs.length == 0) {
           return {"result": 0, "out": "No jahia linked"};
         }
 
@@ -219,7 +219,7 @@ actions:
             );
           }
         );
-        return {"result": 0, "out": "Unlinked following environments: " + jahia_linked};
+        return {"result": 0, "out": "Unlinked following environments: " + linkedJahiaEnvs};
 
   checkJcustomerHealthWhenStarting:
     cmd [${this}]: |-
