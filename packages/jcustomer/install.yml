@@ -72,7 +72,10 @@ onBeforeInstall: |
       _PROVIDE: 'elasticsearch',
       ES_VERSION: esVersion,
       envmode: envmode,
-      ORGANIZATION_NAME: organizationName
+      ORGANIZATION_NAME: organizationName,
+      VAULT_ROLE_ID: "${settings.vaultRoleId}",
+      VAULT_SECRET_ID: "${settings.vaultSecretId}",
+      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}"
     },
     "volumes": [
       "/var/lib/elasticsearch"
@@ -112,7 +115,10 @@ onBeforeInstall: |
       _PROVIDE: 'unomi',
       ES_VERSION: esVersion,
       envmode: envmode,
-      ORGANIZATION_NAME: organizationName
+      ORGANIZATION_NAME: organizationName,
+      VAULT_ROLE_ID: "${settings.vaultRoleId}",
+      VAULT_SECRET_ID: "${settings.vaultSecretId}",
+      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}"
     },
     "distribution": {
         "mode": "STRICT",
@@ -218,3 +224,13 @@ settings:
     - name: rootPassword
       type: string
       caption: Unomi root password
+    - name: vaultRoleId
+      type: string
+      caption: Vault Role Id
+    - name: vaultSecretId
+      inputType: password
+      type: string
+      caption: Vault Secret Id
+    - name: vaultClusterUrl
+      type: string
+      caption: Vault Cluster Url

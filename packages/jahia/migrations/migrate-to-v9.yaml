@@ -35,6 +35,7 @@ onInstall:
   - datadogCustomCheckForJahiaNodes                # PAAS-1693
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
+  - addVaultInfosToDBNodes                         # PAAS-1722
 
   # Actions that require a restart:
   - improveTomcatJDBC                              # PAAS-1722
@@ -87,3 +88,24 @@ actions:
   jahiaRollingRestart:
     - install:
         jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  addVaultInfosToDBNodes:
+    - script: |-
+        const container_env_vars = jelastic.env.control.GetContainerEnvVars(
+                                     '${env.envName}',
+                                     session,
+                                     ${nodes.cp.first.id}
+                                   );
+
+        var resp = jelastic.env.control.AddContainerEnvVars('${env.envName}',
+          session,
+          nodeGroup='sqldb',
+          vars={
+            'VAULT_CLUSTER_URL': container_env_vars.object.VAULT_CLUSTER_URL,
+            'VAULT_SECRET_ID': container_env_vars.object.VAULT_SECRET_ID,
+            'VAULT_ROLE_ID': container_env_vars.object.VAULT_ROLE_ID
+          }
+        );
+
+
+        return {'result': 0}
