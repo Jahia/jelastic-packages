@@ -65,9 +65,11 @@ actions:
   addJettyIODebug:
     cmd[cp]:
       f=/opt/jcustomer/jcustomer/etc/org.ops4j.pax.logging.cfg
-      echo -e "\n# add logs for jetty io (PAAS-1380)" >> ${f}
-      echo "log4j2.logger.jetty.name = org.eclipse.jetty.io" >> ${f}
-      echo "log4j2.logger.jetty.level = DEBUG" >> ${f}
+      if ! (grep PAAS-1380 ${f}); then
+        echo -e "\n# add logs for jetty io (PAAS-1380)" >> ${f}
+        echo "log4j2.logger.jetty.name = org.eclipse.jetty.io" >> ${f}
+        echo "log4j2.logger.jetty.level = DEBUG" >> ${f}
+      fi
     user: root
 
   vaultAccount:
