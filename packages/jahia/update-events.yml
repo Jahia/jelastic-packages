@@ -188,7 +188,7 @@ onBeforeStop:
       duration: 2880 # 48h
   - stopJahia: cp, proc
   - stopGalera
-  - updateStatusInPapi:
+  - updateEnvStatusInPapi:
       status: stopped
   - logEvent:
       target: ${nodes.proc.first.id}
