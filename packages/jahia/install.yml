@@ -311,6 +311,8 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp, proc
+  - updateEnvStatusInPapi:
+      status: running
   - setEnvironmentAppId
 
 

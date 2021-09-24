@@ -406,7 +406,7 @@ actions:
     - cmd [${this.target}]: |-
         secret_data=$(mktemp)
         curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
-          | jq -er ".data.data.\"${this.secretKey}\"" \
+          | jq -er ".data.data.\"${this.secretKey}\"" | tr -d '\n' | tr -d '\r' \
           > $secret_data
         if [ $? -ne 0 ]; then
           echo "[ERROR] Can't read secret ${this.secretPath}" >&2
@@ -546,6 +546,7 @@ actions:
         target: ${nodes.cp.first.id}
         secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.envName}/papi"
         secretKey: "token"
+    - log: "DEBUG HERE"
     - setGlobals:
         papiToken: '${globals.vaultSecretData.fromBase64()}'
 
@@ -579,7 +580,9 @@ actions:
 
   deleteEnvironment:
     - if ("${globals.papiToken.print()}" == ""):
-        getPapiToken
+        - log: "DEBUG HEREBefore"
+        - getPapiToken
+        - log: "DEBUG HEREAfter"
     - cmd[${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
         papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
