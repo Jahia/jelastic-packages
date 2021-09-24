@@ -276,6 +276,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
+      - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - getLogEventScript: ${event.params.nodeId}
@@ -288,6 +289,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
+      - installPapiScript: ${event.params.nodeId}
 
 onBeforeScaleIn:
   forEach(event.response.nodes):

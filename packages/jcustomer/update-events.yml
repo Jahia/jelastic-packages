@@ -132,6 +132,8 @@ onBeforeStop:
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - updateEnvStatusInPapi:
+      status: stopped
 
 onAfterStart:
   - logEvent:
@@ -147,6 +149,8 @@ onAfterStart:
   - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
       target: "*"
+  - updateEnvStatusInPapi:
+      status: running
 
 onBeforeMigrate:
   - logEvent:
