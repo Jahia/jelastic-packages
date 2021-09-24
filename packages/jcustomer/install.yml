@@ -239,7 +239,7 @@ settings:
     - name: vaultClusterUrl
       type: string
       caption: Vault Cluster Url
-    - name: papiHostname
+    - name: papiEndpoint
       type: string
       caption: Papi hostname
     - name: papiApiVersion

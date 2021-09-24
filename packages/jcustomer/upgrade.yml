@@ -47,7 +47,7 @@ onInstall:
   - setGlobalRepoRootUrl
 
   - updateProductVersionInPapi:
-      version: "${globals.targetVersion}"
+      version: "${globals.targetDockerTag}"
       product: "unomi"
 
 settings:
