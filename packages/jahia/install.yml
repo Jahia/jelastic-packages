@@ -59,8 +59,8 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "PAPI_ENDPOINT": "${settings.papiEndpoint}",
-        "PAPI_API_VERSION": "${settings.papiApiVersion}"
-        "PAPI_ENV_ID": "${settings.papiEnvId}"
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "envmode": envmode,
         "ORGANIZATION_NAME": organizationName,
         "auth_basic_enabled": "false",
@@ -132,8 +132,8 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "PAPI_ENDPOINT": "${settings.papiEndpoint}",
-        "PAPI_API_VERSION": "${settings.papiApiVersion}"
-        "PAPI_ENV_ID": "${settings.papiEnvId}"
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
@@ -207,8 +207,8 @@ onBeforeInstall: |
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
         "PAPI_ENDPOINT": "${settings.papiEndpoint}",
-        "PAPI_API_VERSION": "${settings.papiApiVersion}"
-        "PAPI_ENV_ID": "${settings.papiEnvId}"
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
@@ -267,8 +267,8 @@ onBeforeInstall: |
         "JELASTIC_EXPOSE": false,
         "ORGANIZATION_NAME": organizationName,
         "PAPI_ENDPOINT": "${settings.papiEndpoint}",
-        "PAPI_API_VERSION": "${settings.papiApiVersion}"
-        "PAPI_ENV_ID": "${settings.papiEnvId}"
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
       },
     "distribution": {
         "mode": "STRICT",
