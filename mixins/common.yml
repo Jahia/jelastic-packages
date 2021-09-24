@@ -350,7 +350,7 @@ actions:
             if [ $? -ne 0 ]; then
               echo "Token is not valid, it needs to be renewed"
             fi
-        - if ("${response.out" == ""):
+        - if ("${response.out}" == ""):
             set:
               generateNewToken: false
     - if ("${this.generateNewToken}" == "true"):
@@ -575,7 +575,7 @@ actions:
         getPapiToken
     - cmd[${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
-        papi.py -X PUT -d "{"jelastic_appid": "${env.appid}"}" paas-environment/$PAPI_ENV_ID
+        papi.py -X PUT -d '{"jelastic_appid": "${env.appid}"}' paas-environment/$PAPI_ENV_ID
 
   deleteEnvironment:
     - if ("${globals.papiToken.print()}" == ""):
