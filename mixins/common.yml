@@ -1,4 +1,4 @@
---
+---
 actions:
   setGlobalRepoRootUrl:
     # Gets the repository root URL and set it in a global named "repoRootUrl", WITH NO TRAILING SLASH
