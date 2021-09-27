@@ -79,7 +79,7 @@ class Papi():
             self.__printerr("Exception when trying to send the GET request" +
                     str(exception))
             exit(2)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def put(self):
@@ -93,7 +93,7 @@ class Papi():
             self.__printerr("Exception when trying to send the PUT request" +
                     str(exception))
             exit(3)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def post(self):
@@ -107,7 +107,7 @@ class Papi():
             self.__printerr("Exception when trying to send the POST request" +
                     str(exception))
             exit(4)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def delete(self):
