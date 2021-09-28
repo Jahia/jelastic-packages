@@ -63,7 +63,7 @@ actions:
       jps: "${baseUrl}/../jcustomer-rolling-restart.yml"
 
   addJettyIODebug:
-    cmd[cp]:
+    cmd[cp]: |-
       f=/opt/jcustomer/jcustomer/etc/org.ops4j.pax.logging.cfg
       if ! (grep PAAS-1380 ${f}); then
         echo -e "\n# add logs for jetty io (PAAS-1380)" >> ${f}
