@@ -9,7 +9,7 @@ actions:
   ####################
   installDatabase:
     # Parameters:
-      #   - user: DB username 
+      #   - user: DB username
       #   - password: DB user's password
     - setSudoer: sqldb
     - log: "## Setup MariaDB logrotate"
@@ -164,6 +164,7 @@ actions:
         - cmd [${this.target}]: |-
             echo "SERVICE=''" > /var/lib/jelastic/overrides/envinfo.lib
             echo "/var/lib/jelastic/overrides/envinfo.lib" >> /etc/jelastic/redeploy.conf
+          user: root
 
   ##################
   # galera related #
@@ -292,10 +293,27 @@ actions:
     user: root
 
   rollingRestartGaleraNodes:
-    - forEach(nodes.sqldb):
-        - log: "Restarting MariaDB on node ${@i.id}..."
-        - stopGaleraNode: ${@i.id}
-        - startGaleraNode: ${@i.id}
+    - getGaleraMaster
+    - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
+        - getGaleraNodeNameIndex: ${@i.id}
+        - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+          - log: "Restarting MariaDB on node ${@i.id}..."
+          - stopGaleraNode: ${@i.id}
+          - startGaleraNode: ${@i.id}
+        - else:
+          - setGlobals:
+              origMasterId: ${@i.id}
+
+    - script: |-
+        masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+        newMasterIndex = ((masterIndex + 1) % 3) + 1
+        return {'result':0, 'newMasterIndex': newMasterIndex}
+
+    - proxysqlSwitchMaster:
+        - target: ${response.newMasterIndex}
+    - stopGaleraNode: ${globals.origMasterId}
+    - startGaleraNode: ${globals.origMasterId}
+
 
   checkGaleraClusterSize:
     # Ensure the cluster size match the node count
@@ -308,7 +326,7 @@ actions:
         setGlobals:
           galeraClusterSizeOk: False
 
-  redeployGalera:
+  redeployGaleraClusterNodes:
     - if (nodes.sqldb.length > 1):
         - checkGaleraClusterHealth: sqldb
         - checkGaleraClusterSize
@@ -316,30 +334,52 @@ actions:
             return:
               type: error
               message: "Galera cluster size is wrong. Aborting"
-    - forEach(nodes.sqldb):
+    - getGaleraMaster
+    - forEach(nodes.sqldb): # Only redeploy no master nodes. It allows to change master node only once
         - log: "Redeploying MariaDB on node ${@i.id}..."
         - getGaleraNodeNameIndex: ${@i.id}
-        - proxysqlSetMariadbBackendStatus:
-            targetHost: ${globals.galeraNodeNameIndex}
-            newStatus: OFFLINE_SOFT
-        - stopGaleraNode: ${@i.id}
-        - api: environment.control.RedeployContainerById
-          nodeId: ${@i.id}
-          tag: ${globals.targetDockerTag}
-          useExistingVolumes: true
-          skipReinstall: false
-          envName: ${env.envName}
-        - proxysqlSetMariadbBackendStatus:
-            targetHost: ${globals.galeraNodeNameIndex}
-            newStatus: ONLINE
+        - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+            redeployGaleraNode:
+              target: ${@i.id}
+        - else:
+          - setGlobals:
+              origMasterId: ${@i.id}
 
-        # We are going to a new if dimension, let's save some information
-        - setGlobals:
-            currentNode: ${@i.id}
-        - if (nodes.sqldb.length > 1):
-            - checkGaleraClusterHealth: sqldb
-            - checkGaleraClusterSize
-            - if (!${globals.galeraClusterSizeOk}):
-                return:
-                  type: error
-                  message: "Galera node ${globals.currentNode} was not able to join the cluster after being redeployed"
+    - script: |-
+        masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+        newMasterIndex = ((masterIndex + 1) % 3) + 1
+        return {'result':0, 'newMasterIndex': newMasterIndex}
+
+    - proxysqlSwitchMaster:
+        target: ${response.newMasterIndex}
+    - redeployGaleraNode:
+        target: ${globals.origMasterId}
+
+
+  redeployGaleraNode:
+    # Parameters:
+    #   - target: target node id
+    - proxysqlSetMariadbBackendStatus:
+        targetHost: ${globals.galeraNodeNameIndex}
+        newStatus: OFFLINE_SOFT
+    - stopGaleraNode: ${this.target}
+    - api: environment.control.RedeployContainerById
+      nodeId: ${this.target}
+      tag: ${globals.targetDockerTag}
+      useExistingVolumes: true
+      skipReinstall: false
+      envName: ${env.envName}
+    # We are going to a new if dimension, let's save some information
+    - setGlobals:
+        currentNode: ${this.target}
+    - if (nodes.sqldb.length > 1):
+        - checkGaleraClusterHealth: sqldb
+        - checkGaleraClusterSize
+        - if (!${globals.galeraClusterSizeOk}):
+            return:
+              type: error
+              message: "Galera node ${globals.currentNode} was not able to join the cluster after being redeployed"
+    - proxysqlSetMariadbBackendStatus:
+        targetHost: ${globals.galeraNodeNameIndex}
+        newStatus: ONLINE
+

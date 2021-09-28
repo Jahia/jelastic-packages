@@ -1,0 +1,23 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Set galera master node
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-set-galera-master-node
+description:
+  short: Jahia - Set galera master node
+
+
+mixins:
+  - ../../mixins/jahia.yml
+
+onInstall:
+  proxysqlSwitchMaster:
+    target: ${settings.nodeIndex}
+
+settings:
+  fields:
+    - name: nodeIndex
+      type: string
+      caption: Node index of the new master (1,2,3)
+      required: true

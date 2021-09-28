@@ -14,14 +14,12 @@ mixins:
   - ../../mixins/mariadb.yml
 
 onInstall:
-  - enableFullReadOnlyOnCluster
-  - redeployGalera
-  - disableFullReadOnlyOnCluster
+  - redeployGaleraClusterNodes
 
 settings:
   fields:
     - name: targetDockerTag
-      type: dockertags
+      type: string
       nodeType: mariadb-dockerized
       caption: MariaDB target Docker tag
       default: 10.4.13
