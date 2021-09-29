@@ -708,10 +708,10 @@ actions:
           exit 0
         fi
         timeout=330 # wait for 3min30
-        time=0
+        tries=0
         request="select COUNT(*) from INFORMATION_SCHEMA.PROCESSLIST where db='jahia' and user like 'jahia-db-%'"
         while [[ $(mysql -BNe "$request") -gt 0 ]]; do
-          if [[ $time -ge $timeout ]]; then
+          if [[ $tries -ge $timeout ]]; then
             echo "There are still open connections on $my_node_name_index"
             exit 1
           fi
