@@ -715,7 +715,7 @@ actions:
             echo "There are still open connections on $my_node_name_index"
             exit 1
           fi
-          tries=`expr $time + 10`
+          tries=`expr $tries + 10`
           sleep 10
         done
 
