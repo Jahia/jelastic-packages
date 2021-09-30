@@ -36,15 +36,16 @@ onInstall:
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
   - addVaultInfosToDBNodes                         # PAAS-1722
-  - addJvmRoute                                    # PAAS-1640
   - addPapiEnvVars                                 # PAAS-1662
   - addPapiRole                                    # PAAS-1662
 
   # Actions that require a restart:
   - improveTomcatJDBC                              # PAAS-1722
+  - addJvmRoute                                    # PAAS-1640
+  - updateApmJavaOption                            # PAAS-1767
 
   # Restart actions:
-  - jahiaRollingRestart                            # needed for PAAS-1722, PAAS-1640
+  - jahiaRollingRestart                            # needed for PAAS-1722, PAAS-1640, PAAS-1767
 
   # Needs to be performed only once PAAS-1722 is applied
   - setGaleraMaster                                # PAAS-1723
@@ -131,6 +132,15 @@ actions:
         -u "Server/Service/Engine/@jvmRoute" -v "$short_name" \
         -i "Server/Service/Engine[not(@jvmRoute)]" -t attr -n "jvmRoute" -v "$short_name" \
         /opt/tomcat/conf/server.xml
+
+  updateApmJavaOption:
+    cmd[proc, cp]: |-
+      # Remove all options set after dd.profiling.enable (basically all used for apm)
+      sed -i 's/\s-Ddd\.[^"]*//' /opt/tomcat/conf/tomcat-env.sh
+      if ! (grep -q APM_OPTS /opt/tomcat/conf/tomcat-env.sh);then
+          echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}"' >>  /opt/tomcat/conf/tomcat-env.sh
+          echo '$DATADOG_APM_ENABLED && JAVA_OPTS+="$APM_OPTS"' >> /opt/tomcat/conf/tomcat-env.sh
+      fi
 
   addPapiEnvVars:
     - cmd[${nodes.cp.first.id}]: |-
