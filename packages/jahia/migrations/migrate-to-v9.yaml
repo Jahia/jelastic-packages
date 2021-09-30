@@ -36,12 +36,13 @@ onInstall:
   - installPapiScript: bl, proc, cp, sqldb         # PAAS-1686
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
   - addVaultInfosToDBNodes                         # PAAS-1722
+  - addJvmRoute                                    # PAAS-1640
 
   # Actions that require a restart:
   - improveTomcatJDBC                              # PAAS-1722
 
   # Restart actions:
-  - jahiaRollingRestart                            # needed for PAAS-1722
+  - jahiaRollingRestart                            # needed for PAAS-1722, PAAS-1640
 
   # Needs to be performed only once PAAS-1722 is applied
   - setGaleraMaster                                # PAAS-1723
@@ -116,3 +117,15 @@ actions:
   setGaleraMaster:
       proxysqlSwitchMaster:
         target: 3
+
+  addJvmRoute:
+    cmd[proc, cp]: |-
+      short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
+      # the follwing will update or add if not present the jvmRoute property
+      sed -i -n -e '/^\s*jahia.session.jvmRoute\s*=/!p' -e "\$ajahia.session.jvmRoute = $short_name" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+      # the following will update or add if not present the jvmRoute attribute
+      xmlstarlet ed -P -L \
+        -u "Server/Service/Engine/@jvmRoute" -v "$short_name" \
+        -i "Server/Service/Engine[not(@jvmRoute)]" -t attr -n "jvmRoute" -v "$short_name" \
+        /opt/tomcat/conf/server.xml
+
