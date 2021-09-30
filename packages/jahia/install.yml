@@ -58,6 +58,9 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "PAPI_HOSTNAME": "${settings.papiHostname}",
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "envmode": envmode,
         "ORGANIZATION_NAME": organizationName,
         "auth_basic_enabled": "false",
@@ -128,6 +131,9 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "PAPI_HOSTNAME": "${settings.papiHostname}",
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
@@ -200,6 +206,9 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "PAPI_HOSTNAME": "${settings.papiHostname}",
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
@@ -260,6 +269,9 @@ onBeforeInstall: |
         "VAULT_ROLE_ID": "${settings.vaultRoleId}",
         "VAULT_SECRET_ID": "${settings.vaultSecretId}",
         "VAULT_CLUSTER_URL": "${settings.vaultClusterUrl}",
+        "PAPI_HOSTNAME": "${settings.papiHostname}",
+        "PAPI_API_VERSION": "${settings.papiApiVersion}",
+        "PAPI_ENV_ID": "${settings.papiEnvId}",
       },
     "distribution": {
         "mode": "STRICT",
@@ -302,6 +314,9 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp, proc
+  - updateEnvStatusInPapi:
+      status: running
+  - setEnvironmentAppId
 
 
 settings:
@@ -383,3 +398,12 @@ settings:
     - name: vaultClusterUrl
       type: string
       caption: Vault Cluster Url
+    - name: papiHostname
+      type: string
+      caption: Papi hostname
+    - name: papiApiVersion
+      type: string
+      caption: Papi API Version
+    - name: papiEnvId
+      type: string
+      caption: Papi Environment Id

@@ -37,6 +37,8 @@ onInstall:
   - updateProxySQLConfigForSingleDBNodes           # PAAS-1647
   - addVaultInfosToDBNodes                         # PAAS-1722
   - addJvmRoute                                    # PAAS-1640
+  - addPapiEnvVars                                 # PAAS-1662
+  - addPapiRole                                    # PAAS-1662
 
   # Actions that require a restart:
   - improveTomcatJDBC                              # PAAS-1722
@@ -130,3 +132,32 @@ actions:
         -i "Server/Service/Engine[not(@jvmRoute)]" -t attr -n "jvmRoute" -v "$short_name" \
         /opt/tomcat/conf/server.xml
 
+  addPapiEnvVars:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${settings.papi_token}"
+        export PAPI_API_VERSION="v1"
+        export PAPI_HOSTNAME=${settings.papi_hostname}
+        papi.py -X GET "paas-environment?namespace=${env.envName}" | jq -r '.[0].environment_id'
+    - env.control.AddContainerEnvVars[*]:
+      vars: {
+        "PAPI_HOSTNAME": "${settings.papi_hostname}",
+        "PAPI_API_VERSION": "v1",
+        "PAPI_ENV_ID": "${response.out}"
+      }
+
+  addPapiRole:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${settings.papi_token}"
+        papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
+        papi.py -X PUT -d '{}' "papier/$papier_id/role/MANAGE_OWN_PAPIER"
+
+settings:
+  fields:
+    - name: papi_token
+      type: string
+      caption: papi token to perform operations
+      required: true
+    - name: papi_hostname
+      type: string
+      caption: papi dns
+      required: true

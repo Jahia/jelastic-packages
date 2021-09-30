@@ -188,6 +188,8 @@ onBeforeStop:
       duration: 2880 # 48h
   - stopJahia: cp, proc
   - stopGalera
+  - updateEnvStatusInPapi:
+      status: stopped
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "Stopping environment $envName"
@@ -196,6 +198,8 @@ onBeforeStop:
 onAfterStart:
   - startupJahiaHealthCheck: cp, proc
   - resetHaproxyBackends
+  - updateEnvStatusInPapi:
+      status: running
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "$envName environment started"
@@ -272,6 +276,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
+      - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - getLogEventScript: ${event.params.nodeId}
@@ -284,6 +289,7 @@ onAfterRedeployContainer:
           packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
+      - installPapiScript: ${event.params.nodeId}
 
 onBeforeScaleIn:
   forEach(event.response.nodes):
@@ -314,4 +320,5 @@ onBeforeDelete:
       target: "*"
       duration: 2880 # 48h
   - deleteEnvLink
+  - deleteEnvironment
   - removeAllSecrets

@@ -29,6 +29,8 @@ onInstall:
   - installPapiScript: cp, es               # PAAS-1686
   - refreshUnomiAllowedIPs: cp              # PAAS-1735
   - vaultAccount                            # PAAS-1764
+  - addPapiEnvVars                           # PAAS-1662
+  - addPapiRole                              # PAAS-1662
 
   # Actions that require a restart:
   - addJettyIODebug                         # PAAS-1380
@@ -139,6 +141,25 @@ actions:
         "VAULT_SECRET_ID": "${this.secret_id}",
         "VAULT_ROLE_ID": "${this.role_id}"
       }
+
+  addPapiEnvVars:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${settings.papi_token}"
+        export PAPI_API_VERSION="v1"
+        export PAPI_HOSTNAME=${settings.papi_hostname}
+        papi.py -X GET "paas-environment?namespace=${env.envName}" | jq -r '.[0].environment_id'
+    - env.control.AddContainerEnvVars[*]:
+      vars: {
+        "PAPI_HOSTNAME": "${settings.papi_hostname}",
+        "PAPI_API_VERSION": "v1",
+        "PAPI_ENV_ID": "${response.out}"
+      }
+
+  addPapiRole:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${settings.papi_token}"
+        papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
+        papi.py -X PUT -d '{}' "papier/$papier_id/role/MANAGE_OWN_PAPIER"
 
 
 settings:

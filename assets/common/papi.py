@@ -28,14 +28,14 @@ class Papi():
     PAPI_SCHEME = 'https'
 
 
-    def __init__(self, endpoint, api_version, token, method, data, path):
+    def __init__(self, hostname, api_version, token, method, data, path):
         self.path = path
         self.method = method
         if method not in self.HTTP_METHODS:
             self.__printerr("The method should be one of " + self.HTTP_METHODS + ", aborting")
             exit(1)
-        if endpoint is None:
-            self.__printerr("Papi endpoint not specified, aborting")
+        if hostname is None:
+            self.__printerr("Papi hostname not specified, aborting")
             exit(1)
         if api_version is None:
             self.__printerr("Papi API version not specified, aborting")
@@ -50,10 +50,10 @@ class Papi():
                 self.__printerr("Bad format for data, JSON expected. Aborting")
                 exit(1)
         self.data = data
-        self.endpoint = endpoint
+        self.hostname = hostname
         self.api_version = api_version
         self.token = token
-        self.base_url = f'{self.PAPI_SCHEME}://{self.endpoint}/api/{self.api_version}'
+        self.base_url = f'{self.PAPI_SCHEME}://{self.hostname}/api/{self.api_version}'
         self.url = f'{self.base_url}/{self.path}'
 
 
@@ -79,7 +79,7 @@ class Papi():
             self.__printerr("Exception when trying to send the GET request" +
                     str(exception))
             exit(2)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def put(self):
@@ -93,7 +93,7 @@ class Papi():
             self.__printerr("Exception when trying to send the PUT request" +
                     str(exception))
             exit(3)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def post(self):
@@ -107,7 +107,7 @@ class Papi():
             self.__printerr("Exception when trying to send the POST request" +
                     str(exception))
             exit(4)
-        self.__printout(response.json())
+        self.__printout(response.text)
 
 
     def delete(self):
@@ -125,9 +125,9 @@ class Papi():
 def parse_args():
     parser = argparse.ArgumentParser(description="Papi parameters")
     parser.add_argument(
-        "-e", "--endpoint",
-        help="Papi endpoint, can also be defined as PAPI_ENDPOINT environment variable",
-        default=environ.get('PAPI_ENDPOINT')
+        "-e", "--hostname",
+        help="Papi hostname, can also be defined as PAPI_HOSTNAME environment variable",
+        default=environ.get('PAPI_HOSTNAME')
     )
     parser.add_argument(
         "-a", "--api-version",
@@ -160,7 +160,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     papi = Papi(
-        endpoint=args.endpoint,
+        hostname=args.hostname,
         api_version=args.api_version,
         token=args.token,
         method=args.method,
