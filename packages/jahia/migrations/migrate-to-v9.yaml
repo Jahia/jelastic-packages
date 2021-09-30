@@ -115,6 +115,7 @@ actions:
         return {'result': 0}
 
   setGaleraMaster:
+    if (nodes.sqldb.length == 3):
       proxysqlSwitchMaster:
         target: 3
 
