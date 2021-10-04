@@ -43,12 +43,16 @@ onInstall:
   - improveTomcatJDBC                              # PAAS-1722
   - addJvmRoute                                    # PAAS-1640
   - updateApmJavaOption                            # PAAS-1767
+  - addDSCookieName                                # PAAS-1288 (just add envvar)
 
   # Restart actions:
-  - jahiaRollingRestart                            # needed for PAAS-1722, PAAS-1640, PAAS-1767
+  - jahiaRollingRestart                            # needed for PAAS-1722, PAAS-1640, PAAS-1767 and PAAS-1288
 
   # Needs to be performed only once PAAS-1722 is applied
   - setGaleraMaster                                # PAAS-1723
+
+  # Needs to be performed only once the cookieName envvar is setted
+  - installDSModule                                # PAAS-1288
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -160,6 +164,22 @@ actions:
         export PAPI_TOKEN="${settings.papi_token}"
         papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
         papi.py -X PUT -d '{}' "papier/$papier_id/role/MANAGE_OWN_PAPIER"
+
+  addDSCookieName:
+    - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"jahia_cfg_jahia_session_cookieName": "DISTRIBUTED_JSESSIONID"}
+
+  installDSModule:
+    - getJahiaVersion
+    - if (${fn.compare([globals.jahiaVersion], 8.0.0.0)} < 0):
+        - set:
+            ds_version: 2.1.1
+    - else:
+        - set:
+            ds_version: 3.1.0
+    - upgradeJahiaModule:
+        module: Distributed Sessions
+        version: ${this.ds_version}
 
 settings:
   fields:
