@@ -547,7 +547,7 @@ actions:
             dashed_name=$(echo "${globals.moduleName}" | awk '{gsub("[[:blank:]]+", "-", $0); print tolower($0)}')
             url="${this.modulesUrl}/${dashed_name}/${globals.moduleVersion}/${dashed_name}-${globals.moduleVersion}.jar"
             cd /data/digital-factory-data/modules
-            curl -fLSso ${globals.moduleName}-${globals.moduleVersion}.jar $url || exit 1
+            curl -fLSso ${dashed_name}-${globals.moduleVersion}.jar $url || exit 1
             # Waiting for module to be installed
             imax=120
             i=1
