@@ -342,7 +342,7 @@ actions:
                   donorNode: ${response.out}
     - cmd[${this.target}]: |-
         sed -i "/wsrep_sst_donor/d" /etc/mysql/conf.d/galera.cnf
-        echo "wsrep_sst_donor = ${this.donorNode}" >> /etc/mysql/conf.d/galera.cnf
+        echo "wsrep_sst_donor = ${this.donorNode}," >> /etc/mysql/conf.d/galera.cnf
 
   checkGaleraClusterSize:
     # Ensure the cluster size match the node count
