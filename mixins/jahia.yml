@@ -181,7 +181,9 @@ actions:
         grep -q '^JAVA_OPTS.*-DmaxPostSize=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' ${tomcat_env}
         grep -q '^JAVA_OPTS.*-XX:NativeMemoryTracking=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -XX:NativeMemoryTracking=summary\1/g' ${tomcat_env}
         # Datadog APM
-        sed -i -E '/^JAVA_OPTS/ s#(.)$# -Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}\1#g' ${tomcat_env}
+        echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain}"' >>  ${tomcat_env}
+        echo '$DATADOG_APM_ENABLED && JAVA_OPTS+="$APM_OPTS"' >> $tomcat_env
+
     - if ("${response.errOut}" != ""):
         - return:
             type: error
