@@ -274,6 +274,45 @@ class PlayWithIt():
             return False
         return True
 
+    def files_list(self, bucket, **kwargs):
+        s3 = self.return_client_session('s3')
+        if not self.test_if_bucket_exist(bucket):
+            logging.warning("You can't list folders from {} if it not exist"
+                            .format(bucket))
+            return False
+        try:
+            r = s3.list_objects_v2(Bucket=bucket)
+            f = []
+            for e in r['Contents']:
+                f.append(e['Key'])
+            f.sort()
+            c = len(f)
+            logging.info("{} file(s) has been found in {}: {}"
+                         .format(c, bucket, str(f)))
+        except ClientError as e:
+            logging.error("Something went wrong when listing files in {}"
+                          .format(bucket))
+            logging.error(e)
+            return False
+        return f
+
+    def file_delete(self, bucket, filename, **kwargs):
+        s3 = self.return_client_session('s3')
+        if not self.test_if_bucket_exist(bucket):
+            logging.warning("You can't list folders from {} if it not exist"
+                            .format(bucket))
+            return False
+        try:
+            s3.delete_object(Bucket=bucket, Key=filename)
+            logging.info("{} has been deleted in {}"
+                         .format(filename, bucket))
+        except ClientError as e:
+            logging.error("Something went wrong when deleting file {} in {}"
+                          .format(filename, bucket))
+            logging.error(e)
+            return False
+        return True
+
     def folder_list(self, bucket, **kwargs):
         s3 = self.return_client_session('s3')
         # s3 = boto3.client('s3')
@@ -291,7 +330,7 @@ class PlayWithIt():
             logging.info("{} folder(s) has been found in {}: {}"
                          .format(c, bucket, str(f)))
         except ClientError as e:
-            logging.error("Something went wrong when listing folder in {}"
+            logging.error("Something went wrong when listing folders in {}"
                           .format(bucket))
             logging.error(e)
             return False
