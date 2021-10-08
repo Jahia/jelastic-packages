@@ -704,11 +704,30 @@ actions:
   proxysqlSwitchMaster:
     # Parameter:
     #   - target: galera number (1,2,3)
+    - cmd[proc, cp]: |-
+        # Check that the future master node is online
+        res=$(${globals.proxysql_cli} -BNe "select * from runtime_mysql_servers where hostname='galera_${this.target}' and hostgroup_id=2 and status='ONLINE';")
+        if [ -z "$res" ];then
+          echo "The new masterNode is not online in proxySQL configuration" >> /var/log/jelastic-packages/proxySqlSwitchMaster.log
+          exit 0
+        fi
+
     - cmd[proc]: |-
         ${globals.proxysql_cli} -e "update mysql_servers set weight=1;"
         ${globals.proxysql_cli} -e "update mysql_servers set weight=1000 where hostname='galera_${this.target}';"
         ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
+        sleep 15
+
+    - cmd[proc, cp]: |-
+        # Check that there is only a single node with a weight of 1000
+        res=$(${globals.proxysql_cli} -BNe "select * from runtime_mysql_servers where weight=1000 group by hostname;" | wc -l)
+        if [ $res -lt 1 ];then
+          echo "There is no master node with a weight of 1000 in proxysql runtime configuration" >> /var/log/jelastic-packages/proxySqlSwitchMaster.log
+          exit 0
+        elif [ $res -gt 1 ]; then
+          echo "There is more than one master node with a weight of 1000 in proxysql runtime configuration" >> /var/log/jelastic-packages/proxySqlSwitchMaster.log
+        fi
 
     - cmd[sqldb]: |-
         my_ip=$(grep $(hostname) /etc/hosts | awk '{print $1}')
