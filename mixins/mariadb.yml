@@ -303,6 +303,8 @@ actions:
                 target : ${@i.id}
             - stopGaleraNode: ${@i.id}
             - startGaleraNode: ${@i.id}
+            - sleep:
+              - milliseconds: 15000
           - else:
             - setGlobals:
                 origMasterId: ${@i.id}
@@ -372,6 +374,8 @@ actions:
                 target: ${@i.id}
             - redeployGaleraNode:
                 target: ${@i.id}
+            - sleep:
+              - milliseconds: 15000
         - else:
           - setGlobals:
               origMasterId: ${@i.id}
