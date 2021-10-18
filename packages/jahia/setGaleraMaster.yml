@@ -12,8 +12,10 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
-  proxysqlSwitchMaster:
-    target: ${settings.nodeIndex}
+  - enableFullReadOnlyOnCluster
+  - proxysqlSwitchMaster:
+        target: ${settings.nodeIndex}
+  - disableFullReadOnlyOnCluster
 
 settings:
   fields:

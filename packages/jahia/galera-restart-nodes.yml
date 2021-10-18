@@ -11,4 +11,6 @@ mixins:
   - ../../mixins/mariadb.yml
 
 onInstall:
+  - enableFullReadOnlyOnCluster
   - rollingRestartGaleraNodes
+  - disableFullReadOnlyOnCluster

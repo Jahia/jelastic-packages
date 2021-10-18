@@ -702,6 +702,8 @@ actions:
         - galeraMasterIndex: ${response.out}
 
   proxysqlSwitchMaster:
+    # !!!!!!!!!! This action is very unstable and must be used along with FRO !!!!!!!!!!!
+    # !!!!!!!!!! Will be fixed by https://jira.jahia.org/browse/PAAS-1800     !!!!!!!!!!!
     # Parameter:
     #   - target: galera number (1,2,3)
     - cmd[proc, cp]: |-
