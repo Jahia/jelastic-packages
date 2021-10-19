@@ -648,7 +648,9 @@ actions:
         configureProxysqlForSingleDBNode
 
   configureProxysqlForSingleDBNode:
-    cmd[proc]: |-
+    cmd[cp, proc]: |-
+      ${globals.proxysql_cli} -e "DELETE FROM mysql_servers WHERE hostgroup_id!=2;"
+      ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 50)"
       ${globals.proxysql_cli} -e "UPDATE mysql_galera_hostgroups SET active=0;"
       ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
       ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK;"
