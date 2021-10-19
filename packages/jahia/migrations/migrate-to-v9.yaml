@@ -132,6 +132,7 @@ actions:
       # the follwing will update or add if not present the jvmRoute property
       sed -i -n -e '/^\s*jahia.session.jvmRoute\s*=/!p' -e "\$ajahia.session.jvmRoute = $short_name" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
       # the following will update or add if not present the jvmRoute attribute
+      sudo yum install -y xmlstarlet
       xmlstarlet ed -P -L \
         -u "Server/Service/Engine/@jvmRoute" -v "$short_name" \
         -i "Server/Service/Engine[not(@jvmRoute)]" -t attr -n "jvmRoute" -v "$short_name" \
