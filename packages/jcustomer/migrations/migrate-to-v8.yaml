@@ -101,10 +101,25 @@ actions:
 
         # Get role-id
         role_id=$(curl $VAULT_CURL_APPROLE/role-id | jq -r '.data.role_id')
+        if [ "$role_id" == "null" ]; then
+          # Create the entity
+          entity_id=$(curl $VAULT_CURL_CONSTS/identity/entity -XPOST -d "{\"name\": \"$SHORTDOMAIN\",\"metadata\": {\"customer\": \"$ORGANISATION\"},\"policies\": \"paas_environment\"}" | jq -r .data.id)
 
-        # Delete lost secretid
-        old_secret_id_accessor=$(curl $VAULT_CURL_APPROLE/secret-id -XLIST | jq -r '.data.keys[0]')
-        curl $VAULT_CURL_APPROLE/secret-id-accessor/destroy -XPOST -d "{\"secret_id_accessor\":\"$old_secret_id_accessor\"}"
+          # Create approle
+          VAULT_CURL_APPROLE="$VAULT_CURL_CONSTS/auth/approle/role/$SHORTDOMAIN"
+          curl $VAULT_CURL_APPROLE -XPOST
+          role_id=$(curl $VAULT_CURL_APPROLE/role-id | jq -r .data.role_id)
+
+          # Fetch approle authmethod ID
+          approle_auth_accessor=$(curl $VAULT_CURL_CONSTS/sys/auth | jq -r '."approle/".accessor')
+
+          # Bind approle to the entity
+          approle_binding=$(curl $VAULT_CURL_CONSTS/identity/entity-alias -XPOST -d "{\"name\": \"$role_id\", \"canonical_id\":\"$entity_id\", \"mount_accessor\":\"$approle_auth_accessor\"}")
+        else
+          # Delete lost secretid
+          old_secret_id_accessor=$(curl $VAULT_CURL_APPROLE/secret-id -XLIST | jq -r '.data.keys[0]')
+          curl $VAULT_CURL_APPROLE/secret-id-accessor/destroy -XPOST -d "{\"secret_id_accessor\":\"$old_secret_id_accessor\"}"
+        fi
 
         # Create and fetch new secret id
         secret_id=$(curl $VAULT_CURL_APPROLE/secret-id -XPOST | jq -r .data.secret_id)
