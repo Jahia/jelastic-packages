@@ -87,6 +87,9 @@ actions:
       configureProxysqlForSingleDBNode
 
   installRequiredPackagesEverywhere:
+    - cmd[*]: |-
+        yumdb sync-force
+      user: root
     - installRequiredPackages:
         target: "cp, proc, bl, sqldb"
         packages: "python36 python36-pip jq"
@@ -132,7 +135,6 @@ actions:
       # the follwing will update or add if not present the jvmRoute property
       sed -i -n -e '/^\s*jahia.session.jvmRoute\s*=/!p' -e "\$ajahia.session.jvmRoute = $short_name" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
       # the following will update or add if not present the jvmRoute attribute
-      sudo yumdb sync-force
       sudo yum install -y xmlstarlet
       xmlstarlet ed -P -L \
         -u "Server/Service/Engine/@jvmRoute" -v "$short_name" \
