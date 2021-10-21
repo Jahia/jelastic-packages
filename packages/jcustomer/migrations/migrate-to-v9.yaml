@@ -1,0 +1,60 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v9
+id: migrate-jcustomer-env-v9
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/elasticsearch.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 9
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
+  - eventsUpdate
+  ### End Pre-checks
+
+
+  - removeHazelcastEnvVar        # PAAS-1779
+
+
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  removeHazelcastEnvVar:
+    - env.control.RemoveContainerEnvVars [cp]:
+      vars:
+        [UNOMI_HAZELCAST_TCPIP_MEMBERS]
+    - forEach(nodes.cp):
+        - cmd[${@i.id}]: |-
+            systemctl stop karaf
+            envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+            sed -i "/UNOMI_HAZELCAST_TCPIP_MEMBERS/d" $envfile
+            rm -rf /opt/jcustomer/jcustomer/data/cache/*
+            systemctl start karaf
+          user: root
+        - checkJcustomerHealthWhenStarting: ${@i.id}
