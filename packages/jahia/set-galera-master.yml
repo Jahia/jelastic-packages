@@ -9,6 +9,7 @@ description:
 
 
 mixins:
+  - ../../mixins/common.yml
   - ../../mixins/jahia.yml
 
 onInstall:
