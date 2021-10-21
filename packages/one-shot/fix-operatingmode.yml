@@ -1,0 +1,37 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - fix operatingMode Jahia property 
+id: jahia-fix-operatingmode-property
+
+globals:
+  jahiaProperties: "/opt/tomcat/conf/digital-factory-config/jahia/jahia.properties"
+
+onInstall:
+  - getCurrentOperatingMode
+  - fixOperatingMode
+
+actions:
+  getCurrentOperatingMode:
+    - cmd [proc]: |-
+        if ! [ -z $jahia_cfg_operatingMode ]; then
+          echo $jahia_cfg_operatingMode;
+          exit 0
+        fi
+        if grep -iqE '^operatingMode\s*=' ${globals.jahiaProperties}; then
+          echo production;
+          exit 0
+        fi
+        echo development;
+        exit 0
+    - setGlobals:
+        currentOperatingMode: ${response.out}
+
+  fixOperatingMode:
+    - cmd [cp, proc]: sed -i 's;^\s*#\s*\(operatingMode\s*=.*\);\1;' ${globals.jahiaProperties}
+    - if ("${globals.currentOperatingMode}" == "development"):
+        - env.control.AddContainerEnvVars [cp, proc]:
+          vars: {"jahia_cfg_operatingMode": "development"}
+    - else:
+        - env.control.RemoveContainerEnvVars [cp, proc]:
+          vars: ["jahia_cfg_operatingMode"]
