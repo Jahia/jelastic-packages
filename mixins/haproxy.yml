@@ -193,13 +193,3 @@ actions:
       user: root
     - env.control.AddContainerEnvVars[bl]:
       vars: {"auth_basic_enabled": "${this.enable_auth_basic}"}
-
-### Vault related actions ###
-  vaultGetRewriteRulesB64:
-    # Returns:
-    #   ${globals.rewriteRulesB64}: all the rewrite rules in JSON format, base64 encoded
-    - vaultSecretReadAllKeysB64:
-        target: proc
-        secretPath: paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/haproxy
-    - setGlobals:
-        rewriteRulesB64: ${globals.vaultSecretData}
