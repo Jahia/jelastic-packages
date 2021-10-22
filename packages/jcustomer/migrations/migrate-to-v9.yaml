@@ -24,9 +24,8 @@ onInstall:
   ### End Pre-checks
 
 
-  - removeHazelcastEnvVar        # PAAS-1779
-
-
+  - removeHazelcastEnvVar                   # PAAS-1779
+  - updateEnvFileSource: cp, es             # PAAS-1772
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -58,3 +57,11 @@ actions:
             systemctl start karaf
           user: root
         - checkJcustomerHealthWhenStarting: ${@i.id}
+        
+  updateEnvFileSource:
+    cmd[${this}]: |-
+      OLD="source /.jelenv"
+      NEW="source /etc/profile"
+      log_event=/usr/local/bin/log_event.sh
+      sed -i "s|$OLD|$NEW|" $log_event
+    user: root

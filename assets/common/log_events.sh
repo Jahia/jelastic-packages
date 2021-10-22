@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source /.jelenv
+source /etc/profile
 
 host_name=$(awk '/^hostname:/ {print $2}' /etc/datadog-agent/datadog.yaml)
 
