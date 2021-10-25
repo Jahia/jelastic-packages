@@ -122,7 +122,7 @@ actions:
               j_opts='${globals.java_opts} -Xlog:gc:file=/opt/tomcat/logs/gc.log:time,uptime,level,pid,tid,tags'
               ;;
         esac
-        sed -e '2isource /.jelenv' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
+        sed -e '2isource /etc/profile' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
     - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
     - cmd[proc]: |-

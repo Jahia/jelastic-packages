@@ -1,0 +1,66 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v10
+id: migrate-jahia-env-v10
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 10
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
+
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  updateEnvFileSource:
+    cmd[${this}]: |-
+      OLD="source /.jelenv"
+      NEW="source /etc/profile"
+      tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+      log_event=/usr/local/bin/log_event.sh
+      if [ -f $tomcat_env ]; then
+        sed -i "s|$OLD|$NEW|" $tomcat_env $log_event
+      else
+        sed -i "s|$OLD|$NEW|" $log_event
+      fi
+    user: root
