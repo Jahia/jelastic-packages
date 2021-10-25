@@ -96,45 +96,14 @@ actions:
 
           systemctl restart datadog-agent
 
-  getUnomiIPs:
-    - script: |
-        var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
-        if (resp.result != 0) return resp;
-        var ipadd = [];
-        for (var i = 0, n = resp.nodes; i < n.length; i++) {
-          var nodetype = n[i].nodeType;
-          if (nodetype == 'jcustomer') {
-            ipadd.push(n[i].address);
-          };
-        };
-        return {"result": 0,
-          "ipadd": ipadd.toString()
-        };
-    - setGlobals:
-        unomi_IPs: ${response.ipadd}
-
   updateHazelcast:
     # Parameters:
     #   - unomi_root_password_b64
-    - getUnomiIPs
-    - script: |
-        var resp = jelastic.env.control.AddContainerEnvVars('${env.envName}',
-          session,
-          nodeGroup='cp',
-          vars={'UNOMI_HAZELCAST_TCPIP_MEMBERS': '${globals.unomi_IPs}'}
-        );
-        if (resp.result != 0) return resp;
-        return {"result": 0}
     - forEach(nodes.cp):
         cmd[${@i.id}]: |-
           sed -i "/<interface>/d" $HAZELCAST_CONFIG
           sed -i "/<member>node/d" $HAZELCAST_CONFIG
           envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-          if (grep -q UNOMI_HAZELCAST_TCPIP_MEMBERS $envfile); then
-            sed 's/\(.*HAZELCAST_TCPIP_MEMBERS=\).*/\1${globals.unomi_IPs}/' -i $envfile
-          else
-            echo "export UNOMI_HAZELCAST_TCPIP_MEMBERS=${globals.unomi_IPs}" >> $envfile
-          fi
           sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
               -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
               -e '/UNOMI_ROOT_PASSWORD/d' \
