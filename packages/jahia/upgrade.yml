@@ -17,12 +17,12 @@ onInstall:
   - cmd [proc]: |-
       ## [Upgrade] - 1/2
       exit 0
-  - if ('${settings.rollingUpgrade.print()}' == ''):
+  - if ('${settings.rollingRedeploy.print()}' == ''):
       set:
-        rollingUpgrade: false
+        rollingRedeploy: false
   - else:
       set:
-        rollingUpgrade: ${settings.rollingUpgrade}
+        rollingRedeploy: ${settings.rollingRedeploy}
   - set:
       currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
       currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
@@ -41,18 +41,16 @@ onInstall:
       - set:
           targetDockerTag: ${this.currentDockerTag}
 
-  # If it is a new version of Jahia we perform an upgrade, otherwise it's a rolling redeploy
-  - if ('${settings.targetVersion}' != '${this.currentJahiaVersion}'):
-      - set:
-          upgradeJahia: true
-          useExistingVolumes: false
-  - else:
-      - set:
+  ## Redeploy Jahia nodes
+  - if (${this.rollingRedeploy}):
+      - procUpgrade:
           upgradeJahia: false
+          targetDockerTag: ${this.targetDockerTag}
           useExistingVolumes: true
-
-  ## Redeploy
-  - if (!${this.rollingUpgrade}):
+      - rollingCpUpgrade:
+          targetDockerTag: ${this.targetDockerTag}
+          useExistingVolumes: true
+  - else:
       # In case of Jahia upgrade, all jahia nodes must be stopped first
       - cmd [cp, proc]:
           - service tomcat stop
@@ -61,23 +59,14 @@ onInstall:
           currentJahiaVersion: ${this.currentJahiaVersion}
           targetJahiaVersion: ${settings.targetVersion}
       - procUpgrade:
-          upgradeJahia: ${this.upgradeJahia}
+          upgradeJahia: true
           targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: ${this.useExistingVolumes}
+          useExistingVolumes: false
       - bulkCpUpgrade:
           targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: ${this.useExistingVolumes}
-  - else:
-      - procUpgrade:
-          upgradeJahia: ${this.upgradeJahia}
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: ${this.useExistingVolumes}
-      - rollingCpUpgrade:
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: ${this.useExistingVolumes}
+          useExistingVolumes: false
 
-  ## Update Jahia version in node group data, envvar, and PAPI:
-  - if ('${settings.targetVersion.print()}' != ''):
+      ## Update Jahia version in node group data, envvar, and PAPI:
       - env.nodegroup.ApplyData[cp, proc]:
           data:
             productVersion: ${settings.targetVersion}
@@ -101,7 +90,7 @@ settings:
       caption: Docker tag suffix
       required: false
       tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
-    - name: rollingUpgrade
+    - name: rollingRedeploy
       type: toggle
       caption: Rolling redeploy ?
       value: false
