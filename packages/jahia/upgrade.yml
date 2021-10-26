@@ -23,12 +23,11 @@ onInstall:
   - else:
       setGlobals:
         rollingUpgrade: ${settings.rollingUpgrade}
-  # By default we assume it is a (rolling) redeploy only
   - setGlobals:
-      targetDockerTag: ${nodes.proc.first.version}
-      upgradeJahia: false
-      useExistingVolumes: true
-  # If a Jahia version/docker tag was passed as parameter
+      currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
+      currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
+
+  # If a Jahia version and/or a docker tag were passed as parameters
   - if ('${settings.targetVersion.print()}' != ''):
       # If a Docker tag suffix was passed we need to append it to the Jahia version
       - if ('${settings.dockerTagSuffix.print()}' == ''):
@@ -37,18 +36,27 @@ onInstall:
       - else:
           - setGlobals:
               targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
-  # If it is a new version of Jahia
-  - if ('${globals.targetDockerTag}' != '${nodes.proc.first.version}'):
+  - else:
+      # If no target version provided, we use the current Docker tag (rolling redeploy)
+      - setGlobals:
+          targetDockerTag: ${globals.currentDockerTag}
+
+  # If it is a new version of Jahia we perform an upgrade, otherwise it's a rolling redeploy
+  - if ('${settings.targetVersion}' != '${globals.currentJahiaVersion}'):
       - setGlobals:
           upgradeJahia: true
           useExistingVolumes: false
       - setVersionPropertiesValue:
-          currentJahiaVersion: ${nodes.proc.first.version}
-          targetJahiaVersion: ${globals.targetDockerTag}
+          currentJahiaVersion: ${globals.currentJahiaVersion}
+          targetJahiaVersion: ${settings.targetVersion}
+  - else:
+      - setGlobals:
+          upgradeJahia: false
+          useExistingVolumes: true
   # As a reminder, when updating the value of a global variable inside an "if" block,
   # the new value won't be taken in account if testing it inside a nested "if" block.
 
-  ## Upgrades
+  ## Redeploy
   - if (!${globals.rollingUpgrade}):
       # In case of Jahia upgrade, all jahia nodes must be stopped first
       - cmd [cp, proc]:
@@ -70,21 +78,16 @@ onInstall:
           targetDockerTag: ${globals.targetDockerTag}
           useExistingVolumes: ${globals.useExistingVolumes}
 
-  ## Post-actions
-  # Get the Jahia version, which could be different of the name of the docker image
-  # e.g.: docker image tag "7.3.3.0_PAAS-444"
-  - api [${nodes.proc.first.id}]: environment.control.GetNodeInfo
-  - setGlobals:
-      targetJahiaVersion: ${response.node.version}
-  - env.nodegroup.ApplyData[cp, proc]:
-      data:
-        productVersion: ${globals.targetJahiaVersion}
-  - env.control.AddContainerEnvVars[cp, proc]:
-      vars: {"DX_VERSION": "${globals.targetJahiaVersion}"}
-
-  - updateProductVersionInPapi:
-      version: "${globals.targetJahiaVersion}"
-      product: "dx"
+  ## Update Jahia version in node group data, envvar, and PAPI:
+  - if ('${settings.targetVersion.print()}' != ''):
+      - env.nodegroup.ApplyData[cp, proc]:
+          data:
+            productVersion: ${settings.targetVersion}
+      - env.control.AddContainerEnvVars[cp, proc]:
+          vars: {"DX_VERSION": "${settings.targetVersion}"}
+      - updateProductVersionInPapi:
+          version: "${settings.targetVersion}"
+          product: "dx"
 
 
 settings:
