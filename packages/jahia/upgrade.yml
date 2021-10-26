@@ -18,65 +18,63 @@ onInstall:
       ## [Upgrade] - 1/2
       exit 0
   - if ('${settings.rollingUpgrade.print()}' == ''):
-      setGlobals:
+      set:
         rollingUpgrade: false
   - else:
-      setGlobals:
+      set:
         rollingUpgrade: ${settings.rollingUpgrade}
-  - setGlobals:
+  - set:
       currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
       currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
 
-  # If a Jahia version and/or a docker tag were passed as parameters
+  # Determine target Docker tag from provided settings:
   - if ('${settings.targetVersion.print()}' != ''):
       # If a Docker tag suffix was passed we need to append it to the Jahia version
       - if ('${settings.dockerTagSuffix.print()}' == ''):
-          - setGlobals:
+          - set:
               targetDockerTag: ${settings.targetVersion}
       - else:
-          - setGlobals:
+          - set:
               targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
   - else:
       # If no target version provided, we use the current Docker tag (rolling redeploy)
-      - setGlobals:
-          targetDockerTag: ${globals.currentDockerTag}
+      - set:
+          targetDockerTag: ${this.currentDockerTag}
 
   # If it is a new version of Jahia we perform an upgrade, otherwise it's a rolling redeploy
-  - if ('${settings.targetVersion}' != '${globals.currentJahiaVersion}'):
-      - setGlobals:
+  - if ('${settings.targetVersion}' != '${this.currentJahiaVersion}'):
+      - set:
           upgradeJahia: true
           useExistingVolumes: false
-      - setVersionPropertiesValue:
-          currentJahiaVersion: ${globals.currentJahiaVersion}
-          targetJahiaVersion: ${settings.targetVersion}
   - else:
-      - setGlobals:
+      - set:
           upgradeJahia: false
           useExistingVolumes: true
-  # As a reminder, when updating the value of a global variable inside an "if" block,
-  # the new value won't be taken in account if testing it inside a nested "if" block.
 
   ## Redeploy
-  - if (!${globals.rollingUpgrade}):
+  - if (!${this.rollingUpgrade}):
       # In case of Jahia upgrade, all jahia nodes must be stopped first
       - cmd [cp, proc]:
           - service tomcat stop
         user: root
+      - setVersionPropertiesValue:
+          currentJahiaVersion: ${this.currentJahiaVersion}
+          targetJahiaVersion: ${settings.targetVersion}
       - procUpgrade:
-          upgradeJahia: ${globals.upgradeJahia}
-          targetDockerTag: ${globals.targetDockerTag}
-          useExistingVolumes: ${globals.useExistingVolumes}
+          upgradeJahia: ${this.upgradeJahia}
+          targetDockerTag: ${this.targetDockerTag}
+          useExistingVolumes: ${this.useExistingVolumes}
       - bulkCpUpgrade:
-          targetDockerTag: ${globals.targetDockerTag}
-          useExistingVolumes: ${globals.useExistingVolumes}
+          targetDockerTag: ${this.targetDockerTag}
+          useExistingVolumes: ${this.useExistingVolumes}
   - else:
       - procUpgrade:
-          upgradeJahia: ${globals.upgradeJahia}
-          targetDockerTag: ${globals.targetDockerTag}
-          useExistingVolumes: ${globals.useExistingVolumes}
+          upgradeJahia: ${this.upgradeJahia}
+          targetDockerTag: ${this.targetDockerTag}
+          useExistingVolumes: ${this.useExistingVolumes}
       - rollingCpUpgrade:
-          targetDockerTag: ${globals.targetDockerTag}
-          useExistingVolumes: ${globals.useExistingVolumes}
+          targetDockerTag: ${this.targetDockerTag}
+          useExistingVolumes: ${this.useExistingVolumes}
 
   ## Update Jahia version in node group data, envvar, and PAPI:
   - if ('${settings.targetVersion.print()}' != ''):
@@ -105,7 +103,7 @@ settings:
       tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
     - name: rollingUpgrade
       type: toggle
-      caption: Rolling upgrade ?
+      caption: Rolling redeploy ?
       value: false
       required: false
       tooltip: Redeploying cp nodes one at a time. Used for redeploying with the same Jahia version to run new image.
