@@ -63,7 +63,7 @@ actions:
     - cmd [${nodes.cp.first.id}]: |-
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
         awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv
-    - environment.control.ApplyNodeGroupData[cp]:
+    - environment.nodegroup.ApplyData[cp]:
         data:
           temp_unomi_root_password_b64: ${response.out}
 
@@ -178,11 +178,11 @@ actions:
         res = ""
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
-            var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+            var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
               nodeGroup='cp',
               data={'envLink': ''}
             );
-            var resp = jelastic.env.control.ApplyNodeGroupData(jahiaEnvname, session,
+            var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
               nodeGroup='proc',
               data={'envLink': ''}
             );

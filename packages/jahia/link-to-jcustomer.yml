@@ -16,7 +16,7 @@ mixins:
 
 onInstall:
   - setNGData
-  - environment.control.ApplyNodeGroupData[proc, cp]:
+  - environment.nodegroup.ApplyData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
   - getUnomiDnsAndPwd:
@@ -54,7 +54,7 @@ actions:
         envLinkToSet: ${response.envLinkToSet}
     - log: "## this DX appid will now be set to cp node(s) in the Unomi env: ${this.envLinkToSet}"
     - script: |
-        var resp = jelastic.env.control.ApplyNodeGroupData('${settings.unomienv}', session,
+        var resp = jelastic.env.nodegroup.ApplyData('${settings.unomienv}', session,
           nodeGroup='cp',
           data={'envLink': '${this.envLinkToSet}'}
         );

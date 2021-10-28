@@ -27,7 +27,7 @@ onInstall:
 
 actions:
   setNodeGroupData:
-    - environment.control.ApplyNodeGroupData [cp]:
+    - environment.nodegroup.ApplyData [cp]:
         data:
           ipsec: "${settings.ipsec_should_be}"
 

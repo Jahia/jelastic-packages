@@ -32,7 +32,7 @@ onInstall:
 
   - env.control.AddContainerEnvVars[*]:
     vars: {"UNOMI_VERSION": "${globals.targetDockerTag}"}
-  - environment.control.ApplyNodeGroupData[cp, es]:
+  - environment.nodegroup.ApplyData[cp, es]:
       data:
         productVersion: ${globals.targetDockerTag}
 

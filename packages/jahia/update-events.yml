@@ -129,7 +129,7 @@ onAfterRedeployContainer[bl]:
       # Handle RedeployContainersByGroup
       - setSudoer: ${event.params.nodeGroup}
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
-      - environment.control.ApplyNodeGroupData [bl]:
+      - environment.nodegroup.ApplyData [bl]:
           data:
             productName: haproxy
             productVersion: ${nodes.bl.first.version}
@@ -137,7 +137,7 @@ onAfterRedeployContainer[bl]:
       # Handle RedeployContainerById
       - setSudoer: ${event.params.nodeId}
       - setupDatadogAgentHaproxy: ${event.params.nodeId}
-      - environment.control.ApplyNodeGroupData [bl]:
+      - environment.nodegroup.ApplyData [bl]:
           data:
             productName: haproxy
             productVersion: ${nodes.bl.first.version}

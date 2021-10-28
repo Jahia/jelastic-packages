@@ -76,7 +76,7 @@ onInstall:
   - api [${nodes.proc.first.id}]: environment.control.GetNodeInfo
   - setGlobals:
       targetJahiaVersion: ${response.node.version}
-  - env.control.ApplyNodeGroupData[cp, proc]:
+  - env.nodegroup.ApplyData[cp, proc]:
       data:
         productVersion: ${globals.targetJahiaVersion}
   - env.control.AddContainerEnvVars[cp, proc]:

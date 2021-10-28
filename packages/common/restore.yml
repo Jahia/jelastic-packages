@@ -154,7 +154,7 @@ actions:
         - cmd[proc, cp]: |-
             sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
             rm -f /data/digital-factory-data/modules/jexperience-*.jar
-        - environment.control.ApplyNodeGroupData [proc, cp]:
+        - environment.nodegroup.ApplyData [proc, cp]:
             data:
               envLink: ""
     - cmd [cp]:
