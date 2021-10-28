@@ -191,5 +191,6 @@ actions:
         ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" "${this.new_password.toBase64()}"
         service haproxy reload
       user: root
-    - env.control.AddContainerEnvVars[bl]:
-      vars: {"auth_basic_enabled": "${this.enable_auth_basic}"}
+    - environment.control.ApplyNodeGroupData [proc, cp]:
+        # Formatting it like that is the only way I found to set a boolean and not a string (true and not "true")
+        data: "{ basicAuthEnabled: ${this.enable_auth_basic} }"

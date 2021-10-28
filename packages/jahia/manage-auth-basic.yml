@@ -27,12 +27,12 @@ settings:
   fields:
     - type: checkbox
       name: enable
-      caption: Enable auth_basic
+      caption: Enable basic auth
       value: false
     - name: login
       type: string
-      caption: Auth basic login
+      caption: Basic auth login
     - name: pwd
       type: string
       inputType: password
-      caption: Auth basic password
+      caption: Basic auth password

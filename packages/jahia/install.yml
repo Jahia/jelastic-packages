@@ -63,7 +63,6 @@ onBeforeInstall: |
         "PAPI_ENV_ID": "${settings.papiEnvId}",
         "envmode": envmode,
         "ORGANIZATION_NAME": organizationName,
-        "auth_basic_enabled": "false",
         "haproxy_cfg_timeout_server": "5m"
       },
     "distribution": {
