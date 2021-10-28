@@ -107,7 +107,7 @@ actions:
     - setSudoer: proc, cp
     - getLogEventScript: proc, cp
 
-    - environment.control.ApplyNodeGroupData [proc, cp]:
+    - environment.nodegroup.ApplyData [proc, cp]:
         data:
           productName: dx
           productVersion: ${this.jahiaVersion}
@@ -359,7 +359,7 @@ actions:
         } else {
           newEnvLink = null;
         }
-        resp = jelastic.env.control.ApplyNodeGroupData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
+        resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
         return {"result": 0, "out": envName + " removed from envLink of " + jCustomerEnv};
 
   isFullReadonlyEnabled:
