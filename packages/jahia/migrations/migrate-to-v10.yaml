@@ -30,6 +30,7 @@ onInstall:
   ### End Pre-checks
 
   - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
+  - replaceAuthBasicEnabledEnvvar                        # PAAS-1815
 
 
   ### Post-actions
@@ -64,3 +65,16 @@ actions:
         sed -i "s|$OLD|$NEW|" $log_event
       fi
     user: root
+
+  replaceAuthBasicEnabledEnvvar:
+    # Check if basic auth is enabled
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+    - if ("${response.object.auth_basic_enabled}" == "true"):
+        # Set "basicAuthEnabled" node group data
+        - environment.nodegroup.ApplyData [proc, cp]:
+            data:
+              basicAuthEnabled: true
+    # Remove "auth_basic_enabled" envvar
+    - env.control.RemoveContainerEnvVars [proc, cp]:
+        vars: ["auth_basic_enabled"]
