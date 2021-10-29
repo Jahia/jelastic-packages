@@ -1,0 +1,52 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Install workflow processes patch
+id: jahia-install-workflow-processes-patch
+description:
+  short: Jahia - Install workflow processes patch
+
+mixins:
+  - "../../mixins/common.yml"
+
+globals:
+  patchUrl: "https://devtools.jahia.com/nexus/content/groups/public/org/jahia/server/jahia-impl"
+  patchDir: "/data/jahia/tomcat/webapps/ROOT/WEB-INF/lib"
+  versionsToCheck:
+    - 7.3.7
+    - 7.3.8
+    - 8.0.2
+    - 8.0.3
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - installPatch
+
+actions:
+  installPatch:
+    - script: |-
+        const productVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+            return object.name == "proc";
+        }).pop().productVersion;
+        const version = productVersion.slice(0,5);
+        const compareVersions = "${globals.versionsToCheck.join(,)}";
+        if (! compareVersions.includes(version)) {
+          return {"result": 0, is_patch_needed: "false", out: "Jahia patch not needed for the env"};
+        }
+        return {"result": 0, is_patch_needed: "true", out: version};
+    - if ("${response.is_patch_needed}" == "true"):
+        - setGlobals:
+            jahiaVersion: ${response.out}
+        - cmd[cp, proc]: |-
+            patch_file="${globals.patchDir}/jahia-impl-${globals.jahiaVersion}.1.jar"
+            if [ -f $patch_file ]; then
+              echo "[INFO] Patch is already there. Nothing to do."
+              exit 0
+            fi
+            patch="${globals.patchUrl}/${globals.jahiaVersion}.1/jahia-impl-${globals.jahiaVersion}.1.jar"
+            rm ${globals.patchDir}/jahia-impl-${globals.jahiaVersion}.0.jar
+            curl -fLSso $patch_file $patch || exit 1
+            chmod 644 $patch_file
+        - if ("${response.out}" == ""):
+            - install:
+                jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
