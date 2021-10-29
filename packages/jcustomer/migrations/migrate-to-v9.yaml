@@ -58,7 +58,7 @@ actions:
             systemctl start karaf
           user: root
         - checkJcustomerHealthWhenStarting: ${@i.id}
-        
+
   updateEnvFileSource:
     cmd[${this}]: |-
       OLD="source /.jelenv"
