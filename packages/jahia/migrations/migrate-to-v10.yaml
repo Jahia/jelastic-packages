@@ -32,6 +32,7 @@ onInstall:
   - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
   - replaceAuthBasicEnabledEnvvar                        # PAAS-1815
   - removeHTTPHeader: bl                                 # PAAS-1805
+  - useEnvmodeEnvVar                                     # PAAS-1811
 
 
   ### Post-actions
@@ -79,7 +80,7 @@ actions:
     # Remove "auth_basic_enabled" envvar
     - env.control.RemoveContainerEnvVars [proc, cp]:
         vars: ["auth_basic_enabled"]
-    
+
   removeHTTPHeader:
     cmd[${this}]: |-
       line_to_remove='    http-response set-header Strict-Transport-Security "max-age=63072000;"'
@@ -91,3 +92,20 @@ actions:
       sed -i "/$line_to_remove/d" $haproxy_conf
       service haproxy reload
     user: root
+
+  useEnvmodeEnvVar:
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+    - if (! ${response.object.envmode.print()}):
+        - if (${nodes.sqldb.length} > 1):
+            - set:
+                envmodeValue: production
+        - else:
+            - set:
+                envmodeValue: development
+        - env.control.AddContainerEnvVars[*]:
+            vars:
+              envmode: ${this.envmodeValue}
+    - cmd[*]: |-
+        sed s/jahia_cfg_operatingMode/envmode/' -i /usr/local/bin/set_dd_tags.sh
+      user: root

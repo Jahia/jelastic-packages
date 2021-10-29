@@ -26,6 +26,7 @@ onInstall:
 
   - removeHazelcastEnvVar                   # PAAS-1779
   - updateEnvFileSource: cp, es             # PAAS-1772
+  - useEnvmodeEnvVar                        # PAAS-1811
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -65,3 +66,20 @@ actions:
       log_event=/usr/local/bin/log_event.sh
       sed -i "s|$OLD|$NEW|" $log_event
     user: root
+
+  useEnvmodeEnvVar:
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: cp
+    - if (! ${response.object.envmode.print()}):
+        - if (${nodes.es.length} > 1):
+            - set:
+                envmodeValue: production
+        - else:
+            - set:
+                envmodeValue: development
+        - env.control.AddContainerEnvVars[*]:
+            vars:
+              envmode: ${this.envmodeValue}
+    - cmd[*]: |-
+        sed s/jahia_cfg_operatingMode/envmode/' -i /usr/local/bin/set_dd_tags.sh
+      user: root
