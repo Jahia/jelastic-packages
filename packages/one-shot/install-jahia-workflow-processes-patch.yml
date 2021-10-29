@@ -11,7 +11,7 @@ mixins:
 
 globals:
   patchUrl: "https://devtools.jahia.com/nexus/content/groups/public/org/jahia/server/jahia-impl"
-  patchDir: "/data/jahia/tomcat/webapps/ROOT/WEB-INF/lib"
+  patchDir: "/opt/tomcat/webapps/ROOT/WEB-INF/lib"
   versionsToCheck:
     - 7.3.7
     - 7.3.8
