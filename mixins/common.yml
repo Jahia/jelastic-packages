@@ -500,6 +500,21 @@ actions:
           target: ${nodes.cp.first.id}
           secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/${@i}"
 
+  getBackrestAwsAccessKey:
+    # Returns:
+    #   ${globals.backrestAwsAccessKeyId}: Access key ID of backrest AWS user
+    #   ${globals.backrestAwsSecretAccessKey}: Access secret key of backrest AWS user
+    - vaultSecretReadAllKeysB64:
+        target: ${nodes.cp.first.id}
+        secretPath: "paas/envs-common/aws-backrest"
+    - script: |-
+        let vaultResponseBase64 = "${globals.vaultSecretData}";
+        let vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(vaultResponseBase64)))
+        return {"result": 0, "access_key_id": vaultResponse.access_key_id, "secret_access_key": vaultResponse.secret_access_key}
+    - setGlobals:
+        backrestAwsAccessKeyId: '${response.access_key_id}'
+        backrestAwsSecretAccessKey: '${response.secret_access_key}'
+
   muteDatadogHost:
     # Parameters:
     #  - target: target node group or id
