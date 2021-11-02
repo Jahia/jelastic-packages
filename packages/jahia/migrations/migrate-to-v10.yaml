@@ -31,6 +31,7 @@ onInstall:
 
   - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
   - replaceAuthBasicEnabledEnvvar                        # PAAS-1815
+  - removeHTTPHeader: bl                                 # PAAS-1805
 
 
   ### Post-actions
@@ -78,3 +79,15 @@ actions:
     # Remove "auth_basic_enabled" envvar
     - env.control.RemoveContainerEnvVars [proc, cp]:
         vars: ["auth_basic_enabled"]
+    
+  removeHTTPHeader:
+    cmd[${this}]: |-
+      line_to_remove='    http-response set-header Strict-Transport-Security "max-age=63072000;"'
+      haproxy_conf="/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg"
+      if ( ! grep -qPzo "$line_to_remove" $haproxy_conf ); then
+        echo "[INFO] No header to remove."
+        exit 0
+      fi
+      sed -i "/$line_to_remove/d" $haproxy_conf
+      service haproxy reload
+    user: root
