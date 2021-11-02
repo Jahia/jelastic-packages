@@ -253,7 +253,8 @@ actions:
 
     - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
         - setAwsElasticsearchConfig:
-            esVersion: ${globals.esVersion}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
             logsPath: ${globals.logsPath}
         - if ("${globals.cloudProvider_source}" == "aws"):
             - set:
@@ -262,16 +263,20 @@ actions:
             - set:
                 region: "eu-west-1"
         - setAwsSnapshotRepository:
+            backupName: ${settings.backup_name}
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
     - else:
         - setAzureElasticsearchConfig:
-            esVersion: ${globals.esVersion}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            backupName: ${settings.backup_name}
             operation: "restore"
             account: ${globals.account}
             logsPath: ${globals.logsPath}
         - setAzureSnapshotRepository:
+            backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
     - cmd[${nodes.es.first.id}]: |-

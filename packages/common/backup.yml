@@ -183,7 +183,8 @@ actions:
     # Configure backup depending on cloud provider
     - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
         - setAwsElasticsearchConfig:
-            esVersion: ${globals.esVersion}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
             logsPath: ${globals.logsPath}
         - cmd[${nodes.es.first.id}]: |-
             # Create the bucket if doesn't exists
@@ -197,16 +198,20 @@ actions:
             - set:
                 region: "eu-west-1"
         - setAwsSnapshotRepository:
+            backupName: ${settings.backup_name}
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
     - else:
         - setAzureElasticsearchConfig:
-            esVersion: ${globals.esVersion}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            backupName: ${settings.backup_name}
             operation: "backup"
             account: ${globals.account}
             logsPath: ${globals.logsPath}
         - setAzureSnapshotRepository:
+            backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
     # start backup

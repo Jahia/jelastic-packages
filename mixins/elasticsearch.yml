@@ -224,6 +224,11 @@ actions:
         checkName: elastic
 
   setAwsSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - region
+    #   - account
+    #   - logsPath
     - cmd[${nodes.es.first.id}]: |-
         curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
           {
@@ -231,26 +236,33 @@ actions:
             \"settings\": {
                 \"bucket\": \"${this.account}\",
                 \"region\": \"${this.region}\",
-                \"base_path\" : \"${settings.backup_name}/elasticsearch\"
+                \"base_path\" : \"${this.backupName}/elasticsearch\"
             }
           }" 2>>${this.logsPath} || exit 1
 
   setAzureSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - logsPath
     - cmd[${nodes.es.first.id}]: |-
         curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
           {
             \"type\": \"azure\",
             \"settings\": {
-                \"container\": \"${settings.backup_name}\",
+                \"container\": \"${this.backupName}\",
                 \"base_path\" : \"elasticsearch\"
             }
           }" 2>>${this.logsPath} || exit 1
 
   # Using an Elasticsearch keystore to add AWS keys
   setAwsElasticsearchConfig:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - logsPath
     - cmd[es]: |-
-        aws_access_key="${settings.aws_access_key}"
-        aws_secret_key="${settings.aws_secret_key}"
+        aws_access_key="${this.awsAccessKeyId}"
+        aws_secret_key="${this.awsSecretAccessKey}"
         if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
             /usr/share/elasticsearch/bin/elasticsearch-keystore create
         fi
@@ -259,7 +271,17 @@ actions:
         curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
 
   setAzureElasticsearchConfig:
-    - getAzureSecret:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    - getAzureElasticsearchSecret:
+        awsAccessKeyId: ${this.awsAccessKeyId}
+        awsSecretAccessKey: ${this.awsSecretAccessKey}
+        backupName: ${this.backupName}
         operation: "${this.operation}"
         account: ${this.account}
         logsPath: ${this.logsPath}
@@ -273,11 +295,20 @@ actions:
         printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
         curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
 
-  getAzureSecret:
+  getAzureElasticsearchSecret:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    # Returns:
+    #   ${globals.azure_secret}
     - cmd[${nodes.es.first.id}]: |-
-        export AWS_ACCESS_KEY_ID="${settings.aws_access_key}" AWS_SECRET_ACCESS_KEY="${settings.aws_secret_key}"
+        export AWS_ACCESS_KEY_ID="${this.awsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${this.awsSecretAccessKey}"
         cd jelastic_backup
-        python3 elasticsearch.py --bucketname ${this.account} --backupname ${settings.backup_name} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
+        python3 elasticsearch.py --bucketname ${this.account} --backupname ${this.backupName} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
     - cmd[${nodes.es.first.id}]: |-
         cat /tmp/azurecred
         rm -f /tmp/azurecred
