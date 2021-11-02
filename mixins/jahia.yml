@@ -764,7 +764,7 @@ actions:
 
   procUpgrade:
     # Parameters:
-    #   - upgradeJahia: true or false
+    #   - upgradeJahia: true or false (false = rolling redeploy)
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
     #   - useExistingVolumes: true or false
     - cmd [proc]:
@@ -776,20 +776,18 @@ actions:
       useExistingVolumes: ${this.useExistingVolumes}
       skipReinstall: false
       envName: ${env.envName}
-    # restore-module-state is not compatible with rolling upgrade
-    - if (!${globals.rollingUpgrade}):
+    # restore-module-state is not compatible with rolling redeploy
+    - if (${this.upgradeJahia}):
         - cmd [proc]: |-
             rm -fr /data/digital-factory-data/bundles-deployed/*
             sudo -u tomcat touch "/data/digital-factory-data/[persisted-bundles].dorestore"
             echo "restore-module-state have been asked"
             ls -l /data/digital-factory-data/*.dorestore
+            touch /data/digital-factory-data/modules/*
+            service tomcat start
           user: root
-    - cmd [proc]: |-
-        if [[ "${this.upgradeJahia}" == "true" ]]; then
-          touch /data/digital-factory-data/modules/*
-          service tomcat start
-        fi
-        sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
+    - cmd [proc]:
+        - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
       user: root
     - startupJahiaHealthCheck: ${nodes.proc.first.id}
 
