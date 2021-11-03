@@ -126,7 +126,7 @@ actions:
     - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
     - cmd[proc]: |-
-        base64 -d <<< "${settings.rootpwd.toBase64()}" > $DATA_PATH/digital-factory-data/root.pwd
+        base64 -d <<< "${this.rootpwd.toBase64()}" > $DATA_PATH/digital-factory-data/root.pwd
       user: tomcat
     - defineToolsPwd:
         toolspwd: ${this.toolspwd}
