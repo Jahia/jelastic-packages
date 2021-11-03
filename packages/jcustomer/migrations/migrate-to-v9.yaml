@@ -81,5 +81,5 @@ actions:
             vars:
               envmode: ${this.envmodeValue}
     - cmd[*]: |-
-        sed s/jahia_cfg_operatingMode/envmode/' -i /usr/local/bin/set_dd_tags.sh
+        sed 's/jahia_cfg_operatingMode/envmode/' -i /usr/local/bin/set_dd_tags.sh
       user: root
