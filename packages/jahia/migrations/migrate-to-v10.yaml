@@ -83,6 +83,7 @@ actions:
         vars: ["auth_basic_enabled"]
 
   haproxyWorkaround:
+    - setGlobalRepoRootUrl
     - cmd[bl]: |-
         newMD5="5842c10ecc4da9ba3c6554de9889d264"
         fileName="/etc/sysconfig/haproxy"
