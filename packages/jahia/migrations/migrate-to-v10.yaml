@@ -20,6 +20,7 @@ onInstall:
   - checkEnvVersion: ${globals.version}
   - checkJahiaHealth: "cp, proc"
   - checkJahiaDatadogCustomChecks: "cp, proc"
+  - haproxyWorkaround                                    # PAAS-1836, have to fix envs before checks
   - checkHaproxyHealth: bl
   - checkHaproxyDatadogCustomChecks: bl
   - checkMariadbHealth: sqldb
@@ -31,7 +32,6 @@ onInstall:
 
   - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
   - replaceAuthBasicEnabledEnvvar                        # PAAS-1815
-  - haproxyWorkaround                                    # PAAS-1836
   - removeHTTPHeader: bl                                 # PAAS-1805
   - useEnvmodeEnvVar                                     # PAAS-1811
 
@@ -90,6 +90,7 @@ actions:
           curl -fLSso $fileName ${globals.repoRootUrl}/packages/jahia/migrations/v10_assets/haproxy-sysconfig || exit 1
           chown haproxy:haproxy $fileName
         fi
+        service haproxy status && service haproxy reload || service haproxy start
       user: root
 
   removeHTTPHeader:
