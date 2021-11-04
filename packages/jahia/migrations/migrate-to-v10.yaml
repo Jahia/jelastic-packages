@@ -31,6 +31,7 @@ onInstall:
 
   - updateEnvFileSource: cp, proc, bl, sqldb             # PAAS-1772
   - replaceAuthBasicEnabledEnvvar                        # PAAS-1815
+  - haproxyWorkaround                                    # PAAS-1836
   - removeHTTPHeader: bl                                 # PAAS-1805
   - useEnvmodeEnvVar                                     # PAAS-1811
 
@@ -80,6 +81,16 @@ actions:
     # Remove "auth_basic_enabled" envvar
     - env.control.RemoveContainerEnvVars [proc, cp]:
         vars: ["auth_basic_enabled"]
+
+  haproxyWorkaround:
+    - cmd[bl]: |-
+        newMD5="5842c10ecc4da9ba3c6554de9889d264"
+        fileName="/etc/sysconfig/haproxy"
+        if ! (echo "$newMD5 $fileName" | md5sum -c --status); then
+          curl -fLSso $fileName ${globals.repoRootUrl}/packages/jahia/migrations/v10_assets/haproxy-sysconfig || exit 1
+          chown haproxy:haproxy $fileName
+        fi
+      user: root
 
   removeHTTPHeader:
     cmd[${this}]: |-
