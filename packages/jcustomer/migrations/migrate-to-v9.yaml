@@ -70,7 +70,7 @@ actions:
   useEnvmodeEnvVar:
     - api: env.control.GetContainerEnvVarsByGroup
       nodeGroup: cp
-    - if (! ${response.object.envmode.print()}):
+    - if (! "${response.object.envmode.print()}"):
         - if (${nodes.es.length} > 1):
             - set:
                 envmodeValue: production

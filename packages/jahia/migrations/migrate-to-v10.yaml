@@ -107,7 +107,7 @@ actions:
   useEnvmodeEnvVar:
     - api: env.control.GetContainerEnvVarsByGroup
       nodeGroup: proc
-    - if (! ${response.object.envmode.print()}):
+    - if (! "${response.object.envmode.print()}"):
         - if (${nodes.sqldb.length} > 1):
             - set:
                 envmodeValue: production
