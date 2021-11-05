@@ -316,9 +316,10 @@ onBeforeDelete:
       target: ${nodes.proc.first.id}
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
-  - muteDatadogHost:
-      target: "*"
-      duration: 2880 # 48h
   - deleteEnvLink
+  - if ("${env.status}" == 1):
+      - muteDatadogHost:
+          target: "*"
+          duration: 2880 # 48h
   - deleteEnvironment
   - removeAllSecrets

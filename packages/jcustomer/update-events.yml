@@ -110,9 +110,10 @@ onBeforeDelete:
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
   - deleteEnvLink
-  - muteDatadogHost:
-      target: "*"
-      duration: 2880 # 48h
+  - if ("${env.status}" == 1):
+      - muteDatadogHost:
+          target: "*"
+          duration: 2880 # 48h
   - deleteEnvironment
   - removeAllSecrets
 
