@@ -1,0 +1,204 @@
+---
+type: update
+version: 1.5.2
+name: start nodes
+logo: ../../assets/common/jahia-logo-70x70.png
+id: start-nodes
+description:
+  short: Jahia Cloud - start nodes
+  text: start nodes provided as parameter
+
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+  - ../../mixins/elasticsearch.yml
+
+globals:
+  output: ""
+
+onInstall:
+  - getNodesAsDict: ${settings.nodesToStart}
+  - getNodesAsList: ${settings.nodesToStart}
+
+  - if (nodes.proc):  # Jahia
+    - if (globals.nodesDict.sqldb): # Database
+        - startNode: ${globals.nodesDict.sqldb[0]}
+        - callCheckMariadbHealthAction: ${globals.nodesDict.sqldb[0]}
+        - if (nodes.sqldb.length > 1):
+            callCheckGaleraClusterHealthAction
+        - else:
+            forEach(nodes.cp):
+              if ( ! ${globals.nodesDict.cp.contains([@i.id])}): # No idea why we have to use [] instead of ${} here. It's the way it works
+                startJahia: ${@i.id}
+                callStartupJahiaHealthCheckAction: ${@i.id}
+
+    - if (globals.nodesDict.bl): # Haproxy
+        startHaproxyNode: ${globals.nodesDict.bl[0]}
+
+    - if (globals.nodesDict.proc): # Processing
+        - startNode: ${globals.nodesDict.proc[0]}
+        - callAddProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}
+        -  callStartupJahiaHealthCheckAction: ${globals.nodesDict.proc[0]}
+
+    - if (globals.nodesDict.cp): # Browsing(s)
+        forEach (globals.nodesDict.cp):
+          - startNode: ${@i}
+          - callAddBrowsingNodeFromHaproxyAction: ${@i}
+          - callStartupJahiaHealthCheckAction: ${@i}
+
+  - else: # Jcustomer
+    - if (globals.nodesDict.es): # Elasticsearch
+        - startNode: ${globals.nodesDict.es[0]}
+        - if (nodes.es.length > 1): # Cluster
+            setESShardAllocationAndFlush: ${globals.nodesDict.es[0]}
+        - callCheckElasticsearchStatusAction: ${globals.nodesDict.es[0]}
+
+    - if (globals.nodesDict.cp): # jCustomer(s)
+        forEach (globals.nodesDict.cp):
+          - startNode: ${@i}
+          - callCheckJcustomerHealthWhenStartingAction: ${@i}
+
+  - callunmuteDatadogHostAction
+
+  - return:
+      type: success
+      message: ${globals.output}
+
+actions:
+  getNodesAsDict:
+    script: |-
+      resp = {"result": 0}
+      resp.onAfterReturn = {
+        setGlobals: {
+          nodesDict: ${this}
+        }
+      }
+      return resp
+
+  getNodesAsList:
+    script: |-
+      nodes = ${this}
+      nodesIds = []
+      for (nodeGroup in nodes) {
+        nodesIds = nodesIds.concat(nodes[nodeGroup])
+      }
+      resp = {"result": 0}
+      resp.onAfterReturn = {
+        setGlobals: {
+          nodesList: nodesIds
+        }
+      }
+      return resp
+
+  appendActionLog:
+    - setGlobals:
+        output: "${globals.output}\n${this}"
+
+  startNode:
+    - appendActionLog: "starting node ${this}"
+    - if (! ${settings.dryRun}):
+        env.control.StartNode[${this}]:
+          envName: ${env.envName}
+    - appendActionLog: "Sending start event to datadog for node ${this}"
+    - if (! ${settings.dryRun}):
+        logEvent:
+          target: ${this}
+          title: "Node ${this} is going to be started"
+          text: "Node ${this} is going to be started"
+
+  startHaproxyNode:
+    - appendActionLog: "Starting haproxy on node ${this}"
+    - startNode: ${this}
+    - if (! ${settings.dryRun}):
+        # Make sure haproxy is running
+        - cmd[${this}]: pgrep haproxy
+        - if ("${response.out}" == ""):
+            - appendActionLog: "[ERROR] Haproxy process is not running on node ${this}"
+            - return:
+              type: error
+              message: ${globals.output}
+
+  callunmuteDatadogHostAction:
+    - appendActionLog: "Unmuting nodes ${globals.nodesList.join(,)}"
+    - if (! ${settings.dryRun}):
+        unmuteDatadogHost:
+          target: ${globals.nodesList.join(,)}
+
+  callAddProcNodeFromHaproxyAction:
+    - appendActionLog: "Adding processing ${this} from haproxy pool"
+    - if (! ${settings.dryRun}):
+        addProcNodeToHaproxy:
+          reload: true
+
+  callAddBrowsingNodeFromHaproxyAction:
+    - appendActionLog: "Adding browsing ${this} from haproxy pool"
+    - forEach(nodes.cp):
+        if (${@i.id} == ${this}):
+          if (! ${settings.dryRun}):
+            addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
+  callStartupJahiaHealthCheckAction:
+    - appendActionLog: "Checking jahia health on node ${this}"
+    - if (! ${settings.dryRun}):
+        - appendActionLog: "Checking galera cluster health on node ${this}"
+        - if (! ${settings.dryRun}):
+            startupJahiaHealthCheck: ${this}
+
+  callCheckGaleraClusterHealthAction:
+    - appendActionLog: "Checking galera cluster health on cluster nodes"
+    - if (! ${settings.dryRun}):
+        checkGaleraClusterHealth: sqldb
+
+
+  callCheckMariadbHealthAction:
+    - appendActionLog: "Checking mariadb health on node ${this}"
+    - if (! ${settings.dryRun}):
+        checkMariadbHealth:
+          target: ${this}
+          duration: 30
+
+  setESShardAllocationAndFlush:
+    - appendActionLog: "Set shard allocation to 'primaries' and force ES flush on node ${this}"
+    - if (! ${settings.dryRun}):
+        - setShardAllocation:
+            target: ${this}
+            allocation: "null"
+
+  startJahia:
+    - appendActionLog: "Starting tomcat on node ${this}"
+    - if (! ${settings.dryRun}):
+        cmd[${this}]: |-
+          service tomcat start
+        user: root
+
+  callCheckElasticsearchStatusAction:
+    - appendActionLog: "Checking elasticsearch cluster status"
+    - if (! ${settings.dryRun}):
+        checkEsClusterStatus
+
+  callCheckJcustomerHealthWhenStartingAction:
+    - appendActionLog: "Checking jCustomer health on node ${this}"
+    - if (! ${settings.dryRun}):
+        checkJcustomerHealthWhenStarting: ${this}
+
+settings:
+  fields:
+    - name: nodesTostart
+      type: string
+      caption: |-
+        nodes id to stop with the folling format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
+      required: true
+    - name: dryRun
+      type: checkbox
+      caption: Enable dry run. Actions list is returned at the end of the package
+      default: false
+      required: false
