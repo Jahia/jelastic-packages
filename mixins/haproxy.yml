@@ -106,7 +106,10 @@ actions:
   addProcNodeToHaproxy:
     - log: "Adding node ${nodes.proc.first.id} to HAProxy"
     - cmd[bl]: |-
-        sed -i "/^backend proc$/a\ \ \ \ server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        grep -q "${env.appid}-${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        if [ $? -ne 0 ]; then
+          sed -i "/^backend proc$/a\ \ \ \ server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        fi
     - if ('${this.reload.print()}' == 'true'):
         - cmd [bl]: sudo service haproxy reload
 

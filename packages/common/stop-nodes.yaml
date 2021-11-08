@@ -34,7 +34,7 @@ onInstall:
     - if (globals.nodesDict.cp): # Browsing(s)
         forEach (globals.nodesDict.cp):
           - callRemoveBrowsingNodeFromHaproxyAction: ${@i}
-          - callStopJahiaAction: ${@i.id}
+          - callStopJahiaAction: ${@i}
 
     - if (globals.nodesDict.bl): # Haproxy
         stopHaproxyService: ${globals.nodesDict.bl[0]}
