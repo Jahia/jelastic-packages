@@ -26,6 +26,7 @@ actions:
     # We are not using Jelastic actions to fetch the rewrite rules on Vault because it doesn't work when
     # the secret data is too big (Jelastic cannot create the global variable and therefore it fails)
     #####################
+    - getVaultData
     - cmd [bl]: |-
         # Backup current rule files dir
         mkdir -p ${globals.backup_rules_dir} ${globals.temp_rules_dir}
@@ -34,9 +35,9 @@ actions:
         fi
 
         # Connect to Vault and check if rules exist
-        VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data '{"role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'"}' | jq -r .auth.client_token)
-        VAULT_SECRET_PATH="paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/haproxy"
-        rules_sets=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_CLUSTER_URL/v1/kv/data/$VAULT_SECRET_PATH | jq -e .data.data)
+        VAULT_TOKEN=$(curl -s -XPOST ${globals.vaultClusterUrl}/v1/auth/approle/login --data '{"role_id": "${globals.vaultRoleId}", "secret_id": "${globals.vaultSecretId}"}' | jq -r .auth.client_token)
+        VAULT_SECRET_PATH="paas/customers/${globals.organizationName}/paas_${env.shortdomain}/haproxy"
+        rules_sets=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" ${globals.vaultClusterUrl}/v1/kv/data/$VAULT_SECRET_PATH | jq -e .data.data)
         if [ $? -ne 0 ]; then
           echo "Failed to fetch secret" >&2
           exit 0

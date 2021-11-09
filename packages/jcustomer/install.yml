@@ -33,7 +33,6 @@ mixins:
 onBeforeInstall: |
   var unomiVersion = '${settings.productVersion}';
   var envmode = ${settings.esNodeCount} > 1 ? 'production' : 'development';
-  var organizationName = "${user.email}".split('@')[0];
 
   var resp = {
     result: 0,
@@ -72,13 +71,6 @@ onBeforeInstall: |
       _PROVIDE: 'elasticsearch',
       ES_VERSION: esVersion,
       envmode: envmode,
-      ORGANIZATION_NAME: organizationName,
-      VAULT_ROLE_ID: "${settings.vaultRoleId}",
-      VAULT_SECRET_ID: "${settings.vaultSecretId}",
-      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}",
-      PAPI_HOSTNAME: "${settings.papiHostname}",
-      PAPI_API_VERSION: "${settings.papiApiVersion}",
-      PAPI_ENV_ID: "${settings.papiEnvId}"
     },
     "volumes": [
       "/var/lib/elasticsearch"
@@ -118,13 +110,6 @@ onBeforeInstall: |
       _PROVIDE: 'unomi',
       ES_VERSION: esVersion,
       envmode: envmode,
-      ORGANIZATION_NAME: organizationName,
-      VAULT_ROLE_ID: "${settings.vaultRoleId}",
-      VAULT_SECRET_ID: "${settings.vaultSecretId}",
-      VAULT_CLUSTER_URL: "${settings.vaultClusterUrl}",
-      PAPI_HOSTNAME: "${settings.papiHostname}",
-      PAPI_API_VERSION: "${settings.papiApiVersion}",
-      PAPI_ENV_ID: "${settings.papiEnvId}"
     },
     "distribution": {
         "mode": "STRICT",
@@ -178,6 +163,13 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp
+  - addEnvMetadataToNodeGroup:
+      vaultRoleId: ${settings.vaultRoleId}
+      vaultSecretId: ${settings.vaultSecretId}
+      vaultClusterUrl: ${settings.vaultClusterUrl}
+      papiHostname: ${settings.papiHostname}
+      papiApiVersion: ${settings.papiApiVersion}
+      papiEnvId: ${settings.papiEnvId}
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId

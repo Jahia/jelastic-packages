@@ -556,21 +556,26 @@ actions:
       user: root
 
 
-  getPapiToken:
+  getPapiInfoAll:
+    - getVaultData
     - vaultSecretReadKeyB64:
         target: ${nodes.cp.first.id}
         secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.envName}/papi"
         secretKey: "token"
     - setGlobals:
         papiToken: '${globals.vaultSecretData.fromBase64()}'
+    - getPapiData
 
   updateEnvStatusInPapi:
     # Parameters:
     #  - status: stopped, running, creating
     - if ("${globals.papiToken.print()}" == ""):
-        getPapiToken
+        getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
         papi.py -X PUT -d '{"status": "${this.status}"}' paas-environment/$PAPI_ENV_ID
 
 
@@ -579,17 +584,23 @@ actions:
     #  - product: dx, unomi
     #  - version: product verion
     - if ("${globals.papiToken.print()}" == ""):
-        getPapiToken
+        getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
         version=$(echo "${this.product}_${this.version}" | tr -s '.' '-')
         papi.py -X PUT -d "{\"paas_product_version_id\": \"$version\"}" paas-environment/$PAPI_ENV_ID
 
   setEnvironmentAppId:
     - if ("${globals.papiToken.print()}" == ""):
-        getPapiToken
+        getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
         papi.py -X PUT -d '{"jelastic_appid": "${env.appid}"}' paas-environment/$PAPI_ENV_ID
 
   deleteEnvironment:
@@ -600,3 +611,61 @@ actions:
         papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
         papi.py -X DELETE paas-environment/$PAPI_ENV_ID
         papi.py -X DELETE papier/$papier_id
+
+  addEnvMetadataToNodeGroup:
+    - cmd[cp]: echo "${user.email}" | cut -d'@' -f1
+    - set:
+        organizationName: ${response.out}
+    - environment.nodegroup.ApplyData [cp]:
+        data:
+          ORGANIZATION_NAME: ${this.organizationName}
+          VAULT_ROLE_ID: ${this.vaultRoleId}
+          VAULT_SECRET_ID: ${this.vaultSecretId}
+          VAULT_CLUSTER_URL: ${this.vaultClusterUrl}
+          PAPI_HOSTNAME: ${this.papiHostname}
+          PAPI_API_VERSION: ${this.papiApiVersion}
+          PAPI_ENV_ID: ${this.papiEnvId}
+
+  getVaultData:
+    - script: |
+        const envName = "${env.envName}";
+        orgName = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().ORGANIZATION_NAME;
+        vaultUrl = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_CLUSTER_URL;
+        roleId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_ROLE_ID;
+        secretId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_SECRET_ID;
+        return {
+          'result': 0,
+          'org': orgName,
+          'vault_url': vaultUrl,
+          'role_id': roleId,
+          'secret_id': secretId
+        };
+    - setGlobals:
+        organizationName: ${response.org}
+        vaultClusterUrl: ${response.vault_url}
+        vaultRoleId: ${response.role_id}
+        vaultSecretId: ${response.secret_id}
+
+  getPapiData:
+    - script: |
+        const envName = "${env.envName}";
+        papiEnvId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_ENV_ID;
+        papiHostname = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_HOSTNAME;
+        papiApiVersion = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_API_VERSION;
+        return {
+          'result': 0,
+          'papi_env_id': papiEnvId,
+          'papi_hostname': papiHostname,
+          'papi_api_version': papiApiVersion
+        };
+    - setGlobals:
+        papiApiVersion: ${response.papi_api_version}
+        papiEnvId: ${response.papi_env_id}
+        papiHostname: ${response.papi_url}
