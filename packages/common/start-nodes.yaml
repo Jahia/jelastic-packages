@@ -164,7 +164,7 @@ actions:
     - if (! ${settings.dryRun}):
         checkMariadbHealth:
           target: ${this}
-          duration: 30
+          maxDuration: 30
 
   setESShardAllocationAndFlush:
     - appendActionLog: "Set shard allocation to 'primaries' and force ES flush on node ${this}"

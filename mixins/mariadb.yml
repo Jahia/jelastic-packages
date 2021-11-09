@@ -138,12 +138,27 @@ actions:
             message: "An error occurred when installing datadog agent on a mariadb node."
 
   checkMariadbHealth:
-    - cmd [${this}]: |-
-        if ! service mysql status > /dev/null; then
-          echo "[ERROR] Mariadb service is not running, exiting" 1>&2 && exit 1
-        fi
-        if ! mysqladmin -s processlist 1>/dev/null; then
-          echo "[ERROR] Can't connect to mysql instance, exiting" 1>&2 && exit 1
+    # Parameters:
+    #   target: target node
+    #   maxDuration (optional): will retry every 5 sec until max duration value is reached. Default is 0 (single check). Max duration unit is seconds
+    - cmd [${this.target}]: |-
+        i=0
+        timeout=${this.maxDuration:0}
+        MYSQL_IS_RUNNING=0
+        while [ $MYSQL_IS_RUNNING -eq 0 ] || [ $i -lt $timeout ]; do
+          if service mysql status > /dev/null; then
+            if mysqladmin -s processlist 1>/dev/null; then
+              MYSQL_IS_RUNNING=1
+            else
+              echo "[ERROR] Can't connect to mysql instance, exiting" 1>&2
+            fi
+          else
+            echo "[ERROR] Mariadb service is not running, exiting" 1>&2
+          fi
+          i=$((i + 5))
+        done
+        if [ $MYSQL_IS_RUNNING -eq 0]; then
+          exit 1
         fi
       user: root
 

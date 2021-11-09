@@ -23,7 +23,8 @@ onInstall:
   - haproxyWorkaround                                    # PAAS-1836, have to fix envs before checks
   - checkHaproxyHealth: bl
   - checkHaproxyDatadogCustomChecks: bl
-  - checkMariadbHealth: sqldb
+  - checkMariadbHealth:
+      target: sqldb
   - checkGaleraClusterHealth: sqldb
   - checkMariadbDatadogCustomChecks: sqldb
   - eventsUpdate
