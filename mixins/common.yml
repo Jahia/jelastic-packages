@@ -600,3 +600,17 @@ actions:
         papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
         papi.py -X DELETE paas-environment/$PAPI_ENV_ID
         papi.py -X DELETE papier/$papier_id
+
+  addEnvMetadataToNodeGroup:
+    - cmd[cp]: echo "${user.email}" | cut -d'@' -f1
+    - set:
+        organizationName: ${response.out}
+    - environment.nodegroup.ApplyData [cp]:
+        data:
+          ORGANIZATION_NAME: ${this.organizationName}
+          VAULT_ROLE_ID: ${this.vaultRoleId}
+          VAULT_SECRET_ID: ${this.vaultSecretId}
+          VAULT_CLUSTER_URL: ${this.vaultClusterUrl}
+          PAPI_HOSTNAME: ${this.papiHostname}
+          PAPI_API_VERSION: ${this.papiApiVersion}
+          PAPI_ENV_ID: ${this.papiEnvId}
