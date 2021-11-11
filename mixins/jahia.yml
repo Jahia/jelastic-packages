@@ -699,13 +699,11 @@ actions:
     # Return:
     #   - galeraMasterIndex
     - cmd[proc]: |-
-        ${globals.proxysql_cli} -BNe "select DISTINCT hostname from mysql_servers where weight = 1000"
+        ${globals.proxysql_cli} -BNe "select DISTINCT hostname from runtime_mysql_servers where weight = 1000"
     - setGlobals:
         - galeraMasterIndex: ${response.out}
 
   proxysqlSwitchMaster:
-    # !!!!!!!!!! This action is very unstable and must be used along with FRO !!!!!!!!!!!
-    # !!!!!!!!!! Will be fixed by https://jira.jahia.org/browse/PAAS-1800     !!!!!!!!!!!
     # Parameter:
     #   - target: galera number (1,2,3)
     - cmd[proc, cp]: |-
@@ -716,8 +714,10 @@ actions:
           exit 0
         fi
 
-    - cmd[proc]: |-
-        ${globals.proxysql_cli} -e "update mysql_servers set weight=1;"
+    - cmd[proc, cp]: |-
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_1',3306, 50, 1);"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_2',3306, 50, 1);"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 50, 1);"
         ${globals.proxysql_cli} -e "update mysql_servers set weight=1000 where hostname='galera_${this.target}';"
         ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
@@ -728,9 +728,10 @@ actions:
         res=$(${globals.proxysql_cli} -BNe "select * from runtime_mysql_servers where weight=1000 group by hostname;" | wc -l)
         if [ $res -lt 1 ];then
           echo "There is no master node with a weight of 1000 in proxysql runtime configuration" >> /var/log/jelastic-packages/proxySqlSwitchMaster.log
-          exit 0
+          exit 1
         elif [ $res -gt 1 ]; then
           echo "There is more than one master node with a weight of 1000 in proxysql runtime configuration" >> /var/log/jelastic-packages/proxySqlSwitchMaster.log
+          exit 1
         fi
 
     - cmd[sqldb]: |-
@@ -739,7 +740,7 @@ actions:
         if [[ "$my_node_name_index" == "galera_${this.target}" ]]; then
           exit 0
         fi
-        timeout=330 # wait for 3min30
+        timeout=600 # wait for 600s
         tries=0
         request="select COUNT(*) from INFORMATION_SCHEMA.PROCESSLIST where db='jahia' and user like 'jahia-db-%'"
         while [[ $(mysql -BNe "$request") -gt 0 ]]; do
