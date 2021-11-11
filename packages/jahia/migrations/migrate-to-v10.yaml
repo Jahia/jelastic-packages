@@ -126,8 +126,17 @@ actions:
 
   moveEnvMetadataToNodeGroup:
     - getEnvData
-    - updateNodeGroupData: cp
-    - removeEnvVars: bl, cp, proc, sqldb
+    - if ("${response.is_update_needed}" == "true"):
+        - setGlobals:
+            organizationName: ${response.org}
+            vaultClusterUrl: ${response.vault_url}
+            vaultRoleId: ${response.role_id}
+            vaultSecretId: ${response.secret_id}
+            papiEnvId: ${response.papi_env_id}
+            papiHostname: ${response.papi_hostname}
+            papiApiVersion: ${response.papi_api_version}
+        - updateNodeGroupData: cp
+        - removeEnvVars: bl, cp, proc, sqldb
 
   getEnvData:
     - script: |
@@ -141,24 +150,21 @@ actions:
         const papiHostname = container_env_vars.object.PAPI_HOSTNAME;
         const papiApiVersion = container_env_vars.object.PAPI_API_VERSION;
 
-        return {
-          'result': 0,
-          'org': orgName,
-          'vault_url': vaultUrl,
-          'role_id': roleId,
-          'secret_id': secretId,
-          'papi_env_id': papiEnvId,
-          'papi_hostname': papiHostname,
-          'papi_api_version': papiApiVersion
-        };
-    - setGlobals:
-        organizationName: ${response.org}
-        vaultClusterUrl: ${response.vault_url}
-        vaultRoleId: ${response.role_id}
-        vaultSecretId: ${response.secret_id}
-        papiEnvId: ${response.papi_env_id}
-        papiHostname: ${response.papi_hostname}
-        papiApiVersion: ${response.papi_api_version}
+        if (! (orgName && vaultUrl && roleId && secretId && papiEnvId && papiHostname && papiApiVersion)) {
+          return {'result': 0, 'is_update_needed': "false"};
+        } else {
+          return {
+            'result': 0,
+            'is_update_needed': "true",
+            'org': orgName,
+            'vault_url': vaultUrl,
+            'role_id': roleId,
+            'secret_id': secretId,
+            'papi_env_id': papiEnvId,
+            'papi_hostname': papiHostname,
+            'papi_api_version': papiApiVersion
+          };
+        }
 
   updateNodeGroupData:
     - environment.nodegroup.ApplyData [${this}]:
@@ -180,5 +186,19 @@ actions:
             "VAULT_CLUSTER_URL",
             "PAPI_HOSTNAME",
             "PAPI_API_VERSION",
-            "PAPI_ENV_ID"
+            "PAPI_ENV_ID",
+            "GALERA_ENV_ORGANIZATION_NAME",
+            "GALERA_ENV_VAULT_ROLE_ID",
+            "GALERA_ENV_VAULT_SECRET_ID",
+            "GALERA_ENV_VAULT_CLUSTER_URL",
+            "GALERA_ENV_PAPI_HOSTNAME",
+            "GALERA_ENV_PAPI_API_VERSION",
+            "GALERA_ENV_PAPI_ENV_ID",
+            "GALERA_ORGANIZATION_NAME",
+            "GALERA_VAULT_ROLE_ID",
+            "GALERA_VAULT_SECRET_ID",
+            "GALERA_VAULT_CLUSTER_URL",
+            "GALERA_PAPI_HOSTNAME",
+            "GALERA_PAPI_API_VERSION",
+            "GALERA_PAPI_ENV_ID"
         ]

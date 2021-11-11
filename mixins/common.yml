@@ -668,4 +668,4 @@ actions:
     - setGlobals:
         papiApiVersion: ${response.papi_api_version}
         papiEnvId: ${response.papi_env_id}
-        papiHostname: ${response.papi_url}
+        papiHostname: ${response.papi_hostname}
