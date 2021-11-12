@@ -337,175 +337,143 @@ actions:
   # Vault actions   #
   ###################
   vaultAppRoleLogin:
-    # Parameters:
-    #   - this: target node group or id
     # Returns:
     #   ${globals.vaultToken}
     - set:
         generateNewToken: true
-    - if ("${globals.vaultToken.print()}" != ""):
-        - cmd [${this}}]: |-
-            curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/auth/token/lookup-self \
-              | jq -er .data &>/dev/null
-            if [ $? -ne 0 ]; then
-              echo "Token is not valid, it needs to be renewed"
-            fi
-        - if ("${response.out}" == ""):
-            set:
-              generateNewToken: false
+    - script: |
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        vaultToken = "${globals.vaultToken}";
+        httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/auth/token/lookup-self");
+        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(httpGet).getStatusLine().getStatusCode();
+        if (resp != 200) {
+          return {"result": 0, out: "Token is not valid, it needs to be renewed" };
+        }
+          return {"result": 0, out: ""};
+    - if ("${response.out}" == ""):
+        set:
+          generateNewToken: false
     - if ("${this.generateNewToken}" == "true"):
-        - cmd [${this}]: |-
-            payloadfile=$(mktemp)
-            cat > $payloadfile <<END
-            {
-              "role_id": "$VAULT_ROLE_ID",
-              "secret_id": "$VAULT_SECRET_ID"
+        - script: |
+            import org.apache.http.client.methods.HttpPost;
+            import org.apache.http.impl.client.HttpClients;
+            import org.apache.http.util.EntityUtils;
+            import org.apache.http.entity.StringEntity;
+            vaultRoleId = "${globals.vaultRoleId}";
+            vaultSecretId = "${globals.vaultSecretId}";
+            httpPost = new HttpPost("${globals.vaultClusterUrl}/v1/auth/approle/login");
+            json = toJSON({
+                  "role_id": vaultRoleId,
+                  "secret_id": vaultSecretId
+                  }
+             );
+            stringEntity = new StringEntity(json);
+            httpPost.setEntity(stringEntity);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(httpPost);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't generate vault token with appRole login" };
             }
-            END
-            VAULT_TOKEN=$(curl -s -XPOST $VAULT_CLUSTER_URL/v1/auth/approle/login --data @$payloadfile | jq -er .auth.client_token)
-            rm -f $payloadfile
-            if [ $? -ne 0 ]; then
-              echo "[ERROR] Can't generate vault token with appRole login (VAULT_TOKEN=$VAULT_TOKEN)" >&2
-              exit 1
-            fi
-            echo $VAULT_TOKEN
+            data = JSON.parse(EntityUtils.toString(resp.getEntity()));
+            vaultToken = data["auth"]["client_token"];
+            return {"result": 0, out: vaultToken };
         - setGlobals:
             vaultToken: ${response.out}
+            
 
   vaultSecretReadAllKeysB64:
     # Parameters:
-    #   - target: target node group or id
     #   - secretPath: path (and name) of the secret to fetch
     # Returns:
     #   ${globals.vaultSecretData}: A JSON string with all key and data for the specified secret, base64 encoded
-    - vaultAppRoleLogin: ${this.target}
-    - cmd [${this.target}]: |-
-        secret_data=$(mktemp)
-        curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
-          | jq -cre ".data.data" \
-          > $secret_data
-        if [ $? -ne 0 ]; then
-          echo "[ERROR] Can't read secret ${this.secretPath}" >&2
-          cat $secret_data >&2
-          rm -f $secret_data
-          exit 1
-        fi
-        cat $secret_data | base64 -w 0
-        rm -f $secret_data
+    - vaultAppRoleLogin
+    - script: |
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import java.util.Base64;
+        vaultToken = "${globals.vaultToken}";
+        httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
+        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(httpGet);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't read secret ${this.secretPath}" };
+        }
+        data = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        secrets = java.lang.String(data["data"]["data"]);
+        secretsB64 = Base64.getEncoder().encodeToString(secrets.getBytes());
+        return {"result": 0, out: secretsB64 };
     - setGlobals:
         vaultSecretData: ${response.out}
 
   vaultSecretReadKeyB64:
     # Parameters:
-    #   - target: target node group or id
     #   - secretPath: path (and name) of the secret to fetch
     #   - secretKey: the secret's key
     # Returns:
     #   ${globals.vaultSecretData}: the specified secret's data, base64 encoded
-    - vaultAppRoleLogin: ${this.target}
-    - cmd [${this.target}]: |-
-        secret_data=$(mktemp)
-        curl -s -H "X-Vault-Token: ${globals.vaultToken}" $VAULT_CLUSTER_URL/v1/kv/data/${this.secretPath} \
-          | jq -er ".data.data.\"${this.secretKey}\"" | tr -d '\n' | tr -d '\r' \
-          > $secret_data
-        if [ $? -ne 0 ]; then
-          echo "[ERROR] Can't read secret ${this.secretPath}" >&2
-          cat $secret_data >&2
-          rm -f $secret_data
-          exit 1
-        fi
-        cat $secret_data | base64 -w 0
-        rm -f $secret_data
+    - vaultAppRoleLogin
+    - script: |
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import java.util.Base64;
+        vaultToken = "${globals.vaultToken}";
+        httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
+        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(httpGet);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't read secret ${this.secretPath}" };
+        }
+        data = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        papiToken = java.lang.String(data["data"]["data"]["${this.secretKey}"]);
+        papiTokenB64 = Base64.getEncoder().encodeToString(papiToken.getBytes());
+        return {"result": 0, out: papiTokenB64 };
     - setGlobals:
         vaultSecretData: ${response.out}
 
-  vaultSecretsList:
-    # Parameters:
-    #   - target: target node group or id
-    #   - path: path to list
-    #   - recursive: should be set to "true" if the secrets should be fetched
-    #     recursively. Default: false
-    # Returns:
-    #   ${globals.vaultSecretsList}: the list of secrets/subpaths seperated by semicolons
-    - vaultAppRoleLogin: ${this.target}
-    - if ("${this.recursive.print()}" != "true"):
-        set:
-          recursive: false
-    - cmd [${this.target}]: |-
-        final_secrets_list=$(mktemp)
-        tmp_secrets_list=$(mktemp)
-        # Remove the last slash if any
-        base_path=$(echo ${this.path} | sed "s;^\(.*\)/$;\1;")
-        recursive=${this.recursive}
-
-        # Recursive function to list secrets
-        list_secrets_to_file() {
-          local path=$1
-
-          resp=$(curl -fsS -H "X-Vault-Token: ${globals.vaultToken}" -XLIST $VAULT_CLUSTER_URL/v1/kv/metadata/$path 2>&1)
-          if [ $? -ne 0 ]; then
-            echo "[ERROR] Can't list secrets at ${path}" >&2
-            echo $resp >&2
-            rm -f $tmp_secrets_list $final_secrets_list
-            exit 1
-          fi
-
-          echo $resp | jq -cre '.data.keys | join("\n")' > $tmp_secrets_list
-          cat $tmp_secrets_list | while read path_end; do
-            full_path="$path/$path_end"
-            # If recursive and "secret" ends with a slash, means it's a subpath
-            #     We remove the trailing slash from the full path
-            # else we just print the subpath with the trailing slash
-            if [ "$recursive" = "true" ] && echo $path_end | grep -qE "/$"; then
-                list_secrets_to_file $(echo -n $full_path | head -c -1)
-            else
-              echo $full_path >> $final_secrets_list
-            fi
-          done
-          rm -f $tmp_secrets_list
-        }
-
-        list_secrets_to_file $base_path
-        # We print all secrets semicolon separated, and without the base path
-        cat $final_secrets_list | sed "s#$base_path/*##" | paste -s -d ';'
-        rm -f $final_secrets_list
-    - setGlobals:
-        vaultSecretsList: ${response.out}
-
   vaultSecretDelete:
     # Parameters:
-    #   - target: target node group or id
     #   - secretPath: path of the secret to delete
-    - vaultAppRoleLogin: ${this.target}
-    - cmd [${this.target}]: |-
-        resp=$(curl -fs -H "X-Vault-Token: ${globals.vaultToken}" -XDELETE \
-          $VAULT_CLUSTER_URL/v1/kv/metadata/${this.secretPath})
-        if [ $? -ne 0 ]; then
-          echo "[ERROR] Can't delete secret ${this.secretPath}" >&2
-          echo $resp | jq -re .errors >&2
-          exit 1
-        fi
-
+    - vaultAppRoleLogin
+    - script: |
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        vaultToken = "${globals.vaultToken}";
+        secretDelete = new HttpDelete("${globals.vaultClusterUrl}/v1/kv/metadata/${this.secretPath}");
+        secretDelete.setHeader("X-Vault-Token", vaultToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(secretDelete);
+        if (resp.getStatusLine().getStatusCode() != 204) {
+          return {"result": 1, errOut: "Can't delete secret from ${this.secretPath}" };
+        }
+        return {"result": 0, out: "Secret has been deleted"};
+        
   removeAllSecrets:
-    - vaultSecretsList:
-        target: ${nodes.cp.first.id}
-        path: "paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}"
-        recursive: "true"
+    - getVaultData
+    - setGlobals:
+        vaultSecretsList: papi;haproxy;ipsec/conn-1
 
     - script: |-
         return {"result": 0, "secrets": "${globals.vaultSecretsList}".split(";")}
 
     - forEach(response.secrets):
         vaultSecretDelete:
-          target: ${nodes.cp.first.id}
-          secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.shortdomain}/${@i}"
+          secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/${@i}"
 
   getBackrestAwsAccessKey:
     # Returns:
     #   ${globals.backrestAwsAccessKeyId}: Access key ID of backrest AWS user
     #   ${globals.backrestAwsSecretAccessKey}: Access secret key of backrest AWS user
+    - getVaultData
     - vaultSecretReadAllKeysB64:
-        target: ${nodes.cp.first.id}
         secretPath: "paas/envs-common/aws-backrest"
     - script: |-
         let vaultResponseBase64 = "${globals.vaultSecretData}";
@@ -519,9 +487,9 @@ actions:
     # Parameters:
     #  - target: target node group or id
     #  - duration: mute duration in minutes. Optional, default 60
+    - getVaultData
     - vaultSecretReadKeyB64:
-        target: ${nodes.cp.first.id}
-        secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
@@ -541,9 +509,9 @@ actions:
   unmuteDatadogHost:
     # Parameters:
     #  - target: target node group or id
+    - getVaultData
     - vaultSecretReadKeyB64:
-        target: ${nodes.cp.first.id}
-        secretPath: "paas/customers/$ORGANIZATION_NAME/common/datadog"
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
@@ -559,8 +527,7 @@ actions:
   getPapiInfoAll:
     - getVaultData
     - vaultSecretReadKeyB64:
-        target: ${nodes.cp.first.id}
-        secretPath: "paas/customers/$ORGANIZATION_NAME/paas_${env.envName}/papi"
+        secretPath: "paas/customers/${globals.organizationName}/paas_${env.envName}/papi"
         secretKey: "token"
     - setGlobals:
         papiToken: '${globals.vaultSecretData.fromBase64()}'
@@ -605,12 +572,43 @@ actions:
 
   deleteEnvironment:
     - if ("${globals.papiToken.print()}" == ""):
-        - getPapiToken
-    - cmd[${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
-        papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
-        papi.py -X DELETE paas-environment/$PAPI_ENV_ID
-        papi.py -X DELETE papier/$papier_id
+        getPapiInfoAll
+    - script: |
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        papiToken = "${globals.papiToken}";
+        getPaasEnv = new HttpGet("https://${globals.papiHostname}/api/${globals.papiApiVersion}/paas-environment/${globals.papiEnvId}");
+        getPaasEnv.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getPaasEnv);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get paas environment " + "${globals.papiEnvId}" };
+        }
+        paasEnv = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        papierId = paasEnv["papier_id"]
+        return {'result': 0, 'papierId': papierId };
+    - setGlobals:
+        papierId: ${response.papierId}
+    - script: |
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        papiToken = "${globals.papiToken}";
+        paasEnvDelete = new HttpDelete("https://${globals.papiHostname}/api/${globals.papiApiVersion}/paas-environment/${globals.papiEnvId}");
+        paasEnvDelete.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(paasEnvDelete);
+        if (resp.getStatusLine().getStatusCode() != 204) {
+          return {"result": 1, errOut: "Can't delete paas environment " + "${globals.papiEnvId}" };
+        }
+        papierDelete = new HttpDelete("https://${globals.papiHostname}/api/${globals.papiApiVersion}/papier/${globals.papierId}");
+        papierDelete.setHeader("X-PAPI-KEY", papiToken);
+        resp1 = httpClient.execute(papierDelete);
+        if (resp1.getStatusLine().getStatusCode() != 204) {
+          return {"result": 1, errOut: "Can't delete papier " + "${globals.papierId}" };
+        }
+        return {'result': 0, 'out': "Paas Environment - ${globals.papiEnvId} and Papier - ${globals.papierId} has been deleted" };        
 
   addEnvMetadataToNodeGroup:
     - cmd[cp]: echo "${user.email}" | cut -d'@' -f1
