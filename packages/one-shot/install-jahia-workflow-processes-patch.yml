@@ -7,7 +7,9 @@ description:
   short: Jahia - Install workflow processes patch
 
 mixins:
+  - "../../mixins/common.yml"
   - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
 
 globals:
   patchUrl: "https://devtools.jahia.com/nexus/content/groups/public/org/jahia/server/jahia-impl"
@@ -23,9 +25,22 @@ onInstall:
   - if ("${response.is_patch_needed}" == "true"):
       - setGlobals:
           jahiaVersion: ${response.out}
+      # Processing node
+      - removeProcNodeFromHaproxy:
+          reload: true
       - installPatch: ${nodes.proc.first.id}
+      - addProcNodeToHaproxy:
+          reload: true
+      # Browsing nodes
       - foreach (nodes.cp):
+          - removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
           - installPatch: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
 
 actions:
   checkVersion:
