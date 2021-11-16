@@ -66,13 +66,13 @@ def get_containers(juser_sess, hn_id):
 
 
 # Record containers infos in environments and hn list for further use
-def add_hn_containers_to_lists(hardware_node, environments, hardware_node_with_containers):
+def add_hn_containers_to_lists(hardware_node, environments, hardware_node_with_containers, juser_sess):
     hardware_node_data = {
         "name": hardware_node["hostname"],
         "containers": {}
     }
 
-    containers = get_containers(JEL_SESS, hardware_node["id"])
+    containers = get_containers(juser_sess, hardware_node["id"])
     for container in containers:
         # Ignore weird jelastic containers
         if "envName" not in container or \
@@ -112,6 +112,53 @@ def is_count_valid(node_group, count, environment):
     return True
 
 
+def check_hardwarenodes(jelastic_session, region):
+    environments = {}
+    hardware_node_with_containers = []
+
+    all_hardware_nodes = get_hardware_nodes(jelastic_session)
+    for hardware_node in all_hardware_nodes:
+        if hardware_node["hardwareNodeGroup"] != region or \
+           hardware_node["status"] == "INFRASTRUCTURE_NODE":
+            continue
+        add_hn_containers_to_lists(
+            hardware_node,
+            environments,
+            hardware_node_with_containers,
+            jelastic_session
+        )
+
+    if len(hardware_node_with_containers) == 0:
+        print("No hardware not found for " + region + " region")
+        return False
+
+    all_hns_ok = True
+    for hardware_node in hardware_node_with_containers:
+        hn_ok = True
+        line_template = " - {env_name} has {count} {node_group} out of {node_group_count} on this HN\n"
+        fails = ""
+
+        for env_name, node_groups in hardware_node["containers"].items():
+            for node_group, count in node_groups.items():
+                if not is_count_valid(node_group, count, environments[env_name]):
+                    hn_ok = False
+                    fails += line_template.format(
+                                env_name=env_name,
+                                count=count,
+                                node_group=node_group,
+                                node_group_count=environments[env_name][node_group]
+                             )
+
+        if hn_ok:
+            print(hardware_node["name"] + " [" + GREEN_COLOR + "OK" + NO_COLOR + "]")
+        else:
+            print(hardware_node["name"] + " [" + RED_COLOR + "NOK" + NO_COLOR + "]")
+            print(fails)
+            all_hns_ok = False
+
+    return all_hns_ok
+
+
 # We don't care about processing node since there is always only one
 VALID_NODEGROUP = ["cp", "sqldb", "bl", "es"]
 
@@ -120,50 +167,16 @@ RED_COLOR = "\033[0;31m"
 GREEN_COLOR = "\033[0;32m"
 NO_COLOR = '\033[0m'
 
-args = argparser()
 
-GATE_DNS = re.sub(r'^(app|jca)\.(.*)', r'gate.\2', args.jelastic)
-GATE_PORT = 3022
+if __name__ == "__main__":
+    args = argparser()
 
-JEL_SESS = Jelastic(hostname=args.jelastic, login=args.user, password=args.password)
-JEL_SESS.signIn()
+    GATE_DNS = re.sub(r'^(app|jca)\.(.*)', r'gate.\2', args.jelastic)
+    GATE_PORT = 3022
 
-environments = {}
-hardware_node_with_containers = []
-
-all_hardware_nodes = get_hardware_nodes(JEL_SESS)
-for hardware_node in all_hardware_nodes:
-    if hardware_node["hardwareNodeGroup"] != args.region or \
-       hardware_node["status"] == "INFRASTRUCTURE_NODE":
-        continue
-    add_hn_containers_to_lists(hardware_node, environments, hardware_node_with_containers)
-
-if len(hardware_node_with_containers) == 0:
-    print("No hardware not found for " + args.region + " region")
-    exit(1)
-
-exit_code = 0
-for hardware_node in hardware_node_with_containers:
-    hn_ok = True
-    line_template = " - {env_name} has {count} {node_group} out of {node_group_count} on this HN\n"
-    fails = ""
-
-    for env_name, node_groups in hardware_node["containers"].items():
-        for node_group, count in node_groups.items():
-            if not is_count_valid(node_group, count, environments[env_name]):
-                hn_ok = False
-                fails += line_template.format(
-                            env_name=env_name,
-                            count=count,
-                            node_group=node_group,
-                            node_group_count=environments[env_name][node_group]
-                         )
-
-    if hn_ok:
-        print(hardware_node["name"] + " [" + GREEN_COLOR + "OK" + NO_COLOR + "]")
+    JEL_SESS = Jelastic(hostname=args.jelastic, login=args.user, password=args.password)
+    JEL_SESS.signIn()
+    if check_hardwarenodes(JEL_SESS, args.region):
+        exit(0)
     else:
-        print(hardware_node["name"] + " [" + RED_COLOR + "NOK" + NO_COLOR + "]")
-        print(fails)
-        exit_code = 1
-
-exit(exit_code)
+        exit(1)
