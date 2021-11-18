@@ -1,0 +1,234 @@
+---
+type: update
+version: 1.5.2
+name: Stop nodes
+logo: ../../assets/common/jahia-logo-70x70.png
+id: stop-nodes
+description:
+  short: Jahia Cloud - Stop nodes
+  text: Stop nodes provided as parameter
+
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+  - ../../mixins/elasticsearch.yml
+
+globals:
+  output: ""
+
+onInstall:
+  - getNodesListsAndCheckData
+  - muteNodesInDatadog
+
+  - if (nodes.proc):  # Jahia
+    - if (globals.nodesDict.proc): # Processing
+        - callRemoveProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}
+        - callStopJahiaAction: ${globals.nodesDict.proc[0]}
+
+    - if (globals.nodesDict.cp): # Browsing(s)
+        forEach (globals.nodesDict.cp):
+          - callRemoveBrowsingNodeFromHaproxyAction: ${@i}
+          - callStopJahiaAction: ${@i}
+
+    - if (globals.nodesDict.bl): # Haproxy
+        stopHaproxyService: ${globals.nodesDict.bl[0]}
+
+    - if (globals.nodesDict.sqldb): # Databases
+        - if (nodes.sqldb.length > 1): # If cluster
+            switchGaleraMasterIfNeeded: ${globals.nodesDict.sqldb[0]}
+        - else:
+            forEach(nodes.cp):
+              if ( ! ${globals.nodesDict.cp.contains([@i.id])}): # No idea why we have to use [] instead of ${} here. It's the way it works
+                # Stop jahia on browsings not mentionned in nodesToStop list
+                - appendActionLog: "Single db node case, stopping browsing node ${@i.id}"
+                - callStopJahiaAction: ${@i.id}
+
+        - callStopGaleraNodeAction: ${globals.nodesDict.sqldb[0]}
+
+  - else: # Jcustomer
+      - if (globals.nodesDict.es): # Elasticsearch
+          - if (nodes.es.length > 1): # If cluster
+              setESShardAllocationAndFlush: ${globals.nodesDict.es[0]}
+          - stopElasticsearchService: ${globals.nodesDict.es[0]}
+
+      - if (globals.nodesDict.cp):
+          forEach (globals.nodesDict.cp):
+            stopKarafService: ${@i}
+
+  - forEach(globals.nodesList):
+      - callLogEventAction: ${@i}
+      - stopNode: ${@i}
+
+  - return:
+      type: success
+      message: ${globals.output}
+
+actions:
+  getNodesListsAndCheckData:
+    script: |-
+      nodesToStop = ${settings.nodesToStop}
+
+      // Check that there is not multiple es/sqldb/bl nodes
+      error = "";
+      if ("es" in nodesToStop && nodesToStop["es"].length > 1)
+        error += "Invalid count of es nodes ";
+      else if ("sqldb" in nodesToStop && nodesToStop["sqldb"].length > 1)
+        error += "Invalid count of sqldb nodes ";
+      else if ("bl" in nodesToStop && nodesToStop["bl"].length > 1)
+        error += "Invalid count of bl nodes";
+
+      if (error != "")
+        return {"result": 1, "error": error};
+
+      // Create a list containing all nodes to stop
+      nodesIds = []
+      for (nodeGroup in nodesToStop) {
+        nodesIds = nodesIds.concat(nodesToStop[nodeGroup])
+      }
+
+      // Remove nodes already stopped from list/dict
+      var envInfos = jelastic.env.control.GetEnvInfo('${env.envName}', session);
+      for (i=0; i < envInfos.nodes.length; i++) {
+        node = envInfos.nodes[i]
+        index = nodesIds.indexOf(node.id.toString())
+        if (node.status == 2 && index >= 0) {
+          // If nodes status is "stopped" and in the nodesToStop list, we remove it
+          nodesIds.splice(index,1)
+          if (nodesToStop[node.nodeGroup].length == 1) {
+            delete nodesToStop[node.nodeGroup]
+          } else {
+            nodesToStopIndex = nodesToStop[node.nodeGroup].indexOf(node.id.toString())
+            nodesToStop[node.nodeGroup].splice(nodesToStopIndex,1)
+          }
+        }
+      }
+      resp = {"result": 0}
+      resp.onAfterReturn = {
+        setGlobals: {
+          nodesDict: nodesToStop,
+          nodesList: nodesIds
+        }
+      }
+
+      return resp
+
+  muteNodesInDatadog:
+    - appendActionLog: "Muting nodes ${globals.nodesList.join(,)}"
+    - if (! ${settings.dryRun}):
+        muteDatadogHost:
+          target: ${globals.nodesList.join(,)}
+          duration: 30
+
+  callRemoveBrowsingNodeFromHaproxyAction:
+    - appendActionLog: "Removing browsing ${this} from haproxy pool"
+    - if (! ${settings.dryRun}):
+        removeBrowsingNodeFromHaproxy:
+          nodeId: ${this}
+          reload: true
+
+  callRemoveProcNodeFromHaproxyAction:
+    - appendActionLog: "Removing processing ${this} from haproxy pool"
+    - if (! ${settings.dryRun}):
+        removeProcNodeFromHaproxy:
+          nodeId: ${this}
+          reload: true
+
+  callStopJahiaAction:
+    - appendActionLog: "Stopping jahia on node ${this}"
+    - if (! ${settings.dryRun}):
+        stopJahia: ${this}
+
+  stopHaproxyService:
+    - appendActionLog: "Stopping haproxy on node ${this}"
+    - if (! ${settings.dryRun}):
+        cmd[${this}]: service haproxy stop
+        user: root
+
+  callStopGaleraNodeAction:
+    - appendActionLog: "Stopping mariadb on node ${this}"
+    - if (! ${settings.dryRun}):
+        stopGaleraNode: ${this}
+
+  switchGaleraMasterIfNeeded:
+    - getGaleraMaster
+    - getGaleraNodeNameIndex: ${this}
+    - if ("${globals.galeraNodeNameIndex}" == "${globals.galeraMasterIndex}"):
+        - appendActionLog: "The db node to stop is currently the galera master node"
+        - script: |-
+            masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+            newMasterIndex = ((masterIndex + 1) % 3) + 1
+            newDonorIndex = (masterIndex % 3) + 1
+            resp = {"result": 0}
+            resp.onAfterReturn = {
+              setGlobals: {
+                newMasterIndex: newMasterIndex,
+                newDonorIndex: newDonorIndex
+              }
+            }
+            return resp
+        - appendActionLog: "Switching galera master for node ${globals.newMasterIndex}"
+        - if (! ${settings.dryRun}):
+            proxysqlSwitchMaster:
+              target: ${globals.newMasterIndex}
+        - appendActionLog: "Setting node ${globals.newDonorIndex} as donor"
+        - if (! ${settings.dryRun}):
+            setDonorNode:
+              target: ${globals.newDonorIndex}
+
+  setESShardAllocationAndFlush:
+    - appendActionLog: "Set shard allocation to 'primaries' and force ES flush on node ${this}"
+    - if (! ${settings.dryRun}):
+        - setShardAllocation:
+            target: ${this}
+            allocation: "primaries"
+        - forceESFlush:
+            target: ${this}
+
+  stopElasticsearchService:
+    - appendActionLog: "Stopping elasticsearch service on node ${this}"
+    - if (! ${settings.dryRun}):
+        cmd[${this}]: service elasticsearch stop
+        user: root
+
+  stopKarafService:
+    - appendActionLog: "Stopping karaf service on node ${this}"
+    - if (! ${settings.dryRun}):
+        cmd[${this}]: service karaf stop
+        user: root
+
+  callLogEventAction:
+    - appendActionLog: "Sending stop event to datadog for node ${this}"
+    - if (! ${settings.dryRun}):
+        logEvent:
+          target: ${this}
+          title: "Node ${this} is going to be stopped"
+          text: "Node ${this} is going to be stopped"
+
+  stopNode:
+    - appendActionLog: "Stopping node ${this}"
+    - if (! ${settings.dryRun}):
+        env.control.StopNode[${this}]:
+          envName: ${env.envName}
+
+  appendActionLog:
+    - setGlobals:
+        output: "${globals.output}\n${this}"
+
+settings:
+  fields:
+    - name: nodesToStop
+      type: string
+      caption: |-
+        nodes id to stop with the folling format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
+      required: true
+    - name: dryRun
+      type: checkbox
+      caption: Enable dry run. Actions list is returned at the end of the package
+      default: false
+      required: false
