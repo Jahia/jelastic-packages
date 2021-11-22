@@ -192,7 +192,7 @@ actions:
 
 settings:
   fields:
-    - name: nodesTostart
+    - name: nodesToStart
       type: string
       caption: |-
         nodes id to stop with the folling format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
