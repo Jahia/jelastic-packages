@@ -18,8 +18,13 @@ onInstall:
       targetDockerTag: ${nodes.cp.first.version}
   # If a version/docker tag was passed as parameter
   - if ('${settings.targetVersion.print()}' != ''):
-      - setGlobals:
-          targetDockerTag: ${settings.targetVersion}
+      # If a Docker tag suffix was passed we need to append it to the jCustomer version
+      - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
+          - setGlobals:
+              targetDockerTag: ${settings.targetVersion}
+      - else:
+          - setGlobals:
+              targetDockerTag: ${settings.targetVersion}_${settings.jCustomerDockerTagSuffix}
 
   - cmd[cp]: |-
       service datadog-agent stop
@@ -58,3 +63,6 @@ settings:
       vtype: text
       required: false
       tooltip: Optional. If you don't specify a version, the current version of the target environment will be selected.
+    - name: jCustomerDockerTagSuffix
+      type: string
+      caption: jCustomer Docker tag suffix
