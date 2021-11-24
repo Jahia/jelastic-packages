@@ -44,6 +44,11 @@ onBeforeInstall: |
   esPort = "9200";
   esVersion = 7;
 
+  var esDockerTag = esVersion;
+  if ("${settings.esDockerTagSuffix}" != "") {
+    esDockerTag += "_${settings.esDockerTagSuffix}"
+  }
+
   switch ("${settings.esNodeSize}") {
     case 'large':
       var esCloudlets = 80;
@@ -58,7 +63,7 @@ onBeforeInstall: |
 
   node_es = {
     nodeType: "jahiastic-elasticsearch",
-    tag: esVersion,
+    tag: esDockerTag,
     displayName: "Elasticsearch v" + esVersion,
     count: ${settings.esNodeCount},
     cloudlets: esCloudlets,
@@ -79,6 +84,11 @@ onBeforeInstall: |
 
   // jCustomer nodes
 
+  var jCustomerDockerTag = "${settings.productVersion}";
+  if ("${settings.jCustomerDockerTagSuffix}" != "") {
+    jCustomerDockerTag += "_${settings.jCustomerDockerTagSuffix}"
+  }
+
   switch ("${settings.jCustomerNodeSize}") {
     case 'large':
       var jCustomerCloudlets = 40;
@@ -93,7 +103,7 @@ onBeforeInstall: |
 
   node_unomi = {
     nodeType: "jcustomer",
-    tag: unomiVersion,
+    tag: jCustomerDockerTag,
     displayName: "Unomi v" + unomiVersion,
     count: ${settings.jCustomerNodeCount},
     cloudlets: jCustomerCloudlets,
@@ -201,6 +211,9 @@ settings:
         medium: medium
         large: large
       default: small
+    - name: jCustomerDockerTagSuffix
+      type: string
+      caption: jCustomer Docker tag suffix
     - name: esNodeCount
       type: list
       caption: Elasticsearch node count
@@ -217,6 +230,9 @@ settings:
         medium: medium
         large: large
       default: small
+    - name: esDockerTagSuffix
+      type: string
+      caption: ES Docker tag suffix
     - name: ddogApikey
       type: string
       caption: Datadog API KEY
