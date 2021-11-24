@@ -1,0 +1,61 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Remove jExperience config
+logo: ../../assets/common/jahia-logo-70x70.png
+id: unlink-jahia-jcustomer
+description:
+  short: Jahia - Remove jExperience config
+
+mixins:
+  - ../../mixins/jcustomer.yml
+
+onInstall:
+  - getJcustomer
+  - removeJexperienceConfig
+  - updateEnvLink
+  - refreshUnomiAllowedIPs:
+      unomiEnvName: ${globals.jCustomerEnv}
+
+actions:
+  getJcustomer:
+    - script: |
+        const envName = "${env.envName}";
+        jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "proc";}).pop().envLink;
+        if (! jCustomerLinked) {
+          return {"result": 1, "errOut": "No jCustomer is linked with the Jahia env"}
+        } else {
+          return {"result": 0, "out": jCustomerLinked}
+        }
+    - setGlobals:
+        jCustomerEnv: ${response.out}
+
+  removeJexperienceConfig:
+    - cmd[cp, proc]: |-
+        sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+        rm -f /data/digital-factory-data/modules/jexperience-*.jar
+
+  updateEnvLink:
+    - environment.nodegroup.ApplyData [proc, cp]:
+        data:
+          envLink: null
+    - script: |
+        const jahiaEnv = "${env.envName}";
+        const jCustomerEnv = "${globals.jCustomerEnv}";
+        envsLinked = jelastic.env.control.GetNodeGroups(jCustomerEnv, session).object.filter(function (object) {
+                                return object.name == "cp";
+                              }).pop().envLink;
+        if (envsLinked.indexOf(jahiaEnv) == -1) {
+          return {"result": 1, "out": jahiaEnv + " not in envLink of " + jCustomerEnv};
+        }
+
+        if (envsLinked.indexOf(",") != -1) {
+          envsLinkedArr = envsLinked.split(",");
+          envsLinkedArr.splice(envsLinkedArr.indexOf(jahiaEnv), 1);
+          newEnvLink = String(envsLinkedArr);
+        } else {
+          newEnvLink = null;
+        }
+        resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
+        return {"result": 0, "out": jahiaEnv + " removed from envLink of " + jCustomerEnv};

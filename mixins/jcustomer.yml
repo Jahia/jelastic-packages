@@ -149,20 +149,12 @@ actions:
     #   - unomiEnvName (optional, defaults to current envName)
     script: |-
       unomiEnvName = "${this.unomiEnvName.print()}" ? "${this.unomiEnvName}" : "${env.envName}";
-      linkedJahiaEnvs = [];
-      envs = jelastic.environment.control.getenvs("appstore", session)["infos"];
-
-      for (i in envs) {
-        nodeGroups = envs[i]["nodeGroups"];
-        for (j in nodeGroups) {
-          if (nodeGroups[j]["envLink"] == unomiEnvName) {
-            linkedJahiaEnvs.push(envs[i]["env"]["envName"]);
-            break;
-          }
-        }
+      envsLinked = jelastic.env.control.GetNodeGroups(unomiEnvName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().envLink;
+      if (! envsLinked) {
+        return {"result": 0, "envs": ""};
       }
-
-      return {"result": 0, "envs": linkedJahiaEnvs.toString()};
+      return {"result": 0, "envs": envsLinked.toString()};
     setGlobals:
       linkedJahiaEnvs: ${response.envs}
 
