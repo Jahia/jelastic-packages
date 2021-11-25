@@ -15,6 +15,7 @@ mixins:
 
 
 onInstall:
+  - checkJcustomerLink
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
@@ -34,6 +35,16 @@ onInstall:
 
 
 actions:
+  checkJcustomerLink:
+    - script: |
+        const envName = "${env.envName}";
+        jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "proc";}).pop().envLink;
+        if (jCustomerLinked) {
+          return {"result": 1, "errOut": "Jahia is already linked to a jCustomer"};
+        }
+        return {"result": 0, "out": "Jahia is not linked to a jCustomer"}
+
   setNGData:
     - script: |
         var resp = jelastic.env.control.GetNodeGroups('${settings.unomienv}', session);
