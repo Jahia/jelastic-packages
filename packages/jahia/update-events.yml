@@ -316,7 +316,17 @@ onBeforeDelete:
       target: ${nodes.proc.first.id}
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
-  - deleteEnvLink
+  - getEnvLinkedJcustomer:
+      envName: ${env.envName}
+  - if ("${globals.unomi_env_linked}" == "true"):
+      - deleteEnvLink
+      - if ("${response.link_removed}" == "true"):
+          - script: |
+              resp = jelastic.env.control.GetEnvInfo('${globals.unomi_env_name}', session);
+              return {"result": 0, "out": resp.env.status};
+          - if (${response.out} == 1):
+              refreshUnomiAllowedIPs:
+                unomiEnvName: ${globals.unomi_env_name}
   - if ("${env.status}" == 1):
       - muteDatadogHost:
           target: "*"

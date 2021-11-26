@@ -338,17 +338,12 @@ actions:
   deleteEnvLink:
     - script: |-
         const envName = "${env.envName}";
-        jCustomerEnv = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                return object.name == "cp";
-                              }).pop().envLink;
-        if (jCustomerEnv == null) {
-          return {"result": 0, "out": "No jCustomer env linked"};
-        }
+        const jCustomerEnv = "${globals.unomi_env_name}";
         envsLinked = jelastic.env.control.GetNodeGroups(jCustomerEnv, session).object.filter(function (object) {
                                 return object.name == "cp";
                               }).pop().envLink;
         if (envsLinked.indexOf(envName) == -1) {
-          return {"result": 0, "out": envName + " not in envLink of " + jCustomerEnv};
+          return {"result": 0, "link_removed": false, "out": envName + " not in envLink of " + jCustomerEnv};
         }
 
         // envLink can contain multiple Jahia envs on jCustomer side separated by a comma
@@ -360,7 +355,7 @@ actions:
           newEnvLink = null;
         }
         resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
-        return {"result": 0, "out": envName + " removed from envLink of " + jCustomerEnv};
+        return {"result": 0, "link_removed": true, "out": envName + " removed from envLink of " + jCustomerEnv};
 
   isFullReadonlyEnabled:
     - cmd[proc]: |-
@@ -854,13 +849,9 @@ actions:
     #   - envName: jahia env name to fetch info from
     - script: |
         const envName = "${this.envName}";
-        envs = jelastic.env.control.GetEnvInfo(envName, session);
 
-        unomi_linked = envs.nodeGroups.filter(function (nodeGroup) {
-                         return nodeGroup.name == "cp";
-                       })
-                       .pop()
-                       .envLink;
+        unomi_linked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().envLink;
 
         return unomi_linked?
         {"result": 0, value: unomi_linked, "is_linked": true, "out": "Found a linked env"} :
