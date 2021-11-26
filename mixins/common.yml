@@ -431,9 +431,9 @@ actions:
           return {"result": 1, errOut: "Can't read secret ${this.secretPath}" };
         }
         data = JSON.parse(EntityUtils.toString(resp.getEntity()));
-        papiToken = java.lang.String(data["data"]["data"]["${this.secretKey}"]);
-        papiTokenB64 = Base64.getEncoder().encodeToString(papiToken.getBytes());
-        return {"result": 0, out: papiTokenB64 };
+        secret = java.lang.String(data["data"]["data"]["${this.secretKey}"]);
+        secretB64 = Base64.getEncoder().encodeToString(secret.getBytes());
+        return {"result": 0, out: secretB64 };
     - setGlobals:
         vaultSecretData: ${response.out}
 

@@ -17,6 +17,9 @@ mixins:
   - ../../mixins/mariadb.yml
 
 onInstall:
+  - muteDatadogHost:
+      target: "*"
+      duration: 240 # 4h
   - setGlobalRepoRootUrl
   - getBackrestAwsAccessKey
   - if(settings.cloud_source):
@@ -77,6 +80,8 @@ onInstall:
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
+  - unmuteDatadogHost:
+      target: "*"
 
 
 actions:
