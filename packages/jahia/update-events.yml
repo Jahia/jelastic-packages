@@ -197,6 +197,17 @@ onBeforeStop:
 
 onAfterStart:
   - startupJahiaHealthCheck: cp, proc
+
+  # Remove jexperience configuration if the jcustomer linked
+  # has been deleted while the env was stopped
+  - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+  - if (${globals.unomi_env_linked}):
+      - checkIfEnvExists:
+          envName: ${globals.unomi_env_name}
+      - if ( ! ${globals.check_env_exists}):
+          removeJexperienceConfig
+
   - resetHaproxyBackends
   - updateEnvStatusInPapi:
       status: running

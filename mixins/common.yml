@@ -41,6 +41,20 @@ actions:
             type: error
             message: "An error occurred while configuring journald."
 
+  checkIfEnvExists:
+    # Set the global check_env_exists to true if the env exists, false otherwise
+    # parameters:
+    #  - envName
+    script: |-
+      response = jelastic.env.control.GetEnvInfo("${this.envName}", session);
+      res = {"result": 0}
+      res.onAfterReturn = {
+        setGlobals: {
+          check_env_exists: response.result == 0
+        }
+      }
+      return res
+
   setEnvVersion:
   # If the parameter is not an integer, we don't set the env version
     - if (/^[0-9]+$/.test(${this})):
@@ -382,7 +396,7 @@ actions:
             return {"result": 0, out: vaultToken };
         - setGlobals:
             vaultToken: ${response.out}
-            
+
 
   vaultSecretReadAllKeysB64:
     # Parameters:
@@ -455,7 +469,7 @@ actions:
           return {"result": 1, errOut: "Can't delete secret from ${this.secretPath}" };
         }
         return {"result": 0, out: "Secret has been deleted"};
-        
+
   removeAllSecrets:
     - getVaultData
     - setGlobals:
@@ -608,7 +622,7 @@ actions:
         if (resp1.getStatusLine().getStatusCode() != 204) {
           return {"result": 1, errOut: "Can't delete papier " + "${globals.papierId}" };
         }
-        return {'result': 0, 'out': "Paas Environment - ${globals.papiEnvId} and Papier - ${globals.papierId} has been deleted" };        
+        return {'result': 0, 'out': "Paas Environment - ${globals.papiEnvId} and Papier - ${globals.papierId} has been deleted" };
 
   addEnvMetadataToNodeGroup:
     - cmd[cp]: echo "${user.email}" | cut -d'@' -f1
