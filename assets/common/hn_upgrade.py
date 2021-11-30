@@ -6,7 +6,7 @@ import json
 import requests
 import datetime
 from http import HTTPStatus
-from os import environ
+from os import environ, path
 from pylastic import Jelastic
 from check_before_hn_upgrade import check_hardwarenodes, \
                                     get_hardware_nodes,  \
@@ -71,7 +71,9 @@ class Hardware_node_upgrade():
         # and maitenance disabling. So I added the signout after stop_nodes to re-signIn here
         jelastic_session.signIn()
         self.start_nodes(running_containers)
+        jelastic_session.signOut()
         self.ask_to_disable_maintenance_mode()
+        jelastic_session.signIn()
         self.set_hn_status(hn_infos, "ACTIVE")
         self.unmute_hardware_node(self.datadog_hardware_node_hostname)
 
@@ -89,7 +91,7 @@ class Hardware_node_upgrade():
 
         if hn_data is None:
             hn_hostnames_list.sort()
-            logger.error("Hardware node not found. List of available hostnames:" + hn_hostnames_list)
+            logger.error("Hardware node not found. List of available hostnames:\n- " + "\n- ".join(hn_hostnames_list))
             exit(1)
 
         if hn_data["hardwareNodeGroup"] != self.region:
@@ -163,11 +165,11 @@ class Hardware_node_upgrade():
         """
             Necessary to login as user to run stop/start packages
         """
-        url = "https://" + environ.get("PAPI_HOSTNAME") + "/api/v1/paas-environment?namespace=" + envname
-        headers = {"X-PAPI-KEY": environ.get("PAPI_TOKEN")}
+        url = "https://" + self.papi_hostname + "/api/v1/paas-environment?namespace=" + envname
+        headers = {"X-PAPI-KEY": self.papi_token}
         response = self.send_get_request(url, headers)
         org_id = response.json()[0]["paas_organization_id"]
-        url = "https://" + environ.get("PAPI_HOSTNAME") + "/api/v1/paas-organization/" + str(org_id)
+        url = "https://" + self.papi_hostname + "/api/v1/paas-organization/" + str(org_id)
         response = self.send_get_request(url, headers)
         organization = response.json()
         return organization["jelastic_login"]
@@ -350,7 +352,7 @@ def argparser():
     args_list.add_argument("--recover-state",
                            action="store_true",
                            dest="recover_state",
-                           help="If provided, the nodes to start list will be fetched in the state-file-path")
+                           help="If this parameter is set, the state file won't be created/updated and should already exist (useful if the script has been stopped before restarting the nodes during a previous run for instance)")
 
     args = parser.parse_args()
 
@@ -368,6 +370,11 @@ def argparser():
 
 if __name__ == "__main__":
     args = argparser()
+
+    if args.recover_state and not path.exists(args.recover_state_file_path):
+        logger.error("The provided state file does not exist")
+        exit(1)
+
     jelastic_session = Jelastic(hostname=args.jserver,
                                 login=args.juser,
                                 password=args.jpassword)
