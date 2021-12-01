@@ -21,10 +21,10 @@ onInstall:
   - if ('${settings.targetVersion.print()}' != ''):
       # If a Docker tag suffix is passed we need to append it to the jCustomer version
       - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
-          - setGlobals:
+          - set:
               targetDockerTag: ${settings.targetVersion}
       - else:
-          - setGlobals:
+          - set:
               targetDockerTag: ${settings.targetVersion}_${settings.jCustomerDockerTagSuffix}
 
   - cmd[cp]: |-
