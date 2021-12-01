@@ -12,13 +12,14 @@ mixins:
 
 
 onInstall:
-  # By default we assume it is a (rolling) redeploy only
-  - setGlobals:
-      currentDockerTag: ${nodes.cp.first.version}
-      targetDockerTag: ${nodes.cp.first.version}
-  # If a version/docker tag was passed as parameter
+  - set:
+      currentDockerTag: ${nodes.cp.first.customitem.dockerTag}
+  # By default we assume it is a (rolling) redeploy only, so target tag = current tag
+  - set:
+      targetDockerTag: ${this.currentDockerTag}
+  # If a version/docker tag is passed as parameter
   - if ('${settings.targetVersion.print()}' != ''):
-      # If a Docker tag suffix was passed we need to append it to the jCustomer version
+      # If a Docker tag suffix is passed we need to append it to the jCustomer version
       - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
           - setGlobals:
               targetDockerTag: ${settings.targetVersion}
@@ -36,14 +37,14 @@ onInstall:
       exit 0
 
   - env.control.AddContainerEnvVars[*]:
-    vars: {"UNOMI_VERSION": "${globals.targetDockerTag}"}
+    vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
   - environment.nodegroup.ApplyData[cp, es]:
       data:
-        productVersion: ${globals.targetDockerTag}
+        productVersion: ${settings.targetVersion}
 
   - api: environment.control.RedeployContainersByGroup
     nodeGroup: cp
-    tag: ${globals.targetDockerTag}
+    tag: ${this.targetDockerTag}
     useExistingVolumes: true
     skipReinstall: false
     isSequential: false
@@ -52,7 +53,7 @@ onInstall:
   - setGlobalRepoRootUrl
 
   - updateProductVersionInPapi:
-      version: "${globals.targetDockerTag}"
+      version: "${settings.targetVersion}"
       product: "unomi"
 
 settings:
