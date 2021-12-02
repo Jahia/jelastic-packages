@@ -157,12 +157,7 @@ actions:
         - log: keep env link
     - else:
         - log: remove env link
-        - cmd[proc, cp]: |-
-            sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-            rm -f /data/digital-factory-data/modules/jexperience-*.jar
-        - environment.nodegroup.ApplyData [proc, cp]:
-            data:
-              envLink: ""
+        - removeJexperienceConfig
     - cmd [cp]:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb

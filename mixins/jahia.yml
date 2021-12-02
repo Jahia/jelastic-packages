@@ -889,6 +889,15 @@ actions:
             type: error
             message: "jCustomer password is wrong."
 
+  removeJexperienceConfig:
+    - cmd[proc, cp]: |-
+        sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+        rm -f /data/digital-factory-data/modules/jexperience-*.jar
+    - environment.nodegroup.ApplyData [proc, cp]:
+        data:
+          envLink: null
+
+
 ### Vault related actions ###
   vaultGetIPsecConfB64:
     # Returns:

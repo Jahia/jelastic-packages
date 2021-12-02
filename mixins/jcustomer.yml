@@ -147,39 +147,62 @@ actions:
     # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global
     # Parameters:
     #   - unomiEnvName (optional, defaults to current envName)
-    script: |-
-      unomiEnvName = "${this.unomiEnvName.print()}" ? "${this.unomiEnvName}" : "${env.envName}";
-      envsLinked = jelastic.env.control.GetNodeGroups(unomiEnvName, session).object.filter(function (object) {
-                                        return object.name == "cp";}).pop().envLink;
-      if (! envsLinked) {
-        return {"result": 0, "envs": ""};
-      }
-      return {"result": 0, "envs": envsLinked.toString()};
-    setGlobals:
-      linkedJahiaEnvs: ${response.envs}
+    - script: |-
+        unomiEnvName = "${this.unomiEnvName.print()}" ? "${this.unomiEnvName}" : "${env.envName}";
+        envsLinked = jelastic.env.control.GetNodeGroups(unomiEnvName, session).object.filter(function (object) {
+                                          return object.name == "cp";}).pop().envLink;
+        if (! envsLinked) {
+          return {"result": 0, "envs": ""};
+        }
+        return {"result": 0, "envs": envsLinked.toString()};
+    - setGlobals:
+        linkedJahiaEnvs: ${response.envs}
+
 
   deleteEnvLink:
     - getLinkedJahiaEnvs
     - script: |-
-        linkedJahiaEnvs = "${globals.linkedJahiaEnvs}".split(',');
+        linkedJahiaEnvs = "${globals.linkedJahiaEnvs}";
 
-        if (linkedJahiaEnvs.length == 0) {
+        if (linkedJahiaEnvs.length == 0 || linkedJahiaEnvs == "null") {
           return {"result": 0, "out": "No jahia linked"};
         }
+        commands = [
+          {
+            "command": "sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
+          },
+          {
+            "command": "rm -f /data/digital-factory-data/modules/jexperience-*.jar"
+          }
+        ]
 
-        res = ""
+        linkedJahiaEnvs = linkedJahiaEnvs.split(',');
+        unlinkedJahiaEnvs = [];
+        res = "";
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
-            var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
-              nodeGroup='cp',
-              data={'envLink': ''}
-            );
-            var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
-              nodeGroup='proc',
-              data={'envLink': ''}
-            );
+            envInfos = jelastic.env.control.GetEnvInfo(jahiaEnvname, session);
+            if (envInfos.env.status == 1)  {
+              ["cp","proc"].forEach(
+                function(nodeGroup) {
+                  var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
+                    nodeGroup=nodeGroup,
+                    data={'envLink': null}
+                  );
+                  jelastic.env.control.ExecCmdByGroup(jahiaEnvname, session,
+                    nodeGroup=nodeGroup,
+                    commandList=toJSON(commands));
+                }
+              )
+              unlinkedJahiaEnvs.push(jahiaEnvname);
+            }
           }
         );
+
+        if (unlinkedJahiaEnvs.length == 0) {
+          return {"result": 0, "out": "No jahia environment linked up"};
+        }
+
         return {"result": 0, "out": "Unlinked following environments: " + linkedJahiaEnvs};
 
   checkJcustomerHealthWhenStarting:
