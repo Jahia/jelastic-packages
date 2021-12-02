@@ -667,3 +667,10 @@ actions:
         papiApiVersion: ${response.papi_api_version}
         papiEnvId: ${response.papi_env_id}
         papiHostname: ${response.papi_hostname}
+
+  getEnvStatus:
+    # Parameters:
+    #   - envName: Env name of linked jahia or jcustomer
+    - script: |
+        resp = jelastic.env.control.GetEnvInfo('${this.envName}', session);
+        return {"result": 0, "out": resp.env.status};
