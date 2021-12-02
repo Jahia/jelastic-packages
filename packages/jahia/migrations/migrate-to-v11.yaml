@@ -30,6 +30,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - removeEmptyEnvLink # PAAS-1740
+
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -50,3 +52,23 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  removeEmptyEnvLink:
+    script: |-
+      envLink = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                return object.name == "cp";
+                              }).pop().envLink;
+      if (envLink === "") {
+        jelastic.env.nodegroup.ApplyData("${env.envName}", session,
+          nodeGroup="cp",
+          data={'envLink': null}
+        );
+        jelastic.env.nodegroup.ApplyData("${env.envName}", session,
+          nodeGroup="proc",
+          data={'envLink': null}
+        );
+        return {"result": 0, "envLinkFixed": true}
+      } else {
+        return {"result": 0, "envLinkFixed": false}
+      }
+
