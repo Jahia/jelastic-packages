@@ -30,6 +30,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - enableJavaProcessMetrics                             # PAAS-1846
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -50,3 +51,12 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  enableJavaProcessMetrics:
+    - cmd[proc, cp]: |-
+        f=/etc/datadog-agent/conf.d/process.d/conf.yaml
+        if [ ! -f $f ]; then
+          curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v11_assets/dd_process || exit 1
+          systemctl restart datadog-agent
+        fi
+      user: root

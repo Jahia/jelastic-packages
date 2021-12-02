@@ -1,0 +1,7 @@
+init_config:
+instances:
+  - name: jahia
+    search_string:
+      - java
+    exact_match: false
+    user: tomcat
