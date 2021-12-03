@@ -183,6 +183,8 @@ onAfterRedeployContainer[sqldb]:
           action: enable
 
 onBeforeStop:
+  - muteDatadogSynthetics:
+      duration: 2880 # 48h
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
@@ -217,6 +219,7 @@ onAfterStart:
       text: "$envName is started"
   - unmuteDatadogHost:
       target: "*"
+  - unmuteDatadogSynthetics
 
 onBeforeMigrate:
   - logEvent:

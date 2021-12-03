@@ -688,3 +688,73 @@ actions:
     - script: |
         resp = jelastic.env.control.GetEnvInfo('${this.envName}', session);
         return {"result": 0, "out": resp.env.status};
+
+  muteDatadogSynthetics:
+    # Parameters:
+    #  - duration: mute duration in minutes. Optional, default 60
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${nodes.proc.first.id}]: |-
+        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
+        MUTE_END=$(date -d "+${this.duration:60}min" +%s)
+        monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
+                      -H 'Content-Type: application/json' \
+                      -H "DD-API-KEY: $DATADOGAPIKEY" \
+                      -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                      | jq -er '.tests[] | select(.config.request.url | contains("${env.shortdomain}")) | .monitor_id')
+        if [[ $? -ne 0 ]]; then
+          echo "[INFO] No synthetics defined for ${env.envName}"
+          exit 0
+        fi
+        DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
+        check_monitor_status=$(curl -s $DD_MONITOR_SEARCH \
+                                -H 'Content-Type: application/json' \
+                                -H "DD-API-KEY: $DATADOGAPIKEY" \
+                                -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                                | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
+        if [ $check_monitor_status != null ]; then
+          echo "[INFO] Synthetics is already muted. Nothing to do."
+          exit 0
+        fi
+        curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/mute" \
+          -XPOST \
+          -H 'Content-Type: application/json' \
+          -H "DD-API-KEY: $DATADOGAPIKEY" \
+          -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+          -d "{\"end\": $MUTE_END}"
+
+  unmuteDatadogSynthetics:
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${nodes.proc.first.id}]: |-
+        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
+        monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
+                    -H 'Content-Type: application/json' \
+                    -H "DD-API-KEY: $DATADOGAPIKEY" \
+                    -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                    | jq -er '.tests[] | select(.config.request.url | contains("${env.shortdomain}")) | .monitor_id')
+        if [[ $? -ne 0 ]]; then
+          echo "[INFO] No synthetics defined for ${env.envName}"
+        exit 0
+        fi
+        DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
+        check_monitor_status=$(curl -s $DD_MONITOR_SEARCH \
+                                -H 'Content-Type: application/json' \
+                                -H "DD-API-KEY: $DATADOGAPIKEY" \
+                                -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                                | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
+        if [ $check_monitor_status == null ]; then
+          echo "[INFO] Synthetics is already unmuted. Nothing to do."
+          exit 0
+        fi
+        curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute" \
+          -XPOST \
+          -H 'Content-Type: application/json' \
+          -H "DD-API-KEY: $DATADOGAPIKEY" \
+          -H "DD-APPLICATION-KEY: $DD_APP_KEY"
