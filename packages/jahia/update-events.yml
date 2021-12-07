@@ -115,14 +115,12 @@ onAfterRedeployContainer[proc]:
         user: root
       - if ('${response.out}' == ''):
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
-          - addProcNodeToHaproxy:
-              reload: true
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
-      - addProcNodeToHaproxy:
-          reload: true
+  - addProcNodeToHaproxy:
+      reload: true
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
