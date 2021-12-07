@@ -13,6 +13,8 @@ mixins:
   - ../../mixins/haproxy.yml
 
 onInstall:
+  - muteDatadogSynthetics:
+      duration: 240 # 4h
   ## Globals definition
   - cmd [proc]: |-
       ## [Upgrade] - 1/2
@@ -75,6 +77,7 @@ onInstall:
       - updateProductVersionInPapi:
           version: "${settings.targetVersion}"
           product: "dx"
+  - unmuteDatadogSynthetics
 
 
 settings:
