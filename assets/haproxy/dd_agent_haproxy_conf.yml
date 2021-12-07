@@ -17,3 +17,5 @@ instances:
     username: admin
     password: my_awesome_password
     collect_status_metrics: true
+    enable_service_check: true
+    status_check: true
