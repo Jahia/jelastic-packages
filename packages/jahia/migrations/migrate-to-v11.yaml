@@ -30,7 +30,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - removeEmptyEnvLink # PAAS-1740
+  - removeEmptyEnvLink           # PAAS-1740
+  - fixDDHaproxyIntegrationConf  # PAAS-1901
 
 
   ### Post-actions
@@ -72,3 +73,23 @@ actions:
         return {"result": 0, "envLinkFixed": false}
       }
 
+  fixDDHaproxyIntegrationConf:
+    - cmd[bl]: |-
+        wantedMD5="54c8456e10c3aab23b1da120c9ef422d"
+        fileName="/etc/datadog-agent/conf.d/haproxy.d/conf.yaml"
+        fileMD5=$(grep -Ev "(password|service):" $fileName | md5sum | awk '{print $1}')
+        if [ "$fileMD5" != "$wantedMD5" ]; then
+          admPwd=$(awk -F':' '$1~/stats auth admin/ {print $NF; exit}' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg')
+          svc=$(awk -F':\\s*' '$1~/service/ {print $NF; exit}' $fileName)  # we keep the actual value for service tag
+          if [ -n "$admPwd" ] && [ -n "$svc" ]; then
+            curl -fLSso $fileName ${globals.repoRootUrl}/packages/jahia/migrations/v11_assets/dd_agent_haproxy_conf.yml || exit 1
+            sed -e "s/service:.*$/service: ${svc}/" \
+                -e "s/my_awesome_password/${admPwd}/" \
+                -i $fileName
+          else
+            echo "No value(s) for admPwd and/or svc"
+            exit 1
+          fi
+        fi
+        systemctl restart datadog-agent
+      user: root
