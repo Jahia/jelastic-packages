@@ -1,0 +1,48 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v10
+id: migrate-jcustomer-env-v10
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/elasticsearch.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 10
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
+  - eventsUpdate
+  ### End Pre-checks
+
+  - RemoveJettyIODebug                      # PAAS-1896
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - checkEsClusterStatus
+  - checkElasticsearchDatadogCustomChecks: es
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  RemoveJettyIODebug:
+    cmd[cp]: |-
+      sed '/PAAS-1380/I,+3 d' -i /opt/jcustomer/jcustomer/etc/org.ops4j.pax.logging.cfg
+    user: root
