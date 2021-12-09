@@ -704,18 +704,18 @@ actions:
                       -H 'Content-Type: application/json' \
                       -H "DD-API-KEY: $DATADOGAPIKEY" \
                       -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
-                      | jq -er '.tests[] | select(.config.request.url | contains("${env.shortdomain}")) | .monitor_id')
+                      | jq -er '.tests[] | select(.config.request.url | contains("https://${env.shortdomain}.")) | .monitor_id')
         if [[ $? -ne 0 ]]; then
           echo "[INFO] No synthetics defined for ${env.envName}"
           exit 0
         fi
         DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
-        check_monitor_status=$(curl -s $DD_MONITOR_SEARCH \
-                                -H 'Content-Type: application/json' \
-                                -H "DD-API-KEY: $DATADOGAPIKEY" \
-                                -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
-                                | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
-        if [ $check_monitor_status != null ]; then
+        monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
+                             -H 'Content-Type: application/json' \
+                             -H "DD-API-KEY: $DATADOGAPIKEY" \
+                             -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                             | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
+        if [ $monitor_mute_status != null ]; then
           echo "[INFO] Synthetics is already muted. Nothing to do."
           exit 0
         fi
@@ -738,21 +738,34 @@ actions:
                     -H 'Content-Type: application/json' \
                     -H "DD-API-KEY: $DATADOGAPIKEY" \
                     -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
-                    | jq -er '.tests[] | select(.config.request.url | contains("${env.shortdomain}")) | .monitor_id')
+                    | jq -er '.tests[] | select(.config.request.url | contains("https://${env.shortdomain}.")) | .monitor_id')
         if [[ $? -ne 0 ]]; then
           echo "[INFO] No synthetics defined for ${env.envName}"
-        exit 0
+          exit 0
         fi
         DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
-        check_monitor_status=$(curl -s $DD_MONITOR_SEARCH \
-                                -H 'Content-Type: application/json' \
-                                -H "DD-API-KEY: $DATADOGAPIKEY" \
-                                -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
-                                | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
-        if [ $check_monitor_status == null ]; then
+        monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
+                             -H 'Content-Type: application/json' \
+                             -H "DD-API-KEY: $DATADOGAPIKEY" \
+                             -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                             | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
+        if [ $monitor_mute_status == null ]; then
           echo "[INFO] Synthetics is already unmuted. Nothing to do."
           exit 0
         fi
+        # Iterating over the monitor status and unmute it once monitor status is 'OK'
+        # Once max iterations(~5mins for 180 iterations) is reached, we unmute the monitor regardless of the status.
+        for (( i=1; i<=180; i++ )); do
+          monitor_status=$(curl -s $DD_MONITOR_SEARCH \
+                          -H 'Content-Type: application/json' \
+                          -H "DD-API-KEY: $DATADOGAPIKEY" \
+                          -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                          | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .status')
+          if [[ "$monitor_status" == "OK" ]]; then
+            break
+          fi
+          sleep 1
+        done
         curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute" \
           -XPOST \
           -H 'Content-Type: application/json' \
