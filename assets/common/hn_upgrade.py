@@ -22,7 +22,8 @@ logger = logging.getLogger()
 class Hardware_node_upgrade():
 
     def __init__(self, jelastic_session, jelastic_hn_hostname, datadog_hn_hostname, region, recover_file_path,
-                 recover_state, dry_run, jserver, dd_app_key, dd_api_key, papi_hostname, papi_token):
+                 recover_state, dry_run, jserver, dd_app_key, dd_api_key, papi_hostname, papi_token,
+                 skip_stop):
         self.jelastic_session = jelastic_session
         self.jelastic_hardware_node_hostname = jelastic_hn_hostname
         self.datadog_hardware_node_hostname = datadog_hn_hostname
@@ -35,6 +36,7 @@ class Hardware_node_upgrade():
         self.dd_api_key = dd_api_key
         self.papi_hostname = papi_hostname
         self.papi_token = papi_token
+        self.skip_stop = skip_stop
 
     def start_hn_upgrade(self):
         """
@@ -48,7 +50,8 @@ class Hardware_node_upgrade():
         hn_infos = self.get_hn_infos()
 
         self.set_hn_status(hn_infos, "MAINTENANCE")
-        if not check_hardwarenodes(self.jelastic_session, self.region, self.papi_hostname, self.papi_token):
+        if not self.skip_stop and not check_hardwarenodes(self.jelastic_session, self.region,
+                                                          self.papi_hostname, self.papi_token):
             self.set_hn_status(hn_infos, "ACTIVE")
             exit(1)
 
@@ -58,7 +61,9 @@ class Hardware_node_upgrade():
         if not self.recover_state:
             self.persist_running_containers(self.recover_file_path, running_containers)
 
-        self.stop_nodes(running_containers)
+        if not self.skip_stop:
+            self.stop_nodes(running_containers)
+
         jelastic_session.signOut()
 
         self.mute_hardware_node(self.datadog_hardware_node_hostname)
@@ -147,6 +152,8 @@ class Hardware_node_upgrade():
         containers = get_containers(jelastic_session, hn_id)
         running_containers = {}
         for container in containers:
+            if "envName" not in container:
+                continue
             envname = container["envName"]
             node_group = container["nodeGroup"]
             status = container["status"]
@@ -354,6 +361,11 @@ def argparser():
                            dest="recover_state",
                            help="If this parameter is set, the state file won't be created/updated and should already exist (useful if the script has been stopped before restarting the nodes during a previous run for instance)")
 
+    args_list.add_argument("--skip-stop",
+                           action="store_true",
+                           dest="skip_stop",
+                           help="If this parameter is set, the script won't check the cluster state and stop nodes on the HN. It  can't be used if --recover-state is not set. It's meant to be used if the script was unintentially exited during the upgrade, of if starting some nodes failed")
+
     args = parser.parse_args()
 
     MANDATORY_VARIABLES = ["jelastic_hn_hostname", "datadog_hn_hostname", "juser", "jpassword",
@@ -364,6 +376,10 @@ def argparser():
             print("Parameter " + mandatory_variable + " is not set")
             print(parser.print_help())
             exit(1)
+
+    if args.skip_stop and not args.recover_state:
+        print("--skip-stop only can be set if --recover-state is set")
+        exit(1)
 
     return args
 
@@ -392,7 +408,8 @@ if __name__ == "__main__":
         args.dd_app_key,
         args.dd_api_key,
         args.papi_hostname,
-        args.papi_token
+        args.papi_token,
+        args.skip_stop
     )
     hn_upgrade.start_hn_upgrade()
 
