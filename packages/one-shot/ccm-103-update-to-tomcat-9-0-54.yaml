@@ -1,0 +1,32 @@
+---
+type: update
+version: 1.5.2
+name: CCM-103 - Update to Tomcat 9.0.54
+id: ccm-103-update-to-tomcat-9-0-54
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - updateJahiaCsrfGuardModule
+  - rollingRedeployJahiaNodes
+
+actions:
+  # For Jahia 7.3.7 and 7.3.8, we need to update the CSRF Guard module to 1.4.0 (cf. QA-14041)
+  updateJahiaCsrfGuardModule:
+    - getJahiaVersion
+    - if( "${globals.jahiaVersion}" == "7.3.7.0" || "${globals.jahiaVersion}" == "7.3.8.0" ):
+        - upgradeJahiaModule:
+            module: "Jahia CSRF Guard"
+            version: 1.4.0
+
+  rollingRedeployJahiaNodes:
+    - install:
+        jps: "https://raw.githubusercontent.com/Jahia/jelastic-packages/v1.5.1/packages/jahia/upgrade.yml"
+        settings:
+          rollingRedeploy: true
+    # In v1.5.1 of the packages, there was an issue preventing the proc from being added back to HAProxy (cf. PAAS-1891)
+    - addProcNodeToHaproxy:
+        reload: true
