@@ -1,0 +1,44 @@
+---
+type: update
+version: 1.5.2
+name: Jahia and jCustomer- Fix log4j security-issue
+id: jahia-jcustomer-fix-log4j-issue
+description:
+  short: Jahia and jCustomer- Fix log4j security-issue
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - if (nodes.proc):  # Jahia
+      - cmd[proc, cp]: |-
+          if ( ! $(grep -q "log4j2.formatMsgNoLookups" /opt/tomcat/conf/variables.conf) ); then
+            echo "-Dlog4j2.formatMsgNoLookups=true" >> /opt/tomcat/conf/variables.conf
+          else
+            echo "Nothing to do"
+          fi
+      - if ("${response.out}" != "Nothing to do"):
+          script: |-
+            data = {
+              "targetAppid": "${env.envName}",
+              "manifest": "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+            };
+            res = jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
+            return {"result": res.result}
+
+  - else: #jCustomer
+      - cmd[cp]: |-
+          if ( ! $(grep -q "log4j2.formatMsgNoLookups" $JCUSTOMER_HOME/jcustomer/bin/setenv) ); then
+            echo "export JAVA_OPTS=\"$JAVA_OPTS -Dlog4j2.formatMsgNoLookups=true\"" >> $JCUSTOMER_HOME/jcustomer/bin/setenv
+          else
+            echo "Nothing to do"
+          fi
+      - if ("${response.out}" != "Nothing to do"):
+          script: |-
+            data = {
+              "targetAppid": "${env.envName}",
+              "manifest": "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+            };
+            res = jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
+            return {"result": res.result}
