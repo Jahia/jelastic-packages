@@ -123,7 +123,7 @@ actions:
     - if (! ${settings.dryRun}):
         muteDatadogHost:
           target: ${globals.nodesList.join(,)}
-          duration: 30
+          duration: 60
 
   callRemoveBrowsingNodeFromHaproxyAction:
     - appendActionLog: "Removing browsing ${this} from haproxy pool"
