@@ -31,8 +31,8 @@ onInstall:
   ### End Pre-checks
 
   - removeEmptyEnvLink           # PAAS-1740
+  - updateJexperience            # PAAS-1887
   - fixDDHaproxyIntegrationConf  # PAAS-1901
-
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -72,6 +72,18 @@ actions:
       } else {
         return {"result": 0, "envLinkFixed": false}
       }
+
+  updateJexperience:
+    # Update jExperience to 1.11.7 on Jahia 7.3 envs
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isLowerThan8000
+    - if( ${globals.isLowerThan8000} ):
+        - upgradeJahiaModule:
+            module: "jExperience"
+            version: 1.11.7
 
   fixDDHaproxyIntegrationConf:
     - cmd[bl]: |-
