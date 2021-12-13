@@ -169,7 +169,7 @@ actions:
         }
         commands = [
           {
-            "command": "sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
+            "command": "sed -i 's/\\(jexperience.jCustomer.*=\\).*/\\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
           },
           {
             "command": "rm -f /data/digital-factory-data/modules/jexperience-*.jar"
