@@ -59,7 +59,7 @@ actions:
       envLink = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
                                 return object.name == "cp";
                               }).pop().envLink;
-      if (envLink === "") {
+      if (envLink == "") {
         jelastic.env.nodegroup.ApplyData("${env.envName}", session,
           nodeGroup="cp",
           data={'envLink': null}

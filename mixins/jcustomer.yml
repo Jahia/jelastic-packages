@@ -182,25 +182,25 @@ actions:
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
             envInfos = jelastic.env.control.GetEnvInfo(jahiaEnvname, session);
-            if (envInfos.env.status == 1)  {
-              ["cp","proc"].forEach(
-                function(nodeGroup) {
-                  var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
-                    nodeGroup=nodeGroup,
-                    data={'envLink': null}
-                  );
+            ["cp","proc"].forEach(
+              function(nodeGroup) {
+                var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
+                  nodeGroup=nodeGroup,
+                  data={'envLink': null}
+                );
+                if (envInfos.env.status == 1)  {
                   jelastic.env.control.ExecCmdByGroup(jahiaEnvname, session,
                     nodeGroup=nodeGroup,
                     commandList=toJSON(commands));
                 }
-              )
-              unlinkedJahiaEnvs.push(jahiaEnvname);
-            }
+              }
+            )
+            unlinkedJahiaEnvs.push(jahiaEnvname);
           }
         );
 
         if (unlinkedJahiaEnvs.length == 0) {
-          return {"result": 0, "out": "No jahia environment linked up"};
+          return {"result": 0, "out": "No jahia environment linked"};
         }
 
         return {"result": 0, "out": "Unlinked following environments: " + linkedJahiaEnvs};
