@@ -33,6 +33,7 @@ onInstall:
   - removeEmptyEnvLink           # PAAS-1740
   - updateJexperience            # PAAS-1887
   - fixDDHaproxyIntegrationConf  # PAAS-1901
+  - fixJvmRouteParam             # PAAS-1892
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -105,3 +106,25 @@ actions:
         fi
         systemctl restart datadog-agent
       user: root
+
+  fixJvmRouteParam:
+    - cmd [${this}]: |-
+        short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
+        conffile="$STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties"
+        if grep -qE "jahia.session.jvmRoute.*$short_name" $conffile; then
+          echo "No restart"
+          exit 0
+        fi
+        sed -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
+            -i $conffile
+    - if ("${response.out}" == "No restart"):
+        log: "jahia.session.jvmRoute parameter already set with the right value, restart of the node not required"
+    - else:
+        - log: "jahia.session.jvmRoute updated, restart required"
+        - api: environment.control.RestartNodeById
+          nodeId: ${this}
+
+  fixJvmRouteParamAllNodes:
+    - fixJvmRouteParam: ${nodes.proc.first.id}
+    - foreach (nodes.cp):
+        - fixJvmRouteParam: ${@i.id}
