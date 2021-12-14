@@ -889,24 +889,13 @@ actions:
             type: error
             message: "jCustomer password is wrong."
 
-  removeJexperienceConfigIfNoEnvLink:
-    - getEnvLinkedJcustomer:
-        envName: ${env.envName}
-    - if ( ! ${globals.unomi_env_linked}):
-      - cmd[proc, cp]: |-
-          JCUSTOMER_CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
-          if [ -f $JCUSTOMER_CONFIG_FILE ]; then
-            sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' $JCUSTOMER_CONFIG_FILE
-            rm -f /data/digital-factory-data/modules/jexperience-*.jar
-          fi
-
-  removeJexperienceConfig:
+  emptyJexperienceConfigAndRemoveJexperienceJar:
     - cmd[proc, cp]: |-
-        sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+        JCUSTOMER_CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
+        if [ -f $JCUSTOMER_CONFIG_FILE ]; then
+         sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' $JCUSTOMER_CONFIG_FILE
+        fi
         rm -f /data/digital-factory-data/modules/jexperience-*.jar
-    - environment.nodegroup.ApplyData [proc, cp]:
-        data:
-          envLink: null
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:

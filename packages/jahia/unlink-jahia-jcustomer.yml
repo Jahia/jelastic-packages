@@ -9,10 +9,11 @@ description:
 
 mixins:
   - ../../mixins/jcustomer.yml
+  - ../../mixins/jahia.yml
 
 onInstall:
   - getJcustomer
-  - removeJexperienceConfig
+  - emptyJexperienceConfigAndRemoveJexperienceJar
   - updateEnvLink
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${globals.jCustomerEnv}
@@ -30,11 +31,6 @@ actions:
         }
     - setGlobals:
         jCustomerEnv: ${response.out}
-
-  removeJexperienceConfig:
-    - cmd[cp, proc]: |-
-        sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-        rm -f /data/digital-factory-data/modules/jexperience-*.jar
 
   updateEnvLink:
     - environment.nodegroup.ApplyData [proc, cp]:
