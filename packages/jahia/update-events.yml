@@ -196,10 +196,10 @@ onBeforeStop:
       text: "$envName is going to stop"
 
 onAfterStart:
-    - getEnvLinkedJcustomer:
-        envName: ${env.envName}
-    - if ( ! ${globals.unomi_env_linked}):
-        emptyJexperienceConfigAndRemoveJexperienceJar
+  - getEnvLinkedJcustomer:
+      envName: ${env.envName}
+  - if ( ! ${globals.unomi_env_linked}):
+      emptyJexperienceConfigAndRemoveJexperienceJar
 
   - startupJahiaHealthCheck: cp, proc
 
