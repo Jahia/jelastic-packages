@@ -122,7 +122,9 @@ actions:
         rm -rf /data/digital-factory-data/repository/.lock /data/digital-factory-data/repository/workspace /data/digital-factory-data/repository/index
         touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
-        sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+        sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
+            -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
+            -i $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - if ("${response.errOut}" != ""):
         - return:
             type: error
