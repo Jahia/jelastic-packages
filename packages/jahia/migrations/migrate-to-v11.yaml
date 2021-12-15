@@ -33,7 +33,7 @@ onInstall:
   - removeEmptyEnvLink           # PAAS-1740
   - updateJexperience            # PAAS-1887
   - fixDDHaproxyIntegrationConf  # PAAS-1901
-  - fixJvmRouteParam             # PAAS-1892
+  - fixJvmRouteParamAllNodes     # PAAS-1892
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
