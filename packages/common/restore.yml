@@ -160,7 +160,10 @@ actions:
         - log: keep env link
     - else:
         - log: remove env link
-        - removeJexperienceConfig
+        - emptyJexperienceConfigAndRemoveJexperienceJar
+        - environment.nodegroup.ApplyData [proc, cp]:
+            data:
+              envLink: null
     - cmd [cp]:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
