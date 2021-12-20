@@ -1,0 +1,15 @@
+---
+type: update
+version: 1.5
+name: Update datadog agent
+logo: ../../assets/common/jahia-logo-70x70.png
+id: update-datadog-agent
+
+
+onInstall:
+  cmd[*]: |-
+    source /.jelenv
+    export DD_AGENT_MAJOR_VERSION=6
+    export DD_API_KEY=$DATADOGAPIKEY
+    bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
+  user: root
