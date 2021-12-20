@@ -68,6 +68,7 @@ onInstall:
           - installBackupTools:
               target: bl
               logAction: ${globals.logAction}
+      - initialJexperienceStatus
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -88,6 +89,58 @@ onInstall:
 
 
 actions:
+  getJexperienceStatus:
+  # Parameters:
+  #   - step: on wich step this action is launched
+    - cmd[proc]: |-
+        module="dx:org.jahia.modules/jexperience"
+        # following will output:
+        #   - json-like with key "ACTIVE"=false if jexperience module isn't there or not in "ACTIVE" stat
+        #   - a json-like string if a jexperience module is in "ACTIVE" stat '{"version": "x.y.z", "ACTIVE": true}'
+        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
+        # Also feed globals.logPath with jexperience module found and their state
+        awk -v moduleName="$module" -v logfile="${globals.logsPath}" \
+          'NR=2 && $1 ~ moduleName { \
+              split($1,modinfo,"/"); \
+              getline; \
+              printf "Found module %s v%s with status %s\n",modinfo[2],modinfo[3],$1 >> logfile; \
+              if($1==32){ \
+                version=modinfo[3]; \
+                ACTIVE="true" \
+              } \
+            } \
+            END{ \
+              if(ACTIVE=="true"){ \
+                printf "{\"version\": \"%s\", \"ACTIVE\": %s }",version,ACTIVE \
+              } \
+              else{ \
+              printf "{\"ACTIVE\": false}" \
+              } \
+            }' \
+          /data/digital-factory-data/bundles-deployed/*/bundle.info
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while fetching jExperience information ${this.step}: ${response.errOut}"
+    # the following script is only here to transform the response string to a real json object
+    - script: |-
+        const rep = ${response.out.toJSON()}
+        const result = {"result": 0}
+        return Object.assign({}, result, rep)
+
+  initialJexperienceStatus:
+    - getJexperienceStatus:
+        step: "before restore"
+    - setGlobals:  # must be set for following conditionnal test, even if false
+        jexperience_active: ${response.ACTIVE}
+    - if (globals.jexperience_active):
+        - setGlobals:
+            jexperience_active_version: ${response.version}
+        # we keep the jexperience conf in a barely safe spot
+        - cmd[proc,cp]: |-
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
+          user: root
+
   restoreJahia:
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 2/5
@@ -106,6 +159,45 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
+    # check is restored backup is also with jexperience active
+    - getJexperienceStatus:
+        step: "after digital-factory-data restore"
+    - set:  # must be set for following conditionnal test, even if false
+        restored_linked: ${response.ACTIVE}
+    - if (${this.restored_linked}):
+        - set:
+            restored_active_version: ${response.version}
+    - if (${globals.jexperience_active} && ${this.restored_linked}):
+        - cmd[proc]: |-
+            initial_file=/root/org.jahia.modules.jexperience.settings-global.cfg
+            restored_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+            if (cmp -s $initial_file $restore_file); then
+              echo "true"  # both conf files goes to the same jcustomer
+              echo "restored jexperience conf is the same" >> ${globals.logsPath}
+            else
+              echo "false"  # the initial conf have to be restored ON ALL TOMCATS
+              echo "restored jexperience conf differs" >> ${globals.logsPath}
+            fi
+          user: root
+        - setGlobals:
+            same_jexperience_conf: ${response.out}
+        # check is restored active jexperience module version is the same
+        - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
+            - cmd[proc]: |-
+                echo "restored ACTIVE jexperience is v${this.restored_active_version} while v${globals.jexperience_active_version} was ACTIVE before the restore" >> ${globals.logsPath}
+            - setGlobals:
+                reinstall_jexperience: true  # jexperience need to be reinstalled with the initial version
+        - else:
+            - cmd[proc]: |-
+                echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
+    - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
+        - setGlobals:
+            remove_restored_jexperience: true
+            same_jexperience_conf: false
+    - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
+        - setGlobals:
+            reinstall_jexperience: true
+            same_jexperience_conf: false
 
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 3/5
@@ -158,19 +250,14 @@ actions:
     - else:
         log: "No env var backup available"
 
-    - if (settings.removeEnvlink && ${settings.removeEnvlink} == false):
-        - log: keep env link
-    - else:
-        - log: remove env link
-        - emptyJexperienceConfigAndRemoveJexperienceJar
-        - environment.nodegroup.ApplyData [proc, cp]:
-            data:
-              envLink: null
     - cmd [cp]:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
     - cmd [proc,cp]: |-
-          find /data/digital-factory-data/modules -name "healthcheck-cluster*" -print -delete
+          find /data/digital-factory-data/modules \
+            \( -name "healthcheck-cluster*" -o -name "jexperience-*" \) \
+            -print -delete
+
     - cmd [proc]: |-
         ## [${globals.logAction}] - 5/5
         sudo service tomcat start
@@ -179,6 +266,57 @@ actions:
     - cmd [cp]:
         - sudo service tomcat start
     - startupJahiaHealthCheck: cp
+
+    # if the env intialy don't have jexperience active,
+    # then we clean the conf and nodegroups data
+    - if (globals.remove_restored_jexperience):
+        - log: remove env link
+        - emptyJexperienceConfigAndRemoveJexperienceJar
+        - environment.nodegroup.ApplyData [proc, cp]:
+            data:
+              envLink: null
+    - else:
+        - log: keep env link
+
+    # if the restored jexperience conf is not the same as the initale one,
+    # then we restore the initial conf
+    - if (${globals.jexperience_active} && !${globals.same_jexperience_conf}):
+        - cmd[proc, cp]: |-
+            mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+          user: root
+
+    # if the restored jexperience isn't the same as the intiale one,
+    # then we install the initial
+    - if (globals.reinstall_jexperience):
+        - cmd[proc]: |-
+            echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
+        - upgradeJahiaModule:
+            module: jExperience
+            version: ${globals.jexperience_active_version}
+
+    # if the env intialy don't have jexperience active,
+    # then we clean the conf and nodegroups data
+    - if (globals.remove_restored_jexperience):
+        - enableKarafLogin: cp, proc
+        - setGlobals:
+            awkFS: "-F ' ?*\t ?'"
+            awkIC: "-v IGNORECASE=1"
+        - removeModule: 
+            target: proc
+            module: jExperience
+        - forEach (nodes.cp):
+            removeModule:
+              target: ${@i.id}
+              module: jExperience
+        - disableKarafLogin: cp, proc
+
+    # we remove the jexperience backup, if any left
+    - if (globals.jexperience_active):
+        - cmd[proc,cp]: |-
+            f=/root/org.jahia.modules.jexperience.settings-global.cfg
+            [ -f $f ] && rm $f
+            exit 0
+          user: root
 
     # Following is for remove deprecated entries in JR_J_LOCAL_REVISIONS if any
     - sleep:
@@ -488,6 +626,39 @@ actions:
     - else:
         log: "No env var backup available"
 
+  removeModule:
+  # parameters:
+  # module: the module to remove
+  # target: where to remove
+    - cmd[${this.target}]: |-
+        i=1
+        imax=66
+        id_to_rm="blablabla"
+        while [ -n "$id_to_rm" ] || [ $i -gt $imax ]; do
+          id_to_rm="$( \
+              ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+              'NF==5 && $1>0 && $NF~/^${this.module}$/ \
+              {printf "%s ",$1}')"
+          if [ -n "$id_to_rm" ]; then
+            ${globals.karafConsole} bundle:uninstall $id_to_rm 2> /dev/null
+          else
+            if [ $i -gt 1 ]; then
+              echo "removed"
+            else
+              echo "no other"
+            fi
+            exit 0
+          fi
+          ((i++))
+        done
+        echo "still previous"
+    - if ("${response.out}" == "removed"):
+        log: Other ${this.module} module version now deleted on ${this}
+    - elif ("${response.out}" == "no other"):
+        log: No other ${this.module} module version on ${this}
+    - elif ("${response.out}" == "still previous"):
+        log: Other ${this.module} module version still present on ${this}
+
 settings:
   fields:
     - name: backup_name
@@ -523,10 +694,3 @@ settings:
       caption: is this a manual or auto backup
       type: string
       default: manual
-    - name: removeEnvlink
-      type: radiolist
-      caption: Env links
-      values:
-        true: Remove
-        false: Keep
-      default: 1
