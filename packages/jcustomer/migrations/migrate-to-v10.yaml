@@ -24,6 +24,7 @@ onInstall:
   ### End Pre-checks
 
   - removeJettyIODebug                      # PAAS-1896
+  - removeOperatingMode                     # PAAS-1920
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -46,3 +47,7 @@ actions:
     cmd[cp]: |-
       sed '/PAAS-1380/I,+3 d' -i /opt/jcustomer/jcustomer/etc/org.ops4j.pax.logging.cfg
     user: root
+
+  removeOperatingMode:
+    env.control.RemoveContainerEnvVars [*]:
+      vars: ["jahia_cfg_operatingMode"]
