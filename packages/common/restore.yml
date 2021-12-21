@@ -313,7 +313,7 @@ actions:
         - disableKarafLogin: cp, proc
 
     # we remove the jexperience backup, if any left
-    # be awre that this global is a string
+    # be aware that this global is a string
     - if (globals.jexperience_active == "true"):
         - cmd[proc,cp]: |-
             f=/root/org.jahia.modules.jexperience.settings-global.cfg
