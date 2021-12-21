@@ -200,6 +200,11 @@ actions:
             remove_restored_jexperience: false
             reinstall_jexperience: true
             same_jexperience_conf: false
+    - elif (!${globals.jexperience_active} && !${this.restored_linked}):  # nothing to do
+        - setGlobals:
+            remove_restored_jexperience: false
+            reinstall_jexperience: false
+            same_jexperience_conf: false
 
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 3/5
