@@ -114,7 +114,7 @@ actions:
                 printf "{\"version\": \"%s\", \"ACTIVE\": %s }",version,ACTIVE \
               } \
               else{ \
-              printf "{\"ACTIVE\": false}" \
+                printf "{\"ACTIVE\": false}" \
               } \
             }' \
           /data/digital-factory-data/bundles-deployed/*/bundle.info
@@ -133,7 +133,7 @@ actions:
         step: "before restore"
     - setGlobals:  # must be set for following conditionnal test, even if false
         jexperience_active: ${response.ACTIVE}
-    - if (globals.jexperience_active):
+    - if (globals.jexperience_active == "true"):
         - setGlobals:
             jexperience_active_version: ${response.version}
         # we keep the jexperience conf in a barely safe spot
@@ -193,9 +193,11 @@ actions:
     - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
         - setGlobals:
             remove_restored_jexperience: true
+            reinstall_jexperience: false
             same_jexperience_conf: false
     - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
         - setGlobals:
+            remove_restored_jexperience: false
             reinstall_jexperience: true
             same_jexperience_conf: false
 
@@ -301,7 +303,7 @@ actions:
         - setGlobals:
             awkFS: "-F ' ?*\t ?'"
             awkIC: "-v IGNORECASE=1"
-        - removeModule: 
+        - removeModule:
             target: proc
             module: jExperience
         - forEach (nodes.cp):
@@ -311,7 +313,8 @@ actions:
         - disableKarafLogin: cp, proc
 
     # we remove the jexperience backup, if any left
-    - if (globals.jexperience_active):
+    # be awre that this global is a string
+    - if (globals.jexperience_active == "true"):
         - cmd[proc,cp]: |-
             f=/root/org.jahia.modules.jexperience.settings-global.cfg
             [ -f $f ] && rm $f
