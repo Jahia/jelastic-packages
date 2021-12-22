@@ -82,9 +82,16 @@ actions:
         b: 8.0.0.0
         res: isLowerThan8000
     - if( ${globals.isLowerThan8000} ):
-        - upgradeJahiaModule:
-            module: "jExperience"
-            version: 1.11.7
+        - enableKarafLogin: proc
+        - cmd[${nodes.proc.first.id}]: |-
+            ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk '$NF~/^jExperience$/ {print $1}'
+        - set:
+            moduleId: ${response.out}
+        - disableKarafLogin: proc
+        - if (${this.moduleId}):
+            - upgradeJahiaModule:
+                module: "jExperience"
+                version: 1.11.7
 
   fixDDHaproxyIntegrationConf:
     - cmd[bl]: |-
