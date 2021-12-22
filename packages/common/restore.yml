@@ -163,7 +163,6 @@ actions:
     - set:
         remove_restored_jexperience: false
         reinstall_jexperience: false
-        same_jexperience_conf: false
     # check is restored backup is also with jexperience active
     - getJexperienceStatus:
         step: "after digital-factory-data restore"
@@ -173,19 +172,6 @@ actions:
         - set:
             restored_active_version: ${response.version}
     - if (${globals.jexperience_active} && ${this.restored_linked}):
-        - cmd[proc]: |-
-            initial_file=/root/org.jahia.modules.jexperience.settings-global.cfg
-            restored_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-            if (cmp -s $initial_file $restore_file); then
-              echo "true"  # both conf files goes to the same jcustomer
-              echo "restored jexperience conf is the same" >> ${globals.logsPath}
-            else
-              echo "false"  # the initial conf have to be restored ON ALL TOMCATS
-              echo "restored jexperience conf differs" >> ${globals.logsPath}
-            fi
-          user: root
-        - set:
-            same_jexperience_conf: ${response.out}
         # check is restored active jexperience module version is the same
         - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
             - cmd[proc]: |-
@@ -281,45 +267,43 @@ actions:
     - else:
         - log: keep env link
 
-    # if the restored jexperience conf is not the same as the initale one,
-    # then we restore the initial conf
-    - if (${globals.jexperience_active} && !${this.same_jexperience_conf}):
+    # if jexperience was intialy active, we restore the conf file
+    - log: "jExperience was active before the restore: ${globals.jexperience_active}"
+    - if (${globals.jexperience_active}):
+        - log: "Initial jExperience conf needs to be restored"
         - cmd[proc, cp]: |-
             mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
           user: root
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
+    - log: "jExperience had to be reinstalled: ${this.reinstall_jexperience}"
     - if (${this.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
+        - log: "install jExperience v${globals.jexperience_active_version}"
         - upgradeJahiaModule:
             module: jExperience
             version: ${globals.jexperience_active_version}
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
+    - log: "Restored jExperience had to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
             awkFS: "-F ' ?*\t ?'"
             awkIC: "-v IGNORECASE=1"
+        - log: "Remove module jExperience from processing node"
         - removeModule:
             target: proc
             module: jExperience
+        - log: "Remove module jExperience from (each) browsing node(s)"
         - forEach (nodes.cp):
             removeModule:
               target: ${@i.id}
               module: jExperience
         - disableKarafLogin: cp, proc
-
-    # we remove the jexperience backup, if any left
-    - if (${globals.jexperience_active}):
-        - cmd[proc,cp]: |-
-            f=/root/org.jahia.modules.jexperience.settings-global.cfg
-            [ -f $f ] && rm $f
-            exit 0
-          user: root
 
     # Following is for remove deprecated entries in JR_J_LOCAL_REVISIONS if any
     - sleep:
