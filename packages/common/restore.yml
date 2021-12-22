@@ -276,7 +276,7 @@ actions:
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - if (globals.remove_restored_jexperience):
+    - if (${globals.remove_restored_jexperience}):
         - log: remove env link
         - emptyJexperienceConfigAndRemoveJexperienceJar
         - environment.nodegroup.ApplyData [proc, cp]:
@@ -294,7 +294,7 @@ actions:
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
-    - if (globals.reinstall_jexperience):
+    - if (${globals.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
         - upgradeJahiaModule:
@@ -303,7 +303,7 @@ actions:
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - if (globals.remove_restored_jexperience):
+    - if (${globals.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
             awkFS: "-F ' ?*\t ?'"
@@ -318,8 +318,7 @@ actions:
         - disableKarafLogin: cp, proc
 
     # we remove the jexperience backup, if any left
-    # be aware that this global is a string
-    - if (globals.jexperience_active == "true"):
+    - if (${globals.jexperience_active}):
         - cmd[proc,cp]: |-
             f=/root/org.jahia.modules.jexperience.settings-global.cfg
             [ -f $f ] && rm $f
