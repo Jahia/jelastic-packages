@@ -179,7 +179,7 @@ actions:
               echo "restored jexperience conf differs" >> ${globals.logsPath}
             fi
           user: root
-        - setGlobals:
+        - set:
             same_jexperience_conf: ${response.out}
         # check is restored active jexperience module version is the same
         - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
@@ -191,17 +191,17 @@ actions:
             - cmd[proc]: |-
                 echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
     - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
-        - setGlobals:
+        - set:
             remove_restored_jexperience: true
             reinstall_jexperience: false
             same_jexperience_conf: false
     - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
-        - setGlobals:
+        - set:
             remove_restored_jexperience: false
             reinstall_jexperience: true
             same_jexperience_conf: false
     - elif (!${globals.jexperience_active} && !${this.restored_linked}):  # nothing to do
-        - setGlobals:
+        - set:
             remove_restored_jexperience: false
             reinstall_jexperience: false
             same_jexperience_conf: false
@@ -276,7 +276,7 @@ actions:
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - if (${globals.remove_restored_jexperience}):
+    - if (${this.remove_restored_jexperience}):
         - log: remove env link
         - emptyJexperienceConfigAndRemoveJexperienceJar
         - environment.nodegroup.ApplyData [proc, cp]:
@@ -287,14 +287,14 @@ actions:
 
     # if the restored jexperience conf is not the same as the initale one,
     # then we restore the initial conf
-    - if (${globals.jexperience_active} && !${globals.same_jexperience_conf}):
+    - if (${globals.jexperience_active} && !${this.same_jexperience_conf}):
         - cmd[proc, cp]: |-
             mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
           user: root
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
-    - if (${globals.reinstall_jexperience}):
+    - if (${this.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
         - upgradeJahiaModule:
@@ -303,7 +303,7 @@ actions:
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - if (${globals.remove_restored_jexperience}):
+    - if (${this.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
             awkFS: "-F ' ?*\t ?'"
