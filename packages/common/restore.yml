@@ -159,6 +159,11 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
+    # set default value for the mangement of jexperience 
+    - set:
+        remove_restored_jexperience: false
+        reinstall_jexperience: false
+        same_jexperience_conf: false
     # check is restored backup is also with jexperience active
     - getJexperienceStatus:
         step: "after digital-factory-data restore"
@@ -190,26 +195,12 @@ actions:
         - else:
             - cmd[proc]: |-
                 echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
-            - set:
-                reinstall_jexperience: false  # initial jexperience and restored jexperience are the same
-        - set:
-            remove_restored_jexperience: false
-            same_jexperience_conf: false
     - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
         - set:
             remove_restored_jexperience: true
-            reinstall_jexperience: false
-            same_jexperience_conf: false
     - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
         - set:
-            remove_restored_jexperience: false
             reinstall_jexperience: true
-            same_jexperience_conf: false
-    - elif (!${globals.jexperience_active} && !${this.restored_linked}):  # nothing to do
-        - set:
-            remove_restored_jexperience: false
-            reinstall_jexperience: false
-            same_jexperience_conf: false
 
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 3/5
