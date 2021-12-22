@@ -133,7 +133,7 @@ actions:
         step: "before restore"
     - setGlobals:  # must be set for following conditionnal test, even if false
         jexperience_active: ${response.ACTIVE}
-    - if (globals.jexperience_active == "true"):
+    - if (${globals.jexperience_active}):
         - setGlobals:
             jexperience_active_version: ${response.version}
         # we keep the jexperience conf in a barely safe spot
