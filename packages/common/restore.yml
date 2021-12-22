@@ -185,11 +185,16 @@ actions:
         - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
             - cmd[proc]: |-
                 echo "restored ACTIVE jexperience is v${this.restored_active_version} while v${globals.jexperience_active_version} was ACTIVE before the restore" >> ${globals.logsPath}
-            - setGlobals:
+            - set:
                 reinstall_jexperience: true  # jexperience need to be reinstalled with the initial version
         - else:
             - cmd[proc]: |-
                 echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
+            - set:
+                reinstall_jexperience: false  # initial jexperience and restored jexperience are the same
+        - set:
+            remove_restored_jexperience: false
+            same_jexperience_conf: false
     - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
         - set:
             remove_restored_jexperience: true
