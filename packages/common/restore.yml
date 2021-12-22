@@ -159,7 +159,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
-    # set default value for the mangement of jexperience 
+    # set default value for the management of jexperience 
     - set:
         remove_restored_jexperience: false
         reinstall_jexperience: false
