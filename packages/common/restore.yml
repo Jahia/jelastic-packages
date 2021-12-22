@@ -270,14 +270,14 @@ actions:
     # if jexperience was intialy active, we restore the conf file
     - log: "jExperience was active before the restore: ${globals.jexperience_active}"
     - if (${globals.jexperience_active}):
-        - log: "Initial jExperience conf need to restored"
+        - log: "Initial jExperience conf needs to be restored"
         - cmd[proc, cp]: |-
             mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
           user: root
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
-    - log: "jExperience had to be reinstall: ${this.reinstall_jexperience}"
+    - log: "jExperience had to be reinstalled: ${this.reinstall_jexperience}"
     - if (${this.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
@@ -288,7 +288,7 @@ actions:
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - log: "Restored jExperience had to be remove: ${this.remove_restored_jexperience}"
+    - log: "Restored jExperience had to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
