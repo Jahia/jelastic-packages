@@ -283,6 +283,8 @@ actions:
 
     # if the restored jexperience conf is not the same as the initale one,
     # then we restore the initial conf
+    - log: "jExperience was active before the restore: ${globals.jexperience_active}"
+    - log: "if active, initial jExperience configuration and restored conf are identical: ${this.same_jexperience_conf}"
     - if (${globals.jexperience_active} && !${this.same_jexperience_conf}):
         - cmd[proc, cp]: |-
             mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
@@ -290,23 +292,28 @@ actions:
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
+    - log: "jExperience had to be reinstall: ${this.reinstall_jexperience}"
     - if (${this.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
+        - log: "install jExperience v${globals.jexperience_active_version}"
         - upgradeJahiaModule:
             module: jExperience
             version: ${globals.jexperience_active_version}
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
+    - log: "Restored jExperience had to be remove: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
             awkFS: "-F ' ?*\t ?'"
             awkIC: "-v IGNORECASE=1"
+        - log: "Remove module jExperience from processing node"
         - removeModule:
             target: proc
             module: jExperience
+        - log: "Remove module jExperience from (each) browsing node(s)"
         - forEach (nodes.cp):
             removeModule:
               target: ${@i.id}
@@ -315,6 +322,7 @@ actions:
 
     # we remove the jexperience backup, if any left
     - if (${globals.jexperience_active}):
+        - log: "Remove backuped jExperience conf file if still there"
         - cmd[proc,cp]: |-
             f=/root/org.jahia.modules.jexperience.settings-global.cfg
             [ -f $f ] && rm $f
