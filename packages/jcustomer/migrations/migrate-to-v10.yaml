@@ -21,10 +21,12 @@ onInstall:
   - checkEsClusterStatus
   - checkElasticsearchDatadogCustomChecks: es
   - eventsUpdate
+  - setGlobalRepoRootUrl
   ### End Pre-checks
 
   - removeJettyIODebug                      # PAAS-1896
   - removeOperatingMode                     # PAAS-1920
+  - multilineDDConf                         # PAAS-1929
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -51,3 +53,22 @@ actions:
   removeOperatingMode:
     env.control.RemoveContainerEnvVars [*]:
       vars: ["jahia_cfg_operatingMode"]
+
+  multilineDDConf:
+    - cmd[cp]: |-
+        # md5sum of file without the password line
+        newDDconfMD5="4d7ca78ebdbda5ef1e93fa44b2ee87bb"
+        confFile=/etc/datadog-agent/conf.d/jmx.d/conf.yaml
+        actualConfMD5=$(sed -r '/^\s+password:/d' $confFile | md5sum | awk '{print $1}')
+        if [ "$newDDconfMD5" = "$actualConfMD5" ]; then
+          exit 0
+        fi
+        pwd=$(awk '/^\s+password:\s*/ {print $NF; exit}' $confFile)
+        if [ -n "$pwd" ]; then
+          curl -fLSso $confFile ${globals.repoRootUrl}/packages/jcustomer/migrations/v10_assets/dd_jmx_unomi_conf.yaml || exit 1
+          sed -r "s/^(\s+password:\s*).*/\1$pwd/" -i $confFile
+          grep -qE "^\s+password:\s*$pwd" $confFile
+        else
+          exit 2
+        fi
+      user: root
