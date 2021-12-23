@@ -67,7 +67,7 @@ actions:
         if [ -n "$pwd" ]; then
           curl -fLSso $confFile ${globals.repoRootUrl}/packages/jcustomer/migrations/v10_assets/dd_jmx_unomi_conf.yaml || exit 1
           sed -r "s/^(\s+password:\s*).*/\1$pwd/" -i $confFile
-          grep -qE "^\s+password:\s*$pwd" $confFile
+          grep -qE "^\s+password:\s*$pwd" $confFile && systemctl restart datadog-agent
         else
           exit 2
         fi
