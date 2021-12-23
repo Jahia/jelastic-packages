@@ -259,13 +259,13 @@ actions:
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
     - if (${this.remove_restored_jexperience}):
-        - log: remove env link
+        - log: Remove env link
         - emptyJexperienceConfigAndRemoveJexperienceJar
         - environment.nodegroup.ApplyData [proc, cp]:
             data:
               envLink: null
     - else:
-        - log: keep env link
+        - log: Keep env link
 
     # if jexperience was intialy active, we restore the conf file
     - log: "jExperience was active before the restore: ${globals.jexperience_active}"
@@ -277,18 +277,18 @@ actions:
 
     # if the restored jexperience isn't the same as the intiale one,
     # then we install the initial
-    - log: "jExperience had to be reinstalled: ${this.reinstall_jexperience}"
+    - log: "jExperience has to be reinstalled: ${this.reinstall_jexperience}"
     - if (${this.reinstall_jexperience}):
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
-        - log: "install jExperience v${globals.jexperience_active_version}"
+        - log: "Install jExperience v${globals.jexperience_active_version}"
         - upgradeJahiaModule:
             module: jExperience
             version: ${globals.jexperience_active_version}
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
-    - log: "Restored jExperience had to be removed: ${this.remove_restored_jexperience}"
+    - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
         - enableKarafLogin: cp, proc
         - setGlobals:
@@ -513,7 +513,7 @@ actions:
     - if ("${response.errOut}" == ""):
         dbRestore
     - else:
-        - log: "db backup not found, trying legacy"
+        - log: "DB backup not found, trying legacy"
         - dbLegacyRestore
 
   dbRestore:
