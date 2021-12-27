@@ -19,7 +19,7 @@ NO_COLOR = '\033[0m'
 
 node_group_translation = {
     "jahia": {
-        "bl": "Haproxy",
+        "bl": "HAProxy",
         "cp": "Browsing",
         "proc": "Processing",
         "sqldb": "MariaDB"
@@ -58,30 +58,30 @@ def argparser():
     args_list = parser.add_argument_group('Arguments')
 
     args_list.add_argument("--jelastic-hardware-node-hostname",
-                           default=environ.get("JELASTIC_HARDWARE_NODE_HOSTNAME"),
                            dest="hn_hostname",
-                           help="The jelastic hardware node hostname, "
+                           default=environ.get("JELASTIC_HARDWARE_NODE_HOSTNAME"),
+                           help="The Jelastic hardware node hostname, "
                                 "can be set with JELASTIC_HARDWARE_NODE_HOSTNAME env var")
     args_list.add_argument("--juser",
                            default=environ.get('JELASTIC_USER'),
-                           help="the jelastic user, can be set with JELASTIC_USER env var")
+                           help="The Jelastic user, can be set with JELASTIC_USER env var")
     args_list.add_argument("--jpassword",
                            default=environ.get('JELASTIC_PASSWORD'),
-                           help="the jelastic user, can be set with JELASTIC_PASSWORD env var")
+                           help="The Jelastic user's password, can be set with JELASTIC_PASSWORD env var")
     args_list.add_argument("--jserver",
                            default=environ.get('JELASTIC_SERVER'),
-                           help="Jelastic Cluster DNS, can be set with JELASTIC_SERVER env var")
+                           help="Jelastic cluster DNS, can be set with JELASTIC_SERVER env var")
     args_list.add_argument("--region",
                            default=environ.get("JELASTIC_REGION"),
-                           help="Jelastic region name. Can be set with JELASTIC_REGION env var")
+                           help="Jelastic region name, can be set with JELASTIC_REGION env var")
     args_list.add_argument("--papi-token",
                            dest="papi_token",
                            default=environ.get('PAPI_TOKEN'),
-                           help="Papi token")
+                           help="PAPI token, can be set with PAPI_TOKEN env var")
     args_list.add_argument("--papi-hostname",
                            dest="papi_hostname",
                            default=environ.get('PAPI_HOSTNAME'),
-                           help="Papi hostname (papi.(dev.)cloud-core.jahia.com)")
+                           help="PAPI hostname (papi.[dev.]cloud-core.jahia.com), can be set with PAPI_HOSTNAME env var")
 
     return parser.parse_args()
 
