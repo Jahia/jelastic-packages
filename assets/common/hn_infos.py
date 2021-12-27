@@ -260,7 +260,7 @@ def display_envs(organizations_environments):
             if env_criticity > org_criticity:
                 org_criticity = env_criticity
 
-        color = criticity_color[env_criticity]
+        color = criticity_color[org_criticity]
         print(org_template.format(color=color, organization=organization, envs_output=envs_output))
 
 
