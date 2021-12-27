@@ -6,9 +6,9 @@ from os import environ
 from sys import exit
 from pylastic import Jelastic
 import json
-from check_before_hn_upgrade import get_hardware_nodes,         \
-                                    get_containers,             \
-                                    get_jahia_cloud_envnames_from_papi
+from check_before_hn_upgrade import get_hardware_nodes, \
+    get_containers, \
+    get_jahia_cloud_envnames_from_papi
 from hn_upgrade import Hardware_node_upgrade
 
 logging.getLogger().setLevel(logging.WARN)
@@ -33,7 +33,7 @@ node_group_translation = {
 
 def build_env_nodes_list(environments, containers, valid_envnames):
     """
-        update the list of all environments in the region with their number of node per node group
+        Updates the list of all environments in the region with their number of node per node group
     """
     for container in containers:
         # Ignore weird jelastic containers
@@ -108,8 +108,14 @@ def check_if_db_master_node(envname, node_index, jelastic_user_session):
     return result["responses"][0]["out"] == node_index
 
 
-def get_containers_infos_on_hn(jelastic_session, jelastic_hostname, hn_hostname,
-                               region, papi_hostname, papi_token):
+def get_containers_infos_on_hn(
+        jelastic_session,
+        jelastic_hostname,
+        hn_hostname,
+        region,
+        papi_hostname,
+        papi_token
+):
     """
         Returns a dict with containers in the following format
         organizationName:
@@ -177,7 +183,7 @@ def get_containers_infos_on_hn(jelastic_session, jelastic_hostname, hn_hostname,
 
 def get_nodegroup_clusters_having_all_nodes_on_hn(nodes):
     """
-        Return the list of clusters having all their nodes on the hn
+        Returns the list of clusters having all their nodes on the hn
     """
     wrong_clusters = []
     nodegroup_count = {}
@@ -261,16 +267,18 @@ def display_envs(organizations_environments):
 if __name__ == "__main__":
     args = argparser()
 
-    jelastic_session = Jelastic(hostname=args.jserver,
-                                login=args.juser,
-                                password=args.jpassword)
-    jelastic_session.signIn()
-    organizations_environments = get_containers_infos_on_hn(
-                                    jelastic_session,
-                                    args.jserver,
-                                    args.hn_hostname,
-                                    args.region,
-                                    args.papi_hostname,
-                                    args.papi_token
-                                )
-    display_envs(organizations_environments)
+    jel_session = Jelastic(
+        hostname=args.jserver,
+        login=args.juser,
+        password=args.jpassword,
+    )
+    jel_session.signIn()
+    orgs_environments = get_containers_infos_on_hn(
+        jel_session,
+        args.jserver,
+        args.hn_hostname,
+        args.region,
+        args.papi_hostname,
+        args.papi_token,
+    )
+    display_envs(orgs_environments)
