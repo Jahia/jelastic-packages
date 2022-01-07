@@ -1,0 +1,134 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1875 - Update Distributed Sessions module to 2.1.2/3.1.1/3.2.1
+id: paas-1937-update-distributed-sessions-module-to-2.1.2-3.1.1-3.2.1
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - updateDistSess
+
+actions:
+  getDistSessStatus:
+    - cmd[${this}]: |-
+        module="distributed-sessions"
+        # following will output:
+        #   - json-like with key "active"=false if jexperience module isn't there or not in "active" stat
+        #   - a json-like string if a jexperience module is in "active" stat '{"version": "x.y.z", "active": true}'
+        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
+        # also, looks like that status 8 (starting) and 32 (started) are valid if active.
+        awk -v moduleName="$module" \
+          'NR=2 && $1 ~ moduleName { \
+              split($1,modinfo,"/"); \
+              getline; \
+              status=$1; \
+              if(status==8 || status==32){ \
+                version=modinfo[3]; \
+                active="true" \
+              } \
+            } \
+            END{ \
+              if(active=="true"){ \
+                printf "{\"version\": \"%s\", \"active\": %s, \"status\": %s }",version,active,status \
+              } \
+              else{ \
+              printf "{\"active\": false, \"status\": %s}",status \
+              } \
+            }' \
+          /data/digital-factory-data/bundles-deployed/*/bundle.info
+
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while fetching Distributed Sessions information: ${response.errOut}"
+    # the following script is only here to transform the response string to a real json object
+    - script: |-
+        const rep = ${response.out.toJSON()}
+        const result = {"result": 0}
+        return Object.assign({}, result, rep)
+
+  setTargetModuleVersions:
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isLowerThan8000
+    - isVersionStrictlyHigher:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isHigherThan8000
+    - if(${globals.isLowerThan8000}):
+        - setGlobals:
+            distSessVersion: 2.1.2
+            dsMigrationVersion: 1.0.0-SNAPSHOT
+    - elif(${globals.isHigherThan8000}):
+        - setGlobals:
+            distSessVersion: 3.2.1
+            dsMigrationVersion: 2.0.0-SNAPSHOT
+    - else:
+        - setGlobals:
+            distSessVersion: 3.1.1
+            dsMigrationVersion: 2.0.0-SNAPSHOT
+
+  triggerDSmigration:
+    cmd[${this}]: |-
+      log=/tmp/distributedSession.installed
+      [ -f $log ] && rm -f $log
+      # before trigger DS migration, the new DS module have to be in Resolved state locally
+      newDSid=$(${globals.karafConsole} bundle:list -s | awk ${globals.awkFS} \
+              '$NF=="distributed-sessions" && $6=="${globals.distSessVersion}" {print $1}')
+      ${globals.karafConsole} bundle:resolve $newDSid
+      # trigger the DS migration
+      timeout=120
+      status=0
+      until [ $status == 200 ]; do
+        [ $timeout == 0 ] && exit 1
+        status=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/cms/render/live/en/sites/systemsite.migrateDS.do)
+        sleep 1
+        ((timeout-=1))
+      done
+      # wait for log file to appears
+      timeout=60
+      until [ -f $log ]; do
+        [ $timeout == 0 ] && exit 2
+        sleep 1
+        ((timeout-=1))
+      done
+      # wait for the migration to end
+      timeout=360
+      until (grep -q "^Started$" $log); do
+        [ $timeout == 0 ] && exit 3
+        sleep 1
+        ((timeout-=1))
+      done
+
+  updateDistSess:
+    - setTargetModuleVersions
+    - getDistSessStatus: proc
+    - if((response.active) && ("${response.version}" != "${globals.distSessVersion}")):
+        - enableKarafLogin: proc
+        - setGlobals:
+            awkFS: "-F '[[:blank:]]*[│|][[:blank:]]*'"  # yes, karaf may not use pipe char
+        - cmd[proc]: |-
+            MODULES_BASE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
+            ds_mod_url=$MODULES_BASE_URL/distributed-sessions/${globals.distSessVersion}/distributed-sessions-${globals.distSessVersion}.jar
+            ds_migration_url=https://jahia-fixes.s3.eu-west-1.amazonaws.com/distributed-sessions/ds-migration-${globals.dsMigrationVersion}.jar
+            # install new DS module
+            ${globals.karafConsole} cluster:bundle-install default $ds_mod_url
+            # install and start the ds-migration module
+            ${globals.karafConsole} cluster:bundle-install -s default $ds_migration_url
+        - triggerDSmigration: proc
+        - disableKarafLogin: proc
+        - forEach(nodes.cp):
+            - enableKarafLogin: ${@i.id}
+            - triggerDSmigration: ${@i.id}
+            - disableKarafLogin: ${@i.id}
+        - enableKarafLogin: proc
+        - cmd[proc]: |-
+            ${globals.karafConsole} cluster:bundle-uninstall default ds-migration
+        - disableKarafLogin: proc
