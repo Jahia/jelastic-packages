@@ -1,0 +1,74 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1937 - Upgrade Jahia Macros module to patch security issue
+id: paas-1937-upgrade-jahia-macros-module-to-patch-security-issue
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - getJahiaVersion
+  - isVersionStrictlyLower:
+      a: ${globals.jahiaVersion}
+      b: 7.3.10.0
+      res: upgradeJahiaMacro
+  - isVersionHigherOrEqual:
+      a: ${globals.jahiaVersion}
+      b: 8.0.0.0
+      res: isJahia8
+  - isVersionStrictlyLower:
+      a: ${globals.jahiaVersion}
+      b: 8.1.1.0
+      res: lowerThan8110
+  - if(${globals.upgradeJahiaMacro}):
+      setGlobals:
+        jm_v: 7.1.3
+  - elif(${globals.isJahia8} && ${globals.lowerThan8110}):
+      setGlobals:
+        upgradeJahiaMacro: true
+        jm_v: 8.2.0
+  - if(${globals.upgradeJahiaMacro}):
+      - isNewJMinstalled
+      - if(!${globals.isNewJMinstalled}):
+          - enableKarafLogin: proc
+          - installAndStartJM
+          - disableKarafLogin: proc
+
+actions:
+  isNewJMinstalled:
+    - cmd[proc]: |-
+        jm_v="${globals.jm_v}"
+        grep -q "/macros/$jm_v" /data/digital-factory-data/bundles-deployed/*/bundle.info
+        if [ $? -eq 0 ]; then
+          echo "true"
+        else
+          echo "false"
+        fi
+    # be sure to have a boolean
+    - script: |-
+        return {"result": 0, "isNewJMinstalled": ${response.out} }
+    - setGlobals:
+        isNewJMinstalled: ${response.isNewJMinstalled}
+
+  installAndStartJM:
+    - set:
+        awkFS: "-F '[[:blank:]]*[│|][[:blank:]]*'"  # yes, karaf may not use pipe char
+    - cmd[proc]: |-
+        jm_v=${globals.jm_v}
+        url="https://devtools.jahia.com/nexus/content/repositories/jahia-releases/org/jahia/modules/macros"
+        oldJMClusterID=$(${globals.karafConsole} cluster:bundle-list default | awk ${this.awkFS} \
+                     '$NF=="Jahia Macros" {print $1}')
+        # install new Jahia Macros
+        ${globals.karafConsole} cluster:bundle-install default $url/$jm_v/macros-$jm_v.jar
+        # get new module cluster id
+        newJMClusterID=$(${globals.karafConsole} cluster:bundle-list default | awk ${this.awkFS} \
+                       -v jm_v="$jm_v" \
+                       '$NF=="Jahia Macros" && $6==jm_v {print $1}')
+        # start new Jahia Macros module
+        ${globals.karafConsole} cluster:bundle-start default $newJMClusterID
+        # stop cluster old Jahia Macros
+        ${globals.karafConsole} cluster:bundle-stop default $oldJMClusterID
+        # uninstall cluster old Jahia Macros
+        ${globals.karafConsole} cluster:bundle-uninstall default $oldJMClusterID
