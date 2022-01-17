@@ -1,0 +1,683 @@
+---
+type: update
+version: 1.5
+name: Jahia - Restores an environment from a bucket
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-restore-from-bucket
+
+globals:
+  logAction: "Restore"
+  logsPath: "/var/log/jelastic-packages/restore.log"
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  #- muteDatadogSynthetics:
+  #    duration: 240 # 4h
+  #- muteDatadogHost:
+  #    target: "*"
+  #    duration: 240 # 4h
+  - setGlobalRepoRootUrl
+  - getBackrestAwsAccessKey
+  - if(settings.cloud_source):
+      - if(settings.region_source):
+          - script: |
+                var region = '${settings.region_source}'
+                return {'result': 0, 'resp': region.replace(/(\W|_)+/g, '')}
+          - setGlobals:
+              wc_region_source: ${response.resp}
+          - if(settings.envrole_source):
+              - if(settings.uid_source):
+                  - setGlobals:
+                      bucketname: jc${settings.envrole_source}${settings.uid_source}${globals.wc_region_source} -F ${settings.cloud_source},${settings.region_source},${settings.envrole_source}
+              - setGlobals:
+                  regionRealName_source: ${settings.region_source}
+                  cloudProvider_source: ${settings.cloud_source}
+
+  - if(settings.source_env):
+      - envSource
+      - setGlobals:
+          bucketname: jc${globals.envRole_source}${env.uid}${globals.region_source} -F ${globals.cloudProvider_source},${globals.regionRealName_source},${settings.envrole_source}
+  - if(!settings.source_env):
+      - if(!settings.envrole_source):
+          - setGlobals:
+              bucketname: jc${cluster_role}${env.uid}${env_region}
+
+  - if (nodes.proc):  # Jahia
+      - clearJelasticLogs:
+          target: bl
+          user: haproxy
+          logsPath: ${globals.logsPath}
+      - clearJelasticLogs:
+          target: "proc, cp"
+          user: tomcat
+          logsPath: ${globals.logsPath}
+      - clearJelasticLogs:
+          target: "sqldb"
+          user: mysql
+          logsPath: ${globals.logsPath}
+      #- installBackupTools:
+      #    target: proc,cp,sqldb
+      #    logAction: ${globals.logAction}
+      #- if (nodes.bl):
+      #    - installBackupTools:
+      #        target: bl
+      #        logAction: ${globals.logAction}
+      #- initialJexperienceStatus
+      - restoreJahia
+      - if (nodes.bl):
+          - restoreHaproxy
+  - else:  # Jcustomer
+      - clearJelasticLogs:
+          target: ${nodes.es.first.id}, cp
+          user: root
+          logsPath: ${globals.logsPath}
+      - installBackupTools:
+          target: ${nodes.es.first.id}, cp
+          logAction: ${globals.logAction}
+      - restoreElasticsearch
+      - restoreJcustomer
+      - checkJcustomerHealthWhenStarting: cp
+  - unmuteDatadogHost:
+      target: "*"
+  - unmuteDatadogSynthetics
+
+
+actions:
+  getJexperienceStatus:
+  # Parameters:
+  #   - step: on wich step this action is launched
+    - cmd[proc]: |-
+        module="dx:org.jahia.modules/jexperience"
+        # following will output:
+        #   - json-like with key "ACTIVE"=false if jexperience module isn't there or not in "ACTIVE" stat
+        #   - a json-like string if a jexperience module is in "ACTIVE" stat '{"version": "x.y.z", "ACTIVE": true}'
+        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
+        # Also feed globals.logPath with jexperience module found and their state
+        awk -v moduleName="$module" -v logfile="${globals.logsPath}" \
+          'NR=2 && $1 ~ moduleName { \
+              split($1,modinfo,"/"); \
+              getline; \
+              printf "Found module %s v%s with status %s\n",modinfo[2],modinfo[3],$1 >> logfile; \
+              if($1==32){ \
+                version=modinfo[3]; \
+                ACTIVE="true" \
+              } \
+            } \
+            END{ \
+              if(ACTIVE=="true"){ \
+                printf "{\"version\": \"%s\", \"ACTIVE\": %s }",version,ACTIVE \
+              } \
+              else{ \
+                printf "{\"ACTIVE\": false}" \
+              } \
+            }' \
+          /data/digital-factory-data/bundles-deployed/*/bundle.info
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while fetching jExperience information ${this.step}: ${response.errOut}"
+    # the following script is only here to transform the response string to a real json object
+    - script: |-
+        const rep = ${response.out.toJSON()}
+        const result = {"result": 0}
+        return Object.assign({}, result, rep)
+
+  initialJexperienceStatus:
+    - getJexperienceStatus:
+        step: "before restore"
+    - setGlobals:  # must be set for following conditionnal test, even if false
+        jexperience_active: ${response.ACTIVE}
+    - if (${globals.jexperience_active}):
+        - setGlobals:
+            jexperience_active_version: ${response.version}
+        # we keep the jexperience conf in a barely safe spot
+        - cmd[proc,cp]: |-
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
+          user: root
+
+  restoreJahia:
+    #- cmd [proc,cp]: |-
+    #    ## [${globals.logAction}] - 2/5
+    #    sudo service tomcat stop
+    #    export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+    #    provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+    #    cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+    #    env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+    #    cd jelastic_backup
+    #    python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f digital-factory-data.tar.gz 2>>${globals.logsPath} || exit 1
+    #    sudo rm -rf /data/digital-factory-data
+    #    sudo chown tomcat:tomcat /data
+    #    tar xf digital-factory-data.tar.gz -C / 2>>${globals.logsPath} || exit 1
+    #    rm digital-factory-data.tar.gz
+    #- if ("${response.errOut}" != ""):
+    #    - return:
+    #        type: error
+    #        message: "An error occurred while restoring jahia data. ${response.errOut}"
+    ## set default value for the management of jexperience
+    #- set:
+    #    remove_restored_jexperience: false
+    #    reinstall_jexperience: false
+    ## check is restored backup is also with jexperience active
+    #- getJexperienceStatus:
+    #    step: "after digital-factory-data restore"
+    #- set:  # must be set for following conditionnal test, even if false
+    #    restored_linked: ${response.ACTIVE}
+    #- if (${this.restored_linked}):
+    #    - set:
+    #        restored_active_version: ${response.version}
+    #- if (${globals.jexperience_active} && ${this.restored_linked}):
+    #    # check is restored active jexperience module version is the same
+    #    - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
+    #        - cmd[proc]: |-
+    #            echo "restored ACTIVE jexperience is v${this.restored_active_version} while v${globals.jexperience_active_version} was ACTIVE before the restore" >> ${globals.logsPath}
+    #        - set:
+    #            reinstall_jexperience: true  # jexperience need to be reinstalled with the initial version
+    #    - else:
+    #        - cmd[proc]: |-
+    #            echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
+    #- elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
+    #    - set:
+    #        remove_restored_jexperience: true
+    #- elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
+    #    - set:
+    #        reinstall_jexperience: true
+
+    #- cmd [proc,cp]: |-
+    #    ## [${globals.logAction}] - 3/5
+    #    export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+    #    provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+    #    cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+    #    env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+    #    cd jelastic_backup
+    #    python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f digital-factory-config.tar.gz 2>>${globals.logsPath} || exit 1
+    #    rm -rf /opt/tomcat/conf/digital-factory-config
+    #    tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
+    #    chown tomcat:tomcat -R /opt/tomcat/conf
+    #    rm -f digital-factory-config.tar.gz
+    #    rm -rf /data/digital-factory-data/repository/.lock /data/digital-factory-data/repository/workspace /data/digital-factory-data/repository/index
+    #    touch /data/digital-factory-data/safe-env-clone
+    #    short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
+    #    sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
+    #        -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
+    #        -i $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+    #- if ("${response.errOut}" != ""):
+    #    - return:
+    #        type: error
+    #        message: "An error occurred while restoring jahia configuration. ${response.errOut}"
+
+    #- cmd [proc,cp]: |-
+    #    export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+    #    provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+    #    cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+    #    env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+    #    cd jelastic_backup
+    #    python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jahia-env-vars.gz 2>>${globals.logsPath} || exit 1
+    #    ls jahia-env-vars.gz || exit 0
+    #- if ("${response.errOut}" == ""):
+    #    - cmd [proc,cp]: |-
+    #        cd jelastic_backup
+    #        gunzip jahia-env-vars.gz
+    #        mv jahia-env-vars /tmp/
+    #        grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
+    #        # We want keep the jahia_cfg_healthcheck_token value
+    #        sed -i '/jahia_cfg_healthcheck_token/g' /tmp/jahia-env-vars
+    #        grep "jahia_cfg_healthcheck_token" /.jelenv >> /tmp/jahia-env-vars
+    #    - cmd [proc,cp]: |-
+    #        cat /tmp/jahia-env-vars > /.jelenv
+    #        rm -f /tmp/jahia-env-vars
+    #      user: root
+    #    - if ("${response.errOut}" != ""):
+    #        - return:
+    #            type: error
+    #            message: "An error occurred while restoring jahia environment variables. ${response.errOut}"
+    #- else:
+    #    log: "No env var backup available"
+
+    #- cmd [cp]:
+    #    - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+    #- restoreMariadb
+    #- cmd [proc,cp]: |-
+    #      find /data/digital-factory-data/modules \
+    #        \( -name "healthcheck-cluster*" -o -name "jexperience-*" \) \
+    #        -print -delete
+
+    #- cmd [proc]: |-
+    #    ## [${globals.logAction}] - 5/5
+    #    sudo service tomcat start
+    #- startupJahiaHealthCheck: proc
+
+    #- cmd [cp]:
+    #    - sudo service tomcat start
+    #- startupJahiaHealthCheck: cp
+
+    # if the env intialy don't have jexperience active,
+    # then we clean the conf and nodegroups data
+    #- if (${this.remove_restored_jexperience}):
+    #    - log: Remove env link
+    #    - emptyJexperienceConfigAndRemoveJexperienceJar
+    #    - environment.nodegroup.ApplyData [proc, cp]:
+    #        data:
+    #          envLink: null
+    #- else:
+    #    - log: Keep env link
+
+    ## if jexperience was intialy active, we restore the conf file
+    #- log: "jExperience was active before the restore: ${globals.jexperience_active}"
+    #- if (${globals.jexperience_active}):
+    #    - log: "Initial jExperience conf needs to be restored"
+    #    - cmd[proc, cp]: |-
+    #        mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+    #      user: root
+
+    # if the restored jexperience isn't the same as the intiale one,
+    # then we install the initial
+    #- log: "jExperience has to be reinstalled: ${this.reinstall_jexperience}"
+    #- if (${this.reinstall_jexperience}):
+    #    - cmd[proc]: |-
+    #        echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
+    #    - log: "Install jExperience v${globals.jexperience_active_version}"
+    #    - upgradeJahiaModule:
+    #        module: jExperience
+    #        version: ${globals.jexperience_active_version}
+
+    # if the env intialy don't have jexperience active,
+    # then we clean the conf and nodegroups data
+    #- log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
+    #- if (${this.remove_restored_jexperience}):
+    - enableKarafLogin: cp, proc
+    - setGlobals:
+        awkFS: "-F ' ?*\t ?'"
+        awkIC: "-v IGNORECASE=1"
+    - log: "Remove module jExperience from processing node"
+    - removeModule:
+        target: proc
+        module: jExperience
+    - log: "Remove module jExperience from (each) browsing node(s)"
+    - forEach (nodes.cp):
+        removeModule:
+          target: ${@i.id}
+          module: jExperience
+    - disableKarafLogin: cp, proc
+
+    # Following is for remove deprecated entries in JR_J_LOCAL_REVISIONS if any
+    - sleep:
+        - milliseconds: 60000
+    - cmd [proc]:
+        - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
+    - writeFile:
+        nodegroup: proc
+        path: /tmp/nodesList
+        body: ${response.out}
+    - forEach(nodes.cp):
+        - cmd [${@i.id}]:
+            - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
+        - appendFile:
+            nodegroup: proc
+            path: /tmp/nodesList
+            body: ${response.out}
+    - cmd [proc]: |-
+        sql_cmd="mysql -E -u $DB_USER -p$DB_PASSWORD -h galera -D jahia"
+        query="DELETE from JR_J_LOCAL_REVISIONS where "
+        cond=$(while read line; do echo -n "JOURNAL_ID!=\"$line\" AND "; done < /tmp/nodesList | sed 's/\s*AND\s*$//')
+        echo $sql_cmd -e \'$query $cond\' > /tmp/nodesList.sh
+        bash /tmp/nodesList.sh
+        rm -f /tmp/nodesList*
+
+  envSource:
+    - script: |
+          var envInfo = jelastic.env.control.getenvinfo('${settings.source_env}', session)
+          for (var i = 0, n = envInfo.nodes; i < n.length; i++) {
+            // Uglty trick to handle unomi. NodeId will contain a es Id if there is no proc
+            if (n[i].nodeGroup == 'proc') {
+              var nodeID = n[i].id;
+              break;
+            } else if (n[i].nodeGroup == 'es') {
+              var nodeID = n[i].id;
+            }
+          }
+          var metadata = jelastic.env.file.read('${settings.source_env}', session, '/metadata_from_HOST', null, null, nodeID).body.toString()
+
+          var re = /(\S|\n|\r)*JEL_REGION=(\S+)(\S|\n|\r)*/
+          var regionRealName = metadata.replace(re, '$2')
+          var region = regionRealName.replace(/(\W|_)+/g, '')
+
+          var re = /(\S|\n|\r)*JEL_CLOUDPROVIDER=(\S+)(\S|\n|\r)*/
+          var cloudProvider = metadata.replace(re, '$2')
+
+          var re = /(\S|\n|\r)*JEL_AVAILABILITYZONE=(\S+)(\S|\n|\r)*/
+          var az = metadata.replace(re, '$2')
+
+          var re = /(\S|\n|\r)*JEL_ENV_ROLE=(\S+)(\S|\n|\r)*/
+          var envRole = metadata.replace(re, '$2')
+
+          return {'result': 0,
+            'region': region,
+            'regionRealName': regionRealName,
+            'cloudProvider': cloudProvider,
+            'az': az,
+            'envRole': envRole}
+    - setGlobals:
+        region_source: ${response.region}
+        regionRealName_source: ${response.regionRealName}
+        cloudProvider_source: ${response.cloudProvider}
+        az_source: ${response.az}
+        envRole_source: ${response.envRole}
+
+  restoreElasticsearch:
+    - script: |-
+        // Extract only bucketname in case of foreign restore
+        var account="${globals.bucketname}";
+        account=account.split(" ")[0];
+        return {'result': 0,'account': account}
+    - setGlobals:
+        account: ${response.account}
+        region: ${globals.regionRealName_source}
+
+    - cmd[${nodes.es.first.id}]: |-
+        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
+    - setGlobals:
+        esVersion: ${response.out}
+
+    - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
+        - setAwsElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            logsPath: ${globals.logsPath}
+        - if ("${globals.cloudProvider_source}" == "aws"):
+            - set:
+                region: ${globals.region}
+        - else:
+            - set:
+                region: "eu-west-1"
+        - setAwsSnapshotRepository:
+            backupName: ${settings.backup_name}
+            region: ${this.region}
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+    - else:
+        - setAzureElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            backupName: ${settings.backup_name}
+            operation: "restore"
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+        - setAzureSnapshotRepository:
+            backupName: ${settings.backup_name}
+            logsPath: ${globals.logsPath}
+
+    - cmd[${nodes.es.first.id}]: |-
+        ## [${globals.logAction}] - 4/5
+        curl -o /dev/null -X DELETE http://${nodes.es.first.intIP}:9200/_all
+        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
+        curl -o /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" 2>>${globals.logsPath} || exit 1
+        return_code=$?
+        error=$(grep error /tmp/restore-res)
+        res=$(wc -l<<<$error)
+        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
+        rm -f /tmp/restore-res
+    - if ("${response.out}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the backup restore process."
+
+    - calculateNumberOfReplicas
+    - updateReplica:
+        replica: ${globals.replica}
+        logsPath: ${globals.logsPath}
+
+  restoreHaproxy:
+    - cmd [bl]: |-
+        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}
+        [ -f haproxy.tar.gz ] && exit 0
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy-00-global.cfg.gz 2>>${globals.logsPath} || exit 1
+        ls haproxy-00-global.cfg.gz || exit 0
+    - if ("${response.errOut}" == ""):
+        restoreHaproxyIfWorkaround:
+    - else:
+        log: "No haproxy configuration backup available"
+
+  restoreHaproxyIfWorkaround:
+    - cmd [bl]: |-
+        OLD_HAPROXY_CONF=haproxy-00-global.cfg
+        BACKUP_FILE=haproxy.tar.gz
+        AUTH_BASIC=auth_basic
+        CUSTOMER_RULES_FILE=customer_rules.cfg
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
+        HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
+        HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
+        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* 2>/dev/null
+        cd jelastic_backup
+        if [ -f $OLD_HAPROXY_CONF.gz ]; then
+          gunzip $OLD_HAPROXY_CONF.gz
+          # Rewrite rules
+          awk '/## START_REWRITES ##/{flag=1; next} /## END_REWRITES ##/{flag=0} flag' $OLD_HAPROXY_CONF > $CUSTOMER_RULES_FILE
+          [ -s $CUSTOMER_RULES_FILE ] && mv $CUSTOMER_RULES_FILE $HAPROXY_CUSTOMER_CONF_DIR || rm -f $CUSTOMER_RULES_FILE
+          # Basic auth
+          old_auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF)
+          user=$(awk '/user .* password .*/ {print $2}' $OLD_HAPROXY_CONF)
+          password=$(awk '/user .* password .*/ {print $4}' $OLD_HAPROXY_CONF)
+          rm -f $OLD_HAPROXY_CONF
+        else
+          tar -xzf $BACKUP_FILE
+          # Rules
+          mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
+          # Basic auth
+          old_auth_basic_disabled=1
+          user=env-admin
+          password=XXXXXXX
+          if [ -s $AUTH_BASIC ]; then
+            old_auth_basic_disabled=0
+            user=$(awk '{print $1}' $AUTH_BASIC)
+            password=$(awk '{print $2}' $AUTH_BASIC)
+          fi
+          rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC
+        fi
+        # Basic auth
+        sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
+        auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)
+        [ $old_auth_basic_disabled -eq $auth_basic_disabled ] && exit 0
+        if [ $old_auth_basic_disabled -eq 1 ]; then
+          sed -i "s;^\(\s*\)\(.*#HTTP_AUTH_BASIC.*\)$;\1#\2;" $HAPROXY_CONF
+        else
+          sed -i "s;^\(\s*\)#\+\(.*#HTTP_AUTH_BASIC.*\)$;\1\2;" $HAPROXY_CONF
+        fi
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while restoring haproxy configuration."
+    - cmd [bl]: sudo service haproxy restart
+
+  restoreMariadb:
+    - cmd[sqldb]: |-
+        ## [${globals.logAction}] - 4/5
+        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f database.tar 2>>${globals.logsPath}
+        ls database.tar || exit 0
+    - if ("${response.errOut}" == ""):
+        dbRestore
+    - else:
+        - log: "DB backup not found, trying legacy"
+        - dbLegacyRestore
+
+  dbRestore:
+    - cmd[sqldb]: |-
+        sudo service mysql stop
+        rm -rf /var/lib/mysql/*
+        cd /var/lib/mysql/
+        mv /home/jelastic/jelastic_backup/database.tar .
+        tar -xf database.tar 2>>${globals.logsPath}
+        rm database.tar
+        mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
+        mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
+
+    - if (nodes.sqldb.length > 1):
+        cmd[${nodes.sqldb.first.id}]: |-
+          echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
+          echo "version: 2.1" >> /var/lib/mysql/grastate.dat
+          echo "seqno: -1" >> /var/lib/mysql/grastate.dat
+          echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
+
+    - forEach(i:nodes.sqldb):
+        startGaleraNode: ${@i.id}
+
+    - cmd[${nodes.sqldb.first.id}]: |-
+        # reset jahia user and datadog user password
+        EXISTING_JAHIA_USER=$(mysql -sNe "select user from mysql.user where user like 'jahia-db-%'")
+        mysql -e "DROP USER '${EXISTING_JAHIA_USER}'@'%'; flush privileges"
+        mysql -e "CREATE USER '${DB_USER}'@'%' identified by '${DB_PASS}'"
+        mysql -e "grant all privileges on jahia.* to '${DB_USER}'@'%'"
+        mysql -e "set password for 'datadog'@'localhost' = PASSWORD('${DB_USER_DATADOG}')"
+        mysql -e "flush privileges"
+
+  dbLegacyRestore:
+    - log: "## TEMPORARY FIX FOR RESTORATION: GRANT ALL ON *.* TO JAHIA'S DB USER"
+    # Starting with mariadb 10.4, jahia's db user is no longer root on database
+    # resulting in the need to connect as 'mysql' user and temporaly grant
+    # jahia's db user in order to successfuly import the dump from processing node.
+    # see here for more details: https://mariadb.org/authentication-in-mariadb-10-4/
+    # next cmd tests if connexion is ok with 'mysql'@'localhost':
+    #   - if ok, so it's >10.4 and we need temporary grants
+    - cmd[${nodes.sqldb.master.id}]: |-
+          if (mysql -se 'select 1' > /dev/null 2>&1); then
+            mysql -e "GRANT ALL PRIVILEGES ON *.* TO '$DB_USER'@'%'"
+          fi
+      user: mysql
+    - cmd [proc]: |-
+        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jahia.sql.gz 2>>${globals.logsPath} || exit 1
+        case ${DB_ENDPOINT} in "mysqldb") mysql_host="mysqldb" ;; "proxy") mysql_host=${PROXYSQL_MASTER_IP} ;; "galera") mysql_host="galera";; *) mysql_host="mysqldb"; esac
+        gunzip < jahia.sql.gz | mysql -u$DB_USER -p$DB_PASSWORD -h ${mysql_host} --max_allowed_packet=1024M 2>>${globals.logsPath} || exit 1
+        rm -f jahia.sql.gz
+        query="delete from JR_J_LOCAL_REVISIONS"
+        mysql -h ${mysql_host} -u $DB_USER -p$DB_PASSWORD -s jahia -e "$query" 2>>${globals.logsPath} || exit 1
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during mysql dump. ${response.errOut}"
+
+    - log: "## TEMPORARY FIX FOR RESTORATION: REVOKE ALL ON *.* TO JAHIA'S DB USER"
+    - cmd[${nodes.sqldb.master.id}]: |-
+          if (mysql -se 'select 1' > /dev/null 2>&1); then
+            mysql -e "REVOKE ALL PRIVILEGES ON *.* FROM '$DB_USER'@'%'"
+          fi
+      user: mysql
+
+  restoreJcustomer:
+    - cmd [cp]: |-
+        ## [${globals.logAction}] - 5/5
+        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jcustomer-env-vars.gz 2>>${globals.logsPath}
+        ls jcustomer-env-vars.gz || exit 0
+    - if ("${response.errOut}" == ""):
+        - cmd [cp]: |-
+            cd jelastic_backup
+            gunzip jcustomer-env-vars.gz
+            echo "Restoring jcustomer env vars" >> ${globals.logsPath}
+            mv jcustomer-env-vars /tmp/
+            grep -v "^UNOMI_" /.jelenv >> /tmp/jcustomer-env-vars
+            cat /tmp/jcustomer-env-vars > /.jelenv
+            rm -f /tmp/jcustomer-env-vars
+          user: root
+        - if ("${response.errOut}" != ""):
+            - return:
+                type: error
+                message: "An error occurred while restoring jcustomer environment variables. ${response.errOut}"
+        - api: env.control.RestartNodes
+          envName: ${env.envName}
+          nodeGroup: cp
+    - else:
+        log: "No env var backup available"
+
+  removeModule:
+  # parameters:
+  # module: the module to remove
+  # target: where to remove
+    - cmd[${this.target}]: |-
+        i=1
+        imax=66
+        id_to_rm="blablabla"
+        while [ -n "$id_to_rm" ] || [ $i -gt $imax ]; do
+          id_to_rm="$( \
+              ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
+              'NF==5 && $1>0 && $NF~/^${this.module}$/ \
+              {printf "%s ",$1}')"
+          if [ -n "$id_to_rm" ]; then
+            ${globals.karafConsole} bundle:uninstall $id_to_rm 2> /dev/null
+          else
+            if [ $i -gt 1 ]; then
+              echo "removed"
+            else
+              echo "no other"
+            fi
+            exit 0
+          fi
+          ((i++))
+        done
+        echo "still previous"
+    - if ("${response.out}" == "removed"):
+        log: Other ${this.module} module version now deleted on ${this}
+    - elif ("${response.out}" == "no other"):
+        log: No other ${this.module} module version on ${this}
+    - elif ("${response.out}" == "still previous"):
+        log: Other ${this.module} module version still present on ${this}
+
+settings:
+  fields:
+    - name: backup_name
+      type: string
+      caption: Backup Name
+      vtype: text
+      required: true
+    - name: source_env
+      type: envlist
+      caption: backup from ?
+      valueField: appid
+      editable: true
+    - name: cloud_source
+      type: string
+      caption: cloud source ?
+    - name: region_source
+      type: string
+      caption: region_source ?
+    - name: uid_source
+      type: string
+      caption: uid_source ?
+    - name: envrole_source
+      type: list
+      caption: envrole_source ?
+      values:
+        dev: dev
+        prod: prod
+    - name: timestamp
+      caption: timestamp in format %Y-%m-%dT%H:%M:00
+      required: true
+      type: string
+    - name: backtype
+      caption: is this a manual or auto backup
+      type: string
+      default: manual
