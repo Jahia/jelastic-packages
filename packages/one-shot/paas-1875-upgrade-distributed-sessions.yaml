@@ -58,15 +58,15 @@ actions:
         a: ${globals.jahiaVersion}
         b: 8.0.0.0
         res: isLowerThan8000
-    - isVersionStrictlyHigher:
+    - isVersionHigherOrEqual:
         a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: isHigherThan8000
+        b: 8.1.0.0
+        res: isHigherOrEqualThan8100
     - if(${globals.isLowerThan8000}):
         - setGlobals:
             distSessVersion: 2.1.2
             dsMigrationVersion: 1.0.0-SNAPSHOT
-    - elif(${globals.isHigherThan8000}):
+    - elif(${globals.isHigherOrEqualThan8100}):
         - setGlobals:
             distSessVersion: 3.2.1
             dsMigrationVersion: 2.0.0-SNAPSHOT
