@@ -134,6 +134,6 @@ actions:
             ${globals.karafConsole} cluster:bundle-uninstall default ds-migration
             # also uninstall old distributed session at cluster level
             old_version=$(${globals.karafConsole} cluster:bundle-list -s default | awk ${globals.awkFS} \
-                        '$NF=="distributed-sessions" && $6!="${globas.distSessVersion}" {print $1}')
+                        '$NF=="distributed-sessions" && $6!="${globals.distSessVersion}" {print $1}')
             ${globals.karafConsole} cluster:bundle-uninstall default distributed-sessions/$old_version
         - disableKarafLogin: proc
