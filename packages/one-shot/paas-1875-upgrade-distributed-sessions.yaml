@@ -8,10 +8,13 @@ mixins:
   - "../../mixins/common.yml"
   - "../../mixins/jahia.yml"
 
+globals:
+  awkFS: "-F '[[:blank:]]*[│|][[:blank:]]*'"  # yes, karaf may not use pipe char
 
 onInstall:
   - setGlobalRepoRootUrl
   - updateDistSess
+  - checkStat
 
 actions:
   getDistSessStatus:
@@ -112,8 +115,6 @@ actions:
     - getDistSessStatus: proc
     - if((response.active) && ("${response.version}" != "${globals.distSessVersion}")):
         - enableKarafLogin: proc
-        - setGlobals:
-            awkFS: "-F '[[:blank:]]*[│|][[:blank:]]*'"  # yes, karaf may not use pipe char
         - cmd[proc]: |-
             MODULES_BASE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
             ds_mod_url=$MODULES_BASE_URL/distributed-sessions/${globals.distSessVersion}/distributed-sessions-${globals.distSessVersion}.jar
@@ -137,4 +138,34 @@ actions:
                         '$NF=="distributed-sessions" && $6!="${globals.distSessVersion}" {print $6}')
             ${globals.karafConsole} cluster:bundle-start default distributed-sessions/${globals.distSessVersion}
             ${globals.karafConsole} cluster:bundle-uninstall default distributed-sessions/$old_version
-        - disableKarafLogin: proc
+
+  checkStat:
+    - enableKarafLogin: proc
+    - cmd[proc]: |-
+        # check we have only one DS module
+        n=0
+        t=30
+        until [ $n -eq 1 ]; do
+          if [ $t -eq 0 ]; then
+            echo "Too many Distributed Sessions version here" >&2
+            exit 0
+          fi
+          n=$(${globals.karafConsole} cluster:bundle-list -s default | awk ${globals.awkFS} \
+            '{if($NF=="distributed-sessions"){count++}} END{print count}')
+          ((t-=1))
+          sleep 1
+        done
+        # check if the new DS module is well started
+        s="unknown"
+        t=30
+        until [ "$s" == "Active" ]; do
+          if [ $t -eq 0 ]; then
+            echo "Distributed Sessions v${globals.distSessVersion}'s status is $s instead of Active" >&2
+            exit 0
+          fi
+          s=$(${globals.karafConsole} cluster:bundle-list -s default | awk ${globals.awkFS} \
+            '$NF=="distributed-sessions" && $6="${globals.distSessVersion}" {print $2}')
+          ((t-=1))
+          sleep 1
+        done
+    - disableKarafLogin: proc
