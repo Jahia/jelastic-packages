@@ -12,39 +12,64 @@ globals:
   awkFS: "-F '[[:blank:]]*[│|][[:blank:]]*'"  # yes, karaf may not use pipe char
 
 onInstall:
+  - forceCleanKarafLogin
   - setGlobalRepoRootUrl
   - updateDistSess
-  - checkStat
 
 actions:
+  forceCleanKarafLogin:
+    - cmd[cp, proc]: |-
+        files=("/opt/tomcat/temp/.ssh/known_hosts" "/root/.ssh/known_hosts" "/tmp/abricot" "/tmp/abricot.pub")
+        for f in ${files[*]}; do
+          [ -f $f  ] && rm -v $f
+        done
+        sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
+        sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+      user: root
+
   getDistSessStatus:
+    - enableKarafLogin: ${this}
     - cmd[${this}]: |-
         module="distributed-sessions"
         # following will output:
-        #   - json-like with key "active"=false if jexperience module isn't there or not in "active" stat
-        #   - a json-like string if a jexperience module is in "active" stat '{"version": "x.y.z", "active": true}'
-        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
-        # also, looks like that status 8 (starting) and 32 (started) are valid if active.
-        awk -v moduleName="$module" \
-          'NR=2 && $1 ~ moduleName { \
-              split($1,modinfo,"/"); \
-              getline; \
-              status=$1; \
-              if(status==8 || status==32){ \
-                version=modinfo[3]; \
-                active="true" \
-              } \
-            } \
-            END{ \
-              if(active=="true"){ \
-                printf "{\"version\": \"%s\", \"active\": %s, \"status\": %s }",version,active,status \
-              } \
-              else{ \
-              printf "{\"active\": false, \"status\": %s}",status \
-              } \
-            }' \
-          /data/digital-factory-data/bundles-deployed/*/bundle.info
-
+        #   - array like object with one element by module version found
+        #   - each element is a object like '{"version": "x.y.z", "status": "<osgi status>"}'
+        #   examples:
+        #    - [{"version": "2.1.1", "status": "Installed"},{"version": "2.1.2", "status": "Installed"}]
+        #    - [{"version": "2.1.2", "status": "Active"}]
+        ${globals.karafConsole} cluster:bundle-list -s default \
+          | awk ${globals.awkFS} -v module="$module" \
+              '{ \
+                if($NF==module){ \
+                  count++; \
+                  entry[count]="{\"version\": \""$6"\", \"status\": \""$2"\"}" \
+                  } \
+               } \
+               END{ \
+                 if(count){ \
+                   for(e in entry){ \
+                     c++; \
+                     if(c==1){ \
+                       beginwith="["; \
+                       if(c==count){ \
+                         endwith="]" \
+                       }else{ \
+                         endwith="," \
+                       } \
+                     }else{ \
+                       beginwith=""; \
+                       if(c==count){ \
+                         endwith="]" \
+                       }else{ \
+                         endwith="," \
+                       } \
+                     }; \
+                     printf("%s%s%s",beginwith,entry[e],endwith) \
+                   } \
+                 }else{ \
+                   print("[]") \
+                 } \
+               }'
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -52,10 +77,9 @@ actions:
     # the following script is only here to transform the response string to a real json object
     - script: |-
         const rep = ${response.out.toJSON()}
-        const result = {"result": 0}
-        return Object.assign({}, result, rep)
+        return {"result": 0, "resp": rep}
 
-  setTargetModuleVersions:
+  setTargetModuleVersion:
     - getJahiaVersion
     - isVersionStrictlyLower:
         a: ${globals.jahiaVersion}
@@ -110,11 +134,32 @@ actions:
         ((timeout-=1))
       done
 
+  raiseError:
+    - forceCleanKarafLogin
+    - return: ${this}
+
   updateDistSess:
-    - setTargetModuleVersions
+    - setTargetModuleVersion
     - getDistSessStatus: proc
-    - if((response.active) && ("${response.version}" != "${globals.distSessVersion}")):
-        - enableKarafLogin: proc
+    - setGlobals:
+        DS_count: ${response.resp.length}
+        stringList: "${response.resp}"
+    - if(${response.resp.length} == 0):
+        - raiseError: "No Distributed Sessions module here"
+    - elif(${globals.DS_count} > 2):
+        - raiseError: "More than 2 Distributed Sessions versions here, full status is: ${globals.stringList}"
+    - forEach(response.resp):
+        - if("${@i.version}" != "${globals.distSessVersion}"):
+            - if("${@i.status}" == "Active"):
+                - setGlobals:
+                    DS_old_active: true
+            - else:
+                - raiseError: "Old Distributed Sessions ${@i.version} is present but not Active, full status is: ${globals.stringList}"
+        - else:
+            - if("${@i.status}" != "Active"):
+                - raiseError: "New Distributed Sessions ${@i.version} is present but not Active, full status is: ${globals.stringList}"
+
+    - if(globals.DS_old_active):
         - cmd[proc]: |-
             MODULES_BASE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
             ds_mod_url=$MODULES_BASE_URL/distributed-sessions/${globals.distSessVersion}/distributed-sessions-${globals.distSessVersion}.jar
@@ -139,6 +184,10 @@ actions:
             ${globals.karafConsole} cluster:bundle-start default distributed-sessions/${globals.distSessVersion}
             ${globals.karafConsole} cluster:bundle-uninstall default distributed-sessions/$old_version
         - disableKarafLogin: proc
+        - checkStat
+    - else:
+        - disableKarafLogin: proc
+        - log: "Looks like all is already good here, full status: ${globals.stringList}"
 
   checkStat:
     - forEach(env.nodes):
