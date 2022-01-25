@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import atexit
 import argparse
 import logging
 import json
@@ -37,6 +38,7 @@ class Hardware_node_upgrade():
         self.papi_hostname = papi_hostname
         self.papi_token = papi_token
         self.skip_stop = skip_stop
+        self.errors_list = []
 
     def start_hn_upgrade(self):
         """
@@ -189,9 +191,11 @@ class Hardware_node_upgrade():
             settings = {"nodesToStop": json.dumps(containers), "dryRun": self.dry_run}
             res = json.loads(self.run_jelastic_package(settings, package, envname))
             if res["response"]["result"] != 0:
-                logger.error("The package returned an error in " +
-                             res["response"]["action"] + " action: " +
-                             res["response"]["error"])
+                a = res["response"]["action"]
+                e = res["response"]["error"]
+                errormsg = f'The package returned an error in {a} action: {e}'
+                logger.error(errormsg)
+                self.errors_list.append(errormsg)
                 exit(1)
 
     def start_nodes(self, running_containers):
@@ -202,9 +206,11 @@ class Hardware_node_upgrade():
             settings = {"nodesToStart": containers, "dryRun": self.dry_run}
             res = json.loads(self.run_jelastic_package(settings, package, envname))
             if res["response"]["result"] != 0:
-                logger.error("The package returned an error in " +
-                             res["response"]["action"] + " action: " +
-                             res["response"]["error"])
+                a = res["response"]["action"]
+                e = res["response"]["error"]
+                errormsg = f'The package returned an error in {a} action: {e}'
+                logger.error(errormsg)
+                self.errors_list.append(errormsg)
 
     def run_jelastic_package(self, settings, package, envname):
         jelastic_login = self.get_jelastic_login_from_envname(envname)
@@ -299,6 +305,14 @@ class Hardware_node_upgrade():
         if val == "abort":
             logger.info("Aborting without disabling maintenance mode...")
             exit(0)
+
+    def replay_errors(self):
+        if self.errors_list:
+            print("There were one or more errors when stopping/starting nodes:")
+            for e in self.errors_list:
+                print(e)
+        else:
+            print("Stop and start went well")
 
 
 def argparser():
@@ -411,6 +425,8 @@ if __name__ == "__main__":
         args.papi_token,
         args.skip_stop
     )
+
+    atexit.register(hn_upgrade.replay_errors)
     hn_upgrade.start_hn_upgrade()
 
     jelastic_session.signOut()
