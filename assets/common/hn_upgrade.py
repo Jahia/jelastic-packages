@@ -299,6 +299,7 @@ class Hardware_node_upgrade():
             exit(0)
 
     def ask_to_disable_maintenance_mode(self):
+        self.replay_errors()
         val = ""
         while val not in ["yes", "abort"]:
             val = input("Disable maintenance on the hardware node[yes/abort]\n")
@@ -308,11 +309,11 @@ class Hardware_node_upgrade():
 
     def replay_errors(self):
         if self.errors_list:
-            print("There were one or more errors when stopping/starting nodes:")
+            print("︙ ⚠ There were one or more errors when stopping/starting nodes:")
             for e in self.errors_list:
-                print(e)
+                print(f"︙    {e}")
         else:
-            print("Stop and start went well")
+            print("︙ 🆗 Nodes stop and start went well")
 
 
 def argparser():
