@@ -31,6 +31,7 @@ onInstall:
   ### End Pre-checks
 
   - updateTomcatLogsStartPattern  # PAAS-1930
+  - removeOldMailLib  # PAAS-1945
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -63,3 +64,45 @@ actions:
         service datadog-agent restart
         echo "Config updated"
       user: root
+
+  removeOldMailLib:
+    # Check if removal is need according to Jahia version. It is needed for:
+    # - Jahia 7.3 between 7.3.6 and 7.3.9 (included)
+    # - Jahia 8 < 8.1.1
+    - getJahiaVersion
+    - set:
+        is_removal_needed: false
+    - if (${fn.compare([globals.jahiaVersion], 7.3.6)} >= 0 && ${fn.compare([globals.jahiaVersion], 7.3.10)} < 0 || ${fn.compare([globals.jahiaVersion], 8)} >= 0 && ${fn.compare([globals.jahiaVersion], 8.1.1)} < 0):
+        - set:
+            is_removal_needed: true
+    # Proceed with removal. Jahia needs to be stopped during the operation.
+    - if ( ${this.is_removal_needed} ):
+        # Processing node
+        - removeProcNodeFromHaproxy:
+            reload: true
+        - removeOldMailLibFromNode: ${nodes.proc.first.id}
+        - addProcNodeToHaproxy:
+            reload: true
+        # Browsing nodes
+        - foreach (nodes.cp):
+            - removeBrowsingNodeFromHaproxy:
+                nodeId: ${@i.id}
+                reload: true
+            - removeOldMailLibFromNode: ${@i.id}
+            - addBrowsingNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+                reload: true
+
+  removeOldMailLibFromNode:
+    - cmd[${this}]: |-
+        lib_path="/opt/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
+        if [ ! -f $lib_path ]; then
+          echo "[INFO] Lib has already been removed. Nothing to do."
+          exit 0
+        fi
+        service tomcat stop
+        rm -f $lib_path
+        service tomcat start
+      user: root
+    - startupJahiaHealthCheck: ${this}
