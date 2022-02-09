@@ -365,7 +365,7 @@ actions:
 
   isFullReadonlyEnabled:
     - cmd[proc]: |-
-        RO_ON=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only | grep -e Current -e local | grep ON)
+        RO_ON=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null full-read-only | grep -e Current -e local | grep ON)
         if [ "$RO_ON" == "" ]; then
           echo false
         else
@@ -377,7 +377,7 @@ actions:
   switchFullReadonly:
     - log: "switch full read mode to ${this.fullreadmode} on nodegroup ${this.group}"
     - cmd[${this.group}]: |-
-          ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only ${this.fullreadmode}
+          ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null full-read-only ${this.fullreadmode}
 
   enableKarafLogin:
     - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
@@ -401,7 +401,7 @@ actions:
             sed 's,\(sshRealm\s*=\s*\)jahia,\1karaf,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
             i=1
             it=66
-            until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no full-read-only); do
+            until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null full-read-only); do
               echo "karaf ssh login not updated yet (iteration $i/$it)"
               if [ $i -ge $it ]; then
                 echo "Too long to start, something is wrong here... EXITING"
@@ -410,7 +410,7 @@ actions:
               ((i++))
               sleep 1
             done
-        - isKarafLoginEnabled: ${globals.isEnable}
+        - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
               var isEnable = JSON.parse(isKarafLoginEnabled)
@@ -422,7 +422,7 @@ actions:
             return {"result": 0, "isEnable": isEnable}
         - setGlobals:
             isKarafLoginEnabled: ${response.isEnable}
-            karafConsole: "ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no"
+            karafConsole: "ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
   disableKarafLogin:
     - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
