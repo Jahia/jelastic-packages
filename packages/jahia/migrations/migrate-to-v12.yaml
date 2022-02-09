@@ -97,12 +97,13 @@ actions:
   removeOldMailLibFromNode:
     - cmd[${this}]: |-
         lib_path="/opt/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
+        lib_path_data="/data/jahia/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
         if [ ! -f $lib_path ]; then
           echo "[INFO] Lib has already been removed. Nothing to do."
           exit 0
         fi
         service tomcat stop
-        rm -f $lib_path
+        rm -f $lib_path $lib_path_data
         service tomcat start
       user: root
     - startupJahiaHealthCheck: ${this}
