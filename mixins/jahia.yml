@@ -410,7 +410,7 @@ actions:
               ((i++))
               sleep 1
             done
-        - isKarafLoginEnabled: ${globals.isEnable}
+        - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
               var isEnable = JSON.parse(isKarafLoginEnabled)
