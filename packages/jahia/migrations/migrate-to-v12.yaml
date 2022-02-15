@@ -30,8 +30,9 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - updateTomcatLogsStartPattern  # PAAS-1930
-  - removeOldMailLib  # PAAS-1945
+  - updateTomcatLogsStartPattern       # PAAS-1930
+  - updateMavenPathEnvVar              # PAAS-1954
+  - removeOldMailLibAndRestartAllJahia # PAAS-1945 and PAAS-1954
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -65,45 +66,73 @@ actions:
         echo "Config updated"
       user: root
 
-  removeOldMailLib:
+  updateMavenPathEnvVar:
+    - getMavenPath
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
+
+  removeOldMailLibAndRestartAllJahia:
     # Check if removal is need according to Jahia version. It is needed for:
     # - Jahia 7.3 between 7.3.6 and 7.3.9 (included)
     # - Jahia 8 < 8.1.1
+
+    # It also takes care of restarting ALL Jahia nodes as per PAAS-1954 (updateMavenPathEnvVar)
+    # This way we don't have to restart Tomcat twice on some environments
     - getJahiaVersion
     - set:
         is_removal_needed: false
     - if (${fn.compare([globals.jahiaVersion], 7.3.6)} >= 0 && ${fn.compare([globals.jahiaVersion], 7.3.10)} < 0 || ${fn.compare([globals.jahiaVersion], 8)} >= 0 && ${fn.compare([globals.jahiaVersion], 8.1.1)} < 0):
         - set:
             is_removal_needed: true
-    # Proceed with removal. Jahia needs to be stopped during the operation.
-    - if ( ${this.is_removal_needed} ):
-        # Processing node
-        - removeProcNodeFromHaproxy:
-            reload: true
-        - removeOldMailLibFromNode: ${nodes.proc.first.id}
-        - addProcNodeToHaproxy:
-            reload: true
-        # Browsing nodes
-        - foreach (nodes.cp):
-            - removeBrowsingNodeFromHaproxy:
-                nodeId: ${@i.id}
-                reload: true
-            - removeOldMailLibFromNode: ${@i.id}
-            - addBrowsingNodeToHaproxy:
-                nodeId: ${@i.id}
-                nodeIp: ${@i.intIP}
-                reload: true
 
-  removeOldMailLibFromNode:
-    - cmd[${this}]: |-
+    # Proceed with removal if required.
+    # Jahia will be restarted if the library needs to be deleted or if the jahia_cfg_mvnPath envvar
+    # is not up-to-date
+
+    # Processing node
+    - removeProcNodeFromHaproxy:
+        reload: true
+    - removeOldMailLibFromNodeAndRestartJahia:
+        target: ${nodes.proc.first.id}
+        is_removal_needed: ${this.is_removal_needed}
+    - addProcNodeToHaproxy:
+        reload: true
+    # Browsing nodes
+    - foreach (nodes.cp):
+        - removeBrowsingNodeFromHaproxy:
+            nodeId: ${@i.id}
+            reload: true
+        - removeOldMailLibFromNodeAndRestartJahia:
+            target: ${@i.id}
+            is_removal_needed: ${this.is_removal_needed}
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
+
+  removeOldMailLibFromNodeAndRestartJahia:
+    - cmd[${this.target}]: |-
         lib_path="/opt/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
         lib_path_data="/data/jahia/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
-        if [ ! -f $lib_path ]; then
-          echo "[INFO] Lib has already been removed. Nothing to do."
-          exit 0
+        tomcat_pid=$(pgrep java.orig -u tomcat)
+        current_mvn_path=$(strings /proc/$tomcat_pid/environ | awk -F"=" '/apache-maven/ {print $2}')
+        actual_mvn_path=$(ls -d /opt/*maven*/bin/mvn)
+        remove_lib=true
+        update_mvn_path=true
+        # If the lib doesn't exist OR if it exists but the removal is not needed, then nothing to do (idempotent)
+        if [ ! -f $lib_path ] || ([ -f $lib_path ] && ! ${this.is_removal_needed}); then
+          echo "[INFO] The mail lib has already been removed or doesn't need to be"
+          remove_lib=false
         fi
-        service tomcat stop
-        rm -f $lib_path $lib_path_data
-        service tomcat start
+        if [ "actual_mvn_path" = "$current_mvn_path" ]; then
+          echo "[INFO] jahia_cfg_mvnPath envvar already up-to-date"
+          update_mvn_path=false
+        fi
+        if $remove_lib || $update_mvn_path; then
+          service tomcat stop
+          $remove_lib && rm -f $lib_path $lib_path_data
+          service tomcat start
+        fi
       user: root
-    - startupJahiaHealthCheck: ${this}
+    - startupJahiaHealthCheck: ${this.target}

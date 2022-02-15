@@ -53,6 +53,10 @@ actions:
     - cmd[${this}]:
         - service tomcat stop
       user: root
+    - getMavenPath
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
     - setSudoer: ${this}
     - getLogEventScript: ${this}
     - if (nodes.sqldb.length == 1):
@@ -99,6 +103,11 @@ actions:
     - log: "## Import DX schema in database"
     - cmd[${nodes.proc.first.id}]: cat $DATA_PATH/digital-factory-data/db/sql/schema/mysql/*.sql | mysql -h $DB_ENDPOINT -u$DB_USER -p$DB_PASSWORD -f jahia
 
+  getMavenPath:
+    - cmd [${nodes.proc.first.id}]: echo $(ls -d /opt/*maven*/bin/mvn)
+    - setGlobals:
+        jahia_cfg_mvnPath: ${response.out}
+
   installJahia:
     # Parameters:
     #   - jahiaVersion
@@ -139,9 +148,7 @@ actions:
 
   setJahiaPropertiesEnvvars:
     - log: "## Setting jahia.properties envvars"
-    - cmd [${nodes.proc.first.id}]: echo $(ls -d /opt/*maven*/bin/mvn)
-    - setGlobals:
-        jahia_cfg_mvnPath: ${response.out}
+    - getMavenPath
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
         jahia_cfg_expandImportedFilesOnDisk: ${globals.expandImportedFilesOnDisk}
