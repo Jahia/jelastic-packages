@@ -116,7 +116,7 @@ actions:
         lib_path="/opt/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
         lib_path_data="/data/jahia/tomcat/webapps/ROOT/WEB-INF/lib/mail-1.4.7.jar"
         tomcat_pid=$(pgrep java.orig -u tomcat)
-        current_mvn_path=$(strings /proc/$tomcat_pid/environ | awk -F"=" '/apache-maven/ {print $2}')
+        current_mvn_path=$(strings /proc/$tomcat_pid/environ | awk -F"=" '/^jahia_cfg_mvnPath/ {print $2}')
         actual_mvn_path=$(ls -d /opt/*maven*/bin/mvn)
         remove_lib=true
         update_mvn_path=true
