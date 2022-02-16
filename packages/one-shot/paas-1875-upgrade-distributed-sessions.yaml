@@ -161,13 +161,17 @@ actions:
 
     - if(globals.DS_old_active):
         - cmd[proc]: |-
+            MODULES_INSTALL_DIR=/data/digital-factory-data/modules/
             MODULES_BASE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
-            ds_mod_url=$MODULES_BASE_URL/distributed-sessions/${globals.distSessVersion}/distributed-sessions-${globals.distSessVersion}.jar
-            ds_migration_url=https://jahia-fixes.s3.eu-west-1.amazonaws.com/distributed-sessions/ds-migration-${globals.dsMigrationVersion}.jar
+            ds_mod_name=distributed-sessions-${globals.distSessVersion}.jar
+            ds_mod_url=$MODULES_BASE_URL/distributed-sessions/${globals.distSessVersion}/$ds_mod_name
+            ds_migration_mod_name=ds-migration-${globals.dsMigrationVersion}.jar
+            ds_migration_url=https://jahia-fixes.s3.eu-west-1.amazonaws.com/distributed-sessions/$ds_migration_mod_name
             # install new DS module
-            ${globals.karafConsole} cluster:bundle-install default $ds_mod_url
+            curl -fLSso $MODULES_INSTALL_DIR/$ds_mod_name $ds_mod_url
             # install and start the ds-migration module
-            ${globals.karafConsole} cluster:bundle-install -s default $ds_migration_url
+            curl -fLSso $MODULES_INSTALL_DIR/$ds_migration_mod_name $ds_migration_url
+            sleep 10
         - triggerDSmigration: proc
         - disableKarafLogin: proc
         - forEach(nodes.cp):
