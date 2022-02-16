@@ -125,7 +125,7 @@ actions:
           echo "[INFO] The mail lib has already been removed or doesn't need to be"
           remove_lib=false
         fi
-        if [ "actual_mvn_path" = "$current_mvn_path" ]; then
+        if [ "$actual_mvn_path" = "$current_mvn_path" ]; then
           echo "[INFO] jahia_cfg_mvnPath envvar already up-to-date"
           update_mvn_path=false
         fi
