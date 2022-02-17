@@ -181,23 +181,23 @@ def get_containers_infos_on_hn(
     return organizations_envs
 
 
-def get_nodegroup_clusters_having_all_nodes_on_hn(nodes):
+def get_nodegroup_clusters_having_multiple_nodes_on_hn(nodes) -> set:
     """
-        Returns the list of clusters having all their nodes on the hn
+        Returns the list of clusters having multiple nodes on the hn (which should not happen)
     """
-    wrong_clusters = []
-    nodegroup_count = {}
+    wrong_clusters = set()
+    node_groups = set()
     for node in nodes:
         if node["group_nodes_count"] == 1:
             # Standalone node, skip it
             continue
 
-        if node["node_group"] not in nodegroup_count:
-            nodegroup_count[node["node_group"]] = 0
-        nodegroup_count[node["node_group"]] += 1
+        # If node_group is already in the list, that means it has at least 2 nodes on the HN, which is wrong
+        if node["node_group"] in node_groups:
+            wrong_clusters.add(node["node_group"])
+            continue
 
-        if nodegroup_count[node["node_group"]] == node["group_nodes_count"]:
-            wrong_clusters.append(node["node_group"])
+        node_groups.add(node["node_group"])
 
     return wrong_clusters
 
@@ -230,7 +230,7 @@ def get_env_nodes_output(nodes):
 
 
 def display_envs(organizations_environments):
-    wrong_cluster_template = "\n" + RED_COLOR + "    ** All {} nodes are on this HN **" + NO_COLOR
+    wrong_cluster_template = "\n" + RED_COLOR + "    ** Multiple {} nodes are on this HN **" + NO_COLOR
     env_template = "\n {color} - {env_name}:" + NO_COLOR + "{wrong_clusters}{nodes}"
     org_template = "{color}{organization}:" + NO_COLOR + "{envs_output}"
 
@@ -246,7 +246,7 @@ def display_envs(organizations_environments):
             elif YELLOW_COLOR in nodes_output:
                 env_criticity = 1
 
-            wrong_clusters = get_nodegroup_clusters_having_all_nodes_on_hn(nodes)
+            wrong_clusters = get_nodegroup_clusters_having_multiple_nodes_on_hn(nodes)
             wrong_output = ""
             if wrong_clusters:
                 for wrong_nodegroup in wrong_clusters:
