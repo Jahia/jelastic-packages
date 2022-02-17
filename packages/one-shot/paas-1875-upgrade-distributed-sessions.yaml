@@ -110,8 +110,11 @@ actions:
       newDSid=$(${globals.karafConsole} bundle:list -s | awk ${globals.awkFS} \
               '$NF=="distributed-sessions" && $6=="${globals.distSessVersion}" {print $1}')
       ${globals.karafConsole} bundle:resolve $newDSid
+      ds_migration_id=$(${globals.karafConsole} bundle:list -s | awk ${globals.awkFS} \
+              '$NF=="ds-migration" {print $1}')
+      ${globals.karafConsole} bundle:start $ds_migration_id
       # trigger the DS migration
-      timeout=120
+      timeout=180
       status=0
       until [ $status == 200 ]; do
         [ $timeout == 0 ] && exit 1
@@ -180,6 +183,8 @@ actions:
             - disableKarafLogin: ${@i.id}
         - enableKarafLogin: proc
         - cmd[proc]: |-
+            MODULES_INSTALL_DIR=/data/digital-factory-data/modules/
+            ds_migration_mod_name=ds-migration-${globals.dsMigrationVersion}.jar
             # remove ds-migration module
             ${globals.karafConsole} cluster:bundle-uninstall default ds-migration
             # also uninstall old distributed session at cluster level
@@ -187,6 +192,7 @@ actions:
                         '$NF=="distributed-sessions" && $6!="${globals.distSessVersion}" {print $6}')
             ${globals.karafConsole} cluster:bundle-start default distributed-sessions/${globals.distSessVersion}
             ${globals.karafConsole} cluster:bundle-uninstall default distributed-sessions/$old_version
+            rm -f $MODULES_INSTALL_DIR/$ds_migration_mod_name
         - disableKarafLogin: proc
         - checkStat
     - else:
