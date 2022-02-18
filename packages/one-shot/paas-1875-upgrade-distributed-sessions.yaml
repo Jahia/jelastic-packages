@@ -93,14 +93,17 @@ actions:
         - setGlobals:
             distSessVersion: 2.1.2
             dsMigrationVersion: 1.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 1.0.0.SNAPSHOT
     - elif(${globals.isHigherOrEqualThan8100}):
         - setGlobals:
             distSessVersion: 3.2.1
             dsMigrationVersion: 2.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 2.0.0.SNAPSHOT
     - else:
         - setGlobals:
             distSessVersion: 3.1.1
             dsMigrationVersion: 2.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 2.0.0.SNAPSHOT
 
   triggerDSmigration:
     cmd[${this}]: |-
@@ -111,7 +114,7 @@ actions:
               '$NF=="distributed-sessions" && $6=="${globals.distSessVersion}" {print $1}')
       ${globals.karafConsole} bundle:resolve $newDSid
       # trigger the DS migration
-      timeout=120
+      timeout=180
       status=0
       until [ $status == 200 ]; do
         [ $timeout == 0 ] && exit 1
@@ -172,6 +175,7 @@ actions:
             # install and start the ds-migration module
             curl -fLSso $MODULES_INSTALL_DIR/$ds_migration_mod_name $ds_migration_url
             sleep 10
+            ${globals.karafConsole} cluster:bundle-start default ds-migration/${globals.dsMigrationBundleVersion}
         - triggerDSmigration: proc
         - disableKarafLogin: proc
         - forEach(nodes.cp):
@@ -180,6 +184,8 @@ actions:
             - disableKarafLogin: ${@i.id}
         - enableKarafLogin: proc
         - cmd[proc]: |-
+            MODULES_INSTALL_DIR=/data/digital-factory-data/modules/
+            ds_migration_mod_name=ds-migration-${globals.dsMigrationVersion}.jar
             # remove ds-migration module
             ${globals.karafConsole} cluster:bundle-uninstall default ds-migration
             # also uninstall old distributed session at cluster level
@@ -187,6 +193,7 @@ actions:
                         '$NF=="distributed-sessions" && $6!="${globals.distSessVersion}" {print $6}')
             ${globals.karafConsole} cluster:bundle-start default distributed-sessions/${globals.distSessVersion}
             ${globals.karafConsole} cluster:bundle-uninstall default distributed-sessions/$old_version
+            rm -f $MODULES_INSTALL_DIR/$ds_migration_mod_name
         - disableKarafLogin: proc
         - checkStat
     - else:
