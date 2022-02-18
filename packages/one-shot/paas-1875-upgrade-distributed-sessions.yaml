@@ -93,14 +93,17 @@ actions:
         - setGlobals:
             distSessVersion: 2.1.2
             dsMigrationVersion: 1.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 1.0.0.SNAPSHOT
     - elif(${globals.isHigherOrEqualThan8100}):
         - setGlobals:
             distSessVersion: 3.2.1
             dsMigrationVersion: 2.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 2.0.0.SNAPSHOT
     - else:
         - setGlobals:
             distSessVersion: 3.1.1
             dsMigrationVersion: 2.0.0-SNAPSHOT
+            dsMigrationBundleVersion: 2.0.0.SNAPSHOT
 
   triggerDSmigration:
     cmd[${this}]: |-
@@ -110,9 +113,6 @@ actions:
       newDSid=$(${globals.karafConsole} bundle:list -s | awk ${globals.awkFS} \
               '$NF=="distributed-sessions" && $6=="${globals.distSessVersion}" {print $1}')
       ${globals.karafConsole} bundle:resolve $newDSid
-      ds_migration_id=$(${globals.karafConsole} bundle:list -s | awk ${globals.awkFS} \
-              '$NF=="ds-migration" {print $1}')
-      ${globals.karafConsole} bundle:start $ds_migration_id
       # trigger the DS migration
       timeout=180
       status=0
@@ -175,6 +175,7 @@ actions:
             # install and start the ds-migration module
             curl -fLSso $MODULES_INSTALL_DIR/$ds_migration_mod_name $ds_migration_url
             sleep 10
+            ${globals.karafConsole} cluster:bundle-start default ds-migration/${globals.dsMigrationBundleVersion}
         - triggerDSmigration: proc
         - disableKarafLogin: proc
         - forEach(nodes.cp):
