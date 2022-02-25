@@ -74,11 +74,11 @@ onInstall:
           - restoreHaproxy
   - else:  # Jcustomer
       - clearJelasticLogs:
-          target: ${nodes.es.first.id}, cp
+          target: cp
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
-          target: ${nodes.es.first.id}, cp
+          target: cp
           logAction: ${globals.logAction}
       - restoreElasticsearch
       - restoreJcustomer
@@ -379,16 +379,14 @@ actions:
         account: ${response.account}
         region: ${globals.regionRealName_source}
 
-    - cmd[${nodes.es.first.id}]: |-
-        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
+    - cmd[${nodes.cp.first.id}]: |-
+        curl -s \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          https://$UNOMI_ELASTICSEARCH_ADDRESSES | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
     - setGlobals:
         esVersion: ${response.out}
 
     - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
-        - setAwsElasticsearchConfig:
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            logsPath: ${globals.logsPath}
         - if ("${globals.cloudProvider_source}" == "aws"):
             - set:
                 region: ${globals.region}
@@ -396,27 +394,37 @@ actions:
             - set:
                 region: "eu-west-1"
         - setAwsSnapshotRepository:
+            repositoryName: ${env.shortdomain}
             backupName: ${settings.backup_name}
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
-    - else:
-        - setAzureElasticsearchConfig:
             awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
             awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            backupName: ${settings.backup_name}
+    - else:
+        - setAzureSnapshotRepository:
+            repositoryName: ${env.shortdomain}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
             operation: "restore"
             account: ${globals.account}
-            logsPath: ${globals.logsPath}
-        - setAzureSnapshotRepository:
             backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 4/5
-        curl -o /dev/null -X DELETE http://${nodes.es.first.intIP}:9200/_all
+        curl -o /dev/null \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
-        curl -o /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" 2>>${globals.logsPath} || exit 1
+        curl -o /tmp/restore-res \
+          -H 'Content-Type: application/json' \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
+          -d"{
+            \"rename_pattern\": \"(.*)(_jc|_as)(.*)\",
+            \"rename_replacement\": \"${UNOMI_ELASTICSEARCH_INDEXPREFIX}-$3\"
+          }" 2>>${globals.logsPath} || exit 1
         return_code=$?
         error=$(grep error /tmp/restore-res)
         res=$(wc -l<<<$error)

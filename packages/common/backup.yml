@@ -57,11 +57,11 @@ onInstall:
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
-          target: ${nodes.es.first.id}, ${nodes.cp.first.id}
+          target: ${nodes.cp.first.id}
           logAction: ${globals.logAction}
       - backupElasticsearch
       - backupJcustomer
-      - addMetadata: ${nodes.es.first.id}
+      - addMetadata: ${nodes.cp.first.id}
       - rotateElasticsearchBackup
 
 actions:
@@ -158,35 +158,33 @@ actions:
             message: "An error occurred during backup rotation. ${response.errOut}"
 
   backupElasticsearch:
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 2/5
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g')
         echo jc${cluster_role}${env.uid}${env_region}
     - setGlobals:
         account: ${response.out}
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
     - setGlobals:
         region: ${response.out}
 
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST
     - setGlobals:
         provider: ${response.out}
 
-    - cmd[${nodes.es.first.id}]: |-
-        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
+    - cmd[${nodes.cp.first.id}]: |-
+        curl -s \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          https://$UNOMI_ELASTICSEARCH_ADDRESSES | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
     - setGlobals:
         esVersion: ${response.out}
 
     # Configure backup depending on cloud provider
     - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
-        - setAwsElasticsearchConfig:
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            logsPath: ${globals.logsPath}
-        - cmd[${nodes.es.first.id}]: |-
+        - cmd[${nodes.cp.first.id}]: |-
             # Create the bucket if doesn't exists
             export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
             cd jelastic_backup
@@ -198,27 +196,35 @@ actions:
             - set:
                 region: "eu-west-1"
         - setAwsSnapshotRepository:
+            repositoryName: ${env.shortdomain}
             backupName: ${settings.backup_name}
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
-    - else:
-        - setAzureElasticsearchConfig:
             awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
             awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            backupName: ${settings.backup_name}
+    - else:
+        - setAzureSnapshotRepository:
+            repositoryName: ${env.shortdomain}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
             operation: "backup"
             account: ${globals.account}
-            logsPath: ${globals.logsPath}
-        - setAzureSnapshotRepository:
             backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
     # start backup
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 3/5
         timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
-        curl -o /tmp/backup-res -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}?wait_for_completion=true" 2>>${globals.logsPath} || exit 1
+        curl -o /tmp/backup-res \
+          -H 'Content-Type: application/json' \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
+          -d"{
+            \"indices\": \"${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*\",
+            \"include_global_state\": false
+          }" 2>>${globals.logsPath} || exit 1
         return_code=$?
         error=$(grep error /tmp/backup-res)
         res=$(wc -l<<<$error)
@@ -230,12 +236,16 @@ actions:
             message: "An error occurred during the backup process."
 
   rotateElasticsearchBackup:
-    - cmd[${nodes.es.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 5/5
         export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
         cd jelastic_backup
         # filter and format snapshot list
-        snapshots=$(curl -s $(hostname):9200/_snapshot/backup_repository/_all?pretty |grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}' )
+        snapshots=$(curl -s \
+          -H 'Content-Type: application/json' \
+          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/_all?pretty" \
+          | grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}')
         delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
         if [ $delete_count -lt 1 ]; then
           exit 0;
@@ -245,7 +255,9 @@ actions:
           timestamp=$(echo $snapshot |awk '{print toupper(substr($0,0,19))}')
           python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
           if [ $? -eq 0 ]; then
-            curl -XDELETE "$(hostname):9200/_snapshot/backup_repository/$snapshot"
+            curl \
+              -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+              -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/$snapshot"
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
         done
