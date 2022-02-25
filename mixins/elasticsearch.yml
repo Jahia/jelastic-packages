@@ -4,41 +4,231 @@
 
 actions:
   setupES:
-    cmd[${this}]: |-
-      es_conf=/etc/elasticsearch/elasticsearch.yml
-      ipadd=$(ip a s scope global | awk '$1=="inet" {split($2, ipad, "/"); print ipad[1]}')
-      node_name=$(awk -v ipadd=$ipadd '$1==ipadd && $2~/^es_[0-9]+$/ {print $2; exit}' /etc/hosts)
-      # some cleaning in case of an update
-      sed -e '/^path\.repo/d' \
-          -e '/^node\.name/d' \
-          -e '/^discovery\.zen\./d' \
-          -e '/^discovery\.seed_/d' \
-          -e '/^cluster\.initial_/d' \
-          -i $es_conf
-      sed 's/\(^discovery.type: single-node\)/#\1/' -i $es_conf
-      echo "node.name: $node_name" >> $es_conf
-      hosts_list=$(awk '$2~/^es_[0-9]+$/ {nodes[$2]} END{asorti(nodes);printf "["; for(n=1;n<=length(nodes);n++){if(n<length(nodes)){sep=", "}else{sep="]"}; printf "\"%s\"%s",nodes[n],sep}}' /etc/hosts)
-      echo "cluster.initial_master_nodes: $hosts_list" >> $es_conf
-      echo "discovery.seed_hosts: $hosts_list" >> $es_conf
-      echo "discovery.zen.minimum_master_nodes: $(expr ${nodes.es.length} / 2 + 1)" >> $es_conf
-      systemctl enable elasticsearch
-      systemctl restart elasticsearch
+    - getVaultData
+    - runCircleCIPipeline:
+        workflow: terraform_apply
+    - createESAccountAndAliases
+    - setESEndpointInJcustomerConfig
 
-  setupDatadogAgentEs:
-    - setGlobalRepoRootUrl
-    - cmd[${this}]: |-
-        chmod 755 /var/log/elasticsearch/
-        chmod 755 /var/log/elasticsearch/*.log -R
-        sed -i "s/\(url: http:\/\/\).*\(:.*\)/\1${HOSTNAME}\2/" /etc/datadog-agent/conf.d/elastic.d/conf.yaml
-        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
-        chown root:root /var/log/jelastic-packages
-        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+  runCircleCIPipeline:
+    # Parameters:
+    # - workflow : the pipeline workflow to run (terraform_apply/terraform_destroy)
+    - vaultSecretReadKeyB64:
+        secretPath: paas/envs-common/cloud-ec-infra-circleci-api
+        secretKey: token
+    - set:
+        circleCiToken: ${globals.vaultSecretData}
 
-        # Temporarily disable IO check (cf. PAAS-1543)
-        mv /etc/datadog-agent/conf.d/io.d/conf.yaml.default /etc/datadog-agent/conf.d/io.d/conf.yaml.default.disabled
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
 
-        systemctl restart crond datadog-agent
+    - cmd [${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        sleep 60 # Required in case the cron get_metadata_from_HN hasn't run yet
+        source /metadata_from_HOST
+        if [ -z $JEL_ENV_ROLE ]; then
+          echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
+          exit 1
+        fi
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        if [ -z "$environment" ] || [ -z "$ec_deployment" ]; then
+          echo "Failed to fetch environment or ec_deployment"
+          exit 1
+        fi
+
+        organization_id=$(echo $environment | jq -r .paas_organization_id)
+        ec_deployment_id=$(echo $ec_deployment | jq -r .ec_deployment_id)
+        ec_deployment_name=$(echo $ec_deployment | jq -r .name)
+
+        CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
+        response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data \
+        "{
+           \"parameters\": {
+               \"workflow\": \"${this.workflow}\",
+               \"env\": \"$JEL_ENV_ROLE\",
+               \"papi_organization_id\": $organization_id,
+               \"papi_instance_id\": $ec_deployment_id,
+               \"papi_instance_name\": \"$ec_deployment_name\"
+             }
+         }")
+        if [ $? -ne 0 ]; then
+          echo "Pipeline trigger failed: $response"
+          exit 1
+        fi
+
+        pipelineId=$(echo $response | jq -r .id)
+        timeout=600 # 10 minutes
+        sleep_interval=10
+        workflow_status="running"
+        while [ "$workflow_status" = "running" ]; do
+          sleep $sleep_interval
+          response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+          if [ $? -eq 0 ]; then
+            new_workflow_status=$(echo $response | jq -r '.items[0].status')
+            if [ "$new_workflow_status" != "null" ]; then
+              workflow_status=$new_workflow_status
+            fi
+          fi
+          if [ $timeout -lt 1 ]; then
+            echo "Timeout reached while waiting for circleCi pipeline to end"
+            exit 1
+          fi
+          ((timeout-=$sleep_interval))
+
+        done
+        if [ "$workflow_status" != "success" ]; then
+          echo "Elasticsearch cluster creation failed"
+          exit 1
+        fi
+
+  createESAccountAndAliases:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+
+    - cmd [${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
+        kibana_endpoint=$(echo $ec_deployment | jq -r .kibana_endpoint)
+
+        creds=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+        password=$(echo $creds | jq -r .password)
+        login=$(echo $creds | jq -r .login)
+
+        # Create Kibana role
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates"], "indices": [{"names": ["${env.envName}_jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        if [ $? -ne 0 ]; then
+          echo "Failed to create kibana role." && exit 1
+        fi
+
+        # Create ES user
+        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "${globals.elasticsearch_password}", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create ES user." && exit 1
+        fi
+
+        curl -fLSsu "$login:$password" "$es_endpoint/_cat/indices/global-geonameentry" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+          curl -fLSsu "$login:$password" "$es_endpoint/global-geonameentry" -H 'Content-Type:application/json' -s -XPUT -d '{
+            "settings" : {"index" : {"number_of_shards" : 1,"number_of_replicas" : 1}},
+            "mappings": {
+              "properties": {
+                "admin1Code": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "admin2Code": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "admin3Code": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "admin4Code": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "asciiname": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "cc2": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "countryCode": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "dem": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "elevation": {"type": "long"},
+                "featureClass": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "featureCode": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "itemId": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "itemType": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "location": {"type": "geo_point"},
+                "modificationDate": {"type": "date"},
+                "name": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                },
+                "population": {"type": "long"},
+                "timezone": {
+                  "type": "text",
+                  "fields": {"keyword": {"type": "keyword","ignore_above": 256}}
+                }
+              }
+            }
+          }'
+
+          if [ $? -ne 0 ]; then
+            echo "Failed to create global geonameentry index." && exit 1
+          fi
+        fi
+
+        curl -fLSsu "$login:$password" "$es_endpoint/_aliases" -H 'Content-Type:application/json' -d '{"actions": [{"add": {"is_write_index": true,"index": "global-geonameentry","alias": "${env.envName}_jc-geonameentry"}}]}'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create geonameentry alias." && exit 1
+        fi
+
+  setESEndpointInJcustomerConfig:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd [cp]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
+
+        sed -i "s,curl.*9200,curl -u \\\"\${UNOMI_ELASTICSEARCH_USERNAME}:\${UNOMI_ELASTICSEARCH_PASSWORD}\\\" \\\"https://\${UNOMI_ELASTICSEARCH_ADDRESSES}\\\",g" /etc/systemd/system/karaf.service
+        systemctl daemon-reload
+
+        es_hostname=$(echo $es_endpoint | sed 's,https\:\/\/,,g')
+        echo "$es_hostname"
+
+    - script: |-
+        envVars = {
+          "UNOMI_ELASTICSEARCH_ADDRESSES": "${response.out}",
+        }
+        return api.env.control.AddContainerEnvVars("${env.envName}", session, "cp", envVars);
+
 
   updateReplica:
     - cmd[${nodes.cp.first.id}]: |-
@@ -157,36 +347,6 @@ actions:
           sleep 2
         done
 
-  redeployEsNodes:
-    - if(nodes.es.length == 1):
-        - log: "Stopping Karaf..."
-        - manageSystemdService:
-            target: cp
-            unit: karaf
-            action: stop
-
-        - log: "Redeploying Elasticsearch node..."
-        - api: environment.control.redeploycontainersbygroup
-          nodeGroup: es
-          tag: ${nodes.es.first.version}
-          useExistingVolumes: true
-
-        - log: "Starting Karaf..."
-        - manageSystemdService:
-            target: cp
-            unit: karaf
-            action: start
-        - checkEsClusterStatus
-    - else:
-        - forEach(nodes.es):
-            - log: "Redeploying Elasticsearch node ${@i.id}..."
-            - api: environment.control.RedeployContainerById
-              nodeId: ${@i.id}
-              tag: ${nodes.es.first.version}
-              useExistingVolumes: true
-              skipReinstall: false
-            - checkEsClusterStatus
-
   checkEsClusterStatus:
     # Every second, we check cluster health. If curl fails with a 10s timeout, then exit 1.
     # For 3-nodes clusters, until status is green & actual nodes number equals nodes.es.length,
@@ -221,11 +381,6 @@ actions:
         echo "[ERROR] There is an issue with the cluster, please check" 1>&2
         exit 1
       user: root
-
-  checkElasticsearchDatadogCustomChecks:
-    - checkDatadogAgentCheck:
-        target: ${this}
-        checkName: elastic
 
   setAwsSnapshotRepository:
     # Parameters:
