@@ -203,6 +203,8 @@ settings:
     - name: envmode
       type: string
       caption: accepted values are prod or dev
+    # This setting is necessary because used in OnBeforeInstall event and there is
+    # no other way to get the shortdomain in this event (even if it is passed as a parameter)
     - name: shortdomain
       type: envname
       caption: Environment
