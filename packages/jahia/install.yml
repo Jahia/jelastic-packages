@@ -348,7 +348,8 @@ settings:
         medium: medium
         large: large
       default: small
-
+    # This setting is necessary because used in OnBeforeInstall event and there is
+    # no other way to get the shortdomain in this event (even if it is passed as a parameter)
     - name: shortdomain
       type: envname
       caption: Environment
@@ -357,7 +358,6 @@ settings:
       type: string
       caption: Datadog API KEY
       required: true
-
     - name: jahiaDockerImage
       inputType: hidden
       type: string
