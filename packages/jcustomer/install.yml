@@ -72,8 +72,8 @@ onBeforeInstall: |
       UNOMI_HTTP_PORT: '80',
       UNOMI_ELASTICSEARCH_SSL_ENABLE: 'true',
       UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
-      UNOMI_ELASTICSEARCH_INDEXPREFIX: '${env.shortdomain}_jc',
-      UNOMI_ELASTICSEARCH_USERNAME: '${env.shortdomain}',
+      UNOMI_ELASTICSEARCH_INDEXPREFIX: '${settings.shortdomain}_jc',
+      UNOMI_ELASTICSEARCH_USERNAME: '${settings.shortdomain}',
       UNOMI_ELASTICSEARCH_PASSWORD: '${globals.elasticsearch_password}',
 
       UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.workato_ips.join(,)}",
@@ -203,3 +203,7 @@ settings:
     - name: envmode
       type: string
       caption: accepted values are prod or dev
+    - name: shortdomain
+      type: envname
+      caption: Environment
+      required: true
