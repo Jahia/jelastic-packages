@@ -385,6 +385,7 @@ actions:
           https://$UNOMI_ELASTICSEARCH_ADDRESSES | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
     - setGlobals:
         esVersion: ${response.out}
+    - getECAdminCredentials
 
     - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
         - if ("${globals.cloudProvider_source}" == "aws"):
@@ -413,13 +414,14 @@ actions:
 
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 4/5
+        ec_admin_credentials=${globals.ecAdminCredentials}
         curl -o /dev/null \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
         curl -o /tmp/restore-res \
           -H 'Content-Type: application/json' \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d"{
             \"rename_pattern\": \"(.*)(_jc|_as)(.*)\",
@@ -434,11 +436,6 @@ actions:
         - return:
             type: error
             message: "An error occurred during the backup restore process."
-
-    - calculateNumberOfReplicas
-    - updateReplica:
-        replica: ${globals.replica}
-        logsPath: ${globals.logsPath}
 
   restoreHaproxy:
     - cmd [bl]: |-
