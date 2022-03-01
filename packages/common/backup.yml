@@ -181,6 +181,7 @@ actions:
           https://$UNOMI_ELASTICSEARCH_ADDRESSES | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
     - setGlobals:
         esVersion: ${response.out}
+    - getECAdminCredentials
 
     # Configure backup depending on cloud provider
     - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
@@ -216,10 +217,11 @@ actions:
     # start backup
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 3/5
+        ec_admin_credentials=${globals.ecAdminCredentials}
         timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
         curl -o /tmp/backup-res \
           -H 'Content-Type: application/json' \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
           -d"{
             \"indices\": \"${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*\",
@@ -236,14 +238,16 @@ actions:
             message: "An error occurred during the backup process."
 
   rotateElasticsearchBackup:
+    - getECAdminCredentials
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 5/5
+        ec_admin_credentials=${globals.ecAdminCredentials}
         export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
         cd jelastic_backup
         # filter and format snapshot list
         snapshots=$(curl -s \
           -H 'Content-Type: application/json' \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/_all?pretty" \
           | grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}')
         delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
@@ -256,7 +260,7 @@ actions:
           python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
           if [ $? -eq 0 ]; then
             curl \
-              -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+              -u $ec_admin_credentials \
               -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/$snapshot"
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi

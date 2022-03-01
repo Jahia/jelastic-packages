@@ -229,6 +229,26 @@ actions:
         }
         return api.env.control.AddContainerEnvVars("${env.envName}", session, "cp", envVars);
 
+  getECAdminCredentials:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd [${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment_credentials=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+        ec_admin_login=$(echo $ec_deployment_credentials | jq -r .login)
+        ec_admin_password=$(echo $ec_deployment_credentials | jq -r .password)
+        if [ -z "$ec_admin_login" ] || [ -z "$ec_admin_password" ]; then
+          echo "Failed to fetch EC admin credentials"
+          exit 1
+        fi
+        echo $ec_admin_login:$ec_admin_password
+    - setGlobals:
+        ecAdminCredentials: ${response.out}
 
   updateReplica:
     - cmd[${nodes.cp.first.id}]: |-
@@ -394,9 +414,10 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         aws_access_key="${this.awsAccessKeyId}"
         aws_secret_key="${this.awsSecretAccessKey}"
+        ec_admin_credentials=${globals.ecAdminCredentials}
         curl \
           -H 'Content-Type: application/json' \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
           -d"{
             \"type\": \"s3\",
@@ -427,9 +448,10 @@ actions:
         logsPath: ${this.logsPath}
 
     - cmd[${nodes.cp.first.id}]: |-
+        ec_admin_credentials=${globals.ecAdminCredentials}
         curl \
           -H 'Content-Type: application/json' \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+          -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
           -d"{
             \"type\": \"azure\",
