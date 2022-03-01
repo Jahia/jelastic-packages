@@ -17,8 +17,6 @@ mixins:
   - ../../mixins/mariadb.yml
 
 onInstall:
-  - muteDatadogSynthetics:
-      duration: 240 # 4h
   - muteDatadogHost:
       target: "*"
       duration: 240 # 4h
@@ -49,6 +47,8 @@ onInstall:
               bucketname: jc${cluster_role}${env.uid}${env_region}
 
   - if (nodes.proc):  # Jahia
+      - muteDatadogSynthetics:
+          duration: 240 # 4h
       - clearJelasticLogs:
           target: bl
           user: haproxy
@@ -72,6 +72,7 @@ onInstall:
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
+      - unmuteDatadogSynthetics
   - else:  # Jcustomer
       - clearJelasticLogs:
           target: cp
@@ -85,7 +86,6 @@ onInstall:
       - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
       target: "*"
-  - unmuteDatadogSynthetics
 
 
 actions:
@@ -159,7 +159,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
-    # set default value for the management of jexperience 
+    # set default value for the management of jexperience
     - set:
         remove_restored_jexperience: false
         reinstall_jexperience: false
