@@ -223,10 +223,10 @@ actions:
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
-          -d"{
-            \"indices\": \"${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*\",
-            \"include_global_state\": false
-          }" 2>>${globals.logsPath} || exit 1
+          -d'{
+            "indices": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-*,-global-geonameentry",
+            "include_global_state": false
+          }' 2>>${globals.logsPath} || exit 1
         return_code=$?
         error=$(grep error /tmp/backup-res)
         res=$(wc -l<<<$error)
