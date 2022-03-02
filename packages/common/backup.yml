@@ -217,21 +217,24 @@ actions:
     # start backup
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 3/5
+        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
         timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
-        curl -o /tmp/backup-res \
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
           -d'{
-            "indices": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-*,-global-geonameentry",
+            "indices": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-*,-global-geonameentry*",
             "include_global_state": false
-          }' 2>>${globals.logsPath} || exit 1
-        return_code=$?
-        error=$(grep error /tmp/backup-res)
-        res=$(wc -l<<<$error)
-        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
-        rm -f /tmp/backup-res
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${globals.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
     - if ("${response.out}" != ""):
         - return:
             type: error

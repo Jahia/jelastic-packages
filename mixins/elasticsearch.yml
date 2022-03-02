@@ -371,21 +371,29 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         aws_access_key="${this.awsAccessKeyId}"
         aws_secret_key="${this.awsSecretAccessKey}"
+        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
-        curl \
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
-          -d"{
-            \"type\": \"s3\",
-            \"settings\": {
-                \"bucket\": \"${this.account}\",
-                \"region\": \"${this.region}\",
-                \"base_path\" : \"${this.backupName}/elasticsearch\",
-                \"access_key\": \"$aws_access_key\",
-                \"secret_key\": \"$aws_secret_key\"
+          -d'{
+            "type": "s3",
+            "settings": {
+                "bucket": "'${this.account}'",
+                "region": "'${this.region}'",
+                "base_path" : "'${this.backupName}'/elasticsearch",
+                "access_key": "'$aws_access_key'",
+                "secret_key": "'$aws_secret_key'"
             }
-          }" 2>>${this.logsPath} || exit 1
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${this.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
 
   setAzureSnapshotRepository:
     # Parameters:
@@ -405,20 +413,28 @@ actions:
         logsPath: ${this.logsPath}
 
     - cmd[${nodes.cp.first.id}]: |-
+        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
-        curl \
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
-          -d"{
-            \"type\": \"azure\",
-            \"settings\": {
-                \"container\": \"${this.backupName}\",
-                \"base_path\" : \"elasticsearch\",
-                \"account\" : \"${this.account}\",
-                \"key\" : \"${globals.azure_secret}\"
+          -d'{
+            "type": "azure",
+            "settings": {
+                "container": "'${this.backupName}'",
+                "base_path" : "elasticsearch",
+                "account" : "'${this.account}'",
+                "key" : "'${globals.azure_secret}'"
             }
-          }" 2>>${this.logsPath} || exit 1
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${this.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
 
   getAzureElasticsearchSecret:
     # Parameters:
