@@ -423,10 +423,11 @@ actions:
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
-          -d"{
-            \"rename_pattern\": \"(.*)(_jc|_as)(.*)\",
-            \"rename_replacement\": \"${UNOMI_ELASTICSEARCH_INDEXPREFIX}-$3\"
-          }" 2>>${globals.logsPath} || exit 1
+          -d'{
+            "indices": "-global-geonameentry",
+            "rename_pattern": "(.*)(_jc|_as)-(.*)",
+            "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$3"
+          }' 2>>${globals.logsPath} || exit 1
         return_code=$?
         error=$(grep error /tmp/restore-res)
         res=$(wc -l<<<$error)
