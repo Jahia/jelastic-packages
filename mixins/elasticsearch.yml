@@ -250,33 +250,7 @@ actions:
     - setGlobals:
         ecAdminCredentials: ${response.out}
 
-  updateReplica:
-    - cmd[${nodes.cp.first.id}]: |-
-        curl -s \
-          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
-          https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices \
-          | awk -v repl=${this.replica} '$6!=repl {print $3}' | while read index; do
-            curl -s \
-              -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
-              -H "Content-Type: application/json" \
-              -XPUT https://$UNOMI_ELASTICSEARCH_ADDRESSES/$index/_settings \
-              -d '{"index":{"number_of_replicas": ${this.replica} }}' 2>>${this.logsPath}
-        done
-
-  calculateNumberOfReplicas:
-    - if(nodes.es.length > 1):
-        - if(nodes.es.length > 4):
-          - setGlobals:
-              - replica: 2
-        - else:
-          - setGlobals:
-              - replica: 1
-    - else:
-        setGlobals:
-          - replica: 0
-
   setReplica:
-    - calculateNumberOfReplicas
     - forEach(nodes.cp):
         cmd[${@i.id}]: |-
           setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
