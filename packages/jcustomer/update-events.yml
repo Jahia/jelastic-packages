@@ -37,23 +37,6 @@ onAfterServiceScaleOut[cp]:
 onBeforeRedeployContainer[cp]:
   - saveUnomiRootPassword
 
-onBeforeRedeployContainer[es]:
-  - if (nodes.es.length > 1):
-      - log: "This is an ES cluster, disable shards allocation and flush before stopping node"
-      - if ('${event.params.nodeGroup.print()}' != ''):
-          - setShardAllocation:
-              target: ${nodes.es.master.id}
-              allocation: "primaries"
-          - forEach(nodes.es):
-              - forceESFlush:
-                  target: ${@i.id}
-      - elif ('${event.params.nodeId.print()}' != ''):
-          - setShardAllocation:
-              target: ${event.params.nodeId}
-              allocation: "primaries"
-          - forceESFlush:
-              target: ${event.params.nodeId}
-
 onAfterRedeployContainer[cp]:
   - getUnomiRootPassword
   - setReplica
@@ -66,43 +49,6 @@ onAfterRedeployContainer[cp]:
       checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId.print()}' != ''):
       checkJcustomerHealthWhenStarting: ${event.params.nodeId}
-
-onAfterRedeployContainer[es]:
-  - if ('${event.params.nodeGroup.print()}' != ''):
-      - setupES: ${event.params.nodeGroup}
-      - setupDatadogAgentEs: ${event.params.nodeGroup}
-      - if (nodes.es.length > 1):
-          - log: "This is an ES cluster, enable shards allocation"
-          - setShardAllocation:
-              target: ${nodes.es.master.id}
-              allocation: "null"
-  - elif ('${event.params.nodeId.print()}' != ''):
-      - setupES: ${event.params.nodeId}
-      - setupDatadogAgentEs: ${event.params.nodeId}
-      - if (nodes.es.length > 1):
-          - log: "This is an ES cluster, enable shards allocation"
-          - setShardAllocation:
-              target: ${event.params.nodeId}
-              allocation: "null"
-
-onAfterServiceScaleOut[es]:
-  - forEach(event.response.nodes):
-      cmd[${@i.id}]: |-
-        service elasticsearch stop
-        rm -rf /var/lib/elasticsearch/nodes
-  - setupES: es
-  - setReplica
-  - updateReplica:
-      replica: ${globals.replica}
-      logsPath: /dev/null
-  - setupDatadogAgentEs: es
-
-onAfterScaleIn[es]:
-  - setupES: es
-  - setReplica
-  - updateReplica:
-      replica: ${globals.replica}
-      logsPath: /dev/null
 
 onBeforeDelete:
   - logEvent:
@@ -122,14 +68,6 @@ onBeforeStop:
       target: ${nodes.cp.first.id}
       title: "Stopping environment $envName"
       text: "$envName is going to stop"
-  - if (nodes.es.length > 1):
-      - log: "This is an ES cluster, disable shards allocation and flush before stopping the environment"
-      - setShardAllocation:
-          target: ${nodes.es.master.id}
-          allocation: "primaries"
-      - forEach(nodes.es):
-          - forceESFlush:
-              target: ${@i.id}
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
@@ -141,11 +79,6 @@ onAfterStart:
       target: ${nodes.cp.first.id}
       title: "$envName environment started"
       text: "$envName is started"
-  - if (nodes.es.length > 1):
-      - log: "This is an ES cluster, enable shards allocation"
-      - setShardAllocation:
-          target: ${nodes.es.master.id}
-          allocation: "null"
   - refreshUnomiAllowedIPs
   - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
@@ -178,22 +111,6 @@ onBeforeRestartNode:
   - muteDatadogHost:
       target: ${event.params.nodeId}
       duration: 20
-
-onBeforeRestartNode[es]:
-  - if (nodes.es.length > 1):
-      - log: "This is an ES cluster, disable shards allocation and flush before stopping node"
-      - setShardAllocation:
-          target: ${event.params.nodeId}
-          allocation: "primaries"
-      - forceESFlush:
-          target: ${event.params.nodeId}
-
-onAfterRestartNode[es]:
-  - if (nodes.es.length > 1):
-      - log: "This is an ES cluster, enable shards allocation"
-      - setShardAllocation:
-          target: ${event.params.nodeId}
-          allocation: "null"
 
 onAfterRestartNode[cp]:
   checkJcustomerHealthWhenStarting: ${event.params.nodeId}
