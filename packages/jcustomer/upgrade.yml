@@ -38,7 +38,7 @@ onInstall:
 
   - env.control.AddContainerEnvVars[*]:
     vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
-  - environment.nodegroup.ApplyData[cp, es]:
+  - environment.nodegroup.ApplyData[cp]:
       data:
         productVersion: ${settings.targetVersion}
 

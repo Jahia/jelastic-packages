@@ -171,9 +171,6 @@ settings:
     - name: jCustomerDockerTagSuffix
       type: string
       caption: jCustomer Docker tag suffix
-    - name: esDockerTagSuffix
-      type: string
-      caption: ES Docker tag suffix
     - name: ddogApikey
       type: string
       caption: Datadog API KEY

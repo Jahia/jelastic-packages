@@ -16,7 +16,7 @@ onInstall:
   - if (nodes.proc):  # Jahia
       - resetPolling: proc
   - else:  # Jcustomer
-      - resetPolling: ${nodes.es.first.id}
+      - resetPolling: ${nodes.cp.first.id}
 
 actions:
   resetPolling:
