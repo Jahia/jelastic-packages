@@ -333,12 +333,9 @@ actions:
     - script: |
           var envInfo = jelastic.env.control.getenvinfo('${settings.source_env}', session)
           for (var i = 0, n = envInfo.nodes; i < n.length; i++) {
-            // Uglty trick to handle unomi. NodeId will contain a es Id if there is no proc
-            if (n[i].nodeGroup == 'proc') {
+            if (n[i].nodeGroup == 'cp') {
               var nodeID = n[i].id;
               break;
-            } else if (n[i].nodeGroup == 'es') {
-              var nodeID = n[i].id;
             }
           }
           var metadata = jelastic.env.file.read('${settings.source_env}', session, '/metadata_from_HOST', null, null, nodeID).body.toString()

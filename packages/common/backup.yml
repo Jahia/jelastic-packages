@@ -53,7 +53,7 @@ onInstall:
       - rotateBackups: proc
   - else:  # Jcustomer
       - clearJelasticLogs:
-          target: ${nodes.es.first.id}, ${nodes.cp.first.id}
+          target: ${nodes.cp.first.id}
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
