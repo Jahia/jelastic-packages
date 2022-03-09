@@ -17,7 +17,6 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
-  - ../../mixins/elasticsearch.yml
 
 globals:
   output: ""
@@ -52,11 +51,6 @@ onInstall:
         - callStopGaleraNodeAction: ${globals.nodesDict.sqldb[0]}
 
   - else: # Jcustomer
-      - if (globals.nodesDict.es): # Elasticsearch
-          - if (nodes.es.length > 1): # If cluster
-              setESShardAllocationAndFlush: ${globals.nodesDict.es[0]}
-          - stopElasticsearchService: ${globals.nodesDict.es[0]}
-
       - if (globals.nodesDict.cp):
           forEach (globals.nodesDict.cp):
             stopKarafService: ${@i}
@@ -180,21 +174,6 @@ actions:
         - if (! ${settings.dryRun}):
             setDonorNode:
               target: ${globals.newDonorIndex}
-
-  setESShardAllocationAndFlush:
-    - appendActionLog: "Set shard allocation to 'primaries' and force ES flush on node ${this}"
-    - if (! ${settings.dryRun}):
-        - setShardAllocation:
-            target: ${this}
-            allocation: "primaries"
-        - forceESFlush:
-            target: ${this}
-
-  stopElasticsearchService:
-    - appendActionLog: "Stopping elasticsearch service on node ${this}"
-    - if (! ${settings.dryRun}):
-        cmd[${this}]: service elasticsearch stop
-        user: root
 
   stopKarafService:
     - appendActionLog: "Stopping karaf service on node ${this}"

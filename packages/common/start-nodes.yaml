@@ -17,7 +17,6 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
-  - ../../mixins/elasticsearch.yml
 
 globals:
   output: ""
@@ -53,12 +52,6 @@ onInstall:
           - callStartupJahiaHealthCheckAction: ${@i}
 
   - else: # Jcustomer
-    - if (globals.nodesDict.es): # Elasticsearch
-        - startNode: ${globals.nodesDict.es[0]}
-        - if (nodes.es.length > 1): # Cluster
-            setESShardAllocationAndFlush: ${globals.nodesDict.es[0]}
-        - callCheckElasticsearchStatusAction: ${globals.nodesDict.es[0]}
-
     - if (globals.nodesDict.cp): # jCustomer(s)
         forEach (globals.nodesDict.cp):
           - startNode: ${@i}
@@ -166,24 +159,12 @@ actions:
           target: ${this}
           maxDuration: 30
 
-  setESShardAllocationAndFlush:
-    - appendActionLog: "Set shard allocation to 'primaries' and force ES flush on node ${this}"
-    - if (! ${settings.dryRun}):
-        - setShardAllocation:
-            target: ${this}
-            allocation: "null"
-
   startJahia:
     - appendActionLog: "Starting tomcat on node ${this}"
     - if (! ${settings.dryRun}):
         cmd[${this}]: |-
           service tomcat start
         user: root
-
-  callCheckElasticsearchStatusAction:
-    - appendActionLog: "Checking elasticsearch cluster status"
-    - if (! ${settings.dryRun}):
-        checkEsClusterStatus
 
   callCheckJcustomerHealthWhenStartingAction:
     - appendActionLog: "Checking jCustomer health on node ${this}"

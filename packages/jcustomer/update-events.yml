@@ -135,7 +135,7 @@ onBeforeRedeployContainer:
           duration: 20
   - elif ('${event.params.nodeid.print()}' != ''):
       - logEvent:
-          target: ${nodes.es.first.id}
+          target: ${nodes.cp.first.id}
           title: "Redeploying node ${event.params.nodeid} to ${event.params.tag} version"
           text: "Node ${event.params.nodeid} is going to be redeploy to ${event.params.tag} version"
       - muteDatadogHost:
