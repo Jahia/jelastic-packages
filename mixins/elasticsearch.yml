@@ -359,6 +359,24 @@ actions:
 
         return {"result": 0};
 
+  getElasticCloudDeploymentId:
+    # Returns:
+    #   ${globals.elasticCloudDeploymentId}
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET paas-environment/$PAPI_ENV_ID) || exit 1
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id) || exit 1
+        ec_deployment=$(papi.py -X GET ec-deployment/$ec_deployment_id) || exit 1
+        elastic_cloud_id=$(echo $ec_deployment | jq -r .elastic_cloud_id) || exit 1
+        echo $elastic_cloud_id
+    - setGlobals:
+        elasticCloudDeploymentId: ${response.out}
+
   setAwsSnapshotRepository:
     # Parameters:
     #   - repositoryName
@@ -371,54 +389,38 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         aws_access_key="${this.awsAccessKeyId}"
         aws_secret_key="${this.awsSecretAccessKey}"
+        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
-        curl \
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
-          -d"{
-            \"type\": \"s3\",
-            \"settings\": {
-                \"bucket\": \"${this.account}\",
-                \"region\": \"${this.region}\",
-                \"base_path\" : \"${this.backupName}/elasticsearch\",
-                \"access_key\": \"$aws_access_key\",
-                \"secret_key\": \"$aws_secret_key\"
+          -d'{
+            "type": "s3",
+            "settings": {
+                "bucket": "'${this.account}'",
+                "region": "'${this.region}'",
+                "base_path" : "'${this.backupName}'/elasticsearch",
+                "access_key": "'$aws_access_key'",
+                "secret_key": "'$aws_secret_key'"
             }
-          }" 2>>${this.logsPath} || exit 1
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${this.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
 
-  setAzureSnapshotRepository:
-    # Parameters:
-    #   - repositoryName
-    #   - backupName
-    #   - logsPath
-    #   - awsAccessKeyId
-    #   - awsSecretAccessKey
-    #   - operation
-    #   - account
-    - getAzureElasticsearchSecret:
-        awsAccessKeyId: ${this.awsAccessKeyId}
-        awsSecretAccessKey: ${this.awsSecretAccessKey}
-        backupName: ${this.backupName}
-        operation: "${this.operation}"
-        account: ${this.account}
-        logsPath: ${this.logsPath}
-
-    - cmd[${nodes.cp.first.id}]: |-
-        ec_admin_credentials=${globals.ecAdminCredentials}
-        curl \
-          -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
-          -d"{
-            \"type\": \"azure\",
-            \"settings\": {
-                \"container\": \"${this.backupName}\",
-                \"base_path\" : \"elasticsearch\",
-                \"account\" : \"${this.account}\",
-                \"key\" : \"${globals.azure_secret}\"
-            }
-          }" 2>>${this.logsPath} || exit 1
+  getElasticCloudApiKey:
+    # Returns:
+    #   ${globals.elasticCloudApiKey}
+    - vaultSecretReadKeyB64:
+        secretPath: paas/envs-common/elastic-cloud-api-key
+        secretKey: key
+    - setGlobals:
+        elasticCloudApiKey: ${globals.vaultSecretData}
 
   getAzureElasticsearchSecret:
     # Parameters:
@@ -443,3 +445,59 @@ actions:
         - return:
             type: error
             message: "An error occurred during backup repository configuration."
+
+  setAzureSnapshotRepository:
+    # Parameters:
+    #   - repositoryName
+    #   - backupName
+    #   - logsPath
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - operation
+    #   - account
+    - getElasticCloudDeploymentId
+    - getElasticCloudApiKey
+    - getAzureElasticsearchSecret:
+        awsAccessKeyId: ${this.awsAccessKeyId}
+        awsSecretAccessKey: ${this.awsSecretAccessKey}
+        backupName: ${this.backupName}
+        operation: "${this.operation}"
+        account: ${this.account}
+        logsPath: ${this.logsPath}
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file=$(mktemp)
+        api_key=$(echo "${globals.elasticCloudApiKey}" | base64 -d)
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+          -H 'Content-Type: application/json' \
+          -H "Authorization: ApiKey $api_key" \
+          -XPATCH "https://cloud.elastic.co/api/v1/deployments/${globals.elasticCloudDeploymentId}/elasticsearch/main-elasticsearch/keystore" \
+          -d'{"secrets":{"azure.client.${this.repositoryName}.account":{"value":"${this.account}"},"azure.client.${this.repositoryName}.key":{"value":"${globals.azure_secret}"}}}')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${globals.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file=$(mktemp)
+        ec_admin_credentials=${globals.ecAdminCredentials}
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+          -H 'Content-Type: application/json' \
+          -u $ec_admin_credentials \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
+          -d'{
+            "type": "azure",
+            "settings": {
+                "container": "'${this.backupName}'",
+                "base_path": "elasticsearch",
+                "client": "'${this.repositoryName}'"
+            }
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${this.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit

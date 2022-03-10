@@ -333,12 +333,9 @@ actions:
     - script: |
           var envInfo = jelastic.env.control.getenvinfo('${settings.source_env}', session)
           for (var i = 0, n = envInfo.nodes; i < n.length; i++) {
-            // Uglty trick to handle unomi. NodeId will contain a es Id if there is no proc
-            if (n[i].nodeGroup == 'proc') {
+            if (n[i].nodeGroup == 'cp') {
               var nodeID = n[i].id;
               break;
-            } else if (n[i].nodeGroup == 'es') {
-              var nodeID = n[i].id;
             }
           }
           var metadata = jelastic.env.file.read('${settings.source_env}', session, '/metadata_from_HOST', null, null, nodeID).body.toString()
@@ -414,25 +411,28 @@ actions:
 
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 4/5
+        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
-        curl -o /dev/null \
+        curl -sSo /dev/null \
           -u $ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
-        curl -o /tmp/restore-res \
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d'{
-            "indices": "-global-geonameentry",
+            "indices": "-global-geonameentry*",
             "rename_pattern": "(.*)(_jc|_as)-(.*)",
             "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$3"
-          }' 2>>${globals.logsPath} || exit 1
-        return_code=$?
-        error=$(grep error /tmp/restore-res)
-        res=$(wc -l<<<$error)
-        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
-        rm -f /tmp/restore-res
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${globals.logsPath}
+          exit=1
+        fi
+        rm -f $output_file
+        exit $exit
     - if ("${response.out}" != ""):
         - return:
             type: error
