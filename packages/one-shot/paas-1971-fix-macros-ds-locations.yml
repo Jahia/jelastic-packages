@@ -1,0 +1,49 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1971 - Fix Macros and DS modules locations
+id: paas-1971-fix-macros-ds-locations
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - getJahiaVersion
+  - isVersionStrictlyLower:
+      a: ${globals.jahiaVersion}
+      b: 8.0.0.0
+      res: isLowerThan8000
+  - isVersionStrictlyLower:
+      a: ${globals.jahiaVersion}
+      b: 8.1.0.0
+      res: isLowerThan8100
+  - if(${globals.isLowerThan8000}):
+      - set:
+          distSessVersion: 2.1.2
+          macrosVersion: 7.1.3
+  - elif(${globals.isLowerThan8100}):
+      - set:
+          distSessVersion: 3.1.1
+          macrosVersion: 8.2.0
+  - else:
+      - set:
+          distSessVersion: 3.2.1
+          macrosVersion: 8.2.0
+  - cmd[proc]: |-
+      groovy_filename=paas-1971-fix-macros-ds-locations.groovy
+      touch "/tmp/$groovy_filename"
+
+      echo "def cellarBundle = org.jahia.osgi.BundleUtils.getBundleBySymbolicName('org.apache.karaf.cellar.bundle', null);" > "/tmp/$groovy_filename"
+      echo "Thread.currentThread().setContextClassLoader(org.jahia.osgi.BundleUtils.createBundleClassLoader(cellarBundle))" >> "/tmp/$groovy_filename"
+      echo "def map = org.jahia.osgi.BundleUtils.getOsgiService('com.hazelcast.core.HazelcastInstance').getMap('org.apache.karaf.cellar.bundle.map.default');" >> "/tmp/$groovy_filename"
+
+      echo "def macrosModule = map.get('macros/${this.macrosVersion}')" >> "/tmp/$groovy_filename"
+      echo "macrosModule.setLocation('dx:org.jahia.modules/macros/${this.macrosVersion}')" >> "/tmp/$groovy_filename"
+      echo "map.put('macros/${this.macrosVersion}', macrosModule)" >> "/tmp/$groovy_filename"
+
+      echo "def dsModule = map.get('distributed-sessions/${this.distSessVersion}')" >> "/tmp/$groovy_filename"
+      echo "dsModule.setLocation('dx:org.jahia.modules/distributed-sessions/${this.distSessVersion}')" >> "/tmp/$groovy_filename"
+      echo "map.put('distributed-sessions/${this.distSessVersion}', dsModule)" >> "/tmp/$groovy_filename"
+
+      mv "/tmp/$groovy_filename" "/data/digital-factory-data/patches/groovy/"
