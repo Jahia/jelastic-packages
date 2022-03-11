@@ -482,6 +482,18 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
+        # First we need to reload the secure settings to take into account the ney keys in the keystore
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+          -H 'Content-Type: application/json' \
+          -u $ec_admin_credentials \
+          -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_nodes/reload_secure_settings")
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${this.logsPath}
+          rm -f $output_file
+          exit 1
+        fi
+        sleep 5
+        > $output_file
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
