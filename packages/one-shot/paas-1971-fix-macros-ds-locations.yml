@@ -36,7 +36,7 @@ onInstall:
 
       echo "def cellarBundle = org.jahia.osgi.BundleUtils.getBundleBySymbolicName('org.apache.karaf.cellar.bundle', null);" > "/tmp/$groovy_filename"
       echo "Thread.currentThread().setContextClassLoader(org.jahia.osgi.BundleUtils.createBundleClassLoader(cellarBundle))" >> "/tmp/$groovy_filename"
-      echo "def map = org.jahia.osgi.BundleUtils.getOsgiService('com.hazelcast.core.HazelcastInstance').getMap('org.apache.karaf.cellar.bundle.map.default');" >> "/tmp/$groovy_filename"
+      echo "def map = org.jahia.osgi.BundleUtils.getOsgiService('com.hazelcast.core.HazelcastInstance', null).getMap('org.apache.karaf.cellar.bundle.map.default');" >> "/tmp/$groovy_filename"
 
       echo "def macrosModule = map.get('macros/${this.macrosVersion}')" >> "/tmp/$groovy_filename"
       echo "macrosModule.setLocation('dx:org.jahia.modules/macros/${this.macrosVersion}')" >> "/tmp/$groovy_filename"
