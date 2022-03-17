@@ -17,7 +17,7 @@ onInstall:
 actions:
   checkJahiaVersion:
     - getJahiaVersion
-    - if (${globals.jahiaVersion} != "8.0.3.0"):
+    - if ("${globals.jahiaVersion}" != "8.0.3.0"):
         - return:
             type: success
             message: "Jahia version is ${globals.jahiaVersion}, not 8.0.3.0 ; aborting"
