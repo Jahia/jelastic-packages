@@ -1,0 +1,46 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1982 - fix jsessionid
+id: paas-1982-fix-jsessionid
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - checkJahiaVersion
+  - fixWebXML: proc
+  - foreach (nodes.cp):
+      temporaryWorkaround: ${@i.id}
+
+actions:
+  checkJahiaVersion:
+    - getJahiaVersion
+    - if ( "${globals.jahiaVersion}" != "8.1.1.0"):
+        - return:
+            type: success
+            message: "Jahia version is ${globals.jahiaVersion}, not 8.1.1.0 ; aborting"
+
+  temporaryWorkaround:
+    - cmd[${this}]: |-
+        files=(/opt/tomcat/webapps/ROOT/WEB-INF/web.xml /constant_data/jahia/tomcat/webapps/ROOT/WEB-INF/web.xml)
+        for file in "${files[@]}"; do
+          line=$(awk '/sessionCreate/ {print NR}' $file)
+          if [ ! -z $line ]; then
+            start=$((line-1))
+            end=$((line+2))
+
+            before=$(md5sum $file)
+            sed -i -e "$start i\ \t<\!--" -e "$end a\ \t-->"  $file
+            after=$(md5sum $file)
+
+            if  [ "$after" != "$before" ]; then
+              echo "updated"
+            fi
+          fi
+        done
+
+    - if ( "${response.out}" != "" ):
+        api: environment.control.RestartNodeById
+        nodeId: ${this}
