@@ -65,8 +65,8 @@ actions:
         fi
 
         pipelineId=$(echo $response | jq -r .id)
-        timeout=600 # 10 minutes
-        sleep_interval=10
+        timeout=1200 # 20 minutes
+        sleep_interval=20
         workflow_status="running"
         while [ "$workflow_status" = "running" ]; do
           sleep $sleep_interval
@@ -263,9 +263,11 @@ actions:
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.client.methods.HttpPost;
         import org.apache.http.client.methods.HttpPut;
+        import org.apache.http.client.methods.HttpDelete;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import org.apache.http.entity.StringEntity;
+        import java.util.Base64;
 
         papiToken = "${globals.papiToken}";
         papiEnvId = "${globals.papiEnvId}";
@@ -291,7 +293,28 @@ actions:
         ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
 
         if (ec_deployment["mutualized"]) {
-          return {"result": 0, "out": "Mutualized EC deployment, nothing to do"}
+          if (ec_deployment["paas_environments"].length > 1) {
+            getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
+            getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(getECDeploymentCreds);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't get ec deployment credentials for " + ecDeploymentId + ": " + resp};
+            }
+            es_credentials = JSON.parse(EntityUtils.toString(resp.getEntity()));
+            auth_basic_es_credentials = es_credentials["login"] + ":" + es_credentials["password"]
+            creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
+            encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}_jc-*");
+            deleteESIndices.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteESIndices);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't delete indices:" + resp};
+            }
+            return {"result": 0, "out": "indices deleted"};
+
+          }
         }
 
         updateECDeployment = new HttpPut(papiBaseUrl + "paas-environment/" + papiEnvId);
@@ -357,7 +380,7 @@ actions:
         if (workflow_status != "success")
           return {"result": 1, errOut: "CircleCi Pipleline failed"};
 
-        return {"result": 0};
+        return {"result": 0, "out": "EC deployment deleted"};
 
   getElasticCloudDeploymentId:
     # Returns:
