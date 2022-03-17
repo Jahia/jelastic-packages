@@ -1,0 +1,53 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-1962 - Apply 8.0.3.2 patch to 8.0.3 envs
+id: paas-1962-apply-8032-patch
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - checkJahiaVersion
+  - checkPatchAlreadyInstalled
+  - installPatch
+  - checkPatchInstallation
+
+actions:
+  checkJahiaVersion:
+    - getJahiaVersion
+    - if (${globals.jahiaVersion} != "8.0.3.0"):
+        - return:
+            type: success
+            message: "Jahia version is ${globals.jahiaVersion}, not 8.0.3.0 ; aborting"
+
+  checkPatchAlreadyInstalled:
+    - cmd[proc]: |-
+        grep -R --include bundle.info provisioning /data/digital-factory-data/bundles-deployed/ | awk -F "/" '{print $NF}'
+    - if ("${response.out}" == "8.0.3.2"):
+        - return:
+            type: success
+            message: "Patch is already installed"
+
+  installPatch:
+    - enableKarafLogin: proc
+    - cmd[proc]: |-
+        sed -i "s;org.jahia.bundles.provisioning/8.0.3.0;org.jahia.bundles.provisioning/8.0.3.2;g" /data/jahia/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-core/8.0.3.0/dx-core-8.0.3.0-features.xml
+        sed -i "s;org.jahia.bundles.provisioning/8.0.3.0;org.jahia.bundles.provisioning/8.0.3.2;g" /data/jahia/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-standard/8.0.3.0/dx-standard-8.0.3.0-features.xml
+        ${globals.karafConsole} cluster:bundle-install default mvn:org.jahia.bundles/org.jahia.bundles.provisioning/8.0.3.2
+        ${globals.karafConsole} cluster:bundle-start default org.jahia.bundles.provisioning/8.0.3.2
+        ${globals.karafConsole} cluster:bundle-uninstall default org.jahia.bundles.provisioning/8.0.3.0
+    - disableKarafLogin: proc
+
+  checkPatchInstallation:
+    - cmd[proc, cp]: |-
+        provisioning_version=$(grep -R --include bundle.info provisioning /data/digital-factory-data/bundles-deployed/ | awk -F "/" '{print $NF}')
+        versions_count=$(echo $provisioning_version | wc -w)
+        if [ $versions_count -lt 1 ];then
+          echo "Provisioning bundle isn't installed"
+          exit 1
+        elif [ $versions_count -gt 1 ]; then
+          echo "Mulitple versions of provisioning bundle are installed"
+          exit 1
+        fi
