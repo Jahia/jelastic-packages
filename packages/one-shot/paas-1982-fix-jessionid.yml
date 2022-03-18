@@ -10,7 +10,7 @@ mixins:
 
 onInstall:
   - checkJahiaVersion
-  - fixWebXML: proc
+  - temporaryWorkaround: proc
   - foreach (nodes.cp):
       temporaryWorkaround: ${@i.id}
 
