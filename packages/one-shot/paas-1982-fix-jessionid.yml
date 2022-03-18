@@ -10,7 +10,7 @@ mixins:
 
 onInstall:
   - checkJahiaVersion
-  - temporaryWorkaround: proc
+  - temporaryWorkaround: ${nodes.proc.first.id}
   - foreach (nodes.cp):
       temporaryWorkaround: ${@i.id}
 
@@ -28,6 +28,13 @@ actions:
         for file in "${files[@]}"; do
           line=$(awk '/sessionCreate/ {print NR}' $file)
           if [ ! -z $line ]; then
+
+            check_start=$((line-2))
+            comment=$(sed -n $check_start"p" $file | grep "<\!--")
+            if [ ! -z $comment ]; then
+              continue
+            fi
+
             start=$((line-1))
             end=$((line+2))
 
