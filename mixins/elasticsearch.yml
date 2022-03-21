@@ -292,8 +292,7 @@ actions:
         }
         ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
 
-        if (ec_deployment["mutualized"]) {
-          if (ec_deployment["paas_environments"].length > 1) {
+        if (ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) {
             getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
             getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
             httpClient = HttpClients.createDefault();
@@ -313,8 +312,6 @@ actions:
               return {"result": 1, errOut: "Can't delete indices:" + resp};
             }
             return {"result": 0, "out": "indices deleted"};
-
-          }
         }
 
         updateECDeployment = new HttpPut(papiBaseUrl + "paas-environment/" + papiEnvId);
