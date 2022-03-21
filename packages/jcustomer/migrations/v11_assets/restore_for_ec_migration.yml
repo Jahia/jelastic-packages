@@ -1,0 +1,164 @@
+---
+type: update
+version: 1.5
+name: Jahia - Restores an environment from a bucket
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-restore-from-bucket
+
+globals:
+  logsPath: "/var/log/jelastic-packages/restore.log"
+
+mixins:
+  - ../../../../mixins/common.yml
+  - ../../../../mixins/elasticsearch.yml
+  - ../../../../mixins/jcustomer.yml
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - getBackrestAwsAccessKey
+  - restoreElasticsearch
+
+actions:
+  restoreElasticsearch:
+    - cmd[${nodes.cp.first.id}]: |-
+        source /metadata_from_HOST
+        echo $JEL_CLOUDPROVIDER
+    - setGlobals:
+        cloudProvider_source: "${response.out}"
+    - cmd[${nodes.cp.first.id}]: |-
+        source /metadata_from_HOST
+        echo $JEL_REGION
+    - setGlobals:
+        region: "${response.out}"
+    - cmd[${nodes.cp.first.id}]: |-
+        source /metadata_from_HOST
+        echo jc${JEL_ENV_ROLE}${env.uid}${JEL_REGION} | sed 's/[[:punct:]]//g'
+    - setGlobals:
+        account: "${response.out}"
+    - getECAdminCredentials
+    - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
+        - if ("${globals.cloudProvider_source}" == "aws"):
+            - set:
+                region: ${globals.region}
+        - else:
+            - set:
+                region: "eu-west-1"
+        - setAwsSnapshotRepository:
+            repositoryName: ${env.shortdomain}
+            backupName: ${settings.backup_name}
+            region: ${this.region}
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+    - else:
+        # for azure, container name can't have uppercase and (most of) punct chars
+        # so better to transform this
+        - cmd[${nodes.cp.first.id}]: |-
+            echo "${settings.backup_name}" | sed -e 's/[[:punct:]]//g' -e 's/[A-Z]/\L/g'
+        - set:
+            backup_name: "${response.out}"
+        - setAzureSnapshotRepository:
+            repositoryName: ${env.shortdomain}
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            operation: "restore"
+            account: ${globals.account}
+            backupName: ${this.backup_name}
+            logsPath: ${globals.logsPath}
+
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file=$(mktemp)
+        ec_admin_credentials=${globals.ecAdminCredentials}
+        curl -sSo /dev/null \
+          -u $ec_admin_credentials \
+          -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
+        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
+        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+          -H 'Content-Type: application/json' \
+          -u $ec_admin_credentials \
+          -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
+          -d '{
+            "indices": "-global-geonameentry*",
+            "rename_pattern": "context-(.*)",
+            "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$1_restored"
+          }')
+        exit=0
+        if [ $return_code -ne 200 ]; then
+          cat $output_file | tee -a ${globals.logsPath}
+          exit=1
+        fi
+        for try in {1..181}; do
+          not_started=$(curl -su $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/shards?h=prirep,state" | awk '$1=="p" && $2!="STARTED"' | wc -l)
+          if [ $not_started -eq 0 ]; then
+            break
+          else
+            if [ $try -eq 181 ]; then
+              echo "some primary shards are not started"
+              exit=2
+            fi
+            sleep 10
+          fi
+        done
+        rm -f $output_file
+        exit $exit
+    - if ("${response.out}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the backup restore process."
+
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file=$(mktemp)
+        ec_admin_credentials=${globals.ecAdminCredentials}
+        list_index=$(curl -su $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*?h=index" | grep -v "geonameentry")
+        if [ "$envmode" == "production" ]; then
+          shard_count=2
+        else
+          shard_count=1
+        fi
+        for i in $list_index; do
+          # remove replicas on _restored index in order to save memory
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 0}}'
+        done
+        for i in $list_index; do
+          # create final index without replicas (for faster reindex)
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i%_restored} \
+               -XPUT -d '{"settings":{"index":{"number_of_shards": '$shard_count', "number_of_replicas": 0}}}'
+          # reindex the _restored index to the final one
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex \
+               -XPOST -d '{"source":{"index": "'${i}'"}, "dest":{"index": "'${i%_restored}'"}}'
+        done
+        # now we can set the good replicas count and also delete _restored index
+        for i in $list_index; do
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               -XDELETE https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i}
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i%_restored}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 1}}'
+        done
+
+
+settings:
+  fields:
+    - name: backup_name
+      type: string
+      caption: Backup Name
+      vtype: text
+      required: true
+    - name: timestamp
+      caption: timestamp in format %Y-%m-%dT%H:%M:00
+      required: true
+      type: string
+    - name: backtype
+      caption: is this a manual or auto backup
+      type: string
+      default: manual
