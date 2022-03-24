@@ -22,7 +22,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - setJelEnvRoleInNodeGroupData            # PAAS-1959
+  - setJelEnvRoleInNodeGroupData # PAAS-1959
+  - configureShardsAndReplicas   # PAAS-1992
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -39,3 +40,25 @@ actions:
     install:
       jps: "${baseUrl}/../update-events.yml"
 
+  configureShardsAndReplicas:
+    - setGlobals:
+        shards_number: 1
+        replicas_number: 1
+    - cmd [${nodes.cp.first.id}]: |
+        [[ "$envmode" = "production" ]] && echo true || echo false
+        exit 0
+    - if (${response.out}):
+      - setGlobals:
+          shards_number: 2
+    - env.control.AddContainerEnvVars [cp]:
+      vars:
+        UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS: ${globals.shards_number}
+        UNOMI_ELASTICSEARCH_MONTHLYINDEX_SHARDS: ${globals.shards_number}
+        UNOMI_ELASTICSEARCH_DEFAULTINDEX_REPLICAS: ${globals.replicas_number}
+        UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS: ${globals.replicas_number}
+    - cmd [cp]: |-
+        sed -iE '/UNOMI_ELASTICSEARCH_(DEFAULT|MONTHLY)INDEX_(SHARDS|REPLICAS)/d' /opt/jcustomer/jcustomer/bin/setenv
+    - forEach (nodes.cp):
+        - cmd [${@i.id}]:
+            sudo service karaf restart
+        - checkJcustomerHealthWhenStarting: ${@i.id}

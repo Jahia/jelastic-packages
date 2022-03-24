@@ -47,6 +47,13 @@ onBeforeInstall: |
     jCustomerDockerTag += "_${settings.jCustomerDockerTagSuffix}"
   }
 
+  shards_number = 1;
+  replicas_number = 1;
+
+  if (envmode == "production") {
+    shards_number = 2;
+  }
+
   switch ("${settings.jCustomerNodeSize}") {
     case 'large':
       var jCustomerCloudlets = 40;
@@ -75,8 +82,11 @@ onBeforeInstall: |
       UNOMI_ELASTICSEARCH_INDEXPREFIX: '${settings.shortdomain}_jc',
       UNOMI_ELASTICSEARCH_USERNAME: '${settings.shortdomain}',
       UNOMI_ELASTICSEARCH_PASSWORD: '${globals.elasticsearch_password}',
-
       UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.workato_ips.join(,)}",
+      UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS: shards_number,
+      UNOMI_ELASTICSEARCH_MONTHLYINDEX_SHARDS: shards_number,
+      UNOMI_ELASTICSEARCH_DEFAULTINDEX_REPLICAS: replicas_number,
+      UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS: replicas_number,
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       envmode: envmode,
