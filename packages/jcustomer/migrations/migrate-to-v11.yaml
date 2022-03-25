@@ -67,7 +67,7 @@ actions:
           "UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS": "${globals.replicas_number}"
         }
       - cmd [cp]: |-
-          sed -iE '/UNOMI_ELASTICSEARCH_(DEFAULT|MONTHLY)INDEX_(SHARDS|REPLICAS)/d' /opt/jcustomer/jcustomer/bin/setenv
+          sed -i -E '/UNOMI_ELASTICSEARCH_(DEFAULT|MONTHLY)INDEX_(SHARDS|REPLICAS)/d' /opt/jcustomer/jcustomer/bin/setenv
       - forEach (nodes.cp):
         - cmd [${@i.id}]:
             sudo service karaf restart
