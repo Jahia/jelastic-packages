@@ -16,6 +16,7 @@ globals:
 onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
+  - checkES4Jcustomer            # PAAS-1970: this action have to be done before checkJcustomerHealth
   - checkJcustomerHealth: cp
   - checkJcustomerDatadogCustomChecks: cp
   - eventsUpdate
@@ -24,6 +25,7 @@ onInstall:
 
   - setJelEnvRoleInNodeGroupData # PAAS-1959
   - configureShardsAndReplicas   # PAAS-1992
+  - migrateJcustomer2EC          # PAAS-1970
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -72,3 +74,291 @@ actions:
         - cmd [${@i.id}]:
             sudo service karaf restart
         - checkJcustomerHealthWhenStarting: ${@i.id}
+
+  migrateJcustomer2EC:
+    - getVaultData
+    - getPapiInfoAll
+    - setGlobals:  # override papiToken with a new with the good grants
+        papiToken: "${settings.papiToken}"
+    - putECRole2Papier
+    - checkIfMutualizedECNeeded
+    - if(globals.ECMutuNeeded):
+        - checkIFMutualizedECExist
+        - if(globals.ECMutu2Create):
+            - createECitem:
+                mutualized: true
+    - else:
+        - createECitem:
+            mutualized: false
+    - generatePassword
+    - createOrUpdateEC
+    - manageFRO:
+        enable: true
+    - muteDatadogHost:
+        target: "cp"
+    - ESBackup
+    - setESEndpointInJcustomerConfig
+    - configureKaraf4EC
+    - ESRestore
+    - controlDaemon:
+        target: cp
+        command: restart
+        daemon: karaf
+    - checkJcustomerHealthWhenStarting: cp
+    - manageFRO:
+        enable: false
+    - muteDatadogHost:
+        target: "es"
+        duration: 959040
+    - controlDaemon:
+        target: es
+        command: "disable --now"
+        daemon: datadog-agent
+    - controlDaemon:
+        target: es
+        command: "disable --now"
+        daemon: elasticsearch
+    - checkJcustomerHealth: cp
+    - unmuteDatadogHost:
+        target: "cp"
+
+  manageFRO:
+    # parameters:
+    #   - enable: boolean
+    - script: |-
+        envsLinked = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                          return object.name == "cp";}).pop().envLink
+        if (! envsLinked) {
+          return {"result": 0, "envs": []}
+        }
+        return {"result": 0, "envs": envsLinked.split(",")}
+    - forEach(response.envs):
+        - install:
+            jps: "${baseUrl}/../../jahia/jahia-full-read-only.yml"
+            envName: ${@i}
+            settings:
+              enableFRO: ${this.enable}
+
+  configureKaraf4EC:
+    - env.control.AddContainerEnvVars[cp]:
+      vars:
+        UNOMI_ELASTICSEARCH_USERNAME: "${env.envName}"
+        UNOMI_ELASTICSEARCH_PASSWORD: "${globals.elasticsearch_password}"
+        UNOMI_ELASTICSEARCH_SSL_ENABLE: "true"
+        UNOMI_ELASTICSEARCH_INDEXPREFIX: "${env.envName}_jc"
+
+  generatePassword:
+    - setGlobals:
+        elasticsearch_password: ${fn.password(20)}
+
+  ESBackup:
+    - setTimestamp
+    - install:
+        jps: "${baseUrl}/v11_assets/backup_for_ec_migration.yml"
+        settings:
+          backup_name: "migration2EC-${globals.timestamp}"
+          timestamp: "${globals.timestamp}"
+
+  ESRestore:
+    - install:
+        jps: "${baseUrl}/v11_assets/restore_for_ec_migration.yml"
+        settings:
+          backup_name: "migration2EC-${globals.timestamp}"
+          timestamp: "${globals.timestamp}"
+
+  setTimestamp:
+    - script: |
+          var diso = new Date()
+          var m = diso.getMonth() + 1
+          var H = diso.getHours()
+          var M = diso.getMinutes()
+          var d = diso.getDate()
+          if(m.toString().length != 2) {m = "0" + m}
+          if(H.toString().length != 2) {H = "0" + H}
+          if(M.toString().length != 2) {M = "0" + M}
+          if(d.toString().length != 2) {d = "0" + d}
+          var timestamp = diso.getFullYear() + "-" + m + "-" + d + "T" + H + ":" + M + ":00"
+          return {'result': 0, 'timestamp': timestamp}
+    - setGlobals:
+        timestamp: ${response.timestamp}
+        argTimestamp: '-t "${response.timestamp}"'
+
+  controlDaemon:
+    # parameter:
+    #   - target: cp/es
+    #   - command: stop/start
+    #   - daemon: unit name
+    - cmd[${this.target}]:
+        systemctl ${this.command} ${this.daemon}
+      user: root
+
+  createOrUpdateEC:
+    - if(globals.ECItemExist && ! globals.ECExist):
+        - runESCircleCIPipeline:
+            workflow: terraform_apply
+    - createESAccountAndAliases
+
+  checkES4Jcustomer:
+    - cmd[${nodes.cp.first.id}]: |-
+        prefix=${UNOMI_ELASTICSEARCH_INDEXPREFIX:-context}
+        if (curl -s "http://es:9200/_cat/indices?h=index" | grep -qv "$prefix"); then
+          echo "not jc dedicated"
+        else
+          echo "dedicated"
+        fi
+    - if("${response.out}" == "dedicated"):
+        - log: "${env.envName}'s ES is dedicated to Jcustomer"
+    - else:
+        return:
+          type: error
+          message: "Non-jCustomer indices have been detected on ${env.envName}"
+
+  checkIFMutualizedECExist:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        organization_id=$(echo $environment | jq -r .paas_organization_id)
+        organization=$(papi.py -X GET "paas-organization/$organization_id")
+        organization_name=$(echo $organization | jq -r .name)
+        mutualized_ec=$(papi.py -X GET "ec-deployment?paas_organization_id=$organization_id" | jq -r --arg org "$organization_name" '.[] | select(.name=="mutualized_" + $org)')
+        if [ -n "$mutualized_ec" ]; then
+          ec_id=$(echo $mutualized_ec | jq -r .ec_deployment_id)
+          new_score=$(expr 8 + $(echo $mutualized_ec | jq .score))  # add 8 to the score
+          # now we updating the score on the EC item
+          papi.py -X PUT "ec-deployment/$ec_id" -d '{"score":'$new_score'}' &> /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error when updating the mutulized EC score"
+            exit 1
+          fi
+          # now we link the paas_environement_id to the ec_deployment_id
+          papi.py -X PUT "paas-environment/$PAPI_ENV_ID" -d '{"ec_deployment_id":'$ec_id'}' &> /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error when linking the mutulized EC to the paas environment"
+            exit 2
+          fi
+        else
+          echo "mutualized_to_create"
+        fi
+    - if("${response.out}" == "mutualized_to_create"):
+        - setGlobals:
+            ECMutu2Create: true
+    - else:
+        - setGlobals:
+            ECMutu2Create: false
+
+
+  createECitem:
+    # Parameters:
+      #   - mutualized: bool
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_id=$(echo $environment | jq .ec_deployment_id)
+        if [ "$ec_id" != "null" ]; then
+          ec_item=$(papi.py -X GET "ec-deployment/$ec_id")
+          if [ "$(echo $ec_item | jq -r .es_endpoint)" != "null" ]; then
+            echo "EC already created"
+            exit 0
+          fi
+          echo "already linked to an EC"
+          exit 0
+        fi
+        organization_id=$(echo $environment | jq -r .paas_organization_id)
+        source /metadata_from_HOST
+        case "$JEL_CLOUDPROVIDER" in
+          aws)
+            template="aws-io-optimized-v2"
+            region="${JEL_REGION}"
+            ;;
+          azure)
+            template="azure-io-optimized-v2"
+            region="azure-${JEL_REGION}"
+            ;;
+          ovh)
+            template="aws-io-optimized-v2"
+            region="eu-west-1"
+            ;;
+        esac
+        if ${this.mutualized}; then
+          ec_name="mutualized_$(papi.py paas-organization/$organization_id | jq -r .name)"
+        else
+          ec_name="${env.envName}"
+        fi
+        generate_payload() {
+        # score to 11 in order to help with reindex
+        cat <<EOF
+        {
+          "mutualized": ${this.mutualized},
+          "name": "$ec_name",
+          "template": "$template",
+          "region": "$region",
+          "organization_id": $organization_id,
+          "score": 11
+        }
+        EOF
+        }
+        ec_id=$(papi.py -X POST "ec-deployment" -d "$(generate_payload)" | jq .ec_deployment_id)
+        if [ $ec_id -gt 0 ]; then
+          papi.py -X PUT "paas-environment/$PAPI_ENV_ID" -d '{"ec_deployment_id": '$ec_id'}' &> /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error when linking the mutulized EC to the paas environment"
+            exit 2
+          fi
+        else
+          echo "Error when creating the EC item in papi"
+          exit 2
+        fi
+    - if("${response.out}" == "EC already created"):
+        - setGlobals:
+            ECItemExist: true
+            ECExist: true
+    - else:
+        - setGlobals:
+            ECItemExist: true
+            ECExist: false
+
+
+  putECRole2Papier:
+    - cmd[${nodes.cp.first.id}]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        # now we add the role for the papier to manage its organization's EC
+        papier_id=$(echo $environment | jq -r .papier_id)
+        papi.py -X PUT "papier/$papier_id/role/READ_OWN_EC_DEPLOYMENT" -d '{}' &> /dev/null
+        if [ $? -ne 0 ]; then
+          echo "Error when adding role READ_OWN_EC_DEPLOYMENT to the papier"
+          exit 1
+        fi
+
+  checkIfMutualizedECNeeded:
+    - cmd[${nodes.cp.first.id}]: |-
+        echo $envmode
+    - set:
+        envmode: ${response.out}
+    - log: "${env.envname}'s envmode value is: ${this.envmode}"
+    - if("${this.envmode}" == "development"):
+        - setGlobals:
+            ECMutuNeeded: true
+    - elif("${this.envmode}" == "production"):
+        - setGlobals:
+            ECMutuNeeded: false
+    - else:
+        return:
+          type: error
+          message: "envmode value is wrong on ${env.envName}"
+
+settings:
+  fields:
+    - name: papiToken
+      type: string
+      caption: Papi token to use
+      required: true

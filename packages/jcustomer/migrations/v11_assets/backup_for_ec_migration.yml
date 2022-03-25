@@ -1,0 +1,225 @@
+---
+type: update
+version: 1.5
+name: Jahia - Snapshots an environment and stores it in the appropriate object storage
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-backup-to-bucket
+
+globals:
+  timestamp: ${settings.timestamp}
+  argTimestamp: '-t "${globals.timestamp}"'
+  logAction: "don't get catched by the front"
+  logsPath: "/var/log/jelastic-packages/backup.log"
+
+mixins:
+  - ../../../../mixins/common.yml
+  - ../../../../mixins/elasticsearch.yml
+
+onInstall:
+  - getBackrestAwsAccessKey
+  - clearJelasticLogs:
+      target: ${nodes.cp.first.id}
+      user: root
+      logsPath: ${globals.logsPath}
+  - installBackupTools:
+      target: ${nodes.cp.first.id}, ${nodes.es.first.id}
+      logAction: ${globals.logAction}
+  - backupElasticsearch
+
+actions:
+  backupElasticsearch:
+    - cmd[${nodes.es.first.id}]: |-
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g')
+        echo jc${cluster_role}${env.uid}${env_region}
+    - setGlobals:
+        account: ${response.out}
+    - cmd[${nodes.es.first.id}]: |-
+        awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
+    - setGlobals:
+        region: ${response.out}
+
+    - cmd[${nodes.es.first.id}]: |-
+        awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST
+    - setGlobals:
+        provider: ${response.out}
+
+    - cmd[${nodes.es.first.id}]: |-
+        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
+    - setGlobals:
+        esVersion: ${response.out}
+
+    # Configure backup depending on cloud provider
+    - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
+        - setAwsElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            logsPath: ${globals.logsPath}
+        - cmd[${nodes.es.first.id}]: |-
+            # Create the bucket if doesn't exists
+            export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+            cd jelastic_backup
+            python3 elasticsearch.py --bucketname ${globals.account} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
+        - if ("${globals.provider}" == "aws"):
+            - set:
+                region: ${globals.region}
+        - else:
+            - set:
+                region: "eu-west-1"
+        - setAwsSnapshotRepository:
+            backupName: ${settings.backup_name}
+            region: ${this.region}
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+    - else:
+        # for azure, container name can't have uppercase and (most of) punct chars
+        # so better to transform this
+        - cmd[${nodes.cp.first.id}]: |-
+            echo "${settings.backup_name}" | sed -e 's/[[:punct:]]//g' -e 's/[A-Z]/\L/g'
+        - set:
+            backup_name: "${response.out}"
+        - setAzureElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            backupName: ${this.backup_name}
+            operation: "backup"
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+        - setAzureSnapshotRepository:
+            backupName: ${this.backup_name}
+            logsPath: ${globals.logsPath}
+
+    # start backup
+    - cmd[${nodes.es.first.id}]: |-
+        timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
+        payload='{"indices": "context-*,-*geonameentry"}'
+        generate_payload() {
+        cat <<EOF
+        {"indices": "context-*,-*geonameentry"}
+        EOF
+        }
+        curl -o /tmp/backup-res -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}?wait_for_completion=true" -d "$(generate_payload)" 2>>${globals.logsPath} || exit 1
+        return_code=$?
+        error=$(grep error /tmp/backup-res)
+        res=$(wc -l<<<$error)
+        if [ $return_code -ne 0 ] || [ ! -z "$res" ];then echo "$error";fi
+        rm -f /tmp/backup-res
+    - if ("${response.out}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the backup process."
+
+  setAwsSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - region
+    #   - account
+    #   - logsPath
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"s3\",
+            \"settings\": {
+                \"bucket\": \"${this.account}\",
+                \"region\": \"${this.region}\",
+                \"base_path\" : \"${this.backupName}/elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+  setAzureSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - logsPath
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"azure\",
+            \"settings\": {
+                \"container\": \"${this.backupName}\",
+                \"base_path\" : \"elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+
+
+  setAwsElasticsearchConfig:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - logsPath
+    - cmd[es]: |-
+        aws_access_key="${this.awsAccessKeyId}"
+        aws_secret_key="${this.awsSecretAccessKey}"
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+        fi
+        printf "$aws_access_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
+        printf "$aws_secret_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+
+  setAzureElasticsearchConfig:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    - getAzureElasticsearchSecret:
+        awsAccessKeyId: ${this.awsAccessKeyId}
+        awsSecretAccessKey: ${this.awsSecretAccessKey}
+        backupName: ${this.backupName}
+        operation: "${this.operation}"
+        account: ${this.account}
+        logsPath: ${this.logsPath}
+
+    - cmd[es]: |-
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+            echo "true"
+        fi
+        printf "${this.account}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.account
+        printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+
+  getAzureElasticsearchSecret:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    # Returns:
+    #   ${globals.azure_secret}
+    - cmd[${nodes.es.first.id}]: |-
+        export AWS_ACCESS_KEY_ID="${this.awsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${this.awsSecretAccessKey}"
+        cd jelastic_backup
+        python3 elasticsearch.py --bucketname ${this.account} --backupname ${this.backupName} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
+    - cmd[${nodes.es.first.id}]: |-
+        cat /tmp/azurecred
+        rm -f /tmp/azurecred
+    - setGlobals:
+        azure_secret: "${response.out}"
+    - if ("${globals.azure_secret}" == ""):
+        - return:
+            type: error
+            message: "An error occurred during backup repository configuration."
+
+settings:
+  fields:
+    - name: backup_name
+      type: string
+      caption: Backup Name
+      vtype: text
+      required: true
+    - name: timestamp
+      caption: timestamp in format %Y-%m-%dT%H:%M:00
+      required: true
+      type: string
+    - name: retention
+      caption: how many backup do you want to keep
+      type: string
+      default: 15
+    - name: backtype
+      caption: is this a manual or auto backup
+      type: string
+      default: manual
