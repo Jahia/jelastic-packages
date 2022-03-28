@@ -423,7 +423,7 @@ actions:
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d'{
             "indices": "-global-geonameentry*",
-            "rename_pattern": "(.*)(_jc|_as)-(.*)",
+            "rename_pattern": "(.*)(__jc|__as)-(.*)",
             "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$3"
           }')
         exit=0

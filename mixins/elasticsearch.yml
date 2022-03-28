@@ -111,7 +111,7 @@ actions:
         login=$(echo $creds | jq -r .login)
 
         # Create Kibana role
-        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates"], "indices": [{"names": ["${env.envName}_jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates"], "indices": [{"names": ["${env.envName}__jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
         if [ $? -ne 0 ]; then
           echo "Failed to create kibana role." && exit 1
         fi
@@ -197,7 +197,7 @@ actions:
           fi
         fi
 
-        curl -fLSsu "$login:$password" "$es_endpoint/_aliases" -H 'Content-Type:application/json' -d '{"actions": [{"add": {"is_write_index": true,"index": "global-geonameentry","alias": "${env.envName}_jc-geonameentry"}}]}'
+        curl -fLSsu "$login:$password" "$es_endpoint/_aliases" -H 'Content-Type:application/json' -d '{"actions": [{"add": {"is_write_index": true,"index": "global-geonameentry","alias": "${env.envName}__jc-geonameentry"}}]}'
         if [ $? -ne 0 ]; then
           echo "Failed to create geonameentry alias." && exit 1
         fi
@@ -304,7 +304,7 @@ actions:
             auth_basic_es_credentials = es_credentials["login"] + ":" + es_credentials["password"]
             creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
             encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
-            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}_jc-*");
+            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}__jc-*");
             deleteESIndices.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
             httpClient = HttpClients.createDefault();
             resp = httpClient.execute(deleteESIndices);

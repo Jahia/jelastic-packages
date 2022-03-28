@@ -145,7 +145,7 @@ actions:
         UNOMI_ELASTICSEARCH_USERNAME: "${env.envName}"
         UNOMI_ELASTICSEARCH_PASSWORD: "${globals.elasticsearch_password}"
         UNOMI_ELASTICSEARCH_SSL_ENABLE: "true"
-        UNOMI_ELASTICSEARCH_INDEXPREFIX: "${env.envName}_jc"
+        UNOMI_ELASTICSEARCH_INDEXPREFIX: "${env.envName}__jc"
 
   generatePassword:
     - setGlobals:
