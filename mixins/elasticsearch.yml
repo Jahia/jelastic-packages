@@ -47,6 +47,8 @@ actions:
         organization_id=$(echo $environment | jq -r .paas_organization_id)
         ec_deployment_id=$(echo $ec_deployment | jq -r .ec_deployment_id)
         ec_deployment_name=$(echo $ec_deployment | jq -r .name)
+        ec_deployment_mutualized=$(echo $ec_deployment | jq -r .mutualized)
+        ec_deployment_es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
 
         CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
         response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data \
@@ -64,29 +66,31 @@ actions:
           exit 1
         fi
 
-        pipelineId=$(echo $response | jq -r .id)
-        timeout=1200 # 20 minutes
-        sleep_interval=20
-        workflow_status="running"
-        while [ "$workflow_status" = "running" ]; do
-          sleep $sleep_interval
-          response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
-          if [ $? -eq 0 ]; then
-            new_workflow_status=$(echo $response | jq -r '.items[0].status')
-            if [ "$new_workflow_status" != "null" ]; then
-              workflow_status=$new_workflow_status
+        if ! [ $ec_deployment_mutualized ] && [ "$ec_deployment_es_endpoint" != null ]; then
+          pipelineId=$(echo $response | jq -r .id)
+          timeout=1200 # 20 minutes
+          sleep_interval=20
+          workflow_status="running"
+          while [ "$workflow_status" = "running" ]; do
+            sleep $sleep_interval
+            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+            if [ $? -eq 0 ]; then
+              new_workflow_status=$(echo $response | jq -r '.items[0].status')
+              if [ "$new_workflow_status" != "null" ]; then
+                workflow_status=$new_workflow_status
+              fi
             fi
-          fi
-          if [ $timeout -lt 1 ]; then
-            echo "Timeout reached while waiting for circleCi pipeline to end"
+            if [ $timeout -lt 1 ]; then
+              echo "Timeout reached while waiting for circleCi pipeline to end"
+              exit 1
+            fi
+            ((timeout-=$sleep_interval))
+
+          done
+          if [ "$workflow_status" != "success" ]; then
+            echo "Elasticsearch cluster creation failed"
             exit 1
           fi
-          ((timeout-=$sleep_interval))
-
-        done
-        if [ "$workflow_status" != "success" ]; then
-          echo "Elasticsearch cluster creation failed"
-          exit 1
         fi
 
   createESAccountAndAliases:
