@@ -69,7 +69,7 @@ actions:
         env_subnet=$(ip a s | awk -v IP=$(hostname -i) '$2~IP {print $2}')
 
         while read subnet; do
-          ipconflict -q $subnet $env_subnet $infra_subnet
+          ipconflict -q $subnet $env_subnet && ipconflict -q $subnet $infra_subnet
           if [ $? -eq 0 ]; then
             echo "[ERROR] Rightsubnet overlaps with Env subnet" >&2
             exit 1
