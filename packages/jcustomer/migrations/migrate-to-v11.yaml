@@ -23,6 +23,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - fixjCustomerEvents           # PAAS-1977  
   - setJelEnvRoleInNodeGroupData # PAAS-1959
   - configureShardsAndReplicas   # PAAS-1992
   - migrateJcustomer2EC          # PAAS-1970
@@ -355,6 +356,55 @@ actions:
         return:
           type: error
           message: "envmode value is wrong on ${env.envName}"
+
+  fixjCustomerEvents:
+    - script: |
+        uids_to_delete = [];
+        ["jahia-unomi", "jahia-jelastic"].forEach(
+          function(jps_id) {
+            data = {
+              "targetAppid": "${env.appid}",
+              "app_id": jps_id
+            };
+            result = jelastic.dev.scripting.eval(
+              appid="patch",
+              session=session,
+              script="marketplace.getinstalledapps",
+              params=data
+            );
+            if (! result.response.apps) {
+              return;
+            }
+            result.response.apps.forEach(
+              function(app) {
+                uids_to_delete.push(app.uniqueName)
+              }
+            )
+          }
+        )
+        if (! uids_to_delete) {
+          return {"result": 0, "message": "Events are not duplicated, nothing to do."};
+        }
+        deleted_uids = [];
+        errors = [];
+        return_value = 0;
+        uids_to_delete.forEach (
+          function (app_uid) {
+            resp = api.marketplace.jps.Uninstall(
+              {
+                appUniqueName: app_uid,
+                force: true
+              }
+            );
+            if (resp.result != 0) {
+              errors.push({app_uid: resp.error});
+              return_value = 1;
+              return;
+            }
+            deleted_uids.push(app_uid)
+          }
+        )
+        return {"result": return_value, "deleted_uids": deleted_uids, "errors": errors};
 
 settings:
   fields:

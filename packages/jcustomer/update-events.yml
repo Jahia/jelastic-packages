@@ -3,7 +3,7 @@ type: update
 version: 1.5.2
 name: Unomi - Update events
 logo: ../../assets/common/jahia-logo-70x70.png
-id: jahia-unomi
+id: unomi-update-events
 description:
   short: Unomi - Update events
 
