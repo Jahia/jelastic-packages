@@ -66,7 +66,8 @@ actions:
           exit 1
         fi
 
-        if ! [ $ec_deployment_mutualized ] && [ "$ec_deployment_es_endpoint" != null ]; then
+        # Skip the timeout while updating a mutualized EC deployment but wait till end if it's a new EC deployment
+        if [ "$ec_deployment_mutualized" = "false" ] || [ "$ec_deployment_es_endpoint" = null ]; then
           pipelineId=$(echo $response | jq -r .id)
           timeout=1200 # 20 minutes
           sleep_interval=20
