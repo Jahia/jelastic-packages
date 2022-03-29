@@ -23,10 +23,10 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - fixjCustomerEvents           # PAAS-1977  
   - setJelEnvRoleInNodeGroupData # PAAS-1959
   - configureShardsAndReplicas   # PAAS-1992
   - migrateJcustomer2EC          # PAAS-1970
-  - fixjCustomerEvents           # PAAS-1977  
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -358,13 +358,7 @@ actions:
           message: "envmode value is wrong on ${env.envName}"
 
   fixjCustomerEvents:
-    - setGlobals:
-        jel_dashboard_url: ${platformUrl}
     - script: |
-        import org.apache.http.client.methods.HttpGet;
-        import org.apache.http.impl.client.HttpClients;
-        import org.apache.commons.io.output.ByteArrayOutputStream;
-
         uids_to_delete = [];
         ["jahia-unomi", "jahia-jelastic"].forEach(
           function(jps_id) {
@@ -396,19 +390,14 @@ actions:
         return_value = 0;
         uids_to_delete.forEach (
           function (app_uid) {
-            httpGet = new HttpGet(
-              "${globals.jel_dashboard_url}/marketplace/jps/rest/uninstall?session=" + session +
-              "&force=true&appUniqueName=" + app_uid
+            resp = api.marketplace.jps.Uninstall(
+              {
+                appUniqueName: app_uid,
+                force: true
+              }
             );
-            httpClient = HttpClients.createDefault();
-            resp = httpClient.execute(httpGet);
-            out = new ByteArrayOutputStream();
-            resp.getEntity().writeTo(out);
-            respString = out.toString();
-            out.close();
-            respJson = JSON.parse(respString);
-            if (respJson.result != 0) {
-              errors.push({app_uid: respJson.error});
+            if (resp.result != 0) {
+              errors.push({app_uid: resp.error});
               return_value = 1;
               return;
             }
