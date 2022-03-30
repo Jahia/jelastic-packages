@@ -153,7 +153,7 @@ actions:
         elasticsearch_password: ${fn.password(20)}
 
   ESBackup:
-    - cmd[nodes.cp.first.id]:
+    - cmd[${nodes.cp.first.id}]:
         if [ -f /tmp/backuped ]; then
           echo "true"
         else
@@ -172,12 +172,12 @@ actions:
             settings:
               backup_name: "migration2EC-${globals.timestamp}"
               timestamp: "${globals.timestamp}"
-        - cmd[nodes.cp.first.id]:
+        - cmd[${nodes.cp.first.id}]:
             touch /tmp/backuped
             echo "${globals.timestamp}" > /tmp/backup_timestamp
 
   ESRestore:
-    - cmd[nodes.cp.first.id]:
+    - cmd[${nodes.cp.first.id}]:
         if [ -f /tmp/restored ]; then
           echo "true"
         else
@@ -189,7 +189,7 @@ actions:
     - else:
         - set:
             restored: false
-    - cmd[nodes.cp.first.id]:
+    - cmd[${nodes.cp.first.id}]:
         if [ -f /tmp/backup_timestamp ]; then
           cat /tmp/backup_timestamp
         fi
@@ -201,7 +201,7 @@ actions:
             settings:
               backup_name: "migration2EC-${this.timestamp}"
               timestamp: "${globals.timestamp}"
-        - cmd[nodes.cp.first.id]:
+        - cmd[${nodes.cp.first.id}]:
             touch /tmp/restored
 
   setTimestamp:
