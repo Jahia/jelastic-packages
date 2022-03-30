@@ -153,19 +153,56 @@ actions:
         elasticsearch_password: ${fn.password(20)}
 
   ESBackup:
-    - setTimestamp
-    - install:
-        jps: "${baseUrl}/v11_assets/backup_for_ec_migration.yml"
-        settings:
-          backup_name: "migration2EC-${globals.timestamp}"
-          timestamp: "${globals.timestamp}"
+    - cmd[nodes.cp.first.id]:
+        if [ -f /tmp/backuped ]; then
+          echo "true"
+        else
+          echo "false"
+        fi
+    - if("${response.out}" == "true"):
+        - set:
+            backuped: true
+    - else:
+        - set:
+            backuped: false
+    - if(!this.backuped):
+        - setTimestamp
+        - install:
+            jps: "${baseUrl}/v11_assets/backup_for_ec_migration.yml"
+            settings:
+              backup_name: "migration2EC-${globals.timestamp}"
+              timestamp: "${globals.timestamp}"
+        - cmd[nodes.cp.first.id]:
+            touch /tmp/backuped
+            echo "${globals.timestamp}" > /tmp/backup_timestamp
 
   ESRestore:
-    - install:
-        jps: "${baseUrl}/v11_assets/restore_for_ec_migration.yml"
-        settings:
-          backup_name: "migration2EC-${globals.timestamp}"
-          timestamp: "${globals.timestamp}"
+    - cmd[nodes.cp.first.id]:
+        if [ -f /tmp/restored ]; then
+          echo "true"
+        else
+          echo "false"
+        fi
+    - if("${response.out}" == "true"):
+        - set:
+            restored: true
+    - else:
+        - set:
+            restored: false
+    - cmd[nodes.cp.first.id]:
+        if [ -f /tmp/backup_timestamp ]; then
+          cat /tmp/backup_timestamp
+        fi
+    - set:
+        timestamp: ${response.out}
+    - if(!this.restored && "${this.timestamp}" != ""):
+        - install:
+            jps: "${baseUrl}/v11_assets/restore_for_ec_migration.yml"
+            settings:
+              backup_name: "migration2EC-${this.timestamp}"
+              timestamp: "${globals.timestamp}"
+        - cmd[nodes.cp.first.id]:
+            touch /tmp/restored
 
   setTimestamp:
     - script: |
