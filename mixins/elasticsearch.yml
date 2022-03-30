@@ -28,7 +28,11 @@ actions:
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
 
-        sleep 60 # Required in case the cron get_metadata_from_HN hasn't run yet
+        # Required in case the cron get_metadata_from_HN hasn't run yet
+        while [ ! -s /metadata_from_HOST ]; do
+          sleep 1
+        done
+
         source /metadata_from_HOST
         if [ -z $JEL_ENV_ROLE ]; then
           echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
