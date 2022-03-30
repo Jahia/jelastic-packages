@@ -238,7 +238,8 @@ actions:
 
   checkES4Jcustomer:
     - cmd[${nodes.cp.first.id}]: |-
-        prefix=${UNOMI_ELASTICSEARCH_INDEXPREFIX:-context}
+        prefix=$UNOMI_ELASTICSEARCH_INDEXPREFIX
+        [ -z $prefix ] && prefix="context-"
         if (curl -s "http://es:9200/_cat/indices?h=index" | grep -qv "$prefix"); then
           echo "not jc dedicated"
         else
