@@ -141,7 +141,7 @@ actions:
                 return api.marketplace.jps.Install(
                   {
                     jps: "${baseUrl}/../../jahia/jahia-full-read-only.yml",
-                    envName: ${@i},
+                    envName: "${@i}",
                     settings: {
                       "enableFRO": Boolean(${this.enable})
                     }
