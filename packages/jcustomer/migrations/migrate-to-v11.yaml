@@ -137,11 +137,16 @@ actions:
         - getEnvStatus:
             envName: ${@i}
         - if(${response.out} == 1):  # only if linked jahia is started
-            - install:
-                jps: "${baseUrl}/../../jahia/jahia-full-read-only.yml"
-                envName: ${@i}
-                settings:
-                  enableFRO: ${this.enable}
+            - script: |-
+                return api.marketplace.jps.Install(
+                  {
+                    jps: "${baseUrl}/../../jahia/jahia-full-read-only.yml",
+                    envName: ${@i},
+                    settings: {
+                      "enableFRO": Boolean(${this.enable})
+                    }
+                  }
+                );
 
   configureKaraf4EC:
     - env.control.AddContainerEnvVars[cp]:
