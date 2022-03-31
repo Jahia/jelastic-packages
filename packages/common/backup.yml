@@ -52,6 +52,8 @@ onInstall:
       - addMetadata: proc
       - rotateBackups: proc
   - else:  # Jcustomer
+      # This action will be removed once all environments are migrated to EC
+      - backupPreECMigrationJCustomerEnv
       - clearJelasticLogs:
           target: ${nodes.cp.first.id}
           user: root
@@ -348,7 +350,7 @@ actions:
 
         cd jelastic_backup
         echo "Backup unomi env vars" >> ${globals.logsPath}
-        grep "^UNOMI_" /.jelenv > jcustomer-env-vars 2>>${globals.logsPath}
+        grep -P '^UNOMI_(?!ELASTICSEARCH)' /.jelenv | grep -v "^UNOMI_ELASTICSEARCH_" > jcustomer-env-vars 2>>${globals.logsPath}
         gzip jcustomer-env-vars 2>>${globals.logsPath} || exit 1
 
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f jcustomer-env-vars.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
@@ -357,6 +359,30 @@ actions:
         - return:
             type: error
             message: "An error occurred during environment variables backup. ${response.errOut}"
+
+
+########################################### LEGACY ACTIONS ###########################################
+############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
+  backupPreECMigrationJCustomerEnv:
+    - script: |-
+        const currentVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+            return object.name == "cp";
+        }).pop().envVersion;
+        return {'result': 0, 'preECMigration': (11 > currentVersion)}
+
+    - if (${response.preECMigration}):
+        # Call backup package with v1.7.1 commit hash.
+        # Used instead of the tag in case somebody break the tag and creates an infinite loop
+        - install:
+            jps: "https://raw.githubusercontent.com/Jahia/jelastic-packages/da22414d6d93df36b4da5bc516df21e0873345e7/packages/common/backup.yml"
+            settings:
+              backup_name: ${settings.backup_name}
+              timestamp: ${settings.timestamp}
+              retention: ${settings.retention}
+              backtype: ${settings.backtype}
+        - return:
+            type: success
+
 
 settings:
   fields:
