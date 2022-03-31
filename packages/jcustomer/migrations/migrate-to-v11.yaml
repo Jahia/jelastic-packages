@@ -136,7 +136,7 @@ actions:
     - forEach(response.envs):
         - getEnvStatus:
             envName: ${@i}
-        - if(${reponse.out} == 1):  # only if linked jahia is started
+        - if(${response.out} == 1):  # only if linked jahia is started
             - install:
                 jps: "${baseUrl}/../../jahia/jahia-full-read-only.yml"
                 envName: ${@i}
