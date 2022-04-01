@@ -97,6 +97,46 @@ actions:
     - cmd[${this.target}]: systemctl ${this.action} ${this.unit}
       user: root
 
+  setCloudConf:
+    # Grab dev/preprod/prod infrastructure conf file
+    # and create "cloud_conf" nodegroup data from it on cp
+    - setGlobalRepoRootUrl
+    - cmd[${nodes.cp.first.id}]: |-
+        metadata_file="/metadata_from_HOST"
+        timeout=$((SECONDS+120))
+        while [ $SECONDS -lt $timeout ]; do
+          if [ -s $metadata_file ]; then
+            eval $(grep "^JEL_ENV_ROLE=" /metadata_from_HOST)
+            file="${JEL_ENV_ROLE}.conf.json"
+            r=$(curl -LsSo /tmp/$file -w '%{http_code}' ${globals.repoRootUrl}/conf/$file)
+            if [ $r -eq 200 ]; then
+              cat /tmp/$file && rm -f /tmp/$file
+              exit 0
+            else
+              echo "Error on ${globals.repoRootUrl}/conf/$file download, return code: $r" 1>&2
+              exit 1
+            fi
+          fi
+          sleep 0.5
+        done
+        echo "$metadata_file doesn't exist or has a size of 0 byte." 1>&2
+        exit 2
+    - api: env.control.ApplyNodeGroupData
+      nodeGroup: cp
+      data: ${response.out.toJSON()}
+
+  getCloudConf:
+    # Grab cp's nodegroup data "cloud_conf"
+    # and export globals.cloud_conf
+    - script: |-
+        conf = jelastic.env.control.getnodegroups('${env.envName}', session).object.filter(function (object) {
+                 return object.name == "cp"}).pop().cloud_conf
+        if (conf == null) {
+          return {"result": 1, "error": "Can't found 'cloud_conf' in nodegroup data"}
+        } else {
+          setglobals = {setGlobals: {cloud_conf: conf}}
+          return {"result": 0, onAfterReturn: setglobals}
+        }
 
   ###################
   # COMPARE VERSION #

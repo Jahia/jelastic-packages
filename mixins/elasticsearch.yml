@@ -21,17 +21,13 @@ actions:
 
     - if ("${globals.papiToken.print()}" == ""):
         getPapiInfoAll
+    - getCloudConf
 
     - cmd [${nodes.cp.first.id}]: |-
         export PAPI_TOKEN="${globals.papiToken}"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
-
-        # Required in case the cron get_metadata_from_HN hasn't run yet
-        while [ ! -s /metadata_from_HOST ]; do
-          sleep 1
-        done
 
         source /metadata_from_HOST
         if [ -z $JEL_ENV_ROLE ]; then
@@ -55,16 +51,29 @@ actions:
         ec_deployment_es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
 
         CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
-        response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data \
-        "{
-           \"parameters\": {
-               \"workflow\": \"${this.workflow}\",
-               \"env\": \"$JEL_ENV_ROLE\",
-               \"papi_organization_id\": $organization_id,
-               \"papi_instance_id\": $ec_deployment_id,
-               \"papi_instance_name\": \"$ec_deployment_name\"
-             }
-         }")
+
+        generate_payload() {
+        if [[ "${globals.cloud_conf.ec.tag}" =~ ^v([0-9]+\.){2}[0-9]+$ ]]; then
+          branch_or_tag="tag"
+        else
+          branch_or_tag="branch"
+        fi
+        cat << EOF
+        {
+          "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
+          "parameters": {
+            "workflow": "${this.workflow}",
+            "env": "$JEL_ENV_ROLE",
+            "papi_organization_id": $organization_id,
+            "papi_instance_id": $ec_deployment_id,
+            "papi_instance_name": "$ec_deployment_name"
+          }
+        }
+        EOF
+        }
+
+        response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline \
+                        -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
         if [ $? -ne 0 ]; then
           echo "Pipeline trigger failed: $response"
           exit 1
@@ -346,7 +355,15 @@ actions:
         triggerPipeline = new HttpPost("https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline");
         triggerPipeline.setHeader("Circle-Token", circleCiToken);
         triggerPipeline.setHeader("Content-Type", "application/json");
-        json = toJSON({
+        cloud_conf = jelastic.env.control.getnodegroups('${env.envName}', session).object.filter(function (object) {
+                                                        return object.name == "proc"}).pop().cloud_conf
+        regex = /^v([0-9]+\.){2}[0-9]+$/
+        if (cloud_conf.ec.tag.match(regex)) {
+          branch_or_tag = "tag"
+        } else {
+          branch_or_tag = "branch"
+        }
+        json = {
           "parameters": {
             "workflow": "terraform_destroy",
             "env": jel_env_role,
@@ -354,7 +371,9 @@ actions:
             "papi_instance_id": ec_deployment["ec_deployment_id"],
             "papi_instance_name": ec_deployment["name"]
           }
-        });
+        };
+        json[branch_or_tag] = cloud_conf.ec.tag
+        json = toJSON(json)
         stringEntity = new StringEntity(json);
         triggerPipeline.setEntity(stringEntity);
         httpClient = HttpClients.createDefault();

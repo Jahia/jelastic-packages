@@ -134,6 +134,7 @@ onInstall:
       papiHostname: ${settings.papiHostname}
       papiApiVersion: ${settings.papiApiVersion}
       papiEnvId: ${settings.papiEnvId}
+  - setCloudConf
   - setupES:
       papiEnvId: ${settings.papiEnvId}
   - setupUnomi:
