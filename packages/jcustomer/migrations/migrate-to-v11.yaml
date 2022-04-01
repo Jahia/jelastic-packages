@@ -335,7 +335,7 @@ actions:
         if ${this.mutualized}; then
           ec_name="mutualized_$(papi.py paas-organization/$organization_id | jq -r .name)"
         else
-          ec_name="${env.envName}"
+          ec_name="jcustomer_${env.envName}"
         fi
         generate_payload() {
         # score to 11 in order to help with reindex
