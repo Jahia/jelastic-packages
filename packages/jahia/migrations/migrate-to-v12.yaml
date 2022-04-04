@@ -33,6 +33,7 @@ onInstall:
   - updateTomcatLogsStartPattern       # PAAS-1930
   - updateMavenPathEnvVar              # PAAS-1954
   - removeOldMailLibAndRestartAllJahia # PAAS-1945 and PAAS-1954
+  - setCloudConf                       # PAAS-1999
 
   ### Post-actions
   - setEnvVersion: ${globals.version}

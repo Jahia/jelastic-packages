@@ -281,6 +281,7 @@ onInstall:
   - setupDatadogAgentJahia: cp, proc
   - setupDatadogAgentHaproxy: bl
   - setEnvVersion: ${globals.jahia_env_version}
+  - setCloudConf
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp, proc

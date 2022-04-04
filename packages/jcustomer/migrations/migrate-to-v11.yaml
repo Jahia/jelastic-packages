@@ -23,9 +23,10 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - fixjCustomerEvents           # PAAS-1977  
+  - fixjCustomerEvents           # PAAS-1977
   - setJelEnvRoleInNodeGroupData # PAAS-1959
   - configureShardsAndReplicas   # PAAS-1992
+  - setCloudConf                 # PAAS-1999
   - migrateJcustomer2EC          # PAAS-1970
 
   ### Post-actions
