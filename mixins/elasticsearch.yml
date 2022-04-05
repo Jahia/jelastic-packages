@@ -560,3 +560,143 @@ actions:
         fi
         rm -f $output_file
         exit $exit
+
+
+########################################### LEGACY ACTIONS ###########################################
+############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
+
+  LEGACY_setAwsSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - region
+    #   - account
+    #   - logsPath
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"s3\",
+            \"settings\": {
+                \"bucket\": \"${this.account}\",
+                \"region\": \"${this.region}\",
+                \"base_path\" : \"${this.backupName}/elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+
+  LEGACY_setAzureSnapshotRepository:
+    # Parameters:
+    #   - backupName
+    #   - logsPath
+    - cmd[${nodes.es.first.id}]: |-
+        curl -H 'Content-Type: application/json' -XPUT "${nodes.es.first.intIP}:9200/_snapshot/backup_repository?verify=false&pretty" -d"
+          {
+            \"type\": \"azure\",
+            \"settings\": {
+                \"container\": \"${this.backupName}\",
+                \"base_path\" : \"elasticsearch\"
+            }
+          }" 2>>${this.logsPath} || exit 1
+
+  # Using an Elasticsearch keystore to add AWS keys
+  LEGACY_setAwsElasticsearchConfig:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - logsPath
+    - cmd[es]: |-
+        aws_access_key="${this.awsAccessKeyId}"
+        aws_secret_key="${this.awsSecretAccessKey}"
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+        fi
+        printf "$aws_access_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.access_key
+        printf "$aws_secret_key" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f s3.client.default.secret_key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+  LEGACY_setAzureElasticsearchConfig:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    - LEGACY_getAzureElasticsearchSecret:
+        awsAccessKeyId: ${this.awsAccessKeyId}
+        awsSecretAccessKey: ${this.awsSecretAccessKey}
+        backupName: ${this.backupName}
+        operation: "${this.operation}"
+        account: ${this.account}
+        logsPath: ${this.logsPath}
+
+    - cmd[es]: |-
+        if ! /usr/share/elasticsearch/bin/elasticsearch-keystore list; then
+            /usr/share/elasticsearch/bin/elasticsearch-keystore create
+            echo "true"
+        fi
+        printf "${this.account}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.account
+        printf "${globals.azure_secret}" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -f azure.client.default.key
+        curl -X POST "${nodes.es.first.intIP}:9200/_nodes/reload_secure_settings" 2>>${this.logsPath} || exit 1
+
+  LEGACY_getAzureElasticsearchSecret:
+    # Parameters:
+    #   - awsAccessKeyId
+    #   - awsSecretAccessKey
+    #   - backupName
+    #   - operation
+    #   - account
+    #   - logsPath
+    # Returns:
+    #   ${globals.azure_secret}
+    - cmd[${nodes.es.first.id}]: |-
+        export AWS_ACCESS_KEY_ID="${this.awsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${this.awsSecretAccessKey}"
+        cd jelastic_backup
+        python3 elasticsearch.py --bucketname ${this.account} --backupname ${this.backupName} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
+    - cmd[${nodes.es.first.id}]: |-
+        cat /tmp/azurecred
+        rm -f /tmp/azurecred
+    - setGlobals:
+        azure_secret: "${response.out}"
+    - if ("${globals.azure_secret}" == ""):
+        - return:
+            type: error
+            message: "An error occurred during backup repository configuration."
+
+  LEGACY_calculateNumberOfReplicas:
+    - if(nodes.es.length > 1):
+        - if(nodes.es.length > 4):
+          - setGlobals:
+              - replica: 2
+        - else:
+          - setGlobals:
+              - replica: 1
+    - else:
+        setGlobals:
+          - replica: 0
+
+  LEGACY_setReplica:
+    - calculateNumberOfReplicas
+    - forEach(nodes.cp):
+        cmd[${@i.id}]: |-
+          setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+          # test if not update needed
+          actual=$(awk -F'=' '/UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS/ {print $NF}' $setenv)
+          if [ ! -z "$actual" ]; then
+            if [ $actual -eq ${globals.replica} ]; then
+              echo "$(hostname) already get the good replica parameters (${globals.replica})"
+              exit 0
+            fi
+          fi
+          # some cleaning in case of an update
+          sed '/^export UNOMI_ELASTICSEARCH/d' -i $setenv
+          echo "export UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS=${globals.replica}" >> $setenv
+          echo "export UNOMI_ELASTICSEARCH_DEFAULTINDEX_REPLICAS=${globals.replica}" >> $setenv
+          systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
+        user: root
+
+  LEGACY_updateReplica:
+    - cmd[${nodes.es.first.id}]: |-
+        NODE_HOSTNAME=$(echo "${nodes.es.first.url}" | sed 's/^https:\/\///')
+        curl -s http://${NODE_HOSTNAME}:9200/_cat/indices | awk -v repl=${this.replica} '$6!=repl {print $3}' | while read index; do
+            curl -s -XPUT http://${NODE_HOSTNAME}:9200/$index/_settings \
+              -H "Content-Type: application/json" \
+              -d '{"index":{"number_of_replicas": ${this.replica} }}' 2>>${this.logsPath}
+        done

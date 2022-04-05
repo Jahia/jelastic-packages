@@ -81,6 +81,8 @@ onInstall:
       - installBackupTools:
           target: cp
           logAction: ${globals.logAction}
+      # The following action will be removed once all JC/AG environments are migrated to elastic cloud
+      - restorePreECMigrationJCustomerEnv
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
@@ -422,8 +424,8 @@ actions:
           -u $ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d'{
-            "indices": "-global-geonameentry*",
-            "rename_pattern": "(.*)(__jc|__as)-(.*)",
+            "indices": "-global-geonameentry*,-context-geonameentry*",
+            "rename_pattern": "(.*)(__jc|__as|^context)-(.*)",
             "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$3"
           }')
         exit=0
@@ -604,8 +606,10 @@ actions:
             cd jelastic_backup
             gunzip jcustomer-env-vars.gz
             echo "Restoring jcustomer env vars" >> ${globals.logsPath}
-            mv jcustomer-env-vars /tmp/
-            grep -v "^UNOMI_" /.jelenv >> /tmp/jcustomer-env-vars
+            # Exclude UNOMI_ELASTICSEARCH env vars if backup pre EC release
+            grep -v '^UNOMI_ELASTICSEARCH' jcustomer-env-vars > /tmp/jcustomer-env-vars
+            rm -f jcustomer-env-vars
+            grep -vP '^UNOMI_(?!ELASTICSEARCH)' /.jelenv  >> /tmp/jcustomer-env-vars
             cat /tmp/jcustomer-env-vars > /.jelenv
             rm -f /tmp/jcustomer-env-vars
           user: root
@@ -651,6 +655,136 @@ actions:
         log: No other ${this.module} module version on ${this}
     - elif ("${response.out}" == "still previous"):
         log: Other ${this.module} module version still present on ${this}
+
+########################################### LEGACY ACTIONS ###########################################
+############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
+  restorePreECMigrationJCustomerEnv:
+    # Get env version
+    - script: |-
+        const currentVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+            return object.name == "cp";
+        }).pop().envVersion;
+        return {'result': 0, 'preECMigration': (11 > currentVersion)}
+
+    - if (${response.preECMigration}):
+        - LEGACY_restoreElasticsearch
+        - LEGACY_restoreJcustomer
+        - return:
+            type: success
+
+  LEGACY_restoreElasticsearch:
+    - script: |-
+        // Extract only bucketname in case of foreign restore
+        var account="${globals.bucketname}";
+        account=account.split(" ")[0];
+        return {'result': 0,'account': account}
+    - setGlobals:
+        account: ${response.account}
+        region: ${globals.regionRealName_source}
+
+    - cmd[${nodes.es.first.id}]: |-
+        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
+    - setGlobals:
+        esVersion: ${response.out}
+
+    - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
+        - LEGACY_setAwsElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            logsPath: ${globals.logsPath}
+        - if ("${globals.cloudProvider_source}" == "aws"):
+            - set:
+                region: ${globals.region}
+        - else:
+            - set:
+                region: "eu-west-1"
+        - LEGACY_setAwsSnapshotRepository:
+            backupName: ${settings.backup_name}
+            region: ${this.region}
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+    - else:
+        - LEGACY_setAzureElasticsearchConfig:
+            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
+            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            backupName: ${settings.backup_name}
+            operation: "restore"
+            account: ${globals.account}
+            logsPath: ${globals.logsPath}
+        - LEGACY_setAzureSnapshotRepository:
+            backupName: ${settings.backup_name}
+            logsPath: ${globals.logsPath}
+
+    - cmd[${nodes.es.first.id}]: |-
+        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
+        index=$(curl -s es:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype} | jq -r .snapshots[0].indices[0])
+        # If $index is null, it means that we can't get infos on the backup because it's done with an incompatible version
+        if [ "$index" = "null" ]; then
+          echo "failed to get snapshot indices" >> ${globals.logsPath}
+          echo false
+        else
+          echo "true"
+        fi
+
+    - if ( ! ${response.out}):
+        return:
+          type: error
+          message: "Incompatible backup"
+
+    - cmd[${nodes.es.first.id}]: |-
+        ## [${globals.logAction}] - 4/5
+        curl -o /dev/null -X DELETE "http://${nodes.es.first.intIP}:9200/*,-context-geonameentry"
+        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
+        res=$(curl -so /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" \
+                -H 'Content-Type:application/json' \
+                -d'{"indices": "-context-geonameentry*","rename_pattern": "(.*)(__jc|__as)-(.*)","rename_replacement": "context-$3"}')
+        return_code=$?
+        error=$(grep error /tmp/restore-res)
+        res=$(wc -l<<<$error)
+        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
+        rm -f /tmp/restore-res
+
+    - if ("${response.out}" != ""):
+        - return:
+            type: error
+            message: "An error occurred during the backup restore process."
+
+    - LEGACY_calculateNumberOfReplicas
+    - LEGACY_updateReplica:
+        replica: ${globals.replica}
+        logsPath: ${globals.logsPath}
+
+
+  LEGACY_restoreJcustomer:
+    - cmd [cp]: |-
+        ## [${globals.logAction}] - 5/5
+        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
+        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
+        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        cd jelastic_backup
+        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jcustomer-env-vars.gz 2>>${globals.logsPath}
+        ls jcustomer-env-vars.gz || exit 0
+    - if ("${response.errOut}" == ""):
+        - cmd [cp]: |-
+            cd jelastic_backup
+            gunzip jcustomer-env-vars.gz
+            echo "Restoring jcustomer env vars" >> ${globals.logsPath}
+            grep -v '^UNOMI_ELASTICSEARCH' jcustomer-env-vars > /tmp/jcustomer-env-vars
+            rm -f jcustomer-env-vars
+            grep -vP '^UNOMI_(?!ELASTICSEARCH)' /.jelenv  >> /tmp/jcustomer-env-vars
+            cat /tmp/jcustomer-env-vars > /.jelenv
+            rm -f /tmp/jcustomer-env-vars
+          user: root
+        - if ("${response.errOut}" != ""):
+            - return:
+                type: error
+                message: "An error occurred while restoring jcustomer environment variables. ${response.errOut}"
+        - api: env.control.RestartNodes
+          envName: ${env.envName}
+          nodeGroup: cp
+    - else:
+        log: "No env var backup available"
 
 settings:
   fields:
