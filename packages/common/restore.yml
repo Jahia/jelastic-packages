@@ -669,6 +669,7 @@ actions:
     - if (${response.preECMigration}):
         - LEGACY_restoreElasticsearch
         - LEGACY_restoreJcustomer
+        - checkJcustomerHealthWhenStarting: cp
         - return:
             type: success
 
