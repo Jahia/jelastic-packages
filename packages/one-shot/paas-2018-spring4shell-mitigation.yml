@@ -1,0 +1,159 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Install spring4shell mitigation patch
+id: jahia-install-spring4shell-mitigation-patch
+description:
+  short: Jahia - Install spring4shell mitigation patch
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+globals:
+  patchUrl: "https://downloads.jahia.com/downloads/jahia/security-patches/2022-04/spring-beans-3.2.18.jahia1_OSGI.jar"
+  patchFileName: "spring-beans-3.2.18.jahia1_OSGI.jar"
+  patchDir: "/opt/tomcat/webapps/ROOT/WEB-INF/lib"
+
+onInstall:
+  - patchSpringLibrary
+  - installWebFlowFilterModule
+
+actions:
+  patchSpringLibrary:
+    # Processing node
+    - removeProcNodeFromHaproxy:
+        reload: true
+    - installPatch: ${nodes.proc.first.id}
+    - addProcNodeToHaproxy:
+        reload: true
+    # Browsing nodes
+    - foreach (nodes.cp):
+        - removeBrowsingNodeFromHaproxy:
+            nodeId: ${@i.id}
+            reload: true
+        - installPatch: ${@i.id}
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
+
+  installWebFlowFilterModule:
+    - getJahiaVersion
+
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: needUpgrade
+    - if ( ! ${globals.needUpgrade}):
+        return:
+          type: success
+          message: Jahia version >= 8.1. No need to patch
+
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahiaSeven
+    - if (${globals.jahiaSeven}):
+        set:
+          webflowVersion: 1.2.0
+    - else:
+        set:
+          webflowVersion: 2.2.0
+
+    - forceCleanKarafLogin
+
+    - enableKarafLogin: proc
+
+    - installLatestWebFlowModuleVersion:
+        moduleName: "webflow-filter"
+        version: ${this.webflowVersion}
+
+    - removeOldModuleVersions:
+        moduleName: "webflow-filter"
+        currentVersion: ${this.webflowVersion}
+
+    - disableKarafLogin: proc
+
+  removeOldModuleVersions:
+    - cmd[proc]: |-
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        if [ -z "$old_versions" ]; then
+          echo "There is no old version to uninstall"
+          exit 0
+        fi
+
+        while IFS= read -r old_version; do
+          ${globals.karafConsole} cluster:bundle-uninstall default ${this.moduleName}/$old_version
+          echo "${this.moduleName} $old_version uninstalled"
+        done <<< $old_versions
+
+        # Check that there is no more old modules
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        if [ -z "$old_versions" ]; then
+          echo "There are still old versions installed"
+          exit 1
+        fi
+
+  installLatestWebFlowModuleVersion:
+    - cmd[proc]: |-
+        rows=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep "${this.version}")
+        rows_count=$(echo -n $rows | wc -l)
+
+        if [ $rows_count -gt 1 ]; then
+          #  There are multiple instances of the latest versions installed
+          echo "$rows_count results found when looking for ${this.moduleName} ${this.version}"
+          exit 1
+        fi
+
+        if [ $rows_count -eq 0 ]; then
+          #  Install the module
+          MODULE_INSTALL_PATH=/data/digital-factory-data/modules/${this.moduleName}-${this.version}.jar
+          MODULE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/${this.moduleName}/${this.version}/${this.moduleName}-${this.version}.jar
+          curl -fLSso $MODULE_INSTALL_PATH $MODULE_URL
+          echo "${this.moduleName} ${this.version} is now installed"
+          sleep 10
+        else
+          echo "${this.moduleName} ${this.version} is already installed"
+        fi
+
+        if [ $rows_count -eq 0 ] || [ "$(echo $rows | grep Active)" = "" ]; then
+          #  Starts the module if just installed or not Active
+          ${globals.karafConsole} cluster:bundle-start default ${this.moduleName}/${this.version}
+          echo "${this.moduleName} ${this.version} is now started"
+        else
+          echo "${this.moduleName} ${this.version} is already started"
+        fi
+
+        # Check that the latest version of the module is Active
+        running_latest=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep "${this.version}" | grep "Active")
+        if [ -z "$running_latest" ]; then
+          echo "Latest version won't install/start"
+          exit 1
+        fi
+
+
+  forceCleanKarafLogin:
+    - cmd[proc]: |-
+        files=("/opt/tomcat/temp/.ssh/known_hosts" "/root/.ssh/known_hosts" "/tmp/abricot" "/tmp/abricot.pub")
+        for f in ${files[*]}; do
+          [ -f $f  ] && rm -v $f
+        done
+        sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
+        sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+      user: root
+
+  installPatch:
+    - cmd[${this}]: |-
+        patch_file="${globals.patchDir}/${globals.patchFileName}"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+          exit 0
+        fi
+        sudo service tomcat stop
+        rm ${globals.patchDir}/spring-beans-*.jar
+        curl -fLSso $patch_file ${globals.patchUrl} || exit 1
+        chmod 644 $patch_file
+        sudo service tomcat start
+    - startupJahiaHealthCheck: ${this}
