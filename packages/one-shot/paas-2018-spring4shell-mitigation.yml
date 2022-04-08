@@ -92,7 +92,7 @@ actions:
 
         # Check that there is no more old modules
         old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
-        if [ -z "$old_versions" ]; then
+        if [ ! -z "$old_versions" ]; then
           echo "There are still old versions installed"
           exit 1
         fi
