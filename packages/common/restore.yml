@@ -415,10 +415,16 @@ actions:
         ## [${globals.logAction}] - 4/5
         output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
+        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
+        snapshot_state=$(curl -sS -u $ec_admin_credentials \
+          "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r ".snapshots[0].state")
+        if [[ "$snapshot_state" != "SUCCESS" ]]; then
+          echo "The Elasticsearch snapshot you are trying to restore is not complete, aborting" >&2
+          exit 1
+        fi
         curl -sSo /dev/null \
           -u $ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
-        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \

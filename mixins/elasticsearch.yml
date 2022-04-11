@@ -442,7 +442,7 @@ actions:
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
           -d'{
             "type": "s3",
             "settings": {
@@ -544,7 +544,7 @@ actions:
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=false&pretty" \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
           -d'{
             "type": "azure",
             "settings": {
