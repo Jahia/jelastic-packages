@@ -2,17 +2,9 @@
 
 ## Overview
 
-This repo (not yet) contains all manifests and assets used for the Jahia Cloud PAAS platform.
+This repo contains all manifests and assets used for the Jahia Cloud PaaS platform.
 
-It's a merge of what where in previous _paas_*_ and _cloud-scripts_ repos.
-
-Progress report:
-| repo                       | state              | comment                      |
-|----------------------------|--------------------|------------------------------|
-| paas_jelastic_dx_universal | :heavy_check_mark: | missing `region_migrate.yml` |
-| paas_jelastic_unomi        | :heavy_check_mark: | missing `region_migrate.yml` |
-| paas-jelastic-dx-perf-test | :heavy_check_mark: |                              |
-| paas_jelastic_backup       | :heavy_check_mark: |                              |
+It's a merge of what was in previous _paas_jelastic_*_ and _cloud-scripts_ repos.
 
 ## Rules
 
