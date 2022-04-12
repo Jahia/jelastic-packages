@@ -78,11 +78,15 @@ actions:
           echo "Pipeline trigger failed: $response"
           exit 1
         fi
-        sleep 5 # we make sure that the workflow is created before checking if it exists
 
         # Skip the timeout while updating a mutualized EC deployment but wait till end if it's a new EC deployment
         if [ "$ec_deployment_mutualized" = "false" ] || [ "$ec_deployment_es_endpoint" = null ]; then
           pipelineId=$(echo $response | jq -r .id)
+          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+          if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
+            echo "No workflow created on CircleCI, aborting" >&2
+            exit 1
+          fi
           timeout=1200 # 20 minutes
           sleep_interval=20
           workflow_status="running"
@@ -91,11 +95,9 @@ actions:
             response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
             if [ $? -eq 0 ]; then
               new_workflow_status=$(echo $response | jq -r '.items[0].status')
-              if [ "$new_workflow_status" == "null" ]; then
-                echo "No workflow created on CircleCI, aborting" >&2
-                exit 1
+              if [ "$new_workflow_status" != "null" ]; then
+                workflow_status=$new_workflow_status
               fi
-              workflow_status=$new_workflow_status
             fi
             if [ $timeout -lt 1 ]; then
               echo "Timeout reached while waiting for circleCi pipeline to end"
