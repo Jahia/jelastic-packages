@@ -267,8 +267,10 @@ actions:
     - else:
         set:
           target: ${this.target}
+    - getPatTokenAndKey
     - log: "## Health check on Jahia startup, target: ${this.target}"
     - cmd [${this.target}]: |-
+        __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
           echo "[ERROR] Tomcat process not found, please check." >&2
           exit 1
@@ -281,15 +283,15 @@ actions:
 
         startup_line=$(grep -n "s t a r t i n g" /opt/tomcat/logs/catalina.out | tail -n1 | cut -d":" -f1)
         timeout=$(date --date="+$HEALTHCHECK_DURATION minutes" +%s)
-        hc_url="http://127.0.0.1:8080/modules/healthcheck?token=$jahia_cfg_healthcheck_token"
+        hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
 
         # Number of minutes allowed for healthcheck to be completed once tomcat startup is finished
         jahia_running_timeout=5
 
         while [ $(date +%s) -lt $timeout ]; do
           # First we test if Jahia is up with a curl request.
-          if curl_resp=$(curl -f -s -m 1 "$hc_url"); then
-            status=$(echo $curl_resp | jq -r ".status")
+          if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
+            status=$(echo $curl_resp | jq -r ".status.health")
             if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
               exit 0
             fi
@@ -317,16 +319,18 @@ actions:
         exit 5
 
   checkJahiaHealth:
+    - getPatTokenAndKey
     - cmd [${this}]: |-
+        __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
           echo "[ERROR] Tomcat process not found, please check" >&2
           exit 1
         fi
 
-        hc_url="http://127.0.0.1:8080/modules/healthcheck?token=$jahia_cfg_healthcheck_token"
+        hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
 
-        if curl_resp=$(curl -f -s -m 1 "$hc_url"); then
-          status=$(echo $curl_resp | jq -r ".status")
+        if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
+          status=$(echo $curl_resp | jq -r ".status.health")
           if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
             exit 0
           fi
@@ -853,6 +857,133 @@ actions:
             echo "version=${this.currentJahiaVersion}" > $INFO_DIR/version.properties
           fi
         user: tomcat
+
+  setupPat:
+    # Parameters:
+    # jahia_version: the jahia version
+    - generatePatAndKey
+    - savePatInVault:
+        __secret__pat_token: ${globals.__secret__pat_token}
+        __secret__pat_key: ${globals.__secret__pat_key}
+    - setPatInJahia:
+        __secret__pat_token: ${globals.__secret__pat_token}
+        jahia_version: ${this.jahiaVersion}
+    - setPatInHaproxy:
+        __secret__pat_token: ${globals.__secret__pat_token}
+
+  generatePatAndKey:
+    - cmd[proc]: |-
+        graph_token=$(cat /dev/urandom | tr -dc '[[:graph:]]' | fold -w 32 | head -n 1)
+        token=$(echo -n "$graph_token" | base64)
+        key=$(echo -n "$graph_token" | awk '{printf substr($1,0,16)}' | od -A n -t x1 | awk '{printf "%s%s%s%s-%s%s-%s%s-%s%s-%s%s%s%s%s%s",$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16}')
+        printf '{"hideThisOutput": true, "token": "%s", "key": "%s"}' "$token" "$key"
+
+    - script: |-
+        __secret__response = ${response.out};
+        token = __secret__response["token"];
+        key = __secret__response["key"];
+
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__pat_token": token,
+              "__secret__pat_key": key,
+            }
+          }
+        };
+
+  savePatInVault:
+    # Parameters:
+    #  - __secret__pat_token: PAT token
+    #  - __secret__pat_key: PAT key
+    - getVaultData
+    - vaultSecretSet:
+        secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/PAT/root"
+        __secret__secretData: '{"token":"${this.__secret__pat_token}","key":"${this.__secret__pat_key}"}'
+
+  setPatInJahia:
+    # Parameters:
+    # __secret__pat_token: the personal access token
+    # jahia_version: the jahia version
+    - cmd[proc]: |-
+        __secret__pat_token=${this.__secret__pat_token}
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
+
+        jahia_major_version=$(echo "${this.jahia_version}" | cut -d'.' -f1)
+        if [ $jahia_major_version -eq 7 ]; then
+          jahia_7_parameter=", null"
+        else
+          jahia_7_parameter=""
+        fi
+
+        if [ "${this.jahia_version}" != "7.3.4.1" ]; then
+          # This method is not supported by jahia 7.3.4.2
+          echo 'setResult("remove");' > $groovy_file_path
+        fi
+        echo '''
+        org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
+          org.jahia.osgi.BundleUtils.getOsgiService("org.jahia.modules.apitokens.TokenService"$jahia_7_parameter)
+              .tokenBuilder("/users/root", "Jahia Cloud Token", session)
+              .setToken("$__secret__pat_token")
+              .setActive(true)
+              .create()
+          session.save();
+        })
+        ''' >> $groovy_file_path
+
+  setPatInHaproxy:
+    # Parameters:
+    # __secret__pat_token: the personal access token
+    - script: |-
+        return jelastic.env.control.AddContainerEnvVars(
+          '${env.envName}',
+          session,
+          nodeGroup='bl',
+          vars={"jahia_cfg_healthcheck_token": "${this.__secret__pat_token}"}
+        );
+
+  getPatTokenAndKey:
+    # set token value in __secret__pat_token and key value in __secret__pat_key if not already set
+    - if ("HideThisLine" && "${globals.__secret__pat_token.print()}" == "" || "${globals.__secret__pat_key.print()}" == ""):
+        - getVaultData
+        - vaultSecretReadAllKeysB64:
+            secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/PAT/root"
+        - script: |-
+            __secret__pat_creds_base64 = "${globals.vaultSecretData}";
+            pat_creds = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__pat_creds_base64)))
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                setGlobals: {
+                  "__secret__pat_token": pat_creds["token"],
+                  "__secret__pat_key": pat_creds["key"]
+                }
+              }
+            };
+
+  checkPatGroovyScriptExecution:
+    - cmd[proc]: |-
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
+        jahia_running_timeout=360 # 6 minutes
+        sleep_interval=5
+
+        while [ -f $groovy_file_path ]; do
+          sleep $sleep_interval;
+          ((jahia_running_timeout-=sleep_interval))
+          if [ $jahia_running_timeout -eq 0 ]; then
+            echo "[ERROR] $groovy_file_path is still not executed after 360 seconds"
+            exit 1
+          fi
+        done
+
+        # try to rm file in case it's jahia 7.3.4.2
+        rm -f $groovy_file_path.installed
+
+        if [ -f $groovy_file_path.failed ]; then
+            echo "[ERROR] pat.groovy execution failed"
+            exit 1
+        fi
 
   #######################
   # jexperience related #
