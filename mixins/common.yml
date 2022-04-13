@@ -491,6 +491,33 @@ actions:
     - setGlobals:
         vaultSecretData: ${response.out}
 
+  vaultSecretSet:
+    # Parameters:
+    #   - secretPath: path (and name) of the secret to set
+    #   - __secret__secretData: the secret's data ex: {"foo": "bar","zip": "zap"}
+    - vaultAppRoleLogin
+    - script: |
+        import org.apache.http.client.methods.HttpPost;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import org.apache.http.entity.StringEntity;
+        __secret__secretData = ${this.__secret__secretData};
+        __secret__vaultToken = "${globals.vaultToken}";
+        secretPath = "${this.secretPath}";
+
+        httpPost = new HttpPost("${globals.vaultClusterUrl}/v1/kv/data/" + secretPath);
+        httpPost.setHeader("X-Vault-Token", __secret__vaultToken);
+        json = toJSON({"data": __secret__secretData});
+        stringEntity = new StringEntity(json);
+        httpPost.setEntity(stringEntity);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(httpPost);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't update/create secret " + secretPath + ". " + resp };
+        }
+
+        return {"result": 0}
+
   vaultSecretDelete:
     # Parameters:
     #   - secretPath: path of the secret to delete
