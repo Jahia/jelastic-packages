@@ -310,26 +310,7 @@ actions:
     # Following is for remove deprecated entries in JR_J_LOCAL_REVISIONS if any
     - sleep:
         - milliseconds: 60000
-    - cmd [proc]:
-        - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
-    - writeFile:
-        nodegroup: proc
-        path: /tmp/nodesList
-        body: ${response.out}
-    - forEach(nodes.cp):
-        - cmd [${@i.id}]:
-            - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
-        - appendFile:
-            nodegroup: proc
-            path: /tmp/nodesList
-            body: ${response.out}
-    - cmd [proc]: |-
-        sql_cmd="mysql -E -u $DB_USER -p$DB_PASSWORD -h galera -D jahia"
-        query="DELETE from JR_J_LOCAL_REVISIONS where "
-        cond=$(while read line; do echo -n "JOURNAL_ID!=\"$line\" AND "; done < /tmp/nodesList | sed 's/\s*AND\s*$//')
-        echo $sql_cmd -e \'$query $cond\' > /tmp/nodesList.sh
-        bash /tmp/nodesList.sh
-        rm -f /tmp/nodesList*
+    - cleanJRLocalRevisionsTable
 
   envSource:
     - script: |
