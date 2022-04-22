@@ -1,0 +1,182 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - PAAS-2029 fix indices without analyser after jCustomer EC preECMigration
+id: jahia-PAAS-2029-fix-indices-without-analyser-after-jCustomer-EC-migration
+description:
+  short: Jahia - PAAS-2029 fix indices without analyser after jCustomer EC migration
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - isReindexNeeded
+  - if(${response.out}):
+      - manageFRO:
+          enable: true
+      - muteDatadogHost:
+          target: "cp"
+      - reindex
+      - controlDaemon:
+          target: cp
+          command: restart
+          daemon: karaf
+      - checkJcustomerHealthWhenStarting: cp
+      - manageFRO:
+          enable: false
+      - unmuteDatadogHost:
+          target: "cp"
+  - else:
+      return:
+        type: success
+        message: "Indices are ok"
+
+
+actions:
+  controlDaemon:
+    # parameter:
+    #   - target: cp/es
+    #   - command: stop/start
+    #   - daemon: unit name
+    - cmd[${this.target}]: |-
+        systemctl ${this.command} ${this.daemon}
+      user: root
+
+  manageFRO:
+    # parameters:
+    #   - enable: boolean
+    - script: |-
+        envsLinked = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                          return object.name == "cp";}).pop().envLink
+        if (! envsLinked) {
+          return {"result": 0, "envs": []}
+        }
+        return {"result": 0, "envs": envsLinked.split(",")}
+    - forEach(response.envs):
+        - getEnvStatus:
+            envName: ${@i}
+        - if(${response.out} == 1):  # only if linked jahia is started
+            - script: |-
+                return api.marketplace.jps.Install(
+                  {
+                    jps: "${baseUrl}/../jahia/jahia-full-read-only.yml",
+                    envName: "${@i}",
+                    settings: {
+                      "enableFRO": Boolean(${this.enable})
+                    }
+                  }
+                );
+
+  isReindexNeeded:
+    - cmd[${nodes.cp.first.id}]: |-
+        ec_auth="${UNOMI_ELASTICSEARCH_USERNAME}:${UNOMI_ELASTICSEARCH_PASSWORD}"
+        indices=$(curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index" | grep -v "geonameentry")
+        for index in $indices; do
+          if (curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings" | jq -e '.[].settings.index.analysis' > /dev/null) && \
+             (curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_mappings" | jq -e '.[].mappings.dynamic_templates' > /dev/null); then
+              continue
+            else
+              echo "true"
+              exit 0
+          fi
+        done
+        echo "false"
+
+  reindex:
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file="/tmp/paas-2029.log"
+        ec_auth="${UNOMI_ELASTICSEARCH_USERNAME}:${UNOMI_ELASTICSEARCH_PASSWORD}"
+        indices=$(curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index" | grep -v "geonameentry")
+        ok_indices=()  # this array will be filled with already ok indices
+        if [ "$envmode" == "production" ]; then
+          shard_count=2
+        else
+          shard_count=1
+        fi
+        log(){
+          echo "$(date --iso-8601=seconds) [$1] $2" >> $output_file
+        }
+        is_ok(){
+          echo ${ok_indices[@]} | grep -qm1 "\<${1}\>" && true || false
+        }
+
+        for index in $indices; do
+          # checks
+          if (curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings" | jq -e '.[].settings.index.analysis' > /dev/null) && \
+             (curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_mappings" | jq -e '.[].mappings.dynamic_templates' > /dev/null); then
+              log "${index}" "analyser is here, nothing to do"
+              ok_indices+=("${index}")
+              continue
+            else
+              log "${index}" "this index have to be recreated"
+          fi
+
+          # remove replicas on indices in order to save memory,
+          # put them in read only (to allow clone),
+          # clone them,
+          # and delete them
+          log "${index}" "decrease replica to 0..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 0}}'
+          log "${index}" "enable read-only..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"settings" :{"index.blocks.write": true}}'
+          log "${index}" "clone to ${index}_clone..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_clone/${index}_clone \
+               -XPOST
+          log "${index}" "delete..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+               -XDELETE
+        done
+
+        for index in $indices; do
+          # if the index is already ok, continue to the next one
+          is_ok ${index} && continue
+
+          # create new indices without replicas (for faster reindex)
+          # with "folding" analyser and mapping
+          log "${index}" "create new index with correct settings and mappings..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+               -XPUT -d '{
+                "settings":{
+                  "index":{"number_of_shards": '$shard_count', "number_of_replicas": 0},
+                  "analysis":{"analyzer":{"folding":{"filter":["lowercase","asciifolding"],"type":"custom","tokenizer":"keyword"}}}
+                },
+                "mappings":{
+                  "dynamic_templates":[{
+                    "all":{
+                      "match":"*",
+                      "match_mapping_type":"string",
+                      "mapping":{"type":"text","analyzer":"folding","fields":{"keyword":{"type":"keyword","ignore_above":256}}}
+                    }
+                  }]
+                }
+               }'
+          # reindex the _clone index to the final one
+          log "${index}" "reindex ${index}_clone to new ${index}..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex \
+               -XPOST -d '{"source":{"index": "'${index}_clone'"}, "dest":{"index": "'${index}'"}}'
+          log "${index}" "delete ${index}_clone..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}_clone \
+               -XDELETE
+          log "${index}" "increase replica to 1..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 1}}'
+        done
