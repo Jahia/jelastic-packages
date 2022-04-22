@@ -125,10 +125,25 @@ actions:
         done
         for i in $list_index; do
           # create final index without replicas (for faster reindex)
+          # with "folding" analyser and mapping
           curl -su $ec_admin_credentials \
                -H "content-type: application/json" \
                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i%_restored} \
-               -XPUT -d '{"settings":{"index":{"number_of_shards": '$shard_count', "number_of_replicas": 0}}}'
+               -XPUT -d '{
+                "settings":{
+                  "index":{"number_of_shards": '$shard_count', "number_of_replicas": 0},
+                  "analysis":{"analyzer":{"folding":{"filter":["lowercase","asciifolding"],"type":"custom","tokenizer":"keyword"}}}
+                },
+                "mappings":{
+                  "dynamic_templates":[{
+                    "all":{
+                      "match":"*",
+                      "match_mapping_type":"string",
+                      "mapping":{"type":"text","analyzer":"folding","fields":{"keyword":{"type":"keyword","ignore_above":256}}}
+                    }
+                  }]
+                }
+               }'
           # reindex the _restored index to the final one
           curl -su $ec_admin_credentials \
                -H "content-type: application/json" \
