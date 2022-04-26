@@ -448,9 +448,9 @@ actions:
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import java.util.Base64;
-        vaultToken = "${globals.vaultToken}";
+        __secret__VaultToken = "${globals.__secret__VaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
-        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpGet.setHeader("X-Vault-Token", __secret__VaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(httpGet);
         statusCode = resp.getStatusLine().getStatusCode();
