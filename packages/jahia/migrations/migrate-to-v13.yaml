@@ -1,0 +1,285 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v13
+id: migrate-jahia-env-v13
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 13
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  # Use jahiaLegacyHealthcheck because new version needs the env to be migrated ONLY FOR MIGRATION TO v13
+  # - checkJahiaHealth: "cp, proc"
+  - jahiaLegacyCheckHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth:
+      target: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - setupPat       # PAAS-1786
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  setupPat:
+    - set:
+        samModuleName: server-availability-manager
+        patModuleName: personal-api-tokens
+
+    - cmd[bl]: |- # make haproxy check target /ping.jsp instead of /modules/healthcheck
+        haproxy_jahia_conf="/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg"
+        sed -i -e 's/\(option httpchk GET \).*\( "HTTP.*\)/\1"\/ping.jsp"\2/g' $haproxy_jahia_conf
+        sed -i -e 's/\(http-check expect rstring \).*/\1PONG/g' $haproxy_jahia_conf
+        service haproxy reload
+      user: root
+
+    - getJahiaVersion
+    - enableKarafLogin: proc
+    - removeHealthcheckModule
+
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: jahia8
+
+    - if (${globals.jahia8}):
+        - isVersionStrictlyLower:
+            a: ${globals.jahiaVersion}
+            b: 8.1.0.0
+            res: jahia80
+        - if (${globals.jahia80}):
+            installModuleVersionAndRemoveOthers:
+              moduleName: graphql-dxm-provider
+              version: 2.6.0
+
+        - installModuleVersionAndRemoveOthers:
+            moduleName: ${this.patModuleName}
+            version: 1.1.0
+        - installModuleVersionAndRemoveOthers:
+            moduleName: ${this.samModuleName}
+            version: 2.1.0
+    - else: # Jahia 7
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 7.3.9.0
+            res: jahia739OrHigher
+        - if (${globals.jahia739OrHigher}):
+            set:
+              samVersion: 1.1.0
+        - else: # jahia < 7.3.9
+            - installModuleVersionAndRemoveOthers:
+                moduleName: graphql-dxm-provider
+                version: 1.10.0
+            - set:
+                samVersion: 1.0.1
+
+        - installModuleVersionAndRemoveOthers:
+            moduleName: ${this.patModuleName}
+            version: 0.5.0
+        - installModuleVersionAndRemoveOthers:
+            moduleName: ${this.samModuleName}
+            version: ${this.samVersion}
+
+    - cmd[proc]: |-
+        conf_file="/data/digital-factory-data/karaf/etc/org.jahia.modules.sam.healthcheck.ProbesRegistry.cfg"
+        conf_line="probes.PatchFailures.severity=HIGH"
+        if [ "$(grep -e "^${conf_line}$" $conf_file)" = "" ]; then
+            echo $conf_line >> $conf_file
+        fi
+
+    - getVaultData
+    - vaultDoesSecretExistsOrIsReadable:
+        secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/PAT/root"
+    - if (! ${globals.secretExistsOrIsReadable}):
+        # Create PAT token and key
+        - generatePatAndKey
+        - savePatInVault:
+            __secret__pat_token: ${globals.__secret__pat_token}
+            __secret__pat_key: ${globals.__secret__pat_key}
+    - else:
+        # fetch PAT token and key
+        - getPatTokenAndKey
+
+    - savePatInJahiaIfNotAlreadySet:
+        __secret__pat_token: ${globals.__secret__pat_token}
+        jahia_version: ${globals.jahiaVersion}
+
+    - setPatInHaproxy:
+        __secret__pat_token: ${globals.__secret__pat_token}
+
+    - checkJahiaHealth: "cp, proc"
+
+    - cmd[bl]: |-
+        # Fetch new haproxy configuration using SAM healthcheck
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        stats_pwd=$(awk '$1=="password:" {print $2}' /etc/datadog-agent/conf.d/haproxy.d/conf.yaml)
+        curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+    - resetHaproxyBackends
+
+
+  savePatInJahiaIfNotAlreadySet:
+    # Parameters:
+    # __secret__pat_token: the personal access token
+    # jahia_version: the jahia version
+    - cmd[proc]: |-
+        __secret__pat_token=${this.__secret__pat_token}
+        curl -fLSs http://127.0.0.1:8080/modules/healthcheck?severity=critical -H "authorization: APIToken $__secret__pat_token" > /dev/null
+        if [ $? -eq 0 ]; then
+          echo "token already set in jahia"
+        fi
+    - if ("${response.out}" == ""):
+        - setPatInJahia:
+            __secret__pat_token: ${globals.__secret__pat_token}
+            jahia_version: ${this.jahia_version}
+        - checkPatGroovyScriptExecution
+    - else:
+        log: "Pat token already set in jahia"
+
+  installModuleVersionAndRemoveOthers:
+    # Parameters:
+    # version: the SAM module version to install
+    # moduleName: the module version to install
+    - installModuleVersion:
+        moduleName: ${this.moduleName}
+        version: ${this.version}
+    - removeOldModuleVersions:
+        moduleName: ${this.moduleName}
+        currentVersion: ${this.version}
+
+
+  installModuleVersion:
+    # Parameters:
+    # version: the SAM module version to install
+    # moduleName: the module version to uninstall
+    - cmd[proc]: |-
+        rows=$(${globals.karafConsole} cluster:bundle-list -s default | grep ${this.moduleName} | grep "${this.version}")
+        rows_count=$(echo -n $rows | wc -l)
+
+        if [ $rows_count -gt 1 ]; then
+          #  There are multiple instances of the latest versions installed
+          echo "$rows_count results found when looking for ${this.moduleName} ${this.version}"
+          exit 1
+        fi
+
+        if [ $rows_count -eq 0 ]; then
+          #  Install the module
+          MODULE_INSTALL_PATH=/data/digital-factory-data/modules/${this.moduleName}-${this.version}.jar
+          MODULE_URL=https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/${this.moduleName}/${this.version}/${this.moduleName}-${this.version}.jar
+          curl -fLSso $MODULE_INSTALL_PATH $MODULE_URL
+          echo "${this.moduleName} ${this.version} is now installed"
+          sleep 10
+        else
+          echo "${this.moduleName} ${this.version} is already installed"
+        fi
+
+        if [ $rows_count -eq 0 ] || [ "$(echo $rows | grep Active)" = "" ]; then
+          #  Starts the module if just installed or not Active
+          ${globals.karafConsole} cluster:bundle-start default ${this.moduleName}/${this.version}
+          echo "${this.moduleName} ${this.version} is now started"
+        else
+          echo "${this.moduleName} ${this.version} is already started"
+        fi
+
+        # Check that the latest version of the module is Active
+        running_latest=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep "${this.version}" | grep "Active")
+        if [ -z "$running_latest" ]; then
+          echo "Latest version won't install/start"
+          exit 1
+        fi
+
+  removeOldModuleVersions:
+    # Parameters:
+    # currentVersion: the module version to keep
+    # moduleName: the module version to uninstall
+    - cmd[proc]: |-
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        if [ -z "$old_versions" ]; then
+          echo "There is no old version to uninstall"
+          exit 0
+        fi
+
+        while IFS= read -r old_version; do
+          ${globals.karafConsole} cluster:bundle-uninstall default ${this.moduleName}/$old_version
+          echo "${this.moduleName} $old_version uninstalled"
+        done <<< $old_versions
+        sleep 10
+
+        # Check that there is no more old modules
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        if [ ! -z "$old_versions" ]; then
+          echo "There are still old versions installed"
+          exit 1
+        fi
+
+  removeHealthcheckModule:
+    - cmd[proc]: |-
+        versions=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR cluster:bundle-list -s default | awk '$NF == "healthcheck" {print $0}' | sed 's/.*\([0-9].[0-9].[0-9]\).*/\1/g')
+
+        while IFS= read -r version; do
+          ${globals.karafConsole} cluster:bundle-uninstall default healthcheck/$version
+          echo "healtcheck module $version uninstalled"
+        done <<< $versions
+        sleep 10
+
+        # Check that there is no more healthcheck module
+        remaining_module=$(${globals.karafConsole} cluster:bundle-list -s default | awk '$NF == "healthcheck" {print $NF}')
+        if [ ! -z "$remaining_module" ]; then
+          echo "Healthcheck module is still installed"
+          exit 1
+        fi
+
+  jahiaLegacyCheckHealth:
+    - cmd [${nodes.bl.first.id}]: |-
+        if [ ! -z "$(grep ping.jsp /etc/haproxy/haproxy.cfg)" ]; then
+          echo "Migration has already been ran unsuccessfully on this env, healthcheck is in an unknown state"
+        fi
+    - if ("${response.out}" == ""):
+        cmd [${this}]: |-
+          if ! tomcat_pid=$(pgrep -u tomcat -f java); then
+            echo "[ERROR] Tomcat process not found, please check" >&2
+            exit 1
+          fi
+
+          hc_url="http://127.0.0.1:8080/modules/healthcheck?token=$jahia_cfg_healthcheck_token"
+
+          if curl_resp=$(curl -f -s -m 1 "$hc_url"); then
+            status=$(echo $curl_resp | jq -r ".status")
+            if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
+              exit 0
+            fi
+          fi
+          echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1

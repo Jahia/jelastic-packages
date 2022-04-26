@@ -14,8 +14,7 @@ description:
 success: ../../assets/jahia/success_install.md
 
 globals:
-  jahia_env_version: 12
-  healthcheck_token: ${fn.password(20)}
+  jahia_env_version: 13
   db_user: jahia-db-${fn.random}
   db_pass: ${fn.password(20)}
   db_user_datadog: ${fn.password(20)}
@@ -53,7 +52,6 @@ onBeforeInstall: |
         "_PROVIDE": "haproxy",
         "_ROLE": "reverse_proxy",
         "envName": "${settings.shortdomain}",
-        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
         "envmode": envmode,
         "haproxy_cfg_timeout_server": "5m"
       },
@@ -118,7 +116,6 @@ onBeforeInstall: |
         "_ROLE": "Browsing",
         "envName": "${settings.shortdomain}",
         "DB_ENDPOINT": db_scheme,
-        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
@@ -186,7 +183,6 @@ onBeforeInstall: |
         "_ROLE": "Processing",
         "envName": "${settings.shortdomain}",
         "DB_ENDPOINT": db_scheme,
-        "jahia_cfg_healthcheck_token": "${globals.healthcheck_token}",
         "HEALTHCHECK_DURATION": "240",
         "envmode": envmode,
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
@@ -270,6 +266,15 @@ onInstall:
       user: ${globals.db_user}
       password: ${globals.db_pass}
   - finishProxysqlInstall
+  - addEnvMetadataToNodeGroup:
+      vaultRoleId: ${settings.vaultRoleId}
+      vaultSecretId: ${settings.vaultSecretId}
+      vaultClusterUrl: ${settings.vaultClusterUrl}
+      papiHostname: ${settings.papiHostname}
+      papiApiVersion: ${settings.papiApiVersion}
+      papiEnvId: ${settings.papiEnvId}
+  - setupPat:
+      jahiaVersion: ${settings.productVersion}
   - installJahia:
       jahiaVersion: ${settings.productVersion}
       rootpwd: ${settings.rootpwd}
@@ -285,13 +290,6 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp, proc
-  - addEnvMetadataToNodeGroup:
-      vaultRoleId: ${settings.vaultRoleId}
-      vaultSecretId: ${settings.vaultSecretId}
-      vaultClusterUrl: ${settings.vaultClusterUrl}
-      papiHostname: ${settings.papiHostname}
-      papiApiVersion: ${settings.papiApiVersion}
-      papiEnvId: ${settings.papiEnvId}
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId
