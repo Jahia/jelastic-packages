@@ -13,7 +13,7 @@ skipNodeEmails: true
 
 
 nodes:
-  - image: jahia/paas_autobackup:v1.3
+  - image: jahia/paas_autobackup:${settings.paas_autobackup_version}
     displayName: Scheduled backup
     count: 1
     cloudlets: 5
@@ -21,8 +21,6 @@ nodes:
     env:
       MASTER_LOGIN: ${settings.masterLogin}
       MASTER_PWD: ${settings.masterPwd}
-      AWS_ACCESS_KEY: ${settings.awsAccess}
-      AWS_SECRET_KEY: ${settings.awsSecret}
       AWS_ACCESS_KEY_ID: ${settings.awsAccess}
       AWS_SECRET_ACCESS_KEY: ${settings.awsSecret}
       DD_API_KEY: ${settings.dd_api_key}
@@ -69,4 +67,8 @@ settings:
     - name: dd_api_key
       type: string
       caption: datadog api key
+      required: true
+    - name: paas_autobackup_version
+      type: string
+      caption: the autobackup tag to use
       required: true
