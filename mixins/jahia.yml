@@ -921,16 +921,16 @@ actions:
           # This method is not supported by jahia 7.3.4.2
           echo 'setResult("remove");' > $groovy_file_path
         fi
-        echo '''
+        echo """
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
-          org.jahia.osgi.BundleUtils.getOsgiService("org.jahia.modules.apitokens.TokenService"$jahia_7_parameter)
-              .tokenBuilder("/users/root", "Jahia Cloud Token", session)
-              .setToken("$__secret__pat_token")
+          org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
+              .tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
+              .setToken(\"$__secret__pat_token\")
               .setActive(true)
               .create()
           session.save();
         })
-        ''' >> $groovy_file_path
+        """ >> $groovy_file_path
 
   setPatInHaproxy:
     # Parameters:
