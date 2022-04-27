@@ -44,7 +44,8 @@ onInstall:
   - checkJahiaDatadogCustomChecks: "cp, proc"
   - checkHaproxyHealth: bl
   - checkHaproxyDatadogCustomChecks: bl
-  - checkMariadbHealth: sqldb
+  - checkMariadbHealth:
+      target: sqldb
   - checkGaleraClusterHealth: sqldb
   - checkMariadbDatadogCustomChecks: sqldb
   ### End Post-actions
