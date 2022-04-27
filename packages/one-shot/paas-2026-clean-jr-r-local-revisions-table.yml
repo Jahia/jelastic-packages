@@ -28,5 +28,7 @@ onInstall:
     exit 0
 - if (${response.out}):
   - cleanJRLocalRevisionsTable
+  - cleanJRJJournalTable:
+      batchSize: 100000
   else:
   - log: "Table JR_J_LOCAL_REVISIONS is up-to-date, nothing to do"
