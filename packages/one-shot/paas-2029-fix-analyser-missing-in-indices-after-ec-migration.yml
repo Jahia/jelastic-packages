@@ -13,6 +13,10 @@ mixins:
 onInstall:
   - isReindexNeeded
   - if(${response.out}):
+      - controlDaemon:
+          target: es
+          command: start
+          daemon: elasticsearch
       - manageFRO:
           enable: true
       - muteDatadogHost:
@@ -27,6 +31,10 @@ onInstall:
           enable: false
       - unmuteDatadogHost:
           target: "cp"
+      - controlDaemon:
+          target: es
+          command: stop
+          daemon: elasticsearch
   - else:
       return:
         type: success
@@ -115,6 +123,7 @@ actions:
           # remove replicas on indices in order to save memory,
           # put them in read only (to allow clone),
           # clone them,
+          # get mappings,
           # and delete them
           log "${index}" "decrease replica to 0..."
           curl -su $ec_auth \
@@ -131,6 +140,10 @@ actions:
                -H "content-type: application/json" \
                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_clone/${index}_clone \
                -XPOST
+          log "${index}" "get original index mappings from old ES..."
+          curl http://es:9200/context-${index#${UNOMI_ELASTICSEARCH_INDEXPREFIX}-}/_mappings \
+               -H "content-type: application/json" \
+               | jq '.[]' > /tmp/${index}_mappings.json
           log "${index}" "delete..."
           curl -su $ec_auth \
                -H "content-type: application/json" \
@@ -138,9 +151,36 @@ actions:
                -XDELETE
         done
 
+        # indices settings are the same, so we will use this file as settings when create indices
+        cat > /tmp/settings.json <<- EOF
+        {
+          "settings": {
+            "index": {
+              "number_of_shards": $shard_count,
+              "number_of_replicas": 0
+            },
+            "analysis": {
+              "analyzer": {
+                "folding": {
+                  "filter": [
+                    "lowercase",
+                    "asciifolding"
+                  ],
+                  "type": "custom",
+                  "tokenizer": "keyword"
+                }
+              }
+            }
+          }
+        }
+        EOF
+
         for index in $indices; do
           # if the index is already ok, continue to the next one
           is_ok ${index} && continue
+
+          # merge index settings and mapping in order to create the index creation payload
+          jq -s '.[0] * .[1]' /tmp/settings.json /tmp/${index}_mappings.json > /tmp/${index}_creation_payload.json
 
           # create new indices without replicas (for faster reindex)
           # with "folding" analyser and mapping
@@ -148,21 +188,8 @@ actions:
           curl -su $ec_auth \
                -H "content-type: application/json" \
                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
-               -XPUT -d '{
-                "settings":{
-                  "index":{"number_of_shards": '$shard_count', "number_of_replicas": 0},
-                  "analysis":{"analyzer":{"folding":{"filter":["lowercase","asciifolding"],"type":"custom","tokenizer":"keyword"}}}
-                },
-                "mappings":{
-                  "dynamic_templates":[{
-                    "all":{
-                      "match":"*",
-                      "match_mapping_type":"string",
-                      "mapping":{"type":"text","analyzer":"folding","fields":{"keyword":{"type":"keyword","ignore_above":256}}}
-                    }
-                  }]
-                }
-               }'
+               -XPUT -d @/tmp/${index}_creation_payload.json
+
           # reindex the _clone index to the final one
           log "${index}" "reindex ${index}_clone to new ${index}..."
           curl -su $ec_auth \
