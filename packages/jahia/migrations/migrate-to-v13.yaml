@@ -81,16 +81,23 @@ actions:
             b: 8.1.0.0
             res: jahia80
         - if (${globals.jahia80}):
-            installModuleVersionAndRemoveOthers:
-              moduleName: graphql-dxm-provider
-              version: 2.6.0
+            - installModuleVersionAndRemoveOthers:
+                moduleName: graphql-dxm-provider
+                version: 2.6.0
+            - set:
+                patVersion: 1.0.0
+                samVersion: 2.0.1
+        - else:
+            - set:
+                patVersion: 1.1.0
+                samVersion: 2.1.0
 
         - installModuleVersionAndRemoveOthers:
             moduleName: ${this.patModuleName}
-            version: 1.1.0
+            version: ${this.patVersion}
         - installModuleVersionAndRemoveOthers:
             moduleName: ${this.samModuleName}
-            version: 2.1.0
+            version: ${this.samVersion}
     - else: # Jahia 7
         - isVersionHigherOrEqual:
             a: ${globals.jahiaVersion}
