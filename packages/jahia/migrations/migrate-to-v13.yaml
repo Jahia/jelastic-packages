@@ -52,7 +52,7 @@ actions:
     install:
       jps: "${baseUrl}../update-events.yml"
 
-  cleanJRJJournalTableIfNeeded:
+  cleanRevisionsIfNeeded:
   - cmd [proc]: |-
       tmpfile=$(mktemp)
       sql_cmd="mysql -E -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033"
