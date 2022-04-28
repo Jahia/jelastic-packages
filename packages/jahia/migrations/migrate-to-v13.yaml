@@ -86,7 +86,7 @@ actions:
                 moduleName: graphql-dxm-provider
                 version: 2.6.0
             - set:
-                patVersion: 1.0.0
+                patVersion: 1.0.1
                 samVersion: 2.0.1
         - else:
             - set:
