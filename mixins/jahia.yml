@@ -888,7 +888,7 @@ actions:
           echo "Can't get the minimum revision number, aborting"
           exit 1
         fi
-        query="DELETE FROM JR_J_JOURNAL where REVISION_ID < $min_revision_number limit 100000"
+        query="DELETE FROM JR_J_JOURNAL WHERE REVISION_ID < $min_revision_number ORDER BY REVISION_ID LIMIT $batch_size"
         echo "Deleting rows with revision_id < $min_revision_number in table JR_J_JOURNAL. Batch size: $batch_size"
         n=1
         while true; do
