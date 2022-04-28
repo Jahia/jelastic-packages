@@ -100,6 +100,7 @@ onAfterRedeployContainer[cp]:
                 nodeId: ${@i.id}
                 nodeIp: ${@i.intIP}
                 reload: true
+  - cleanJRLocalRevisionsTable
 
 onBeforeRedeployContainer[proc]:
   - removeProcNodeFromHaproxy:
@@ -123,6 +124,7 @@ onAfterRedeployContainer[proc]:
       - startupJahiaHealthCheck: ${event.params.nodeId}
   - addProcNodeToHaproxy:
       reload: true
+  - cleanJRLocalRevisionsTable
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):

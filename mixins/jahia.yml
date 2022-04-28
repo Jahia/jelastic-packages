@@ -876,6 +876,35 @@ actions:
         bash /tmp/nodesList.sh
         rm -f /tmp/nodesList*
 
+  cleanJRJJournalTable:
+    # Parameters:
+    #   - batchSize: the number of lines to delete per batch
+    - cmd [proc]: |-
+        batch_size=${this.batchSize}
+        sql_cmd="mysql -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033"
+        query="SELECT MIN(REVISION_ID) FROM JR_J_LOCAL_REVISIONS;"
+        min_revision_number=$($sql_cmd -sN -e "$query")
+        if [ $? -ne 0 ]; then
+          echo "Can't get the minimum revision number, aborting"
+          exit 1
+        fi
+        query="DELETE FROM JR_J_JOURNAL WHERE REVISION_ID < $min_revision_number ORDER BY REVISION_ID LIMIT $batch_size"
+        echo "Deleting rows with revision_id < $min_revision_number in table JR_J_JOURNAL. Batch size: $batch_size"
+        n=1
+        while true; do
+          result=$($sql_cmd -vv -e "$query")
+          if [ $? -ne 0 ]; then
+            echo "Error when trying to delete the rows, aborting"
+            exit 1
+          fi
+          if echo $result | grep -q "0 rows affected"; then
+            exit 0
+          fi
+          echo "Batch #$n executed"
+          ((n+=1))
+          sleep 2
+        done
+
   #######################
   # jexperience related #
   #######################
