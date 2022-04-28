@@ -108,7 +108,6 @@ actions:
             message: "An error occurred during the backup restore process."
 
     - cmd[${nodes.cp.first.id}]: |-
-        output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
         list_index=$(curl -su $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*?h=index" | grep -v "geonameentry")
         if [ "$envmode" == "production" ]; then
@@ -116,6 +115,30 @@ actions:
         else
           shard_count=1
         fi
+        # indices settings are the same, so we will use this file as settings when create indices
+        cat > /tmp/settings.json <<- EOF
+        {
+          "settings": {
+            "index": {
+              "number_of_shards": $shard_count,
+              "number_of_replicas": 0
+            },
+            "analysis": {
+              "analyzer": {
+                "folding": {
+                  "filter": [
+                    "lowercase",
+                    "asciifolding"
+                  ],
+                  "type": "custom",
+                  "tokenizer": "keyword"
+                }
+              }
+            }
+          }
+        }
+        EOF
+
         for i in $list_index; do
           # remove replicas on _restored index in order to save memory
           curl -su $ec_admin_credentials \
@@ -124,11 +147,21 @@ actions:
                -XPUT -d '{"index":{"number_of_replicas": 0}}'
         done
         for i in $list_index; do
+          # put index mappings in a file
+          curl -su $ec_admin_credentials \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i}/_mappings \
+               | jq '.[]' > /tmp/${i}_mappings.json
+
+          # merge index settings and mapping in order to create the index creation payload
+          jq -s '.[0] * .[1]' /tmp/settings.json /tmp/${i}_mappings.json > /tmp/${i}_creation_payload.json
+
           # create final index without replicas (for faster reindex)
           curl -su $ec_admin_credentials \
                -H "content-type: application/json" \
                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${i%_restored} \
-               -XPUT -d '{"settings":{"index":{"number_of_shards": '$shard_count', "number_of_replicas": 0}}}'
+               -XPUT -d @/tmp/${i}_creation_payload.json
+
           # reindex the _restored index to the final one
           curl -su $ec_admin_credentials \
                -H "content-type: application/json" \
