@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate Jahia env to v13
-id: migrate-jahia-env-v13
+name: Migrate Jahia env to v14
+id: migrate-jahia-env-v14
 
 # Required for healthchecks
 mixins:
@@ -13,12 +13,12 @@ mixins:
   - "../../../mixins/jcustomer.yml"
 
 globals:
-  version: 13
+  version: 14
 
 onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
-  # Use jahiaLegacyHealthcheck because new version needs the env to be migrated ONLY FOR MIGRATION TO v13
+  # Use jahiaLegacyHealthcheck because new version needs the env to be migrated ONLY FOR MIGRATION TO v14
   # - checkJahiaHealth: "cp, proc"
   - jahiaLegacyCheckHealth: "cp, proc"
   - checkJahiaDatadogCustomChecks: "cp, proc"
