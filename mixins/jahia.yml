@@ -859,26 +859,14 @@ actions:
         user: tomcat
 
   cleanJRLocalRevisionsTable:
-    - cmd [proc]:
-        - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
-    - writeFile:
-        nodegroup: proc
-        path: /tmp/nodesList
-        body: ${response.out}
-    - forEach(nodes.cp):
-        - cmd [${@i.id}]:
-            - awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
-        - appendFile:
-            nodegroup: proc
-            path: /tmp/nodesList
-            body: ${response.out}
-    - cmd [proc]: |-
-        sql_cmd="mysql -E -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033"
-        query="DELETE from JR_J_LOCAL_REVISIONS where "
-        cond=$(while read line; do echo -n "JOURNAL_ID!=\"$line\" AND "; done < /tmp/nodesList | sed 's/\s*AND\s*$//')
-        echo $sql_cmd -e \'$query $cond\' > /tmp/nodesList.sh
-        bash /tmp/nodesList.sh
-        rm -f /tmp/nodesList*
+    - cmd [${nodes.sqldb.first.id}]: |-
+        mysql jahia -e "TRUNCATE JR_J_LOCAL_REVISIONS"
+        mysql jahia -Nse "select * from JR_J_GLOBAL_REVISION"
+
+    - cmd [cp, proc]: |-
+        node_name=$(awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties)
+        current_revision=${response.out}
+        mysql -E -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033 -e "INSERT INTO JR_J_LOCAL_REVISIONS values ('$node_name',$current_revision)"
 
   cleanJRJJournalTable:
     # Parameters:

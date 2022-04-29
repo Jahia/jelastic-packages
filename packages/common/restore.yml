@@ -241,6 +241,7 @@ actions:
     - cmd [cp]:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
+    - cleanJRLocalRevisionsTable
     - cmd [proc,cp]: |-
           find /data/digital-factory-data/modules \
             \( -name "healthcheck-cluster*" -o -name "jexperience-*" \) \
@@ -303,11 +304,6 @@ actions:
               target: ${@i.id}
               module: jExperience
         - disableKarafLogin: cp, proc
-
-    # Following is for remove deprecated entries in JR_J_LOCAL_REVISIONS if any
-    - sleep:
-        - milliseconds: 60000
-    - cleanJRLocalRevisionsTable
 
   envSource:
     - script: |
