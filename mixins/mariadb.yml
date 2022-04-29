@@ -294,8 +294,8 @@ actions:
           echo "Too long to start, something is wrong here... EXITING"
           exit 1
         fi
-        # As long as there is a rsync going, we don't increment the timeout count
-        if ps -e -o command | grep -Eq "^rsync .* rsync_sst\.conf$"; then
+        # As long as there is a mariabackup command running, we don't increment the timeout count
+        if pgrep wsrep_sst_maria; then
           echo "$(date) SSTs sync still in progress"
           sleep 15
         else
