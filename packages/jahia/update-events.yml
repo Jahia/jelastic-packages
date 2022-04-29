@@ -22,8 +22,9 @@ onBeforeScaleIn[cp]:
 
 onAfterScaleIn[cp]:
   - refreshProxysqlInstancesList
+  - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
-        envName: ${env.envName}
+      envName: ${env.envName}
   - if (${globals.unomi_env_linked}):
       - refreshUnomiAllowedIPs:
           unomiEnvName: ${globals.unomi_env_name}
@@ -34,6 +35,7 @@ onAfterServiceScaleOut[cp]:
           newNode: ${@i.id}
   - resetHaproxyBackends
   - refreshProxysqlInstancesList
+  - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if (${globals.unomi_env_linked}):
@@ -98,6 +100,7 @@ onAfterRedeployContainer[cp]:
                 nodeId: ${@i.id}
                 nodeIp: ${@i.intIP}
                 reload: true
+  - cleanJRLocalRevisionsTable
 
 onBeforeRedeployContainer[proc]:
   - removeProcNodeFromHaproxy:
@@ -121,6 +124,7 @@ onAfterRedeployContainer[proc]:
       - startupJahiaHealthCheck: ${event.params.nodeId}
   - addProcNodeToHaproxy:
       reload: true
+  - cleanJRLocalRevisionsTable
 
 onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
@@ -229,6 +233,7 @@ onAfterMigrate:
       title: "Environment $envName migrated"
       text: "$envName has been migrated"
   - refreshProxysqlInstancesList
+  - cleanJRLocalRevisionsTable
   - unmuteDatadogHost:
       target: "*"
 

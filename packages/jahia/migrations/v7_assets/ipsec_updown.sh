@@ -17,7 +17,7 @@ log(){
 up(){
   log "Connexion name is $PLUTO_CONNECTION"
   conn_file=$(grep -l $PLUTO_CONNECTION $conn_dir/*conf)
-  internal_dns_list=($(awk -F'=' '/## *internal_domains *=/ {print gensub(/,/, " ", "g", $NF)}' $dconn_dir/$conn_file))
+  internal_dns_list=($(awk -F'=' '/## *internal_domains *=/ {print gensub(/,/, " ", "g", $NF)}' $conn_dir/$conn_file))
 
   if [ ${#internal_dns_list} -eq 0 ]; then
     log "didn't found internal dns to use through the ipsec connection"

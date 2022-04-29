@@ -18,9 +18,10 @@ globals:
 onInstall:
   - vaultGetIPsecConfB64
   - vaultGetIPsecPSKB64
-  - setIPsecConf: proc
-  - foreach(nodes.cp):
-      - setIPsecConf: ${@i.id}
+  - if (settings.ipsec_should_be != "disable"):
+    - setIPsecConf: proc
+    - foreach(nodes.cp):
+        - setIPsecConf: ${@i.id}
   - if (settings.ipsec_should_be != ""):
       - daemonControl
       - setNodeGroupData
@@ -79,11 +80,11 @@ actions:
         # work on connection conf
         new_conf_md5=$(md5sum $conf_tmpfile | cut -d" " -f1)
         if [ -f $confdir/$confname.conf ]; then
+          cp -p $confdir/$confname.conf{,_bak}
           conf_md5=$(md5sum $confdir/$confname.conf | cut -d" " -f1)
           if [[ "$conf_md5" == "$new_conf_md5" ]]; then
            echo "This conf is already set"
           else
-            cp -p $confdir/$confname.conf{,_bak}
             mv $conf_tmpfile $confdir/$confname.conf
             reload_all=true
           fi
@@ -93,6 +94,7 @@ actions:
         fi
 
         # work on secret conf
+        cp -p ${secretsfile}{,_bak}
         new_secret_md5=$(md5sum $secret_tmpfile | cut -d" " -f1)
         if (grep -q "^# for $confname:" $secretsfile); then
           echo "$confname secret exist in $secretsfile"
@@ -101,7 +103,6 @@ actions:
             echo "This secret is already set"
             rm $secret_tmpfile
           else
-            cp -p ${secretsfile}{,_bak}
             l=$(awk "/^# for $confname:\$/ {print NR}" $secretsfile)
             sed "${l}{n;d}" -i $secretsfile && sed "${l}r $secret_tmpfile" -i $secretsfile
             if [[ $? -ne 0 ]]; then
@@ -111,8 +112,7 @@ actions:
             reload_secret=true
           fi
         else
-          cp -p ${secretsfile}{,_bak}
-          echo "$confname is new, now adding his secret"
+          echo "$confname is new, now adding its secret"
           echo "# for $confname:" >> $secretsfile
           cat $secret_tmpfile >> $secretsfile
           rm $secret_tmpfile
