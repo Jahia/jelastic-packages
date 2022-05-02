@@ -901,7 +901,7 @@ actions:
             echo "Error when trying to delete the rows, aborting"
             exit 1
           fi
-          if echo $result | grep -q "0 rows affected"; then
+          if echo $result | grep -q " 0 rows affected"; then
             exit 0
           fi
           echo "Batch #$n executed"
