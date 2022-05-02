@@ -68,7 +68,8 @@ actions:
       user: root
 
     - getJahiaVersion
-    - enableKarafLogin: proc
+    - enableKarafLogin: "cp, proc"
+    - saveModulesState
     - removeHealthcheckModule
 
     - isVersionHigherOrEqual:
@@ -88,10 +89,12 @@ actions:
             - set:
                 patVersion: 1.0.1
                 samVersion: 2.0.1
+                changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager" "Jahia GraphQL Core Provider"'
         - else:
             - set:
                 patVersion: 1.1.0
                 samVersion: 2.1.0
+                changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager"'
 
         - installModuleVersionAndRemoveOthers:
             moduleName: ${this.patModuleName}
@@ -107,12 +110,14 @@ actions:
         - if (${globals.jahia739OrHigher}):
             set:
               samVersion: 1.1.0
+              changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager"'
         - else: # jahia < 7.3.9
             - installModuleVersionAndRemoveOthers:
                 moduleName: graphql-dxm-provider
                 version: 1.10.0
             - set:
                 samVersion: 1.0.1
+                changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager" "Jahia GraphQL Core Provider"'
 
         - installModuleVersionAndRemoveOthers:
             moduleName: ${this.patModuleName}
@@ -127,6 +132,9 @@ actions:
         if [ "$(grep -e "^${conf_line}$" $conf_file)" = "" ]; then
             echo $conf_line >> $conf_file
         fi
+
+    - checkModulesState: ${changedModules}
+    - disableKarafLogin: "cp, proc"
 
     - getVaultData
     - vaultDoesSecretExistsOrIsReadable:
@@ -274,8 +282,15 @@ actions:
     - cmd [${nodes.bl.first.id}]: |-
         if [ ! -z "$(grep ping.jsp /etc/haproxy/haproxy.cfg)" ]; then
           echo "Migration has already been ran unsuccessfully on this env, healthcheck is in an unknown state"
+        elif [ ! -z "$(grep "severity" /etc/haproxy/haproxy.cfg)" ]; then
+          echo "Up-to-Date"
+        else
+          echo "Legacy"
         fi
-    - if ("${response.out}" == ""):
+
+    - setGlobals:
+        healthCheckState: "${response.out}"
+    - if ("${globals.healthCheckState}" == "Legacy"):
         cmd [${this}]: |-
           if ! tomcat_pid=$(pgrep -u tomcat -f java); then
             echo "[ERROR] Tomcat process not found, please check" >&2
@@ -291,3 +306,53 @@ actions:
             fi
           fi
           echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
+    - if ("${globals.healthCheckState}" == "Up-to-Date"):
+        - checkJahiaHealth: "cp, proc"
+
+  saveModulesState:
+    - cmd[cp,proc]: |-
+        # Don't know why but running this command in one line (like the next cmd block) failed hafl of the time.
+        res=$(${globals.karafConsole} bundle:list)
+        echo "$res" > /tmp/initialModulesState
+    - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default > /tmp/initialClusterModulesState
+
+  checkModulesState:
+    - cmd[cp,proc]: |-
+        modules_state=$(${globals.karafConsole} bundle:list)
+        initial_modules_state=$(cat /tmp/initialModulesState)
+
+        modules_to_exclude=(${this})
+        for ((i = 0; i < ${#modules_to_exclude[@]}; i++)); do
+          modules_state=$(echo "$modules_state" | grep -v "${modules_to_exclude[$i]}")
+          initial_modules_state=$(echo "$initial_modules_state" | grep -v "${modules_to_exclude[$i]}")
+        done
+
+        echo "$modules_state" > /tmp/modulesState
+        echo "$initial_modules_state" > /tmp/initialModulesState
+        diff /tmp/initialModulesState /tmp/modulesState
+
+        if [ $? -ne 0 ]; then
+          echo "Module(s) state mismatch"
+          exit 1
+        fi
+
+    - cmd[proc]: |-
+        modules_state=$(${globals.karafConsole} cluster:bundle-list default)
+        initial_modules_state=$(cat /tmp/initialClusterModulesState)
+
+        modules_to_exclude=(${this})
+        for ((i = 0; i < ${#modules_to_exclude[@]}; i++)); do
+          modules_state=$(echo "$modules_state" | grep -v "${modules_to_exclude[$i]}")
+          initial_modules_state=$(echo "$initial_modules_state" | grep -v "${modules_to_exclude[$i]}")
+        done
+
+        echo "$modules_state" > /tmp/clusterModulesState
+        echo "$initial_modules_state" > /tmp/initialClusterModulesState
+        diff /tmp/initialClusterModulesState /tmp/clusterModulesState
+
+        if [ $? -ne 0 ]; then
+          echo "Module(s) state mismatch"
+          exit 1
+        fi
+
+    - cmd[cp,proc]: rm -f /tmp/*ModulesState
