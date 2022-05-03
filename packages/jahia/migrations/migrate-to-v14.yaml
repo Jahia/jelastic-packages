@@ -48,6 +48,9 @@ onInstall:
       target: sqldb
   - checkGaleraClusterHealth: sqldb
   - checkMariadbDatadogCustomChecks: sqldb
+  - checkModulesState: ${globals.changedModules}
+  - disableKarafLogin: "cp, proc"
+
   ### End Post-actions
 
 actions:
@@ -89,11 +92,13 @@ actions:
             - set:
                 patVersion: 1.0.1
                 samVersion: 2.0.1
+            - setGlobals:
                 changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager" "Jahia GraphQL Core Provider"'
         - else:
             - set:
                 patVersion: 1.1.0
                 samVersion: 2.1.0
+            - setGlobals:
                 changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager"'
 
         - installModuleVersionAndRemoveOthers:
@@ -108,15 +113,17 @@ actions:
             b: 7.3.9.0
             res: jahia739OrHigher
         - if (${globals.jahia739OrHigher}):
-            set:
-              samVersion: 1.1.0
-              changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager"'
+            - set:
+                samVersion: 1.1.0
+            - setGlobals:
+                changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager"'
         - else: # jahia < 7.3.9
             - installModuleVersionAndRemoveOthers:
                 moduleName: graphql-dxm-provider
                 version: 1.10.0
             - set:
                 samVersion: 1.0.1
+            - setGlobals:
                 changedModules: '"Personal API Tokens" "healthcheck" "Server Availability Manager" "Jahia GraphQL Core Provider"'
 
         - installModuleVersionAndRemoveOthers:
@@ -132,9 +139,6 @@ actions:
         if [ "$(grep -e "^${conf_line}$" $conf_file)" = "" ]; then
             echo $conf_line >> $conf_file
         fi
-
-    - checkModulesState: ${changedModules}
-    - disableKarafLogin: "cp, proc"
 
     - getVaultData
     - vaultDoesSecretExistsOrIsReadable:
@@ -311,7 +315,7 @@ actions:
 
   saveModulesState:
     - cmd[cp,proc]: |-
-        # Don't know why but running this command in one line (like the next cmd block) failed hafl of the time.
+        # Don't know why but running this command in one line (like the next cmd block) failed half of the time.
         res=$(${globals.karafConsole} bundle:list)
         echo "$res" > /tmp/initialModulesState
     - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default > /tmp/initialClusterModulesState
