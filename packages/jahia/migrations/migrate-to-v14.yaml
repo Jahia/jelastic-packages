@@ -32,8 +32,9 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - setCloudConf   # PAAS-2042
-  - setupPat       # PAAS-1786
+  - setCloudConf                         # PAAS-2042
+  - setupPat                             # PAAS-1786
+  - updateJahiaNodeNotInHaproxyPoolCheck # PAAS-2035
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -361,3 +362,9 @@ actions:
         fi
 
     - cmd[cp,proc]: rm -f /tmp/*ModulesState
+
+  updateJahiaNodeNotInHaproxyPoolCheck:
+    cmd[cp, proc]: |-
+      sed -i 's,\(PATTERN = "modules/healthcheck?\).*,\1severity=critical",g' /etc/datadog-agent/checks.d/jahia_node_not_in_haproxy_pool.py
+      systemctl restart datadog-agent
+    user: root
