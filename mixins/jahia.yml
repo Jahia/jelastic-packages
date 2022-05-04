@@ -968,10 +968,6 @@ actions:
           jahia_7_parameter=""
         fi
 
-        if [ "${this.jahia_version}" != "7.3.4.1" ]; then
-          # This method is not supported by jahia 7.3.4.2
-          echo 'setResult("remove");' > $groovy_file_path
-        fi
         echo """
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
           org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
@@ -1028,7 +1024,6 @@ actions:
           fi
         done
 
-        # try to rm file in case it's jahia 7.3.4.2
         rm -f $groovy_file_path.installed
 
         if [ -f $groovy_file_path.failed ]; then

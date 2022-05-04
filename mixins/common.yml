@@ -437,32 +437,33 @@ actions:
         - setGlobals:
             vaultToken: ${response.out}
 
-  vaultDoesSecretExistsOrIsReadable:
+  vaultSecretExists:
+    # Check if a secret exists. It must be in an authorized path for the env token, otherwise it will fail and exit
     # Parameters:
     #   - secretPath: path (and name) of the secret to check
     # Returns:
-    #   ${globals.secretExistsOrIsReadable}: A boolean set to true if the secret exists AND IS ACCESSIBLE with the env token. Set to false otherwise
+    #   ${globals.secretExists}: A boolean set to true if the secret exists. Set to false otherwise
     - vaultAppRoleLogin
     - script: |
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import java.util.Base64;
-        __secret__VaultToken = "${globals.__secret__VaultToken}";
+        __secret__vaultToken = "${globals.vaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
-        httpGet.setHeader("X-Vault-Token", __secret__VaultToken);
+        httpGet.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(httpGet);
         statusCode = resp.getStatusLine().getStatusCode();
         if (statusCode == 200 ) {
-          return {"result": 0, "message": "Secret exist and is readable", "secretExistsOrIsReadable": true };
+          return {"result": 0, "message": "Secret exists", "secretExists": true};
         } else if (statusCode == 404 ) {
-          return {"result": 0, "message": "Secret does not exist", "secretExistsOrIsReadable": false };
+          return {"result": 0, "message": "Secret does not exist", "secretExists": false};
         } else {
-          return {"result": 0, "message": "Can't read this secret", "secretExistsOrIsReadable": false };
+          return {"result": 1, "message": "Error: " + resp};
         }
     - setGlobals:
-        secretExistsOrIsReadable: ${response.secretExistsOrIsReadable}
+        secretExists: ${response.secretExists}
 
   vaultSecretReadAllKeysB64:
     # Parameters:
