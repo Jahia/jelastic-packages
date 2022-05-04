@@ -143,9 +143,9 @@ actions:
         fi
 
     - getVaultData
-    - vaultDoesSecretExistsOrIsReadable:
+    - vaultSecretExists:
         secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/PAT/root"
-    - if (! ${globals.secretExistsOrIsReadable}):
+    - if (! ${globals.secretExists}):
         # Create PAT token and key
         - generatePatAndKey
         - savePatInVault:
@@ -153,7 +153,7 @@ actions:
             __secret__pat_key: ${globals.__secret__pat_key}
     - else:
         # fetch PAT token and key
-        - getPatTokenAndKey
+        getPatTokenAndKey
 
     - savePatInJahiaIfNotAlreadySet:
         __secret__pat_token: ${globals.__secret__pat_token}
