@@ -248,7 +248,7 @@ actions:
     # currentVersion: the module version to keep
     # moduleName: the module version to uninstall
     - cmd[proc]: |-
-        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");print words[6]}')
         if [ -z "$old_versions" ]; then
           echo "There is no old version to uninstall"
           exit 0
