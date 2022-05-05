@@ -246,10 +246,39 @@ actions:
             \( -name "healthcheck-cluster*" -o -name "jexperience-*" \) \
             -print -delete
 
+    - getPatTokenAndKey
     - cmd [proc]: |-
         ## [${globals.logAction}] - 5/5
+
+        # Replace Pat Token if needed and start tomcat
+
+        jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
+        if [ $jahia_major_version -eq 7 ]; then
+          jahia_7_parameter=", null"
+        else
+          jahia_7_parameter=""
+        fi
+
+        echo """
+          org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
+            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
+            def tokenExists = service.verifyToken(\"${globals.__secret__pat_token}\", session)
+            if (! tokenExists) {
+               def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session)
+               service.deleteToken(tokenDetails.key, session)
+               service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
+                      .setToken(\"${globals.__secret__pat_token}\")
+                      .setActive(true)
+                      .create()
+                  session.save();
+            }
+          })
+        """ > /data/digital-factory-data/patches/groovy/pat.groovy
+
         sudo service tomcat start
+
     - startupJahiaHealthCheck: proc
+    - cmd[proc]: rm -f /data/digital-factory-data/patches/groovy/pat.groovy.installed
 
     - cmd [cp]:
         - sudo service tomcat start
