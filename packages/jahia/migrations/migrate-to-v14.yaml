@@ -79,7 +79,7 @@ actions:
 
     - isVersionHigherOrEqual:
         a: ${globals.jahiaVersion}
-        b: 8.1.0.0
+        b: 8.0.0.0
         res: jahia8
 
     - if (${globals.jahia8}):
