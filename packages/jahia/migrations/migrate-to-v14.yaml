@@ -248,8 +248,8 @@ actions:
     # currentVersion: the module version to keep
     # moduleName: the module version to uninstall
     - cmd[proc]: |-
-        # Split needs to be done on "|" for Jahia 7, and "│" for Jahia 8...
-        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");split($0,words,"|");print words[6]}')
+        # Split on karaf console output needs to be done on "|" for Jahia 7, and "│" for Jahia 8, thus the ugly regex...
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,/│|\|/);print words[6]}')
         if [ -z "$old_versions" ]; then
           echo "There is no old version to uninstall"
           exit 0
@@ -262,7 +262,7 @@ actions:
         sleep 10
 
         # Check that there is no more old module
-        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");split($0,words,"|");print words[6]}')
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,/│|\|/);print words[6]}')
         if [ ! -z "$old_versions" ]; then
           echo "There are still old versions installed"
           exit 1
