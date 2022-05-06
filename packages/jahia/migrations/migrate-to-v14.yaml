@@ -248,7 +248,8 @@ actions:
     # currentVersion: the module version to keep
     # moduleName: the module version to uninstall
     - cmd[proc]: |-
-        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");print words[6]}')
+        # Split needs to be done on "|" for Jahia 7, and "│" for Jahia 8...
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");split($0,words,"|");print words[6]}')
         if [ -z "$old_versions" ]; then
           echo "There is no old version to uninstall"
           exit 0
@@ -260,8 +261,8 @@ actions:
         done <<< $old_versions
         sleep 10
 
-        # Check that there is no more old modules
-        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"|");print words[6]}')
+        # Check that there is no more old module
+        old_versions=$(${globals.karafConsole} cluster:bundle-list -s default | grep "${this.moduleName}" | grep -v "${this.currentVersion}" | awk '{gsub(" ","");split($0,words,"│");split($0,words,"|");print words[6]}')
         if [ ! -z "$old_versions" ]; then
           echo "There are still old versions installed"
           exit 1
@@ -317,14 +318,15 @@ actions:
 
   saveModulesState:
     - cmd[cp,proc]: |-
-        # Don't know why but running this command in one line (like the next cmd block) failed half of the time.
-        res=$(${globals.karafConsole} bundle:list)
+        # Don't know why but running this command in one line (like the next cmd block) fails half of the time.
+        # We strip multiple spaces so that spacing doesn't mess up with lists comparison.
+        res=$(${globals.karafConsole} bundle:list | tr -s ' ')
         echo "$res" > /tmp/initialModulesState
-    - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default > /tmp/initialClusterModulesState
+    - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default | tr -s ' ' > /tmp/initialClusterModulesState
 
   checkModulesState:
     - cmd[cp,proc]: |-
-        modules_state=$(${globals.karafConsole} bundle:list)
+        modules_state=$(${globals.karafConsole} bundle:list | tr -s ' ')
         initial_modules_state=$(cat /tmp/initialModulesState)
 
         modules_to_exclude=(${this})
@@ -343,7 +345,7 @@ actions:
         fi
 
     - cmd[proc]: |-
-        modules_state=$(${globals.karafConsole} cluster:bundle-list default)
+        modules_state=$(${globals.karafConsole} cluster:bundle-list default | tr -s ' ')
         initial_modules_state=$(cat /tmp/initialClusterModulesState)
 
         modules_to_exclude=(${this})
