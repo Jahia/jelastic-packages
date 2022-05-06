@@ -318,14 +318,15 @@ actions:
 
   saveModulesState:
     - cmd[cp,proc]: |-
-        # Don't know why but running this command in one line (like the next cmd block) failed half of the time.
-        res=$(${globals.karafConsole} bundle:list)
+        # Don't know why but running this command in one line (like the next cmd block) fails half of the time.
+        # We strip multiple spaces so that spacing doesn't mess up with lists comparison.
+        res=$(${globals.karafConsole} bundle:list | tr -s ' ')
         echo "$res" > /tmp/initialModulesState
-    - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default > /tmp/initialClusterModulesState
+    - cmd[proc]: ${globals.karafConsole} cluster:bundle-list default | tr -s ' ' > /tmp/initialClusterModulesState
 
   checkModulesState:
     - cmd[cp,proc]: |-
-        modules_state=$(${globals.karafConsole} bundle:list)
+        modules_state=$(${globals.karafConsole} bundle:list | tr -s ' ')
         initial_modules_state=$(cat /tmp/initialModulesState)
 
         modules_to_exclude=(${this})
@@ -344,7 +345,7 @@ actions:
         fi
 
     - cmd[proc]: |-
-        modules_state=$(${globals.karafConsole} cluster:bundle-list default)
+        modules_state=$(${globals.karafConsole} cluster:bundle-list default | tr -s ' ')
         initial_modules_state=$(cat /tmp/initialClusterModulesState)
 
         modules_to_exclude=(${this})
