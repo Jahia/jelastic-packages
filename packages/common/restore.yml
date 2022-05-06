@@ -273,12 +273,12 @@ actions:
                   session.save();
             }
           })
-        """ > /data/digital-factory-data/patches/groovy/pat.groovy
+        """ > /data/digital-factory-data/patches/groovy/3.2-pat.contextInitialized-processingServer.groovy
 
         sudo service tomcat start
 
     - startupJahiaHealthCheck: proc
-    - cmd[proc]: rm -f /data/digital-factory-data/patches/groovy/pat.groovy.installed
+    - cmd[proc]: rm -f /data/digital-factory-data/patches/groovy/3.2-pat.contextInitialized-processingServer.groovy.installed
 
     - cmd [cp]:
         - sudo service tomcat start
