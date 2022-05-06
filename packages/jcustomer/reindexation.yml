@@ -1,0 +1,253 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Reindexation of ElasticSearch indices
+id: jcustomer-reindexation-of-elasticsearch-indices
+description:
+  short: jCustomer - Reindexation of ElasticSearch indices
+
+globals:
+  log_file: /var/log/jelastic-packages/reindexation.log
+  indices_ok_list: /tmp/indices_ok_list
+  indices_nok_list: /tmp/indices_nok_list
+  shards_target: ${settings.shards_target}
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - if(settings.shards_target == 0):
+      - getConfiguredShards
+  - isReindexNeeded
+  - if(${response.out}):
+      - manageFRO:
+          enable: true
+      - muteDatadogHost:
+          target: "cp"
+      - reindex
+      - controlDaemon:
+          target: cp
+          command: restart
+          daemon: karaf
+      - checkJcustomerHealthWhenStarting: cp
+      - manageFRO:
+          enable: false
+      - unmuteDatadogHost:
+          target: "cp"
+  - else:
+      return:
+        type: success
+        message: "Indices match the shards count target (${globals.shards_target})"
+
+
+actions:
+  getConfiguredShards:
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file="${globals.log_file}"
+        log(){
+          echo "$(date --iso-8601=seconds) $1" >> $output_file
+        }
+        if [[ ${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS} =~ ^[0-9]+$  ]]; then
+          shard_count=${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS}
+        else  # in the unlikely case the envvar isn't here or wrong: fallback with envmode value
+          if [ "$envmode" == "production" ]; then
+            shard_count=2
+          else
+            shard_count=1
+            log "${env.envName} envmode is \"${envmode}\", indices should have $shard_count shard$([[ $shard_count > 1 ]] && echo s)"
+          fi
+        fi
+        log "UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS is \"${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS}\", shard count target will be the same)"
+        echo $shard_count
+    - setGlobals:
+        shards_target: ${response.out}
+
+
+  controlDaemon:
+    # parameter:
+    #   - target: cp/es
+    #   - command: stop/start
+    #   - daemon: unit name
+    - cmd[${this.target}]: |-
+        systemctl ${this.command} ${this.daemon}
+      user: root
+
+  manageFRO:
+    # parameters:
+    #   - enable: boolean
+    - script: |-
+        envsLinked = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                          return object.name == "cp";}).pop().envLink
+        if (! envsLinked) {
+          return {"result": 0, "envs": []}
+        }
+        return {"result": 0, "envs": envsLinked.split(",")}
+    - forEach(response.envs):
+        - getEnvStatus:
+            envName: ${@i}
+        - if(${response.out} == 1):  # only if linked jahia is started
+            - script: |-
+                return api.marketplace.jps.Install(
+                  {
+                    jps: "${baseUrl}/../jahia/jahia-full-read-only.yml",
+                    envName: "${@i}",
+                    settings: {
+                      "enableFRO": Boolean(${this.enable})
+                    }
+                  }
+                );
+
+  isReindexNeeded:
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file="${globals.log_file}"
+        indices_ok_list=${globals.indices_ok_list}
+        indices_nok_list=${globals.indices_nok_list}
+        to_reindex="false"
+        log(){
+          echo "$(date --iso-8601=seconds) $1" >> $output_file
+        }
+        ec_auth="${UNOMI_ELASTICSEARCH_USERNAME}:${UNOMI_ELASTICSEARCH_PASSWORD}"
+        for f in $indices_ok_list $indices_nok_list; do
+          [ -f $f ] && rm $f > /dev/null 2>&1
+        done
+
+        while read line; do
+          index=$(echo "$line" | awk '{print $1}')
+          pri=$(echo "$line" | awk '{print $2}')
+          if [[ $pri == ${globals.shards_target} ]]; then
+            echo "$line" >> $indices_ok_list
+          else
+            echo "$line" >> $indices_nok_list
+          fi
+        done < <(curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index,pri" | grep -v "geonameentry")
+
+        if [ -f $indices_ok_list ]; then
+          if [[ $(wc -l $indices_ok_list) > 1 ]]; then
+            msg="These indices match the target shard count (${globals.shards_target}):"
+          else
+            msg="This index match the target shard count (${globals.shards_target}):"
+          fi
+          log "$msg"
+          sed 's/^/\t/' $indices_ok_list >> $output_file
+        fi
+
+        if [ -f $indices_nok_list ]; then
+          if [[ $(wc -l $indices_nok_list) > 1 ]]; then
+            msg="These indices don't match the target shard count (${globals.shards_target}):"
+          else
+            msg="This index don't match the target shard count (${globals.shards_target}):"
+          fi
+          log "$msg"
+          sed 's/^/\t/' $indices_nok_list  >> $output_file
+          to_reindex="true"
+        fi
+        echo $to_reindex
+
+  reindex:
+    - cmd[${nodes.cp.first.id}]: |-
+        output_file="${globals.log_file}"
+        indices_nok_list=${globals.indices_nok_list}
+        ec_auth="${UNOMI_ELASTICSEARCH_USERNAME}:${UNOMI_ELASTICSEARCH_PASSWORD}"
+        indices=$(awk '{print $1}' $indices_nok_list)
+        log(){
+          echo "$(date --iso-8601=seconds) [$1] $2" >> $output_file
+        }
+
+        for index in $indices; do
+          # remove replicas on indices in order to save memory,
+          # put them in read only (to allow clone),
+          # clone them,
+          # get mappings,
+          # and delete them
+          log "${index}" "decrease replica to 0..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 0}}'
+          log "${index}" "enable read-only..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"settings" :{"index.blocks.write": true}}'
+          log "${index}" "clone to ${index}_clone..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_clone/${index}_clone \
+               -XPOST
+          log "${index}" "get original index mappings..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_mappings \
+               | jq '.[]' > /tmp/${index}_mappings.json
+          log "${index}" "delete..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+               -XDELETE
+        done
+
+        # indices settings are the same, so we will use this file as settings when create indices
+        cat > /tmp/settings.json <<- EOF
+        {
+          "settings": {
+            "index": {
+              "number_of_shards": ${globals.shards_target},
+              "number_of_replicas": 0
+            },
+            "analysis": {
+              "analyzer": {
+                "folding": {
+                  "filter": [
+                    "lowercase",
+                    "asciifolding"
+                  ],
+                  "type": "custom",
+                  "tokenizer": "keyword"
+                }
+              }
+            }
+          }
+        }
+        EOF
+
+        for index in $indices; do
+          # merge index settings and mapping in order to create the index creation payload
+          jq -s '.[0] * .[1]' /tmp/settings.json /tmp/${index}_mappings.json > /tmp/${index}_creation_payload.json
+
+          # create new indices without replicas (for faster reindex)
+          # with "folding" analyser and mapping
+          log "${index}" "create new index with correct settings and mappings..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+               -XPUT -d @/tmp/${index}_creation_payload.json
+
+          # reindex the _clone index to the final one
+          log "${index}" "reindex ${index}_clone to new ${index}..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex \
+               -XPOST -d '{"source":{"index": "'${index}_clone'"}, "dest":{"index": "'${index}'"}}'
+          log "${index}" "delete ${index}_clone..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}_clone \
+               -XDELETE
+          log "${index}" "increase replica to 1..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+               -XPUT -d '{"index":{"number_of_replicas": 1}}'
+        done
+
+settings:
+  fields:
+    - name: shards_target
+      type: spinner
+      caption: How many shards for indices
+      min: 0
+      max: 5
+      increment: 1
+      editable: true
+      tooltip: '"0" means goes to UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS value if exist, otherwise to envmode related value: "1" if dev env, "2" if production env'
