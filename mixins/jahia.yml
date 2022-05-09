@@ -959,7 +959,7 @@ actions:
     # jahia_version: the jahia version
     - cmd[proc]: |-
         __secret__pat_token=${this.__secret__pat_token}
-        groovy_file_path=/data/digital-factory-data/patches/groovy/3.2-pat.contextInitialized-processingServer.groovy
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
 
         jahia_major_version=$(echo "${this.jahia_version}" | cut -d'.' -f1)
         if [ $jahia_major_version -eq 7 ]; then
@@ -1011,7 +1011,7 @@ actions:
 
   checkPatGroovyScriptExecution:
     - cmd[proc]: |-
-        groovy_file_path=/data/digital-factory-data/patches/groovy/3.2-pat.contextInitialized-processingServer.groovy
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
         jahia_running_timeout=360 # 6 minutes
         sleep_interval=5
 
@@ -1027,7 +1027,7 @@ actions:
         rm -f $groovy_file_path.installed
 
         if [ -f $groovy_file_path.failed ]; then
-            echo "[ERROR] 3.2-pat.contextInitialized-processingServer.groovy execution failed"
+            echo "[ERROR] pat.groovy execution failed"
             exit 1
         fi
 
