@@ -289,8 +289,7 @@ onInstall:
   - setCloudConf
   - install:
       jps: "${baseUrl}/update-events.yml"
-  - checkPatGroovyScriptExecution
-  - startupJahiaHealthCheck: cp, proc
+  - startupJahiaHealthCheck: cp
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId
