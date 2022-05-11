@@ -150,10 +150,6 @@ actions:
         curl -fLSso /etc/logrotate.d/haproxy ${globals.repoRootUrl}/assets/haproxy/logrotate_haproxy || exit 1
         chmod 644 /etc/logrotate.d/haproxy
         chown root:dd-agent /var/log/haproxy/* && chmod 640 /var/log/haproxy/*
-
-        # Temporarily disable IO check (cf. PAAS-1543)
-        mv /etc/datadog-agent/conf.d/io.d/conf.yaml.default /etc/datadog-agent/conf.d/io.d/conf.yaml.default.disabled
-
         systemctl restart rsyslog crond datadog-agent
       user: root
     - if ("${response.errOut}" != ""):
