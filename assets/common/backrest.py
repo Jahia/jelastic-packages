@@ -262,7 +262,7 @@ if __name__ == '__main__':
 
     def getuid():
         try:
-            uid = re.sub(r'^jc(dev|prod)(?P<uid>[0-9]+).*$',
+            uid = re.sub(r'^jc(dev|preprod|prod)(?P<uid>[0-9]+).*$',
                          r'\g<uid>',
                          args.bucketname)
         except:
