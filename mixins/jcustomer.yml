@@ -89,10 +89,6 @@ actions:
           mkdir /etc/datadog-agent/conf.d/jelastic.d
           chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
           curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
-
-          # Temporarily disable IO check (cf. PAAS-1543)
-          mv /etc/datadog-agent/conf.d/io.d/conf.yaml.default /etc/datadog-agent/conf.d/io.d/conf.yaml.default.disabled
-
           systemctl restart datadog-agent
 
   updateHazelcast:

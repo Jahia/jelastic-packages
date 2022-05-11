@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 12
+  jcustomer_env_version: 13
   unomi_version: ${settings.productVersion}
   elasticsearch_password: ${fn.password(20)}
   workato_ips:

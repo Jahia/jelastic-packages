@@ -14,7 +14,7 @@ description:
 success: ../../assets/jahia/success_install.md
 
 globals:
-  jahia_env_version: 14
+  jahia_env_version: 15
   db_user: jahia-db-${fn.random}
   db_pass: ${fn.password(20)}
   db_user_datadog: ${fn.password(20)}
