@@ -34,6 +34,10 @@ onInstall:
   ### End Post-actions
 
 actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
   enableIoCheck:
     - cmd[cp]: |-
         io_conf_path=/etc/datadog-agent/conf.d/io.d/conf.yaml.default
