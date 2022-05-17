@@ -32,9 +32,11 @@ onInstall:
 
   # Actions that require a restart:
   - enableIoCheck                                         # PAAS-1543
+  - addAPMOptsForFormsIssue                               # PAAS-2044
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
+  - jahiaRollingRestart                                   # needed for PAAS-2044
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -78,3 +80,18 @@ actions:
           systemctl restart datadog-agent
         fi
       user: root
+
+  addAPMOptsForFormsIssue:
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+    - if ("${response.object.DATADOG_APM_ENABLED}" == "true"):
+        cmd[cp, proc]: |-
+          tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+          if ! (grep -q '\-Ddd.trace.classes.exclude=*' $tomcat_env); then
+            new_apm_opts='APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=test-ac-achowdhury.dev.j.jahia.com -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.*"'
+            sed -i "/^APM_OPTS=.*/c $new_apm_opts" $tomcat_env
+          fi
+
+  jahiaRollingRestart:
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
