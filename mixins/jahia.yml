@@ -384,6 +384,13 @@ actions:
     - cmd[${this.group}]: |-
           ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only ${this.fullreadmode}
 
+  switchReadonly:
+    - log: "switch read-only mode to ${this.readmode} on nodegroup ${this.group}"
+    - cmd[${this.group}]: |-
+        # Don't know why but running this command in one line fails half of the time so the output is captured and displayed so we have two lines.
+        res=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR read-only ${this.readmode})
+        echo $res
+
   enableKarafLogin:
     - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
       script: |-
@@ -459,6 +466,20 @@ actions:
             return {"result": 0, "isEnable": isEnable}
         - setGlobals:
             isKarafLoginEnabled: ${response.isEnable}
+
+  enableReadOnlyOnCluster:
+    - enableKarafLogin: "proc, cp"
+    - switchReadonly:
+        group: "proc, cp"
+        readmode: "ON"
+    - disableKarafLogin: "proc, cp"
+
+  disableReadOnlyOnCluster:
+    - enableKarafLogin: "proc, cp"
+    - switchReadonly:
+        group: "proc, cp"
+        readmode: "OFF"
+    - disableKarafLogin: "proc, cp"
 
   enableFullReadOnlyOnCluster:
     - getJahiaVersion
