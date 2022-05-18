@@ -122,7 +122,7 @@ actions:
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        grep -E "^(jahia|tomcat)_cfg_" /.jelenv > jahia-env-vars 2>>${globals.logsPath} || exit 1
+        grep -E "^(jahia|tomcat)_cfg_" /.jelenv | grep -v "jahia_cfg_mvnPath" > jahia-env-vars 2>>${globals.logsPath} || exit 1
         gzip jahia-env-vars 2>>${globals.logsPath} || exit 1
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f jahia-env-vars.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
         rm -f jahia-env-vars.gz

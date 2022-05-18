@@ -33,6 +33,7 @@ onInstall:
   # Actions that require a restart:
   - enableIoCheck                                         # PAAS-1543
   - addAPMOptsForFormsIssue                               # PAAS-2044
+  - updateMavenPathEnvVar                                 # PAAS-2038
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
@@ -98,3 +99,13 @@ actions:
   jahiaRollingRestart:
     - install:
         jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  updateMavenPathEnvVar:
+    - getMavenPath
+    - api: env.control.GetContainerEnvVars
+      nodeId: ${nodes.proc.first.id}
+    - if ("${response.object.jahia_cfg_mvnPath}" != "${globals.jahia_cfg_mvnPath}"):
+        - env.control.AddContainerEnvVars [cp, proc]:
+          vars:
+            jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
+        - jahiaRollingRestart
