@@ -632,11 +632,16 @@ actions:
             - return:
                 type: error
                 message: "An error occurred while restoring jcustomer environment variables. ${response.errOut}"
+        - checkIfReindexationIsNeeded
         - api: env.control.RestartNodes
           envName: ${env.envName}
           nodeGroup: cp
     - else:
         log: "No env var backup available"
+
+  checkIfReindexationIsNeeded:
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/reindexation.yml"
 
   removeModule:
   # parameters:
