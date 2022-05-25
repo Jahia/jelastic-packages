@@ -34,6 +34,7 @@ onInstall:
   - enableIoCheck                                         # PAAS-1543
   - addAPMOptsForFormsIssue                               # PAAS-2044
   - updateMavenPathEnvVar                                 # PAAS-2038
+  - haproxyCheckConformRFC                                # COPS-571
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
@@ -109,3 +110,18 @@ actions:
           vars:
             jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
         - jahiaRollingRestart
+
+  haproxyCheckConformRFC:
+    - cmd[bl]: |-
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        hash=$(grep -E "\s+option httpchk GET" $HAPROXY_CONF_DIR/jahia-cloud.cfg | md5sum | awk '{print $1}')
+        if [[ "$hash" == "15b46715eca4f35b86c62579986789fa" ]]; then
+          echo "up to date"
+        else
+          # fetches the new haproxy configuration conforming to RFC 7320 (aka "always use CRLF")
+          stats_pwd=$(awk '$1=="password:" {print $2}' /etc/datadog-agent/conf.d/haproxy.d/conf.yaml)
+          curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+          sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        fi
+    - if("${response.out}" == ""):
+        - resetHaproxyBackends
