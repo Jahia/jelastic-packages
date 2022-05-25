@@ -1,0 +1,37 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Remove Elasticsearch nodes
+id: paas-2052-remove-es-nodes
+
+# Package based on suggestion from Jelastic in https://jelastic.zendesk.com/hc/en-us/requests/43394
+onInstall:
+  - script: |
+      let resp = api.env.control.GetEnvInfo('${env.envName}', session);
+      let masterNode = [];
+      let secondaryNodes = [];
+
+      for (let node of resp.nodes) {
+        if (node.nodeGroup == "es") {
+          if (node.ismaster) {
+            masterNode.push({ envName: '${env.envName}', nodeId: node.id });
+          } else {
+            secondaryNodes.push({ envName: '${env.envName}', nodeId: node.id });
+          }
+        }
+      }
+
+      let actions = [];
+
+      if (secondaryNodes.length > 0) {
+        actions.push({ 'env.control.RemoveNode': secondaryNodes });
+      }
+
+      if (masterNode.length > 0) {
+        actions.push({ 'env.control.RemoveNode': masterNode });
+      }
+
+      return {
+        result: 0,
+        onAfterReturn: actions
+      };
