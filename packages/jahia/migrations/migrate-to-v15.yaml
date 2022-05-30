@@ -30,6 +30,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - deleteDuplicateTomcatEnvLines                         # PAAS-1973
+
   # Actions that require a restart:
   - enableIoCheck                                         # PAAS-1543
   - addAPMOptsForFormsIssue                               # PAAS-2044
@@ -109,3 +111,23 @@ actions:
           vars:
             jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
         - jahiaRollingRestart
+
+  deleteDuplicateTomcatEnvLines:
+    cmd[cp, proc]: |-
+      tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+      echo "JMX_OPTS
+      jahia_cfg_cluster_tcp_bindAddress
+      APM_OPTS
+      \$DATADOG_APM_ENABLED" > /tmp/lines_to_check
+      tac ${tomcat_env} > /tmp/reverse_tomcat-env.sh
+      while read line; do
+        sed -i "0,/^$line/b;/^$line/d" /tmp/reverse_tomcat-env.sh
+      done < /tmp/lines_to_check
+      tac /tmp/reverse_tomcat-env.sh > /tmp/deduped_tomcat-env.sh
+      if [ "$(md5sum < ${tomcat_env})" = "$(md5sum < /tmp/deduped_tomcat-env.sh)" ]; then
+        rm -rf /tmp/lines_to_check /tmp/reverse_tomcat-env.sh /tmp/deduped_tomcat-env.sh
+        echo "[INFO] No duplicate lines found in tomcat-env.sh"
+        exit 0
+      fi
+      mv /tmp/deduped_tomcat-env.sh ${tomcat_env}
+      rm -rf /tmp/lines_to_check /tmp/reverse_tomcat-env.sh
