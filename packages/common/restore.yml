@@ -569,6 +569,15 @@ actions:
         mysql -e "set password for 'datadog'@'localhost' = PASSWORD('${DB_USER_DATADOG}')"
         mysql -e "flush privileges"
 
+        # Now recreate trigger(s)
+        # dump trigger(s):
+        mysqldump --no-data --no-create-info --skip-routines --triggers --add-drop-trigger --compact jahia > /tmp/triggers_dump.sql
+        # change DEFINER(s) if matching /^jahia-db-[0-9]+$/
+        sed -i -r "s|(DEFINER=\`)jahia-db-[0-9]+|\1$DB_USER|" /tmp/triggers_dump.sql
+        # let's import this
+        mysql jahia < /tmp/triggers_dump.sql
+        rm /tmp/triggers_dump.sql
+
   dbLegacyRestore:
     - log: "## TEMPORARY FIX FOR RESTORATION: GRANT ALL ON *.* TO JAHIA'S DB USER"
     # Starting with mariadb 10.4, jahia's db user is no longer root on database
