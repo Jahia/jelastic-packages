@@ -36,6 +36,7 @@ onInstall:
   - enableIoCheck                                         # PAAS-1543
   - addAPMOptsForFormsIssue                               # PAAS-2044
   - updateMavenPathEnvVar                                 # PAAS-2038
+  - haproxyCheckConformRFC                                # PAAS-2070
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
@@ -131,3 +132,17 @@ actions:
       fi
       mv /tmp/deduped_tomcat-env.sh ${tomcat_env}
       rm -rf /tmp/lines_to_check /tmp/reverse_tomcat-env.sh
+
+  haproxyCheckConformRFC:
+    - cmd[bl]: |-
+        conf_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        hash=$(md5sum $conf_file | awk '{print $1}')
+        sed -i -r '/^\s+option httpchk/s,([^\\][^r])\\n,\1\\r\\n,g' $conf_file
+        new_hash=$(md5sum $conf_file | awk '{print $1}')
+
+        if [[ "$hash" == "$new_hash" ]]; then
+          echo "jahia-cloud.cfg is up to date"
+        else
+          service haproxy reload
+        fi
+      user: root
