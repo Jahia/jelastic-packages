@@ -957,6 +957,9 @@ actions:
         __secret__pat_token=${this.__secret__pat_token}
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
 
+        # Clean up any possible remainder of previous script execution
+        rm -f ${groovy_file_path}*
+
         jahia_major_version=$(echo "${this.jahia_version}" | cut -d'.' -f1)
         if [ $jahia_major_version -eq 7 ]; then
           jahia_7_parameter=", null"
