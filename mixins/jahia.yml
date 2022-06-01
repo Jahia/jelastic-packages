@@ -860,13 +860,16 @@ actions:
 
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-
+        mysql jahia -Nse "SELECT revision_id FROM JR_J_LOCAL_REVISIONS WHERE journal_id LIKE 'processing.%'"
         mysql jahia -e "TRUNCATE JR_J_LOCAL_REVISIONS"
-        mysql jahia -Nse "select * from JR_J_GLOBAL_REVISION"
 
     - cmd [cp, proc]: |-
         node_name=$(awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties)
         current_revision=${response.out}
         mysql -E -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033 -e "INSERT INTO JR_J_LOCAL_REVISIONS values ('$node_name',$current_revision)"
+    - cleanJRJJournalTable:
+        batchSize: 100000
+
 
   cleanJRJJournalTable:
     # Parameters:
