@@ -14,6 +14,7 @@ mixins:
 
 globals:
   version: 15
+  jahiaRollingRestartNeeded: false
 
 onInstall:
   ### Pre-checks
@@ -40,6 +41,9 @@ onInstall:
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -97,11 +101,8 @@ actions:
           new_apm_opts='APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.*"'
           sed -i "/^APM_OPTS=.*/c $new_apm_opts" $tomcat_env
     - if ("${response.out}" == ""):
-        - jahiaRollingRestart
-
-  jahiaRollingRestart:
-    - install:
-        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
 
   updateMavenPathEnvVar:
     - getMavenPath
@@ -111,7 +112,8 @@ actions:
         - env.control.AddContainerEnvVars [cp, proc]:
           vars:
             jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
-        - jahiaRollingRestart
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
 
   deleteDuplicateTomcatEnvLines:
     cmd[cp, proc]: |-
