@@ -546,18 +546,25 @@ actions:
           exit 1
         fi
         sleep 5
-        return_code=$(curl -sS -o $output_file -w '%{http_code}' \
-          -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
-          -d'{
-            "type": "azure",
-            "settings": {
-                "container": "'${this.backupName}'",
-                "base_path": "elasticsearch",
-                "client": "'${this.repositoryName}'"
-            }
-          }')
+        # Proceed only when the repository is ok or if it exceeds the 10 min window
+        for (( i=1; i<=60; i++ )); do
+          return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -u $ec_admin_credentials \
+            -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
+            -d'{
+              "type": "azure",
+              "settings": {
+                  "container": "'${this.backupName}'",
+                  "base_path": "elasticsearch",
+                  "client": "'${this.repositoryName}'"
+              }
+            }')
+          if [ $return_code -eq 200 ]; then
+            break
+          fi
+          sleep 5
+        done
         exit=0
         if [ $return_code -ne 200 ]; then
           cat $output_file | tee -a ${this.logsPath}
