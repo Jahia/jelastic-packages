@@ -251,6 +251,10 @@ actions:
     - getPatTokenAndKey
     - cmd [proc]: |-
         ## [${globals.logAction}] - 5/5
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
+
+        # Clean up any possible remainder of previous script execution
+        rm -f ${groovy_file_path}*
 
         # Replace Pat Token if needed and start tomcat
 
@@ -275,7 +279,7 @@ actions:
                   session.save();
             }
           })
-        """ > /data/digital-factory-data/patches/groovy/pat.groovy
+        """ > ${groovy_file_path}
 
         sudo service tomcat start
 
