@@ -181,9 +181,9 @@ actions:
     - else:
         - set:
             ds_version: 3.1.0
-    - upgradeJahiaModule:
-        module: Distributed Sessions
-        version: ${this.ds_version}
+    - upgradeModule:
+        module_symname: distributed-sessions
+        module_version: ${this.ds_version}
 
 settings:
   fields:

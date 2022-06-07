@@ -244,10 +244,12 @@ actions:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
     - cleanJRLocalRevisionsTable
-    - cmd [proc,cp]: |-
-          find /data/digital-factory-data/modules \
-            \( -name "healthcheck-cluster*" -o -name "jexperience-*" \) \
-            -print -delete
+    - uninstallModule:
+        target: proc,cp
+        module_symname: healthcheck-cluster
+    - uninstallModule:
+        target: proc,cp
+        module_symname: jexperience
 
     - getPatTokenAndKey
     - cmd [proc]: |-
@@ -317,28 +319,17 @@ actions:
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
         - log: "Install jExperience v${globals.jexperience_active_version}"
-        - upgradeJahiaModule:
-            module: jExperience
-            version: ${globals.jexperience_active_version}
+        - upgradeModule:
+            module_symname: jexperience
+            module_version: ${globals.jexperience_active_version}
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
     - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
-        - enableKarafLogin: cp, proc
-        - setGlobals:
-            awkFS: "-F ' ?*\t ?'"
-            awkIC: "-v IGNORECASE=1"
-        - log: "Remove module jExperience from processing node"
-        - removeModule:
-            target: proc
-            module: jExperience
-        - log: "Remove module jExperience from (each) browsing node(s)"
-        - forEach (nodes.cp):
-            removeModule:
-              target: ${@i.id}
-              module: jExperience
-        - disableKarafLogin: cp, proc
+        - log: "Remove module jExperience"
+        - uninstallModule:
+            module: jexperience
 
   envSource:
     - script: |
@@ -658,39 +649,6 @@ actions:
   checkIfReindexationIsNeeded:
     - install:
         jps: "${globals.repoRootUrl}/packages/jcustomer/reindexation.yml"
-
-  removeModule:
-  # parameters:
-  # module: the module to remove
-  # target: where to remove
-    - cmd[${this.target}]: |-
-        i=1
-        imax=66
-        id_to_rm="blablabla"
-        while [ -n "$id_to_rm" ] || [ $i -gt $imax ]; do
-          id_to_rm="$( \
-              ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
-              'NF==5 && $1>0 && $NF~/^${this.module}$/ \
-              {printf "%s ",$1}')"
-          if [ -n "$id_to_rm" ]; then
-            ${globals.karafConsole} bundle:uninstall $id_to_rm 2> /dev/null
-          else
-            if [ $i -gt 1 ]; then
-              echo "removed"
-            else
-              echo "no other"
-            fi
-            exit 0
-          fi
-          ((i++))
-        done
-        echo "still previous"
-    - if ("${response.out}" == "removed"):
-        log: Other ${this.module} module version now deleted on ${this}
-    - elif ("${response.out}" == "no other"):
-        log: No other ${this.module} module version on ${this}
-    - elif ("${response.out}" == "still previous"):
-        log: Other ${this.module} module version still present on ${this}
 
 ########################################### LEGACY ACTIONS ###########################################
 ############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################

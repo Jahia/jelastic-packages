@@ -262,9 +262,7 @@ actions:
           target: ${this}
     - else:
         set:
-          target: ${this.target}
     - getPatTokenAndKey
-    - log: "## Health check on Jahia startup, target: ${this.target}"
     - cmd [${this.target}]: |-
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
@@ -344,11 +342,11 @@ actions:
         target: ${this}
         checkName: strongswan_connections_status
 
-  deleteEnvLink:
-  # Parameters:
-  #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
-  # Returns:
-  #   - ${response.link_removed}: true or false (true if Jahia env is removed from envLink of Jcustomer)
+  deleteEnvLinkJahia:
+    # Parameters:
+    #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
+    # Returns:
+    #   - ${response.link_removed}: true or false (true if Jahia env is removed from envLink of Jcustomer)
     - script: |-
         const envName = "${env.envName}";
         const jCustomerEnv = "${this.jCustomerEnv}";
@@ -520,114 +518,356 @@ actions:
         jahiaVersion: ${response.jahia_version}
     - log: "Jahia is v${globals.jahiaVersion}"
 
-  upgradeJahiaModule:
-    # expect the parameter version to be defined
-    - if ("${this.module}" == "" || "${this.version}" == ""):
-        return:
-          type: error
-          message: upgradeJahiaModule have to be called with module and version settings
-    - setGlobals:
-        moduleName: "${this.module}"
-        moduleVersion: "${this.version}"
-        awkFS: "-F ' ?*\t ?'"
-        awkIC: "-v IGNORECASE=1"
+  upgradeModule:
+    # Installs the specified version of a module and deletes all the previous versions if installed.
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to install
+    - checkIfModuleIsInstalled:
+        module_symname: ${this.module_symname}
+        module_version: ${this.module_version}
+    - if (!${globals.moduleInstalled}):
+        - installModule:
+            module_symname: ${this.module_symname}
+            module_version: ${this.module_version}
+            start_module: true
+    - else:
+        - isVersionHigherOrEqual:
+            a: "${this.module_version}"
+            b: "${globals.mostRecentInstalledVersion}"
+            res: needsInstall
+        - if (${globals.needsInstall}):
+            - installModule:
+                module_symname: ${this.module_symname}
+                module_version: ${this.module_version}
+                start_module: true
+    - checkIfModuleVersionIsInstalled:
+        module_symname: ${this.module_symname}
+        module_version: ${this.module_version}
+    - checkIfModuleVersionIsStarted:
+        module_symname: ${this.module_symname}
+        module_version: ${this.module_version}
+    - if (!${globals.moduleStarted}):
+        - startModule:
+            module_symname: ${this.module_symname}
+            module_version: ${this.module_version}
+    - uninstallOldVersionsOfModule:
+        module_symname: ${this.module_symname}
+        module_version: ${this.module_version}
 
-    - performModuleUpgradeOnNode: proc
-    - foreach (nodes.cp):
-        - performModuleUpgradeOnNode: ${@i.id}
+  checkIfModuleIsInstalled:
+    # Checks if a module is installed (at least one version) and returns true if it is (false otherwise).
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    # Returns:
+    #   - globals.moduleInstalled: true if the module is installed, false otherwise
+    #   - globals.mostRecentInstalledVersion: if globals.moduleInstalled is true, then globals.mostRecentInstalledVersion
+    #       is the most recent version installed
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - cmd [proc]: |-
+        resp=$(${this.curl} "localhost/modules/api/bundles/${this.module_symname}/*/_localInfo")
+        case "$(jq -r ". | length" <<< $resp)" in
+          "0") # Means the module is not installed
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *)
+            jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | head -1
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module verification."
+    - elif ("${response.out}" == ""):
+        - log: Module ${this.module_symname} v${this.module_version} is not installed
+        - setGlobals:
+            moduleInstalled: false
+    - else:
+        - log: Module ${this.module_symname} v${this.module_version} is installed
+        - setGlobals:
+            moduleInstalled: true
+            mostRecentInstalledVersion: ${response.out}
 
-  performModuleUpgradeOnNode:
-    - enableKarafLogin: ${this}
-    - installModuleIfNotPresent: ${this}
-    - removeOldModuleVersions: ${this}
-    - disableKarafLogin: ${this}
+  checkIfModuleVersionIsInstalled:
+    # Checks if the specific version of a module is installed and returns true if it is (false otherwise).
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to check
+    # Returns:
+    #   - globals.moduleInstalled: true if the module is installed, false otherwise
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - cmd [proc]: |-
+        resp=$(${this.curl} "localhost/modules/api/bundles/${this.module_symname}/${this.module_version}/_localInfo")
+        case "$(jq -r .moduleState <<< $resp)" in
+          INSTALLED|STARTED|RESOLVED|STARTING|STOPPING|ACTIVE) # If the module is not installed, the value would be "UNINSTALLED" or "null" if 404 is returned
+            echo "Module installed"
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module verification."
+    - elif ("${response.out}" == ""):
+        - log: Module ${this.module_symname} v${this.module_version} is not installed
+        - setGlobals:
+            moduleInstalled: false
+    - else:
+        - log: Module ${this.module_symname} v${this.module_version} is installed
+        - setGlobals:
+            moduleInstalled: true
 
-  installModuleIfNotPresent:
+  installModule:
+    # Downloads a module jar file and installs it. The module can also be started at the same time.
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to install
+    #   - start_module (optional): if the module should be started or not, true or false. Default: false
+    #   - jar_url (optional): the URL to download the jar file. Default: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
     - set:
         modulesUrl: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
-    - cmd[${this}]: |-
-        ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
-              'NF==5 && $1>0 && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
-               {print $1}'
-    - if ("${response.out}" == ""):
-        - log: Installing new ${globals.moduleName} v${globals.moduleVersion} on ${this}
-        - cmd[${this}]: |-
-            dashed_name=$(echo "${globals.moduleName}" | awk '{gsub("[[:blank:]]+", "-", $0); print tolower($0)}')
-            url="${this.modulesUrl}/${dashed_name}/${globals.moduleVersion}/${dashed_name}-${globals.moduleVersion}.jar"
-            cd /data/digital-factory-data/modules
-            curl -fLSso ${dashed_name}-${globals.moduleVersion}.jar $url || exit 1
-            # Waiting for module to be installed
-            imax=120
-            i=1
-            until [ -n "$(${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
-                'NF==5 && $1>0 && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ {print $1}')" ]; do
-              if [ $i -gt $imax ]; then
-                echo "Module not installed after 120 tries. Aborting"
-                exit 1
-              fi
-              sleep 1
-              ((i++))
-            done
-            echo "module installed"
-        - if ("${response.out}" == "module installed"):
-            log: Module ${globals.moduleName} v${globals.moduleVersion} installed on ${this}
-    - else:
-        log: Module ${globals.moduleName} v${globals.moduleVersion} is already installed on ${this}
-
-    - cmd[${this}]: |-
-        # starts the module if not
-        bundle_id="$(${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
-                  'NF==5 && $1>0 && $2!="Active" && $4=="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
-                  {print $1}')"
-        if [ -n "$bundle_id" ]; then
-          imax=120
-          i=1
-          until (${globals.karafConsole} bundle:start $bundle_id 2> /dev/null); do
-            if [ $i -gt $imax ]; then
-              echo "Start module failed after 120 tries. Aborting"
-              exit 1
-            fi
-            sleep 1
-            ((i++))
-          done
-          echo "module started"
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - if ('${this.start_module.print()}' == ''):
+        set:
+          start_module: "false"
+    - if ('${this.jar_url.print()}' == ''):
+        set:
+          jar_url: ""
+    - getPatTokenAndKey
+    - log: Installing new ${this.module_symname} v${this.module_version}
+    - cmd [proc]: |-
+        if [[ "${this.jar_url}" == "" ]]; then
+          url="${this.modulesUrl}/${this.module_symname}/${this.module_version}/${this.module_symname}-${this.module_version}.jar"
         else
-          echo "module already started"
+          url=${this.jar_url}
         fi
-    - if ("${response.out}" == "module started"):
-        log: Module ${globals.moduleName} v${globals.moduleVersion} started on ${this}
-    - elif ("${response.out}" == "module already started"):
-        log: Module ${globals.moduleName} v${globals.moduleVersion} start without intervention on ${this}
+        tmp_dir=$(mktemp -d)
+        local_jar_file=$tmp_dir/${this.module_symname}-${this.module_version}.jar
+        curl -fLSso $local_jar_file $url >&2
+        if [ $? -ne 0 ]; then
+          echo "download failed"
+          rm -rf $tmp_dir
+          exit 0
+        fi
+        resp=$(${this.curl} -XPOST \
+                 --form bundle=@$local_jar_file \
+                 --form start=${this.start_module} \
+                 localhost/modules/api/bundles)
+        case "$(jq -r .bundleInfos <<< $resp)" in
+          "null") # If install failed, there is no bundleInfos attribute in the JSON response
+            echo "error"
+            jq -r .message <<< $resp >&2
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *) # Otherwise it means the module was installed, nothing to do
+            ;;
+        esac
+        rm -rf $tmp_dir
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module installation."
+    - log: Module ${this.module_symname} v${this.module_version} has been installed
 
-  removeOldModuleVersions:
-    - cmd[${this}]: |-
-        i=1
-        imax=66
-        id_to_rm="blablabla"
-        while [ -n "$id_to_rm" ] || [ $i -gt $imax ]; do
-          id_to_rm="$( \
-              ${globals.karafConsole} bundle:list --no-format 2> /dev/null | awk ${globals.awkIC} ${globals.awkFS} \
-              'NF==5 && $1>0 && $4!="${globals.moduleVersion}" && $NF~/^${globals.moduleName}$/ \
-              {printf "%s ",$1}')"
-          if [ -n "$id_to_rm" ]; then
-            ${globals.karafConsole} bundle:uninstall $id_to_rm 2> /dev/null
-          else
-            if [ $i -gt 1 ]; then
-              echo "removed"
-            else
-              echo "no other"
-            fi
-            exit 0
-          fi
-          ((i++))
-        done
-        echo "still previous"
-    - if ("${response.out}" == "removed"):
-        log: Other ${globals.moduleName} module version now deleted on ${this}
-    - elif ("${response.out}" == "no other"):
-        log: No other ${globals.moduleName} module version on ${this}
-    - elif ("${response.out}" == "still previous"):
-        log: Other ${globals.moduleName} module version still present on ${this}
+  uninstallModuleVersion:
+    # Uninstalls the specified version of a module.
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to install
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - log: Uninstalling ${this.module_symname} v${this.module_version}
+    - cmd [proc]: |-
+        resp=$(${this.curl} -XPOST -d "" \
+              "localhost/modules/api/bundles/${this.module_symname}/${this.module_version}/_uninstall")
+        case "$(jq -r .bundleInfos <<< $resp)" in
+          "null") # If uninstall failed, there is no bundleInfos attribute in the JSON response
+            echo "error"
+            jq -r .message <<< $resp >&2
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *) # Otherwise it means the module was uninstalled, nothing to do
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module uninstall."
+    - log: Version ${this.module_version} of ${this.module_symname} module uninstalled
+
+  checkIfModuleVersionIsStarted:
+    # Checks if the specified version of a module is started and returns true if it is (false otherwise).
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to install
+    # Returns:
+    #   - globals.moduleStarted: true if the module is started, false otherwise
+    - setGlobals:
+        moduleStarted: true
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - cmd [proc]: |-
+        module_info=$(${this.curl} "localhost/modules/api/bundles/${this.module_symname}/${this.module_version}/_localInfo")
+        case "$(jq -r .moduleState <<< $module_info)" in
+          STARTED)
+            echo "Module started"
+            ;;
+          ""|null|UNINSTALLED) # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *) # Otherwise it means the module is installed but not started
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module verification."
+    - if ("${response.out}" == ""):
+        - log: Module ${this.module_symname} v${this.module_version} is not started
+        - setGlobals:
+            moduleStarted: false
+    - else:
+        - log: Module ${this.module_symname} v${this.module_version} is started
+        - setGlobals:
+            moduleStarted: true
+
+  startModule:
+    # Starts the specified version of a module.
+    #
+    # Parameters:
+    #   - module_symname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - module_version: the version of the module to install
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - log: Starting ${this.module_symname} v${this.module_version}
+    - cmd [proc]: |-
+        resp=$(${this.curl} -XPOST -d "" \
+                 "localhost/modules/api/bundles/${this.module_symname}/${this.module_version}/_start")
+        case "$(jq -r .bundleInfos <<< $resp)" in
+          "null") # If install failed, there is no bundleInfos attribute in the JSON response
+            echo "error"
+            jq -r .message <<< $resp >&2
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *) # Otherwise it means the module was installed, nothing to do
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module uninstall."
+    - log: Module ${this.module_symname} v${this.module_version} has been started
+
+  uninstallOldVersionsOfModule:
+    # Uninstalls all the previous versions of a module. If only one version is installed, nothing is done.
+    # If the module is not installed, returns an error.
+    #
+    # Parameters:
+    #   - module_symname: the module to clean
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - log: Uninstalling old versions of ${this.module_symname} module
+    - cmd [proc]: |-
+        resp=$(${this.curl} "localhost/modules/api/bundles/${this.module_symname}/*/_localInfo")
+        case "$(jq -r ". | length" <<< $resp)" in
+          "0") # Means the module is not installed
+            echo "error"
+            echo "The module is not installed, please check" >&2
+            ;;
+          "1") # Only one version installed, nothing to do
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *)
+            jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | sed '1d' | tr "\n" ";" | sed 's/.$//'
+            ;;
+        esac
+    - if ("${response.out}" == ""):
+        log: Only one version of ${this.module_symname} installed, nothing to do
+    - elif ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module installation."
+    - else:
+        - log: "Versions to delete for ${this.module_symname} module: ${response.out}"
+        - script: |-
+            return {"result": 0, "versions": "${response.out}".split(";")}
+        - forEach(response.versions):
+            - uninstallModuleVersion:
+                module_symname: ${this.module_symname}
+                module_version: ${@i}
+        - log: Old versions of ${this.module_symname} module uninstalled
+
+  uninstallModule:
+    # Uninstalls all the versions of a module If the module is not installed, nothing is done.
+    #
+    # Parameters:
+    #   - module_symname: the module to clean
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - log: Uninstalling all versions of ${this.module_symname} module
+    - cmd[proc]: |-
+        resp=$(${this.curl} "localhost/modules/api/bundles/${this.module_symname}/*/_localInfo")
+        case "$(jq -r ". | length" <<< $resp)" in
+          "0") # Means the module is not installed
+            echo "not installed"
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *)
+            printf $(jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr) | tr "\n" ";"
+            ;;
+        esac
+    - if ("${response.out}" == "not installed"):
+        log: The module is not installed, nothing to do
+    - elif ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module uninstall."
+    - else:
+        - log: "Versions to delete for ${this.module_symname} module: ${response.out}"
+        - script: |-
+            return {"result": 0, "versions": "${response.out}".split(";")}
+        - forEach(response.versions):
+            - uninstallModuleVersion:
+                module_symname: ${this.module_symname}
+                module_version: ${@i}
+        - log: ${this.module_symname} module completely uninstalled
 
   ####################
   # proxysql related #
@@ -1071,7 +1311,8 @@ actions:
         if [ -f $JCUSTOMER_CONFIG_FILE ]; then
          sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' $JCUSTOMER_CONFIG_FILE
         fi
-        rm -f /data/digital-factory-data/modules/jexperience-*.jar
+    - uninstallModule:
+        module_symname: jexperience
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:

@@ -1,0 +1,41 @@
+---
+type: update
+version: 1.5.2
+id: jahia-manage-modules
+name: Jahia manage modules
+description:
+  Manage modules for a Jahia environment
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+
+onInstall:
+  - if ("${settings.action}" == "install"):
+    - upgradeModule:
+        module_symname: ${settings.moduleName}
+        module_version: ${settings.moduleVersion}
+  - elif ("${settings.action}" == "uninstall"):
+    - uninstallModule:
+        module_symname: ${settings.moduleName}
+  - else:
+      log: Action not recognized, nothing to do.
+
+settings:
+  fields:
+    - name: action
+      type: list
+      caption: Action to do
+      values:
+        install: install
+        uninstall: uninstall
+      default: install
+      required: true
+    - name: moduleName
+      type: string
+      caption: Module name
+      required: true
+    - name: moduleVersion
+      type: string
+      caption: Module version (for installation only)
+      required: false
