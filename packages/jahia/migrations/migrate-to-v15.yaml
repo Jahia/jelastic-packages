@@ -38,6 +38,7 @@ onInstall:
   - addAPMOptsForFormsIssue                               # PAAS-2044
   - updateMavenPathEnvVar                                 # PAAS-2038
   - haproxyCheckConformRFC                                # PAAS-2070
+  - updateHaproxySessionCookie                            # PAAS-1983
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
@@ -145,6 +146,19 @@ actions:
         if [[ "$hash" == "$new_hash" ]]; then
           echo "jahia-cloud.cfg is up to date"
         else
+          service haproxy reload
+        fi
+      user: root
+
+  updateHaproxySessionCookie:
+    - cmd[bl]: |-
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
+        if (grep -qw 'JSESSIONID' $HAPROXY_CONF); then
+          cookie_line1="use_backend proc if { cook(SERVERID),lower -m beg s${nodes.proc.first.id} }"
+          cookie_line2="cookie SERVERID insert nocache httponly secure"
+          sed -i "/use_backend proc.*/c \ \ \ \ $cookie_line1" $HAPROXY_CONF
+          sed -i "/cookie JSESSIONID.*/c \ \ \ \ $cookie_line2" $HAPROXY_CONF
           service haproxy reload
         fi
       user: root
