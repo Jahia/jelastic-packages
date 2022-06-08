@@ -517,6 +517,13 @@ actions:
         else
           sed -i "s;^\(\s*\)#\+\(.*#HTTP_AUTH_BASIC.*\)$;\1\2;" $HAPROXY_CONF
         fi
+        # Replace JSESSIONID and use HAProxy dedicated cookie
+        if (grep -qw 'JSESSIONID' $HAPROXY_CONF); then
+          cookie_line1="use_backend proc if { cook(SERVERID),lower -m beg s${nodes.proc.first.id} }"
+          cookie_line2="cookie SERVERID insert nocache httponly secure"
+          sed -i "/use_backend proc.*/c \ \ \ \ $cookie_line1" $HAPROXY_CONF
+          sed -i "/cookie JSESSIONID.*/c \ \ \ \ $cookie_line2" $HAPROXY_CONF
+        fi
     - if ("${response.errOut}" != ""):
         - return:
             type: error
