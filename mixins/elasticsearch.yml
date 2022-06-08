@@ -315,7 +315,10 @@ actions:
         }
         ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
 
+        // If the deleted env is one of many mutualized envs, we don't delete the EC deployment.
+        // Instead, we clean up indices and geonameentry alias related to the env.
         if (ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) {
+            // Get ES credentials from PAPI
             getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
             getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
             httpClient = HttpClients.createDefault();
@@ -327,6 +330,8 @@ actions:
             auth_basic_es_credentials = es_credentials["login"] + ":" + es_credentials["password"]
             creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
             encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+
+            // Delete indices
             deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}__jc-*");
             deleteESIndices.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
             httpClient = HttpClients.createDefault();
@@ -334,7 +339,17 @@ actions:
             if (resp.getStatusLine().getStatusCode() != 200) {
               return {"result": 1, errOut: "Can't delete indices:" + resp};
             }
-            return {"result": 0, "out": "indices deleted"};
+
+            // Delete geonameentry alias
+            deleteGeonameAlias = new HttpDelete(ec_deployment["es_endpoint"] + "/global-geonameentry/_alias/${env.shortdomain}__jc-geonameentry");
+            deleteGeonameAlias.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteGeonameAlias);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't delete geonameentry alias:" + resp};
+            }
+
+            return {"result": 0, "out": "indices and geonameentry alias deleted"};
         }
 
         updateECDeployment = new HttpPut(papiBaseUrl + "paas-environment/" + papiEnvId);
