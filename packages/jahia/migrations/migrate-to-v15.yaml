@@ -39,6 +39,7 @@ onInstall:
   - updateMavenPathEnvVar                                 # PAAS-2038
   - haproxyCheckConformRFC                                # PAAS-2070
   - updateHaproxySessionCookie                            # PAAS-1983
+  - revertJsessionIdPatch                                 # PAAS-1984
 
   # Restart actions:
   - restartDDAgentOnJahiaNodes                            # needed for PAAS-1543
@@ -162,3 +163,32 @@ actions:
           service haproxy reload
         fi
       user: root
+
+  revertJsessionIdPatch:
+    - getJahiaVersion
+    - if ( "${globals.jahiaVersion}" == "8.1.1.0"):
+        - updateTomcatConfFiles
+
+  updateTomcatConfFiles:
+    - cmd[cp, proc]: |-
+        files=(/opt/tomcat/webapps/ROOT/WEB-INF/web.xml /constant_data/jahia/tomcat/webapps/ROOT/WEB-INF/web.xml)
+        for file in "${files[@]}"; do
+          line=$(awk '/sessionCreate/ {print NR}' $file)
+          if [ ! -z $line ]; then
+            start=$((line-2))
+            comment=$(sed -n $start"p" $file | grep "<\!--")
+            if [ -z $comment ]; then
+              continue
+            fi
+            end=$((line+3))
+            before=$(md5sum $file)
+            sed -i -e "$start d;$end d" $file
+            after=$(md5sum $file)
+            if [ "$after" != "$before" ];  then
+              echo "updated"
+            fi
+          fi
+        done
+    - if ( "${response.out}" != "" ):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
