@@ -182,8 +182,8 @@ actions:
         - set:
             ds_version: 3.1.0
     - upgradeModule:
-        module_symname: distributed-sessions
-        module_version: ${this.ds_version}
+        moduleSymname: distributed-sessions
+        moduleVersion: ${this.ds_version}
 
 settings:
   fields:

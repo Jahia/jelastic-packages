@@ -246,10 +246,10 @@ actions:
     - cleanJRLocalRevisionsTable
     - uninstallModule:
         target: proc,cp
-        module_symname: healthcheck-cluster
+        moduleSymname: healthcheck-cluster
     - uninstallModule:
         target: proc,cp
-        module_symname: jexperience
+        moduleSymname: jexperience
 
     - getPatTokenAndKey
     - cmd [proc]: |-
@@ -320,8 +320,8 @@ actions:
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
         - log: "Install jExperience v${globals.jexperience_active_version}"
         - upgradeModule:
-            module_symname: jexperience
-            module_version: ${globals.jexperience_active_version}
+            moduleSymname: jexperience
+            moduleVersion: ${globals.jexperience_active_version}
 
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data

@@ -13,11 +13,11 @@ mixins:
 onInstall:
   - if ("${settings.action}" == "install"):
     - upgradeModule:
-        module_symname: ${settings.moduleName}
-        module_version: ${settings.moduleVersion}
+        moduleSymname: ${settings.moduleName}
+        moduleVersion: ${settings.moduleVersion}
   - elif ("${settings.action}" == "uninstall"):
     - uninstallModule:
-        module_symname: ${settings.moduleName}
+        moduleSymname: ${settings.moduleName}
   - else:
       log: Action not recognized, nothing to do.
 

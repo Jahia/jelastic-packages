@@ -40,38 +40,38 @@ onInstall:
           sitemap_version: 2.0.5
   - setGlobalRepoRootUrl
   - installModule:
-      module_symname: calendar
-      module_version: ${globals.calendar_version}
-      start_module: "true"
+      moduleSymname: calendar
+      moduleVersion: ${globals.calendar_version}
+      startModule: "true"
   - installModule:
-      module_symname: event
-      module_version: ${globals.event_version}
-      start_module: "true"
+      moduleSymname: event
+      moduleVersion: ${globals.event_version}
+      startModule: "true"
   - installModule:
-      module_symname: ldap
-      module_version: ${globals.ldap_version}
-      start_module: "true"
+      moduleSymname: ldap
+      moduleVersion: ${globals.ldap_version}
+      startModule: "true"
   - installModule:
-      module_symname: news
-      module_version: ${globals.news_version}
-      start_module: "true"
+      moduleSymname: news
+      moduleVersion: ${globals.news_version}
+      startModule: "true"
   - installModule:
-      module_symname: publication
-      module_version: ${globals.publication_version}
-      start_module: "true"
+      moduleSymname: publication
+      moduleVersion: ${globals.publication_version}
+      startModule: "true"
   - installModule:
-      module_symname: remotepublish
-      module_version: ${globals.remotepublish_version}
-      start_module: "true"
+      moduleSymname: remotepublish
+      moduleVersion: ${globals.remotepublish_version}
+      startModule: "true"
   - installModule:
-      module_symname: sitemap
-      module_version: ${globals.sitemap_version}
-      start_module: "true"
+      moduleSymname: sitemap
+      moduleVersion: ${globals.sitemap_version}
+      startModule: "true"
   - installModule:
-      module_symname: templates-web-blue-qa
-      module_version: 2.0.2
-      start_module: "true"
-      jar_url: "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar"
+      moduleSymname: templates-web-blue-qa
+      moduleVersion: 2.0.2
+      startModule: "true"
+      jarUrl: "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar"
   - cmd [cp,proc]:
       - sudo yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && sudo yum install -y ffmpeg
       - sed -i 's/#jahia.dm.thumbnails.video.enabled.*/jahia.dm.thumbnails.video.enabled = true/' ${globals.jahiaPropertiesPath}
