@@ -557,7 +557,7 @@ actions:
             - else:
                 # Prints a warning if the module is running with a more recent version only. If same version, nothing is wrong so no warning
                 - if ("${globals.runningVersion}" != "${this.moduleVersion}"):
-                    - log: "WARNING: ${this.moduleSymname} is already running with a more recent version (v${globals.runningVersion}), version v${this.moduleVersion} won't be installed"
+                    - log: "WARNING: ${this.moduleSymname} is already running with a more recent version (${globals.runningVersion}), version ${this.moduleVersion} won't be installed"
                 - set:
                     moduleInstalled: false
     - if (${this.moduleInstalled}):
@@ -612,7 +612,7 @@ actions:
             type: error
             message: "An error occurred during module verification."
     - elif ("${response.out}" == ""):
-        - log: ${this.moduleSymname} v${this.moduleVersion} is not installed
+        - log: ${this.moduleSymname} ${this.moduleVersion} is not installed
         - setGlobals:
             moduleState: uninstalled
     - else:
@@ -635,7 +635,7 @@ actions:
         - if ("${globals.moduleState}" == "started"):
             - setGlobals:
                 runningVersion: ${response.out}
-            - log: ${this.moduleSymname} is running with version v${globals.runningVersion}
+            - log: ${this.moduleSymname} is running with version ${globals.runningVersion}
         - else:
             - setGlobals:
                 mostRecentInstalledVersion: ${response.out}
@@ -659,7 +659,7 @@ actions:
         set:
           jarUrl: ""
     - getPatTokenAndKey
-    - log: Installing ${this.moduleSymname} v${this.moduleVersion}
+    - log: Installing ${this.moduleSymname} ${this.moduleVersion}
     - cmd [proc]: |-
         if [[ "${this.jarUrl}" == "" ]]; then
           url="${this.modulesUrl}/${this.moduleSymname}/${this.moduleVersion}/${this.moduleSymname}-${this.moduleVersion}.jar"
@@ -695,7 +695,7 @@ actions:
         - return:
             type: error
             message: "An error occurred during module installation."
-    - log: ${this.moduleSymname} v${this.moduleVersion} has been installed
+    - log: ${this.moduleSymname} ${this.moduleVersion} has been installed
 
   uninstallModuleVersion:
     # Uninstalls the specified version of a module.
@@ -706,7 +706,7 @@ actions:
     - set:
         curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
-    - log: Uninstalling ${this.moduleSymname} v${this.moduleVersion}
+    - log: Uninstalling ${this.moduleSymname} ${this.moduleVersion}
     - cmd [proc]: |-
         resp=$(${this.curl} -XPOST -d "" \
               "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_uninstall")
@@ -726,7 +726,7 @@ actions:
         - return:
             type: error
             message: "An error occurred during module uninstall."
-    - log: Version v${this.moduleVersion} of ${this.moduleSymname} module uninstalled
+    - log: Version ${this.moduleVersion} of ${this.moduleSymname} module uninstalled
 
   uninstallStoppedVersionsOfModule:
     # Uninstalls all the stopped versions of a module. If no version of the module is running, the module
@@ -752,7 +752,7 @@ actions:
             ;;
         esac
     - if ("${response.out}" == ""):
-        log: ${this.moduleSymname} module is not installed, nothing to do
+        log: ${this.moduleSymname} module doesn't have any stopped version, nothing to do
     - elif ("${response.out}" == "error"):
         - return:
             type: error
