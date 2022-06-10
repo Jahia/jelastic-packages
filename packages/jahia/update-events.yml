@@ -13,6 +13,7 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
+  - ../../mixins/elasticsearch.yml
 
 onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
@@ -339,6 +340,15 @@ onBeforeDelete:
           - if (${response.out} == 1):
               refreshUnomiAllowedIPs:
                 unomiEnvName: ${globals.unomi_env_name}
+
+  - script: |-
+      const augsearch = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+          return object.name == "cp";
+      }).pop().augsearch;
+      return {'result': 0, 'removeECDeployement': (augsearch != null)}
+  - if (${response.removeECDeployement}):
+      destroyESDeployment
+
   - if ("${env.status}" == 1):
       - muteDatadogHost:
           target: "*"
