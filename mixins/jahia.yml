@@ -617,12 +617,6 @@ actions:
         - setGlobals:
             moduleState: ${response.out}
     - if ("${globals.moduleState}" == "started") || ("${globals.moduleState}" == "installed"):
-        - if ("${globals.moduleState}" == "started"):
-            - setGlobals:
-                moduleState: started
-        - else:
-            - setGlobals:
-                moduleState: installed
         - cmd [proc]: |-
             resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
             module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
