@@ -25,9 +25,9 @@ onInstall:
   - getJexperienceVersion
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${settings.unomienv}
-  - upgradeJahiaModule:
-      module: jExperience
-      version: ${globals.jexperienceVersion}
+  - upgradeModule:
+      moduleSymname: jexperience
+      moduleVersion: ${globals.jexperienceVersion}
   - getJcustomerKey:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc

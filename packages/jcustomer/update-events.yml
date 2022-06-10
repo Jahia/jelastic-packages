@@ -12,6 +12,7 @@ mixins:
   - ../../mixins/common.yml
   - ../../mixins/jcustomer.yml
   - ../../mixins/elasticsearch.yml
+  - ../../mixins/jahia.yml
 
 onBeforeScaleIn[cp]:
   - saveUnomiRootPassword
@@ -51,7 +52,7 @@ onBeforeDelete:
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
   - destroyESDeployment
-  - deleteEnvLink
+  - deleteEnvLinkJcustomer
   - if ("${env.status}" == 1):
       - muteDatadogHost:
           target: "*"

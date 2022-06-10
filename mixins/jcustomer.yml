@@ -1,6 +1,7 @@
 ---
 # Depends on:
 #   - common.yml
+#   - jahia.yml
 
 actions:
   getUnomiDnsAndPwd:
@@ -154,7 +155,8 @@ actions:
         linkedJahiaEnvs: ${response.envs}
 
 
-  deleteEnvLink:
+  deleteEnvLinkJcustomer:
+    - setGlobalRepoRootUrl
     - getLinkedJahiaEnvs
     - script: |-
         linkedJahiaEnvs = "${globals.linkedJahiaEnvs}";
@@ -165,9 +167,6 @@ actions:
         commands = [
           {
             "command": "sed -i 's/\\(jexperience.jCustomer.*=\\).*/\\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
-          },
-          {
-            "command": "rm -f /data/digital-factory-data/modules/jexperience-*.jar"
           }
         ]
 
@@ -190,6 +189,17 @@ actions:
                 }
               }
             )
+            resp = api.marketplace.jps.Install(
+              {
+                jps: "${globals.repoRootUrl}/packages/jahia/manage-module.yml",
+                envName: jahiaEnvname,
+                settings: {
+                  "action": "uninstall",
+                  "moduleName": "jexperience"
+                }
+              }
+            )
+            if (resp.result != 0) return resp;
             unlinkedJahiaEnvs.push(jahiaEnvname);
           }
         );
