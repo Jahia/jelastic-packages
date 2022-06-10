@@ -89,9 +89,9 @@ actions:
             moduleId: ${response.out}
         - disableKarafLogin: proc
         - if (${this.moduleId}):
-            - upgradeModule:
-                moduleSymname: jexperience
-                moduleVersion: 1.11.7
+            - upgradeJahiaModule:
+                module: "jExperience"
+                version: 1.11.7
 
   fixDDHaproxyIntegrationConf:
     - cmd[bl]: |-
