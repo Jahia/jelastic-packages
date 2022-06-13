@@ -12,7 +12,7 @@ mixins:
 
 onInstall:
   - if ("${settings.action}" == "install"):
-    - upgradeModule:
+    - installOrUpgradeModule:
         moduleSymname: ${settings.moduleName}
         moduleVersion: ${settings.moduleVersion}
   - elif ("${settings.action}" == "uninstall"):

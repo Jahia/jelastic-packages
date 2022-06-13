@@ -518,7 +518,7 @@ actions:
         jahiaVersion: ${response.jahia_version}
     - log: "Jahia is v${globals.jahiaVersion}"
 
-  upgradeModule:
+  installOrUpgradeModule:
     # Installs and starts a module with the specified version. If the module is already installed, several use cases:
     # - if it is not running, then the specified version is installed and started
     # - if it is running with an older version, then the specified version is installed and started
@@ -617,12 +617,6 @@ actions:
         - setGlobals:
             moduleState: ${response.out}
     - if ("${globals.moduleState}" == "started") || ("${globals.moduleState}" == "installed"):
-        - if ("${globals.moduleState}" == "started"):
-            - setGlobals:
-                moduleState: started
-        - else:
-            - setGlobals:
-                moduleState: installed
         - cmd [proc]: |-
             resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
             module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
@@ -680,7 +674,7 @@ actions:
     - else:
         - log: ${this.moduleSymname}/${this.moduleVersion} is ${response.out}
         - setGlobals:
-                moduleState: ${response.out}
+                moduleVersionState: ${response.out}
 
   installModule:
     # Downloads a module jar file and installs it. The module can also be started at the same time.
@@ -1328,7 +1322,7 @@ actions:
             type: error
             message: "jCustomer password is wrong."
 
-  emptyJexperienceConfigAndRemoveJexperienceJar:
+  removeAndCleanJexperience:
     - cmd[proc, cp]: |-
         JCUSTOMER_CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         if [ -f $JCUSTOMER_CONFIG_FILE ]; then
@@ -1336,6 +1330,9 @@ actions:
         fi
     - uninstallModule:
         moduleSymname: jexperience
+    - environment.nodegroup.ApplyData [proc, cp]:
+        data:
+          envLink: null
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:

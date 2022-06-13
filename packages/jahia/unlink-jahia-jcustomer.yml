@@ -13,7 +13,7 @@ mixins:
 
 onInstall:
   - getJcustomer
-  - emptyJexperienceConfigAndRemoveJexperienceJar
+  - removeAndCleanJexperience
   - updateEnvLink
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${globals.jCustomerEnv}

@@ -18,7 +18,7 @@ actions:
   updateJahiaCsrfGuardModule:
     - getJahiaVersion
     - if( "${globals.jahiaVersion}" == "7.3.7.0" || "${globals.jahiaVersion}" == "7.3.8.0" ):
-        - upgradeModule:
+        - installOrUpgradeModule:
             moduleSymname: jahia-csrf-guard
             moduleVersion: 1.4.0
 

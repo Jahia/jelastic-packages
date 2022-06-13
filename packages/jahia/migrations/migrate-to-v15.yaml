@@ -206,7 +206,7 @@ actions:
         b: 8.0.0.0
         res: isLowerThan8000
     - if( ${globals.isLowerThan8000} ):
-      - upgradeModule:
+      - installOrUpgradeModule:
           moduleSymname: jexperience
           moduleVersion: 1.11.8
           startModule: true
@@ -215,7 +215,7 @@ actions:
         b: 8.1.0.0
         res: isHigherOrEqualThan8100
     - if( ${globals.isHigherOrEqualThan8100} ):
-      - upgradeModule:
+      - installOrUpgradeModule:
           moduleSymname: jexperience
           moduleVersion: 2.2.2
           startModule: true
