@@ -10,6 +10,12 @@ actions:
     - createESAccountAndAliases
     - setESEndpointInJcustomerConfig
 
+  setupES4AS:
+    - getVaultData
+    - runESCircleCIPipeline:
+        workflow: terraform_apply
+    - createESAccount4AS
+
   runESCircleCIPipeline:
     # Parameters:
     # - workflow : the pipeline workflow to run (terraform_apply/terraform_destroy)
@@ -110,6 +116,39 @@ actions:
             echo "Elasticsearch cluster creation failed"
             exit 1
           fi
+        fi
+
+  createESAccount4AS:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+
+    - cmd [proc]: |-
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
+        kibana_endpoint=$(echo $ec_deployment | jq -r .kibana_endpoint)
+
+        creds=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+        password=$(echo $creds | jq -r .password)
+        login=$(echo $creds | jq -r .login)
+
+        # Create Kibana role
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__as-*"], "privileges": ["all"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        if [ $? -ne 0 ]; then
+          echo "Failed to create kibana role." && exit 1
+        fi
+
+        # Create ES user
+        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "${globals.elasticsearch_password}", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create ES user." && exit 1
         fi
 
   createESAccountAndAliases:

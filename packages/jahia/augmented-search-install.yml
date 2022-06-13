@@ -1,0 +1,210 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Install Augmented Search
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-augmentedsearch-install
+description:
+  short: Jahia - Install Augmented Search
+
+globals:
+  elasticsearch_password: ${fn.password(20)}
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+  - ../../mixins/jahia.yml
+
+
+onInstall:
+  - determineModulesVersions
+  - setupES4AS
+  - installModules
+  - setupModules
+  - setNodeGroupData
+
+
+actions:
+  determineModulesVersions:
+    - getJahiaVersion
+    - isVersionBetween:
+        lower: 8.0.0.0
+        lower_may_equal: true
+        version: ${globals.jahiaVersion}
+        higher: 8.1.0.0
+        higher_may_equal: false
+        res: jahia80
+    - if(globals.jahia80):
+        return:
+          type: error
+          message: "Jahia v8.0 aren't compatible, this is Jahia v${globals.jahiaVersion}"
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia7
+    - if(globals.jahia7):
+        - setGlobals:
+            db_connector_ver: 1.2.0
+            es_connector_ver: 2.1.0
+            augsearch_ver: 1.6.0
+    - else:  # if jahia 8.1+
+        - setGlobals:
+            db_connector_ver: 1.5.0
+            es_connector_ver: 3.2.0
+            augsearch_ver: 3.3.0
+        - isVersionStrictlyLower:
+            a: ${globals.jahiaVersion}
+            b: 8.1.1.0
+            res: jahia810
+        - if(globals.jahia810):
+            - setGlobals:  # if jahia 8.1.0
+                graphql_ver: 2.8.0
+
+  installModules:
+    - if(globals.jahia810):  # if jahia 8.1.0 then graphql dxm provider must be upgraded
+        - installOrUpgradeModule:
+            moduleSymname: graphql-dxm-provider
+            moduleVersion: ${globals.graphql_ver}
+    - installOrUpgradeModule:
+        moduleSymname: database-connector
+        moduleVersion: ${globals.db_connector_ver}
+    - installOrUpgradeModule:
+        moduleSymname: elasticsearch-connector
+        moduleVersion: ${globals.es_connector_ver}
+    - installOrUpgradeModule:
+        moduleSymname: augmented-search
+        moduleVersion: ${globals.augsearch_ver}
+
+  setNodeGroupData:
+    - environment.nodegroup.ApplyData[cp]:
+        data:
+          augsearch: enable
+
+  setupAugSearch:
+    - cmd[proc]: |-
+        augsearch_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg"
+        sed -r \
+          -e 's/^(org.jahia.modules.augmentedsearch.prefix\s*=\s*).*/\1as/' \
+          -e 's/^(org.jahia.modules.augmentedsearch.numberOf(Shard|Replica)s\s*=\s*).*/\11/' \
+          -i $augsearch_cfg
+
+  setupESConnector:
+    - cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
+        es_connection_name="jahia-cloud_augmented-search"
+
+        get_current_es_connection() {
+          curl -fLSs http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"query { admin { search { currentConnection } } }"}' \
+            | jq -r '.data.admin.search.currentConnection'
+        }
+
+        payload_add_es() {
+        cat << EOF
+        {
+          "id": "$es_connection_name",
+          "isConnected": true,
+          "host": "$es_endpoint",
+          "port": 443,
+          "user": "${env.envName}",
+          "password": "${globals.elasticsearch_password}",
+          "options": {
+            "useXPackSecurity": true,
+            "useEncryption": true
+          }
+        }
+        EOF
+        }
+
+        curl_add_es() {
+          curl -fLSs -XPOST http://localhost:8080/modules/dbconn/elasticsearch/add \
+            -H 'Authorization: APIToken $__secret__API_TOKEN' \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d "$(payload_add_es)"
+        }
+
+        curl_delete_es(){
+          curl -fLSs -XDELETE http://localhost:8080/modules/dbconn/elasticsearch/remove/$current_es_connection \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            | jq -r ".success"
+        }
+
+        curl_set_as_conn() {
+          curl -fLSs -XPOST http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"mutation { admin { search { setDbConnection(connectionId:\"jahia-cloud_augmented-search\") } } }"}' \
+            | jq -r '.data.admin.search.setDbConnection'
+        }
+
+        curl_clear_as_conn() {
+          curl -fLSs -XPOST http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"mutation { admin { search { clearDbConnection } } }"}' \
+            | jq -r '.data.admin.search.clearDbConnection'
+        }
+
+        add_es(){
+          result=$(curl_add_es)
+          success=$(echo $result | jq -r .success)
+          verified=$(echo $result | jq -r .connectionVerified)
+          if [ "$success" != "Connection successfully added" ]; then
+            echo "Failed to add the connection"
+            exit 1
+          elif [ "$verified" != "true" ]; then
+            echo "The new connection could not be verified"
+            exit 1
+          fi
+          echo "ES connection added in ES Connector"
+        }
+
+        current_es_connection=$(get_current_es_connection)
+        if [ "$current_es_connection" = "null" ]; then
+          echo "No ES connection found in AS module"
+          add_es
+        elif [ "$current_es_connection" = "$es_connection_name" ]; then
+          echo "Connection already configured, we recreate it"
+          result=$(curl_clear_as_conn)
+          if [ "$result" != "Successful" ] && [ "$result" != "Exist already"; then
+            echo "Failed to clear AS database connection"
+            exit 1
+          fi
+          echo "AS connection is clear"
+          result=$(curl_delete_es)
+          if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
+            echo "Failed to remove the old connection"
+            exit 1
+          fi
+          echo "Old ES connection is now removed"
+          add_es
+        fi
+
+        result=$(curl_set_as_conn)
+        if [ "$result" != "Successful" ]; then
+          echo "Failed to use the $es_connection_name connection for AS"
+          exit 1
+        fi
+        echo "AS is now using the new ES connection"
+
+  setupModules:
+    - setupAugSearch
+    - setupESConnector
