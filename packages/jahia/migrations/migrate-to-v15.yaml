@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - deleteDuplicateTomcatEnvLines                         # PAAS-1973
+  - upgradeJexperience                                    # PAAS-2061
 
   # Actions that require a restart:
   - enableIoCheck                                         # PAAS-1543
@@ -193,3 +194,28 @@ actions:
     - if ( "${response.out}" != "" ):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  upgradeJexperience:
+    # Upgrade jExperience to 1.11.8 on Jahia 7.3 envs, and 2.2.2 on 8.1 envs
+  - getEnvLinkedJcustomer:
+      envName: ${env.shortdomain}
+  - if (${globals.unomi_env_linked}):
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isLowerThan8000
+    - if( ${globals.isLowerThan8000} ):
+      - upgradeModule:
+          moduleSymname: jexperience
+          moduleVersion: 1.11.8
+          startModule: true
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: isHigherOrEqualThan8100
+    - if( ${globals.isHigherOrEqualThan8100} ):
+      - upgradeModule:
+          moduleSymname: jexperience
+          moduleVersion: 2.2.2
+          startModule: true
