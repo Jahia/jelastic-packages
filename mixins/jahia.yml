@@ -580,7 +580,7 @@ actions:
     # Parameters:
     # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
     # Returns:
-    # - globals.moduleState: 
+    # - globals.moduleState:
     #   - "started" if the module is running
     #   - "installed" if the module is installed but not running
     #   - "uninstalled" if the module is not installed
@@ -617,7 +617,7 @@ actions:
         - setGlobals:
             moduleState: ${response.out}
     - if ("${globals.moduleState}" == "started") || ("${globals.moduleState}" == "installed"):
-        - if ("${response.out}" == "module started"):
+        - if ("${globals.moduleState}" == "started"):
             - setGlobals:
                 moduleState: started
         - else:
@@ -644,12 +644,12 @@ actions:
 
   checkVersionOfModule:
     # Checks the state of a module for a specific version: uninstalled, installed or started.
-    # 
+    #
     # Parameters:
     # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
     # - moduleVersion: the version of the module to check
     # Returns:
-    # - globals.moduleVersionState: 
+    # - globals.moduleVersionState:
     #   - "started" if the specified version of the module is running
     #   - "installed" if the specified version of the module is installed but not running
     #   - "uninstalled" if the specified version of the module is not installed
