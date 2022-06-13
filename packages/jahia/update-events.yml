@@ -205,7 +205,7 @@ onAfterStart:
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if ( ! ${globals.unomi_env_linked}):
-      emptyJexperienceConfigAndRemoveJexperienceJar
+      removeAndCleanJexperience
 
   - resetHaproxyBackends
   - updateEnvStatusInPapi:

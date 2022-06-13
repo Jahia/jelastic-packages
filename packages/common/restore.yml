@@ -244,13 +244,6 @@ actions:
         - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
     - cleanJRLocalRevisionsTable
-    - uninstallModule:
-        target: proc,cp
-        moduleSymname: healthcheck-cluster
-    - uninstallModule:
-        target: proc,cp
-        moduleSymname: jexperience
-
     - getPatTokenAndKey
     - cmd [proc]: |-
         ## [${globals.logAction}] - 5/5
@@ -297,10 +290,7 @@ actions:
     # then we clean the conf and nodegroups data
     - if (${this.remove_restored_jexperience}):
         - log: Remove env link
-        - emptyJexperienceConfigAndRemoveJexperienceJar
-        - environment.nodegroup.ApplyData [proc, cp]:
-            data:
-              envLink: null
+        - removeAndCleanJexperience
     - else:
         - log: Keep env link
 
@@ -327,9 +317,7 @@ actions:
     # then we clean the conf and nodegroups data
     - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
-        - log: "Remove module jExperience"
-        - uninstallModule:
-            module: jexperience
+        - removeAndCleanJexperience
 
   envSource:
     - script: |

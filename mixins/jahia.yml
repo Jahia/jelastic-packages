@@ -674,7 +674,7 @@ actions:
     - else:
         - log: ${this.moduleSymname}/${this.moduleVersion} is ${response.out}
         - setGlobals:
-                moduleState: ${response.out}
+                moduleVersionState: ${response.out}
 
   installModule:
     # Downloads a module jar file and installs it. The module can also be started at the same time.
@@ -1322,7 +1322,7 @@ actions:
             type: error
             message: "jCustomer password is wrong."
 
-  emptyJexperienceConfigAndRemoveJexperienceJar:
+  removeAndCleanJexperience:
     - cmd[proc, cp]: |-
         JCUSTOMER_CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         if [ -f $JCUSTOMER_CONFIG_FILE ]; then
@@ -1330,6 +1330,9 @@ actions:
         fi
     - uninstallModule:
         moduleSymname: jexperience
+    - environment.nodegroup.ApplyData [proc, cp]:
+        data:
+          envLink: null
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:
