@@ -75,9 +75,9 @@ actions:
 
   getJexperienceVersion:
     # Get jExperience version to install according to Jahia env version:
-    # - Jahia 7.3.x ==> jExperience 1.11.7
+    # - Jahia 7.3.x ==> jExperience 1.11.8
     # - Jahia 8.0.x ==> jExperience 2.2.0
-    # - Jahia 8.1.x ==> jExperience 2.2.1
+    # - Jahia 8.1.x ==> jExperience 2.2.2
     # Returns:
     #   ${globals.jexperienceVersion}: jExperience version to install according to current Jahia version
     - getJahiaVersion
@@ -87,7 +87,7 @@ actions:
         res: isLowerThan8000
     - if( ${globals.isLowerThan8000} ):
         - setGlobals:
-            jexperienceVersion: 1.11.7
+            jexperienceVersion: 1.11.8
     - else:
       - isVersionStrictlyLower:
           a: ${globals.jahiaVersion}
@@ -98,7 +98,7 @@ actions:
               jexperienceVersion: 2.2.0
       - else:
           - setGlobals:
-              jexperienceVersion: 2.2.1
+              jexperienceVersion: 2.2.2
 
   confJexperience:
     - setGlobalRepoRootUrl
