@@ -518,7 +518,7 @@ actions:
         jahiaVersion: ${response.jahia_version}
     - log: "Jahia is v${globals.jahiaVersion}"
 
-  upgradeModule:
+  installOrUpgradeModule:
     # Installs and starts a module with the specified version. If the module is already installed, several use cases:
     # - if it is not running, then the specified version is installed and started
     # - if it is running with an older version, then the specified version is installed and started

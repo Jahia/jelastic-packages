@@ -309,7 +309,7 @@ actions:
         - cmd[proc]: |-
             echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
         - log: "Install jExperience v${globals.jexperience_active_version}"
-        - upgradeModule:
+        - installOrUpgradeModule:
             moduleSymname: jexperience
             moduleVersion: ${globals.jexperience_active_version}
 
