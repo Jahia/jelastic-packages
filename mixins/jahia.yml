@@ -867,7 +867,7 @@ actions:
             echo $resp >&2
             ;;
           *)
-            printf $(jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr) | tr "\n" ";"
+            jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | tr "\n" ";" | sed 's/.$//'
             ;;
         esac
     - if ("${response.out}" == "not installed"):
