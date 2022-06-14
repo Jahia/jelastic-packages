@@ -11,13 +11,13 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
-  - if ("${settings.action}" == "install"):
+  - if ("${settings.action}" == "installOrUpgrade"):
     - installOrUpgradeModule:
-        moduleSymname: ${settings.moduleName}
+        moduleSymname: ${settings.moduleSymname}
         moduleVersion: ${settings.moduleVersion}
   - elif ("${settings.action}" == "uninstall"):
     - uninstallModule:
-        moduleSymname: ${settings.moduleName}
+        moduleSymname: ${settings.moduleSymname}
   - else:
       log: Action not recognized, nothing to do.
 
@@ -27,13 +27,14 @@ settings:
       type: list
       caption: Action to do
       values:
-        install: install
+        installOrUpgrade: install or upgrade
         uninstall: uninstall
       default: install
       required: true
-    - name: moduleName
+    - name: moduleSymname
       type: string
-      caption: Module name
+      caption: Module symbolic name
+      tooltip: Module symbolic name would be for instance "distributed-sessions" instead of "Distributed Sessions"
       required: true
     - name: moduleVersion
       type: string
