@@ -1,0 +1,402 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - PAAS-2006 migrate AS environments to EC
+id: jahia-PAAS-2006-migrate-as-environments-to-elastic-cloud
+description:
+  short: Jahia - PAAS-2006 migrate AS environments to EC
+
+globals:
+  elasticsearch_password: ${fn.password(20)}
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/elasticsearch.yml"
+
+onInstall:
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: isJahia7
+
+    - environment.nodegroup.ApplyData [cp]:
+        data:
+          augsearch: "enabled"
+
+    - getVaultData
+    - getPapiInfoAll
+    - setGlobals:  # Use papi token provided as package settings
+        papiToken: "${settings.papiToken}"
+
+    - createECDeploymentEntity
+    - putECRole2Papier
+
+    #  Create/update EC deployment
+    - runESCircleCIPipeline:
+        workflow: terraform_apply
+
+    - api []: env.control.GetContainerEnvVars
+      envName: ${env.envName}
+      nodeId: ${nodes.cp.first.id}
+    - if ("${response.object.jahia_cfg_elasticsearch_prefix}" != "${env.envName}"):
+        - env.control.AddContainerEnvVars[cp, proc]:
+          vars: {"jahia_cfg_elasticsearch_prefix": "${env.envName}"}
+
+        - rollingRestart
+
+    - enableReadOnlyOnCluster
+
+    - upgradeEsConnectorModule
+    - upgradeASModule
+
+    - getPatTokenAndKey
+    - createESAccount
+    - configureESConnector
+
+    - fullReindex
+    - disableReadOnlyOnCluster
+
+actions:
+  createECDeploymentEntity:
+    - cmd[${nodes.cp.first.id}]: |-
+        export SCORE=7
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        source /metadata_from_HOST
+        case "$JEL_CLOUDPROVIDER" in
+          aws)
+            template="aws-cpu-optimized-arm"
+            region="${JEL_REGION}"
+            ;;
+          azure)
+            template="azure-compute-optimized-v2"
+            region="azure-${JEL_REGION}"
+            ;;
+          ovh)
+            template="aws-cpu-optimized-arm"
+            region="eu-west-1"
+            ;;
+        esac
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        organization_id=$(echo $environment | jq -r .paas_organization_id)
+        organization=$(papi.py -X GET "paas-organization/$organization_id")
+        organization_name=$(echo $organization | jq -r .name)
+
+        if [ "$envmode" = "production" ]; then
+          mutualized="false"
+          ec_name="augsearch_${env.envName}"
+        elif [ "$envmode" = "development" ]; then
+          mutualized="true"
+          ec_name="mutualized_$(echo $organization | jq -r .name)"
+          mutualized_ec=$(papi.py -X GET "ec-deployment?paas_organization_id=$organization_id" | jq -r --arg org "$organization_name" '.[] | select(.name=="mutualized_" + $org)')
+        else
+          echo "Envmode value is wrong on ${env.envName}: $envmode"
+          exit 1
+        fi
+
+        ec_deployment_payload() {
+        cat <<EOF
+        {
+          "mutualized": $mutualized,
+          "name": "$ec_name",
+          "template": "$template",
+          "region": "$region",
+          "organization_id": $organization_id,
+          "score": $SCORE
+        }
+        EOF
+        }
+
+        ec_id=$(echo $environment | jq .ec_deployment_id)
+        if [ "$ec_id" = "null" ]; then
+          # No ec deployment linked
+          if [ "$envmode" = "development" ] && [ "$mutualized_ec" != "" ]; then
+            # mutualized EC already exists, only increase its score
+            new_score=$(expr $SCORE + $(echo $mutualized_ec | jq .score))  # add 8 to the score
+            ec_id=$(echo $mutualized_ec | jq -r .ec_deployment_id)
+            papi.py -X PUT "ec-deployment/$ec_id" -d '{"score":'$new_score'}'
+          else
+            # Need to create the EC deployment
+            response=$(papi.py -X POST "ec-deployment" -d "$(ec_deployment_payload)")
+            ec_id=$(echo "$response" | jq -r .ec_deployment_id)
+            if [ $ec_id = "null" ]; then
+              echo "Error when creating EC deployment: $response"
+              exit 1
+            fi
+          fi
+          # Link paas environment to ec deployment
+          papi.py -X PUT "paas-environment/$PAPI_ENV_ID" -d '{"ec_deployment_id": '$ec_id'}' > /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error when linking the EC depoyment to the paas environment"
+            exit 2
+          fi
+        fi
+
+  createESAccount:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd [${nodes.cp.first.id}]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
+        kibana_endpoint=$(echo $ec_deployment | jq -r .kibana_endpoint)
+
+        creds=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+        password=$(echo $creds | jq -r .password)
+        login=$(echo $creds | jq -r .login)
+
+        # Check that Kibana role doesn't exist yet
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}"
+        # Create Kibana role
+        curl -fLSsu "$login:$password" \
+        "$kibana_endpoint/api/security/role/${env.envName}" \
+        -H 'Content-Type:application/json' \
+        -H "kbn-xsrf: reporting" \
+        -XPUT \
+        -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__as_*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create kibana role." && exit 1
+        fi
+
+
+        # Check if the new ES connection is already configured or not. If so, no need to update the existing account
+        current_es_connection=$(curl -fLSs -H "Authorization: APIToken $__secret__API_TOKEN" -H 'Origin: http://localhost:8080' -H 'Content-Type: application/json' -d '{"query":"query { admin { search { currentConnection } } }"}' http://localhost:8080/modules/graphql | jq -r .data.admin.search.currentConnection)
+        if [ "$current_es_connection" != "jahia-cloud_augmented-search" ]; then
+          # Delete user in case the package failed at previous execution (so password is lost) and create ES user
+          curl -su "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XDELETE
+          curl -fLSsu "$login:$password" \
+          "$es_endpoint/_security/user/${env.envName}" \
+          -H 'Content-Type:application/json' \
+          -XPUT \
+          -d '{"password": "${globals.elasticsearch_password}", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'
+          if [ $? -ne 0 ]; then
+            echo "Failed to create ES user." && exit 1
+          fi
+        fi
+
+  putECRole2Papier:
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+
+        # Add the role for the papier to manage its organization's EC
+        papier_id=$(echo $environment | jq -r .papier_id)
+        papi.py -X PUT "papier/$papier_id/role/READ_OWN_EC_DEPLOYMENT" -d '{}' &> /dev/null
+        if [ $? -ne 0 ]; then
+          echo "Error when adding role READ_OWN_EC_DEPLOYMENT to the papier"
+          exit 1
+        fi
+
+
+  rollingRestart:
+    - api: environment.control.RestartNodeById
+      nodeId: ${nodes.proc.first.id}
+    - foreach (nodes.cp):
+        api: environment.control.RestartNodeById
+        nodeId: ${@i.id}
+
+
+  setModuleConfiguration:
+    cmd[proc]: |-
+      AS_CONFIG_PATH=/data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
+      JAHIA_VERSION=${this.jahiaVersion}
+
+      if grep -q "org.jahia.modules.augmentedsearch.prefix" $AS_CONFIG_PATH; then
+        sed -i 's/\(org.jahia.modules.augmentedsearch.prefix.*=\).*/\1 as/g' $AS_CONFIG_PATH
+      else
+        echo 'org.jahia.modules.augmentedsearch.prefix = as' >> $AS_CONFIG_PATH
+      fi
+
+      if grep -q "org.jahia.modules.augmentedsearch.numberOfShards" $AS_CONFIG_PATH; then
+        sed -i 's/\(org.jahia.modules.augmentedsearch.numberOfShards.*=\).*/\1 1/g' $AS_CONFIG_PATH
+      else
+        echo 'org.jahia.modules.augmentedsearch.numberOfShards = 1' >> $AS_CONFIG_PATH
+      fi
+
+      if grep -q "org.jahia.modules.augmentedsearch.numberOfReplicas" $AS_CONFIG_PATH; then
+        sed -i 's/\(org.jahia.modules.augmentedsearch.numberOfReplicas.*=\).*/\1 1/g' $AS_CONFIG_PATH
+      else
+        echo 'org.jahia.modules.augmentedsearch.numberOfReplicas = 1' >> $AS_CONFIG_PATH
+      fi
+
+      if [[ $JAHIA_VERSION == 7* ]]; then
+        if ! grep -q "org.jahia.modules.augmentedsearch.maxShardSizeInGb" $AS_CONFIG_PATH; then
+          echo 'org.jahia.modules.augmentedsearch.maxShardSizeInGb = 20' >> $AS_CONFIG_PATH
+        fi
+        if ! grep -q "org.jahia.modules.augmentedsearch.minHeapPerShardInMb" $AS_CONFIG_PATH; then
+          echo 'org.jahia.modules.augmentedsearch.minHeapPerShardInMb = 50' >> $AS_CONFIG_PATH
+        fi
+      fi
+
+  configureESConnector:
+    cmd[proc]: |-
+      __secret__API_TOKEN="${globals.__secret__pat_token}"
+
+      __secret__PAPI_TOKEN="${globals.papiToken}"
+      export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+      export PAPI_HOSTNAME="${globals.papiHostname}"
+      export PAPI_ENV_ID="${globals.papiEnvId}"
+      export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+      environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+      ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+      ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+      es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
+
+      es_connection_name="jahia-cloud_augmented-search"
+
+      current_es_connection=$(curl -fLSs \
+        -H "Authorization: APIToken $__secret__API_TOKEN" \
+        -H 'Origin: http://localhost:8080' \
+        -H 'Content-Type: application/json' \
+        -d '{"query":"query { admin { search { currentConnection } } }"}' \
+        http://localhost:8080/modules/graphql | jq -r .data.admin.search.currentConnection)
+      if [ "$current_es_connection" = "null" ]; then
+        echo "No ES connection found in AS module"
+        exit 1
+      elif [ "$current_es_connection" = "$es_connection_name" ]; then
+        echo "Connection already configured"
+        exit 0
+      fi
+
+      result=$(curl -fLSs -XPOST \
+        -H 'Authorization: APIToken $__secret__API_TOKEN' \
+        -H 'Origin: http://localhost:8080' \
+        -H 'Content-Type: application/json' \
+        -d "{\"id\": \"$es_connection_name\", \"isConnected\": true, \"host\": \"$es_endpoint\", \"port\": 443, \"user\": \"${env.envName}\", \"password\": \"${globals.elasticsearch_password}\", \"options\": {\"useXPackSecurity\": true, \"useEncryption\": true} }" \
+        http://localhost:8080/modules/dbconn/elasticsearch/add
+      )
+      success=$(echo $result | jq -r .success)
+      verified=$(echo $result | jq -r .connectionVerified)
+      if [ "$success" != "Connection successfully added" ]; then
+        echo "Failed to add the connection"
+        exit 1
+      elif [ "$verified" != "true" ]; then
+        echo "The new connection could not be verified"
+        exit 1
+      fi
+
+
+      result=$(curl -fLSs -XPOST \
+        -H "Authorization: APIToken $__secret__API_TOKEN" \
+        -H 'Origin: http://localhost:8080' \
+        -H 'Content-Type: application/json' \
+        -d '{"query":"mutation { admin { search { setDbConnection(connectionId:\"jahia-cloud_augmented-search\") } } }"}' \
+        http://localhost:8080/modules/graphql | jq -r '.data.admin.search.setDbConnection')
+      if [ "$result" != "Successful" ]; then
+        echo "Failed to use the $es_connection_name connection for AS"
+        exit 1
+      fi
+
+      result=$(curl -fLSs -XDELETE \
+        -H "Authorization: APIToken $__secret__API_TOKEN" \
+        -H 'Origin: http://localhost:8080' \
+        -H 'Content-Type: application/json' \
+        http://localhost:8080/modules/dbconn/elasticsearch/remove/$current_es_connection | jq -r ".success" )
+      if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
+        echo "Failed to remove the old connection"
+        exit 1
+      fi
+
+  fullReindex:
+    cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        curl -XPOST \
+        http://localhost:8080/modules/graphql \
+        -H "Authorization: APIToken $__secret__API_TOKEN" \
+        -H "Content-Type: application/json" \
+        -H "Origin: http://localhost:8080" \
+        -d '{"query":"mutation {admin {search {startIndex {jobs {id status project {siteKey} } } } } } "}'
+
+
+        check_indexation_state() {
+          res=$(curl -s -XPOST \
+          http://localhost:8080/modules/graphql \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Content-Type: application/json' \
+          -H 'Origin: http://localhost:8080' \
+          -d '{"query":"{admin {search {listSites {sites {indexationStatus siteKey} } } } } "}')
+          echo $res | jq -r '.data.admin.search.listSites.sites | .[] | select(.indexationStatus!="COMPLETED")'
+        }
+
+
+        check=$(check_indexation_state)
+        while [ ! -z "$check" ]; do
+          sleep 30
+          check=$(check_indexation_state)
+
+          # As the operation can take several hours, it's impossible to set a timeout value
+          # The manual and "clean" way to abort the package is to create the /tmp/stopWaitingForReindexEnd file.
+          if [ -f "/tmp/stopWaitingForReindexEnd" ]; then
+            echo "Force quit"
+            exit 1
+          fi
+        done
+
+  upgradeEsConnectorModule:
+    - if(${globals.isJahia7}):
+        set:
+          version: 2.1.0
+    - else:
+        set:
+          version: 3.2.0
+
+    - installOrUpgradeModule:
+        moduleSymname: elasticsearch-connector
+        moduleVersion: ${this.version}
+
+  upgradeASModule:
+    - if(${globals.isJahia7}):
+        set:
+          version: 1.6.0
+    - else:
+        set:
+          version: 3.3.0
+
+    - installModule:
+        moduleSymname: augmented-search
+        moduleVersion: ${this.version}
+
+    - setModuleConfiguration:
+        jahiaVersion: ${globals.jahiaVersion}
+
+    - checkModule:
+        moduleSymname: augmented-search
+        moduleVersion: ${this.version}
+        moduleState: "started"
+    - if ( "${globals.moduleState}" != "started" || "${globals.runningVersion}" != "${this.version}"):
+        startModule:
+          moduleSymname: augmented-search
+          moduleVersion: ${this.version}
+
+    - uninstallStoppedVersionsOfModule:
+        moduleSymname: augmented-search
+
+settings:
+  fields:
+    - name: papiToken
+      type: string
+      caption: Papi token to use
+      required: true
