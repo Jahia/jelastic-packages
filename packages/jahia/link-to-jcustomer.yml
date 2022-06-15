@@ -16,10 +16,6 @@ mixins:
 
 onInstall:
   - checkJcustomerLink
-  - setNGData
-  - environment.nodegroup.ApplyData[proc, cp]:
-      data:
-        envLink: ${settings.unomienv}
   - getUnomiDnsAndPwd:
       unomi_env_name: ${settings.unomienv}
   - getJexperienceVersion
@@ -32,6 +28,10 @@ onInstall:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
+  - setNGData
+  - environment.nodegroup.ApplyData[proc, cp]:
+      data:
+        envLink: ${settings.unomienv}
 
 
 actions:

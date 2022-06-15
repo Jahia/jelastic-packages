@@ -29,7 +29,7 @@ settings:
       values:
         installOrUpgrade: install or upgrade
         uninstall: uninstall
-      default: install
+      default: installOrUpgrade
       required: true
     - name: moduleSymname
       type: string
