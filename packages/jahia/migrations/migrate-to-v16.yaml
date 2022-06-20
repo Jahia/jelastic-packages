@@ -33,6 +33,14 @@ onInstall:
   # Actions that require a restart:
   - removeModulesFolderAndRestartAllJahia                     # PAAS-2079
 
+  # Actions that require a restart:
+  - setESPrefixNodeGroupData                                  # PAAS-1855
+
+  # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
   ### Post-actions
   - setEnvVersion: ${globals.version}
   - logEvent:
@@ -95,3 +103,10 @@ actions:
         rm modules/* bundles-deployed/module-bundle-location.map
         sudo service tomcat start
     - startupJahiaHealthCheck: ${this.target}
+
+  setESPrefixNodeGroupData:
+    - env.nodegroup.ApplyData[cp, proc]:
+        data:
+          jahia_cfg_elasticsearch_prefix: ${env.envName}
+    - setGlobals:
+        jahiaRollingRestartNeeded: true
