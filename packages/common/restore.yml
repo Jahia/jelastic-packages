@@ -277,7 +277,6 @@ actions:
 
         sudo service tomcat start
 
-    - checkPatGroovyScriptExecution
     - startupJahiaHealthCheck: proc
 
     - cmd [cp]:
