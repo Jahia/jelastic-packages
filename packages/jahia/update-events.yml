@@ -13,6 +13,7 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
+  - ../../mixins/elasticsearch.yml
 
 onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
@@ -339,6 +340,11 @@ onBeforeDelete:
           - if (${response.out} == 1):
               refreshUnomiAllowedIPs:
                 unomiEnvName: ${globals.unomi_env_name}
+
+  - isAugSearchEnabled
+  - if (${globals.isAugSearchEnabled}):
+      destroyESDeployment
+
   - if ("${env.status}" == 1):
       - muteDatadogHost:
           target: "*"

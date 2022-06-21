@@ -370,8 +370,12 @@ actions:
             creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
             encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
+            nodes = jelastic.env.control.GetNodeGroups("${env.envName}", session)
+            jahia_env = (nodes.object.filter(function (object) {return object.name == "proc"}).length == 1);
+
+            indices_prefix = jahia_env ? "${env.shortdomain}__as_*" : "${env.shortdomain}__jc-*"
             // Delete indices
-            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}__jc-*");
+            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/" + indices_prefix);
             deleteESIndices.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
             httpClient = HttpClients.createDefault();
             resp = httpClient.execute(deleteESIndices);
@@ -379,13 +383,15 @@ actions:
               return {"result": 1, errOut: "Can't delete indices:" + resp};
             }
 
-            // Delete geonameentry alias
-            deleteGeonameAlias = new HttpDelete(ec_deployment["es_endpoint"] + "/global-geonameentry/_alias/${env.shortdomain}__jc-geonameentry");
-            deleteGeonameAlias.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
-            httpClient = HttpClients.createDefault();
-            resp = httpClient.execute(deleteGeonameAlias);
-            if (resp.getStatusLine().getStatusCode() != 200) {
-              return {"result": 1, errOut: "Can't delete geonameentry alias:" + resp};
+            if (!jahia_env) {
+              // Delete geonameentry alias
+              deleteGeonameAlias = new HttpDelete(ec_deployment["es_endpoint"] + "/global-geonameentry/_alias/${env.shortdomain}__jc-geonameentry");
+              deleteGeonameAlias.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+              httpClient = HttpClients.createDefault();
+              resp = httpClient.execute(deleteGeonameAlias);
+              if (resp.getStatusLine().getStatusCode() != 200) {
+                return {"result": 1, errOut: "Can't delete geonameentry alias:" + resp};
+              }
             }
 
             return {"result": 0, "out": "indices and geonameentry alias deleted"};
