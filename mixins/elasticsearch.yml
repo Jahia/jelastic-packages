@@ -140,7 +140,7 @@ actions:
         login=$(echo $creds | jq -r .login)
 
         # Create Kibana role
-        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__as-*"], "privileges": ["all"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__as_*"], "privileges": ["all"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
         if [ $? -ne 0 ]; then
           echo "Failed to create kibana role." && exit 1
         fi
