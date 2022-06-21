@@ -1278,6 +1278,23 @@ actions:
             exit 1
         fi
 
+  isAugSearchEnabled:
+    # Returns:
+    #   ${globals.isAugSearchEnabled}: true if augmented search is enabled, false otherwise
+    - script: |-
+      const augsearch = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+          return object.name == "cp";
+      }).pop().augsearch;
+
+      resp = {"result": 0}
+      resp.onAfterReturn = {
+        setGlobals: {
+          isAugSearchEnabled: (augsearch != null)
+        }
+      }
+
+      return resp
+
   #######################
   # jexperience related #
   #######################

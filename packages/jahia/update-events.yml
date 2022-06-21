@@ -341,12 +341,8 @@ onBeforeDelete:
               refreshUnomiAllowedIPs:
                 unomiEnvName: ${globals.unomi_env_name}
 
-  - script: |-
-      const augsearch = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
-          return object.name == "cp";
-      }).pop().augsearch;
-      return {'result': 0, 'removeECDeployement': (augsearch != null)}
-  - if (${response.removeECDeployement}):
+  - isAugSearchEnabled
+  - if (${globals.isAugSearchEnabled}):
       destroyESDeployment
 
   - if ("${env.status}" == 1):
