@@ -35,6 +35,7 @@ onBeforeRedeployContainer[cp]:
   - saveUnomiRootPassword
 
 onAfterRedeployContainer[cp]:
+  - createJelasticPackagesLogDir
   - getUnomiRootPassword
   - setupUnomi:
       unomi_root_password_b64: ${globals.unomi_root_password_b64}
