@@ -14,6 +14,7 @@ mixins:
   - ../../mixins/common.yml
   - ../../mixins/elasticsearch.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
 
 
 onInstall:
@@ -69,9 +70,11 @@ actions:
 
   installModules:
     - if(globals.jahia810):  # if jahia 8.1.0 then graphql dxm provider must be upgraded
+        - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
         - installOrUpgradeModule:
             moduleSymname: graphql-dxm-provider
             moduleVersion: ${globals.graphql_ver}
+        - enableHaproxyHealthcheck
     - if(globals.lessjahia812):
         - installOrUpgradeModule:
             moduleSymname: jcontent
