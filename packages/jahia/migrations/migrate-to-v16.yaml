@@ -32,6 +32,7 @@ onInstall:
 
   # Actions that require a restart:
   - removeModulesFolderAndRestartAllJahia                     # PAAS-2079
+  - upgradeSam                                                # PAAS-2089
 
   # Actions that require a restart:
   - setESPrefixNodeGroupData                                  # PAAS-1855
@@ -110,3 +111,4 @@ actions:
           jahia_cfg_elasticsearch_prefix: ${env.envName}
     - setGlobals:
         jahiaRollingRestartNeeded: true
+
