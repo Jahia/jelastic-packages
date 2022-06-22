@@ -21,7 +21,7 @@ onInstall:
       target: "*"
       duration: 240 # 4h
   - muteEnvWideMonitors:
-      duration: 4 # 4h
+      duration: 240 # 4h
   - setGlobalRepoRootUrl
   - getBackrestAwsAccessKey
   - if(settings.cloud_source):

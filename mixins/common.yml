@@ -868,7 +868,7 @@ actions:
 
   muteEnvWideMonitors:
     # Parameters:
-    #  - duration: mute duration in hours. Optional, default 48
+    #  - duration: mute duration in minutes. Optional, default 2880 (48h)
     - getVaultData
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
@@ -877,7 +877,7 @@ actions:
         __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
         monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
-        MUTE_END=$(date -d "+${this.duration:48}hours" +%s)
+        MUTE_END=$(date -d "+${this.duration:2880}min" +%s)
 
         ENVNAME="${env.envName}"
         for monitor_id in "${monitors_id[@]}"; do
