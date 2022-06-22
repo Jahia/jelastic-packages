@@ -9,6 +9,7 @@ description:
 
 mixins:
   - ../../mixins/common.yml
+  - ../../mixins/jcustomer.yml
 
 
 onInstall:
@@ -49,6 +50,8 @@ onInstall:
     skipReinstall: false
     isSequential: false
     envName: ${env.envName}
+
+  - checkJcustomerHealth
 
   - setGlobalRepoRootUrl
 
