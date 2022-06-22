@@ -112,3 +112,21 @@ actions:
     - setGlobals:
         jahiaRollingRestartNeeded: true
 
+  upgradeSam:
+    - isVersionBetween:
+        version: ${globals.jahiaVersion}
+        higher: 8.0.0.0
+        higher_may_equal: false
+        lower: 7.3.9.0
+        lower_may_equal: true
+        res: jahia739plus
+    - if (${globals.jahia739plus}):
+      - checkModule:
+          moduleSymname: server-availability-manager
+      - if ("${globals.runningVersion}" != "1.2.0"):
+          - disableHaProxyHealthcheck
+          - installOrUpgradeModule:
+              moduleSymname: server-availability-manager
+              moduleVersion: 1.2.0
+          - checkJahiaHealth
+          - enableHaProxyHealthcheck
