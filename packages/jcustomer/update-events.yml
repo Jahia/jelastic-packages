@@ -36,7 +36,12 @@ onBeforeRedeployContainer[cp]:
 
 onAfterRedeployContainer[cp]:
   - createJelasticPackagesLogDir
+  - installRequiredPackages:
+      target: "cp"
+      packages: "python36 python36-pip jq"
+  - installPapiScript: cp
   - setESEndpointInJcustomerConfig
+
   - getUnomiRootPassword
   - setupUnomi:
       unomi_root_password_b64: ${globals.unomi_root_password_b64}
