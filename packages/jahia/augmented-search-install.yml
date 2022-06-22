@@ -59,12 +59,23 @@ actions:
         - if(globals.jahia810):
             - setGlobals:  # if jahia 8.1.0
                 graphql_ver: 2.8.0
+        - isVersionStrictlyLower:
+            a: ${globals.jahiaVersion}
+            b: 8.1.2.0
+            res: lessjahia812
+        - if(globals.lessjahia812):
+            - setGlobals:  # if jahia < 8.1.2 jContent have to be upgraded
+                jcontent_ver: 2.7.0
 
   installModules:
     - if(globals.jahia810):  # if jahia 8.1.0 then graphql dxm provider must be upgraded
         - installOrUpgradeModule:
             moduleSymname: graphql-dxm-provider
             moduleVersion: ${globals.graphql_ver}
+    - if(globals.lessjahia812):
+        - installOrUpgradeModule:
+            moduleSymname: jcontent
+            moduleVersion: ${globals.jcontent_ver}
     - installOrUpgradeModule:
         moduleSymname: database-connector
         moduleVersion: ${globals.db_connector_ver}
