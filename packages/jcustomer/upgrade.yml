@@ -50,6 +50,8 @@ onInstall:
     isSequential: false
     envName: ${env.envName}
 
+  - checkJcustomerHealth
+
   - setGlobalRepoRootUrl
 
   - updateProductVersionInPapi:
