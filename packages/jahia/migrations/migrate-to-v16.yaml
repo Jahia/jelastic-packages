@@ -124,9 +124,9 @@ actions:
       - checkModule:
           moduleSymname: server-availability-manager
       - if ("${globals.runningVersion}" != "1.2.0"):
-          - disableHaProxyHealthcheck
+          - disableHaproxyHealthcheck
           - installOrUpgradeModule:
               moduleSymname: server-availability-manager
               moduleVersion: 1.2.0
           - checkJahiaHealth
-          - enableHaProxyHealthcheck
+          - enableHaproxyHealthcheck
