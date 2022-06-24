@@ -6,7 +6,6 @@ logo: ../../assets/common/jahia-logo-70x70.png
 id: jahia-augmentedsearch-uninstall
 description:
   short: Jahia - Uninstall Augmented Search
-baseUrl: https://raw.githubusercontent.com/Jahia/jelastic-packages/PAAS-1997-uninstall-as-package/packages/jahia
 
 mixins:
   - ../../mixins/common.yml
