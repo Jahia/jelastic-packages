@@ -191,6 +191,7 @@ onBeforeStop:
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - muteEnvWideMonitors
   - stopJahia: cp, proc
   - stopGalera
   - updateEnvStatusInPapi:
@@ -217,6 +218,7 @@ onAfterStart:
       text: "$envName is started"
   - unmuteDatadogHost:
       target: "*"
+  - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
 
 onBeforeMigrate:
@@ -349,5 +351,6 @@ onBeforeDelete:
       - muteDatadogHost:
           target: "*"
           duration: 2880 # 48h
+      - muteEnvWideMonitors
   - deleteEnvironment
   - removeAllSecrets

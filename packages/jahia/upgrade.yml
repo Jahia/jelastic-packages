@@ -15,6 +15,7 @@ mixins:
 onInstall:
   - muteDatadogSynthetics:
       duration: 240 # 4h
+  - muteEnvWideMonitors
   ## Globals definition
   - cmd [proc]: |-
       ## [Upgrade] - 1/2
@@ -77,6 +78,7 @@ onInstall:
       - updateProductVersionInPapi:
           version: "${settings.targetVersion}"
           product: "dx"
+  - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
 
 

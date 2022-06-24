@@ -865,3 +865,36 @@ actions:
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $DD_APP_KEY"
+
+  muteEnvWideMonitors:
+    # Parameters:
+    #  - duration: mute duration in minutes. Optional, default 2880 (48h)
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${nodes.proc.first.id}]: |-
+        __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        SCOPE_TAG="env-wide"
+        monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
+        MUTE_END=$(date -d "+${this.duration:2880}min" +%s)
+
+        ENVNAME="${env.envName}"
+        for monitor_id in "${monitors_id[@]}"; do
+          curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/mute?scope=envname:$ENVNAME&end=$MUTE_END" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
+        done
+
+  unmuteEnvWideMonitors:
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd[${nodes.proc.first.id}]: |-
+        __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        SCOPE_TAG="env-wide"
+        monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
+
+        ENVNAME="${env.envName}"
+        for monitor_id in "${monitors_id[@]}"; do
+          curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute?scope=envname:$ENVNAME" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
+        done
