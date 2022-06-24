@@ -1,0 +1,64 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Uninstall Augmented Search
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-augmentedsearch-uninstall
+description:
+  short: Jahia - Uninstall Augmented Search
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+  - ../../mixins/jahia.yml
+
+
+onInstall:
+  - deleteESConnection
+  - deleteAugSearch
+  - removeNodeGroupData
+  - destroyESDeployment
+
+actions:
+  deleteESConnection:
+  - getPatTokenAndKey
+  - cmd[proc]: |-
+      __secret__API_TOKEN="${globals.__secret__pat_token}"
+      get_current_es_connection() {
+        curl -fLSs http://localhost:8080/modules/graphql \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Origin: http://localhost:8080' \
+          -H 'Content-Type: application/json' \
+          -d '{"query":"query { admin { search { currentConnection } } }"}' \
+          | jq -r '.data.admin.search.currentConnection'
+      }
+      curl_delete_es(){
+        curl -fLSs -XDELETE http://localhost:8080/modules/dbconn/elasticsearch/remove/$current_es_connection \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Origin: http://localhost:8080' \
+          -H 'Content-Type: application/json' \
+          | jq -r ".success"
+      }
+      current_es_connection=$(get_current_es_connection)
+      if [ "$current_es_connection" = "null" ]; then
+        echo "No ES connection found in AS module, nothing to do"
+        exit 0
+      fi
+      echo "Deleting ES connection"
+      result=$(curl_delete_es)
+      if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
+        echo "Failed to remove the old connection"
+        exit 1
+      fi
+      echo "ES connection is now removed"
+
+  deleteAugSearch:
+    - uninstallModule:
+        moduleSymname: augmented-search
+    - cmd[proc, cp]: |-
+        rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
+
+  removeNodeGroupData:
+    - environment.nodegroup.ApplyData[cp]:
+        data:
+          augsearch: null
