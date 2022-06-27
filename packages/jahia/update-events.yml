@@ -245,8 +245,6 @@ onAfterMigrate:
       target: "*"
 
 onBeforeRestartNode:
-  - cleanJRJJournalTable:
-      batchSize: 10000
   - logEvent:
       target: ${event.params.nodeId}
       title: "Restarting node ${event.params.nodeId}"
