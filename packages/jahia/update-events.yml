@@ -58,8 +58,10 @@ onAfterRestartNode[cp]:
           reload: true
 
 onBeforeRestartNode[proc]:
-  removeProcNodeFromHaproxy:
-    reload: true
+  - removeProcNodeFromHaproxy:
+      reload: true
+  - cleanJRJJournalTable:
+      batchSize: 10000
 
 onAfterRestartNode[proc]:
   - startupJahiaHealthCheck: ${event.params.nodeId}
@@ -193,6 +195,8 @@ onBeforeStop:
       duration: 2880 # 48h
   - muteEnvWideMonitors
   - stopJahia: cp, proc
+  - cleanJRJJournalTable:
+      batchSize: 10000
   - stopGalera
   - updateEnvStatusInPapi:
       status: stopped
@@ -241,6 +245,8 @@ onAfterMigrate:
       target: "*"
 
 onBeforeRestartNode:
+  - cleanJRJJournalTable:
+      batchSize: 10000
   - logEvent:
       target: ${event.params.nodeId}
       title: "Restarting node ${event.params.nodeId}"
