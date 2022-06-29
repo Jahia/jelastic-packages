@@ -116,6 +116,7 @@ actions:
         jahiaRollingRestartNeeded: true
 
   upgradeSam:
+    - getJahiaVersion
     - isVersionBetween:
         version: ${globals.jahiaVersion}
         higher: 8.0.0.0
