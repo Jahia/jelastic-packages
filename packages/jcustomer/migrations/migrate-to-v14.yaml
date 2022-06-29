@@ -1,0 +1,60 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v14
+id: migrate-jcustomer-env-v14
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+
+globals:
+  version: 14
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  # Actions that require a restart:
+  - configureDatadogAPM                    # PAAS-2022
+
+  # Restart action:
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/jcustomer-rolling-restart.yml"
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  configureDatadogAPM:
+    - api: env.control.AddContainerEnvVars
+      nodeGroup: cp
+      vars: {"DATADOG_APM_ENABLED": "true"}
+    - cmd [cp]: |-
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        if ! grep -q "APM_OPTS" $setenv; then
+          echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
+          echo ${DATADOG_APM_ENABLED:-true}' && JAVA_OPTS+=" $APM_OPTS"' >> $setenv
+        fi
+    - cmd [cp]: |-
+        set_dd_tag="/usr/local/bin/set_dd_tags.sh"
+        if ! grep -q "apm_config" $set_dd_tag; then
+          sed -i "/logs_enabled/i echo \"apm_config:\"\necho \"  enabled: \${DATADOG_APM_ENABLED:-true}\"" $set_dd_tag
+        fi

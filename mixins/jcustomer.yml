@@ -345,3 +345,9 @@ actions:
     - environment.nodegroup.ApplyData [cp]:
         data:
           JEL_ENV_ROLE: ${response.out}
+
+  configureDatadogAPM:
+    - cmd [cp]: |-
+        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
+        echo ${DATADOG_APM_ENABLED:-true}' && JAVA_OPTS+=" $APM_OPTS"' >> $setenv

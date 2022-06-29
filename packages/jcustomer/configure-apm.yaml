@@ -1,0 +1,25 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Configure APM
+id: jcustomer-configure-apm
+description:
+  short: jCustomer - Configure APM (enable/disable)
+
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - env.control.AddContainerEnvVars[cp]:
+      vars: {"DATADOG_APM_ENABLED": "${settings.apmEnabled}"}
+  - setGlobalRepoRootUrl
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+
+settings:
+  fields:
+    - type: checkbox
+      name: apmEnabled
+      caption: APM enabled
+      value: false

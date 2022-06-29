@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 13
+  jcustomer_env_version: 14
   unomi_version: ${settings.productVersion}
   elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -75,6 +75,7 @@ onBeforeInstall: |
     nodeGroup: 'cp',
     startServiceOnCreation: false,
     env: {
+      DATADOG_APM_ENABLED: true,
       UNOMI_VERSION: unomiVersion,
       UNOMI_HTTP_PORT: '80',
       UNOMI_ELASTICSEARCH_SSL_ENABLE: 'true',
@@ -144,6 +145,7 @@ onInstall:
       unomi_root_password_b64: ${globals.unomi_root_password_b64}
   - setEnvVersion: ${globals.jcustomer_env_version}
   - setJcustomerApiKey
+  - configureDatadogAPM
   - install:
       jps: "${baseUrl}/update-events.yml"
   - checkJcustomerHealthWhenStarting: cp
