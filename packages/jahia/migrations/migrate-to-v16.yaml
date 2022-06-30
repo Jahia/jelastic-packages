@@ -72,40 +72,67 @@ actions:
         b: 8.0.3.0
         res: isHigherOrEqualThan8030
     - if ( ${globals.isHigherOrEqualThan8030} ):
+        - set:
+            bypassRollingRestart: true
 
         # Processing node
-        - removeProcNodeFromHaproxy:
-            reload: true
-        - removeModulesFolderFromNodeAndRestartJahia:
-            target: ${nodes.proc.first.id}
-        - addProcNodeToHaproxy:
-            reload: true
-        # Browsing Nodes
-        - foreach (nodes.cp):
-            - removeBrowsingNodeFromHaproxy:
-                nodeId: ${@i.id}
+        - checkIfModulesFolderCleanupNeeded:
+            nodeId: ${nodes.proc.first.id}
+        - if (${globals.modulesFolderCleanupNeeded}):
+            - removeProcNodeFromHaproxy:
                 reload: true
             - removeModulesFolderFromNodeAndRestartJahia:
-                target: ${@i.id}
-            - addBrowsingNodeToHaproxy:
-                nodeId: ${@i.id}
-                nodeIp: ${@i.intIP}
+                target: ${nodes.proc.first.id}
+            - addProcNodeToHaproxy:
                 reload: true
-        # Bypass final rolling restart, since we just restarted
+        - else:
+            # If node wasn't restarted, we can't bypass final rolling restart
+            - set:
+                bypassRollingRestart: false
+        # Browsing Nodes
+        - foreach (nodes.cp):
+            - checkIfModulesFolderCleanupNeeded:
+                nodeId: ${@i.id}
+            - if (${globals.modulesFolderCleanupNeeded}):
+                - removeBrowsingNodeFromHaproxy:
+                    nodeId: ${@i.id}
+                    reload: true
+                - removeModulesFolderFromNodeAndRestartJahia:
+                    target: ${@i.id}
+                - addBrowsingNodeToHaproxy:
+                    nodeId: ${@i.id}
+                    nodeIp: ${@i.intIP}
+                    reload: true
+            - else:
+                # If node wasn't restarted, we can't bypass final rolling restart
+                - set:
+                    bypassRollingRestart: false
+        # Bypass final rolling restart if all nodes have been restarted
+        - if (${this.bypassRollingRestart}):
+            - setGlobals:
+                jahiaRollingRestartNeeded: false
+
+  checkIfModulesFolderCleanupNeeded:
+    - cmd[${this.nodeId}]: |-
+        if ! ls /data/digital-factory-data/modules/*.jar &> /dev/null; then
+          echo "folder is empty"
+        fi
+    - set:
+        folderState: ${response.out}
+    - if("${this.folderState}" == "folder is empty"):
         - setGlobals:
-            jahiaRollingRestartNeeded: false
+            modulesFolderCleanupNeeded: false
+    - else:
+        - setGlobals:
+            modulesFolderCleanupNeeded: true
 
   removeModulesFolderFromNodeAndRestartJahia:
     - cmd[${this.target}]: |-
-        dir="/data/digital-factory-data/modules"
-        if ! ls $dir/*.jar &> /dev/null; then
-          echo "[INFO] Modules jar file not present. Nothing to do."
-          exit 0
-        fi
-        sudo service tomcat stop
+        service tomcat stop
         cd /data/digital-factory-data/
         rm modules/* bundles-deployed/module-bundle-location.map
-        sudo service tomcat start
+        service tomcat start
+      user: root
     - startupJahiaHealthCheck: ${this.target}
 
   setESPrefixNodeGroupData:
