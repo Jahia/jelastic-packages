@@ -26,7 +26,7 @@ onInstall:
 
   # Restart action:
   - install:
-      jps: "${globals.repoRootUrl}/packages/jahia/jcustomer-rolling-restart.yml"
+      jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -51,7 +51,7 @@ actions:
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
         if ! grep -q "APM_OPTS" $setenv; then
           echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
-          echo ${DATADOG_APM_ENABLED:-true}' && JAVA_OPTS+=" $APM_OPTS"' >> $setenv
+          echo '${DATADOG_APM_ENABLED:-true} && JAVA_OPTS+=" $APM_OPTS"' >> $setenv
         fi
     - cmd [cp]: |-
         set_dd_tag="/usr/local/bin/set_dd_tags.sh"
