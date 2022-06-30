@@ -355,7 +355,7 @@ actions:
         ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
 
         // If the deleted env is one of many mutualized envs, we don't delete the EC deployment.
-        // Instead, we clean up indices and geonameentry alias related to the env.
+        // Instead, we clean up indices, geonameentry alias, kibana role and es user related to the env.
         if (ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) {
             // Get ES credentials from PAPI
             getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
@@ -394,7 +394,26 @@ actions:
               }
             }
 
-            return {"result": 0, "out": "indices and geonameentry alias deleted"};
+            // Delete Kibana role
+            deleteKibanaRole = new HttpDelete(ec_deployment["kibana_endpoint"] + "/api/security/role/${env.shortdomain}");
+            deleteKibanaRole.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            deleteKibanaRole.setHeader("kbn-xsrf", "reporting");
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteKibanaRole);
+            if (resp.getStatusLine().getStatusCode() != 204) {
+              return {"result": 1, errOut: "Can't delete kibana role:" + resp};
+            }
+
+            // Delete ES user
+            deleteESUser = new HttpDelete(ec_deployment["es_endpoint"] + "/_security/user/${env.shortdomain}");
+            deleteESUser.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteESUser);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't delete es user:" + resp};
+            }
+
+            return {"result": 0, "out": "indices, geonameentry alias, kibana role and es user deleted"};
         }
 
         updateECDeployment = new HttpPut(papiBaseUrl + "paas-environment/" + papiEnvId);
