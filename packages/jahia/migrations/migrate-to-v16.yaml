@@ -144,8 +144,7 @@ actions:
     - api: env.control.GetContainerEnvVarsByGroup
       nodeGroup: proc
     - if ("${response.object.DATADOG_APM_ENABLED}" == "false"):
-        - env.nodegroup.ApplyData[cp, proc]:
-            data:
-              DATADOG_APM_ENABLED: true
+        - env.control.AddContainerEnvVars[cp, proc]:
+            vars: {"DATADOG_APM_ENABLED": "true"}
         - setGlobals:
             jahiaRollingRestartNeeded: true
