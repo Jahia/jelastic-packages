@@ -8,6 +8,7 @@ id: migrate-jcustomer-env-v14
 mixins:
   - "../../../mixins/common.yml"
   - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
 
 globals:
   version: 14
@@ -21,8 +22,10 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - cleanupRolesAndUsersForMutualizedECDeployment          # PAAS-2108
+
   # Actions that require a restart:
-  - configureDatadogAPM                    # PAAS-2022
+  - configureDatadogAPM                                    # PAAS-2022
 
   # Restart action:
   - install:

@@ -652,6 +652,147 @@ actions:
         rm -f $output_file
         exit $exit
 
+  cleanupRolesAndUsersForMutualizedECDeployment:
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - script: |-
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.client.methods.HttpPost;
+        import org.apache.http.client.methods.HttpPut;
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import org.apache.http.entity.StringEntity;
+        import java.util.Base64;
+
+        papiToken = "${globals.papiToken}";
+        papiEnvId = "${globals.papiEnvId}";
+        papiBaseUrl = "https://${globals.papiHostname}/api/${globals.papiApiVersion}/";
+
+        getPaasEnv = new HttpGet(papiBaseUrl + "paas-environment/" + papiEnvId);
+        getPaasEnv.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getPaasEnv);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get paas environment " + papiEnvId};
+        }
+        paasEnv = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        ecDeploymentId = paasEnv["ec_deployment_id"]
+
+        getECDeployment = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId);
+        getECDeployment.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getECDeployment);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get ec deployment " + ecDeploymentId + ": " + resp};
+        }
+        ecDeployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        
+        // Check if ec deployment is mutualized
+        if (!ecDeployment["mutualized"]) {
+          return {"result": 0, "out": "Not a mutualized EC deployment. Nothing to do"};
+        }
+
+        // Get paas envs linked to ec deployment
+        paasEnvsLinked = [];
+        for (i = 0; i < ecDeployment["paas_environments"].length; i++) {
+          paasEnvsLinked.push(ecDeployment["paas_environments"][i].namespace);
+        }
+
+        // Get ES credentials from PAPI
+        getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
+        getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getECDeploymentCreds);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get ec deployment credentials for " + ecDeploymentId + ": " + resp};
+        }
+        es_credentials = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        auth_basic_es_credentials = es_credentials["login"] + ":" + es_credentials["password"]
+        creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
+        encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+
+        // Get Paas organization name from PAPI
+        paasOrganizationId = paasEnv["paas_organization_id"];
+        getPaasOrganization = new HttpGet(papiBaseUrl + "paas-organization/" + paasOrganizationId );
+        getPaasOrganization.setHeader("X-PAPI-KEY", papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getPaasOrganization);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get paas organization for " + paasOrganizationId + ": " + resp};
+        }
+        paasOrganization = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        organizationName = paasOrganization["name"]
+
+        // Get Kibana roles
+        getKibanaRolesAll = new HttpGet(ecDeployment["kibana_endpoint"] + "/api/security/role");
+        getKibanaRolesAll.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getKibanaRolesAll);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get kibana roles:" + resp};
+        }
+        allKibanaRoles = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        kibanaRoles = [];
+        for (i = 0; i < allKibanaRoles.length; i++) {
+          kibanaRoles.push(allKibanaRoles[i].name);
+        }
+        roles = kibanaRoles.filter(function(item){ return item.includes(organizationName); });
+        
+        rolesToDelete = [];
+        for (i=0; i < roles.length; i++) {
+          if (!paasEnvsLinked.includes(roles[i])) {
+            rolesToDelete.push(roles[i]);
+          }
+        }
+
+        // Delete Kibana roles
+        if (rolesToDelete) {
+          for (i=0; i < rolesToDelete.length; i++) {
+            deleteKibanaRole = new HttpDelete(ecDeployment["kibana_endpoint"] + "/api/security/role/" + rolesToDelete[i]);
+            deleteKibanaRole.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            deleteKibanaRole.setHeader("kbn-xsrf", "reporting");
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteKibanaRole);
+            if (resp.getStatusLine().getStatusCode() != 204) {
+              return {"result": 1, errOut: "Can't delete kibana role:" + resp};
+            }
+          }
+        }
+
+        // Get ES users
+        getESUsersAll = new HttpGet(ecDeployment["es_endpoint"] + "/_security/user");
+        getESUsersAll.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getESUsersAll);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get kibana roles:" + resp};
+        }
+        allESUsers = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        esUsers = Object.keys(allESUsers);
+        
+        usersToDelete = [];
+        for (i=0; i < esUsers.length; i++) {
+          if (!paasEnvsLinked.includes(esUsers[i])) {
+            usersToDelete.push(esUsers[i]);
+          }
+        }
+
+        // Delete ES users
+        if (usersToDelete) {
+          for (i=0; i < usersToDelete.length; i++) {
+            deleteESUser = new HttpDelete(ecDeployment["es_endpoint"] + "/_security/user/" + usersToDelete[i]);
+            deleteESUser.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+            httpClient = HttpClients.createDefault();
+            resp = httpClient.execute(deleteESUser);
+            if (resp.getStatusLine().getStatusCode() != 200) {
+              return {"result": 1, errOut: "Can't delete es user:" + resp};
+            }
+          }
+        }
+
+        return {"result": 0, "out": "Mutualized ec deployment " + ecDeploymentId + " has no orphan kibana roles and es users" };
+
 
 ########################################### LEGACY ACTIONS ###########################################
 ############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
