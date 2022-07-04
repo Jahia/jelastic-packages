@@ -54,7 +54,8 @@ actions:
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
         if ! grep -q "APM_OPTS" $setenv; then
           echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
-          echo '${DATADOG_APM_ENABLED:-true} && JAVA_OPTS+=" $APM_OPTS"' >> $setenv
+          # Because cloudscripting interprets the bash form ${<variable name>:<something>} as its own placeholder, we have to use a trick
+          echo '${DATADOG_APM_ENABLED¤-true} && JAVA_OPTS+=" $APM_OPTS"' | sed 's/¤/:/' >> $setenv
         fi
     - cmd [cp]: |-
         set_dd_tag="/usr/local/bin/set_dd_tags.sh"
