@@ -8,6 +8,7 @@ description:
 
 globals:
   elasticsearch_password: ${fn.password(20)}
+  es_connection_name: jahia-cloud_augmented-search
 
 mixins:
   - "../../mixins/common.yml"
@@ -53,6 +54,7 @@ onInstall:
 
     - getPatTokenAndKey
     - createESAccount
+    - handlePIMConnector
     - configureESConnector
 
     - fullReindex
@@ -177,7 +179,7 @@ actions:
 
         # Check if the new ES connection is already configured or not. If so, no need to update the existing account
         current_es_connection=$(curl -fLSs -H "Authorization: APIToken $__secret__API_TOKEN" -H 'Origin: http://localhost:8080' -H 'Content-Type: application/json' -d '{"query":"query { admin { search { currentConnection } } }"}' http://localhost:8080/modules/graphql | jq -r .data.admin.search.currentConnection)
-        if [ "$current_es_connection" != "jahia-cloud_augmented-search" ]; then
+        if [ "$current_es_connection" != "${globals.es_connection_name}" ]; then
           # Delete user in case the package failed at previous execution (so password is lost) and create ES user
           curl -su "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XDELETE
           curl -fLSsu "$login:$password" \
@@ -249,6 +251,21 @@ actions:
         fi
       fi
 
+  handlePIMConnector:
+  - checkModule:
+      moduleSymname: pim-connector
+  - if ("${globals.moduleState}" != "uninstalled"):
+    - log: "PIM connector installed, the configuration needs to be updated"
+    - updatePIMConnectorConf
+
+  updatePIMConnectorConf:
+  - cmd [proc, cp]: |-
+      es_connection_name="${globals.es_connection_name}"
+      ls /data/digital-factory-data/karaf/etc/org.jahia.modules.pim.connector.edp.* | while read pim_conf_file; do
+        echo "Updating the esConnector property for $pim_conf_file file..."
+        sed -i "s/^esConnector\s=\s.*/esConnector = ${es_connection_name}" $pim_conf_file || exit 1
+      done
+
   configureESConnector:
     cmd[proc]: |-
       __secret__API_TOKEN="${globals.__secret__pat_token}"
@@ -265,7 +282,7 @@ actions:
 
       es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
 
-      es_connection_name="jahia-cloud_augmented-search"
+      es_connection_name="${globals.es_connection_name}"
 
       current_es_connection=$(curl -fLSs \
         -H "Authorization: APIToken $__secret__API_TOKEN" \
@@ -303,7 +320,7 @@ actions:
         -H "Authorization: APIToken $__secret__API_TOKEN" \
         -H 'Origin: http://localhost:8080' \
         -H 'Content-Type: application/json' \
-        -d '{"query":"mutation { admin { search { setDbConnection(connectionId:\"jahia-cloud_augmented-search\") } } }"}' \
+        -d '{"query":"mutation { admin { search { setDbConnection(connectionId:\"${globals.es_connection_name}\") } } }"}' \
         http://localhost:8080/modules/graphql | jq -r '.data.admin.search.setDbConnection')
       if [ "$result" != "Successful" ]; then
         echo "Failed to use the $es_connection_name connection for AS"
