@@ -153,7 +153,7 @@ actions:
 
         curl_add_es() {
           curl -fLSs -XPOST http://localhost:8080/modules/dbconn/elasticsearch/add \
-            -H 'Authorization: APIToken $__secret__API_TOKEN' \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
             -H 'Origin: http://localhost:8080' \
             -H 'Content-Type: application/json' \
             -d "$(payload_add_es)"
