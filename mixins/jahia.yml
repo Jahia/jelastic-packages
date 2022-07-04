@@ -767,11 +767,42 @@ actions:
     - else:
         - log: ${this.moduleSymname}/${this.moduleVersion} is already running, nothing to do
 
+  stopModule:
+    # Stops the running version of a module.
+    #
+    # Parameters:
+    #   - moduleSymname: the symbolic name of the module to stop (for instance "distributed-sessions")
+    - set:
+        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
+    - getPatTokenAndKey
+    - log: Stopping ${this.moduleSymname}
+    - cmd [proc]: |-
+        resp=$(${this.curl} -XPOST -d "" \
+                 "localhost/modules/api/bundles/${this.moduleSymname}/_stop")
+        case "$(jq -r .bundleInfos <<< $resp)" in
+          "null") # If stop failed, there is no bundleInfos attribute in the JSON response
+            echo "error"
+            jq -r .message <<< $resp >&2
+            ;;
+          "") # if response is not JSON, for instance 401 unauthorized
+            echo "error"
+            echo $resp >&2
+            ;;
+          *) # Otherwise it means the module was stopped, nothing to do
+            ;;
+        esac
+    - if ("${response.out}" == "error"):
+        - return:
+            type: error
+            message: "An error occurred during module stop."
+    - log: ${this.moduleSymname}/${this.moduleVersion} has been stopped
+
+
   startModule:
     # Starts the specified version of a module.
     #
     # Parameters:
-    #   - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
+    #   - moduleSymname: the symbolic name of the module to start (for instance "distributed-sessions")
     #   - moduleVersion: the version of the module to install
     - set:
         curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
@@ -789,13 +820,13 @@ actions:
             echo "error"
             echo $resp >&2
             ;;
-          *) # Otherwise it means the module was installed, nothing to do
+          *) # Otherwise it means the module was started, nothing to do
             ;;
         esac
     - if ("${response.out}" == "error"):
         - return:
             type: error
-            message: "An error occurred during module uninstall."
+            message: "An error occurred during module startup."
     - log: ${this.moduleSymname}/${this.moduleVersion} has been started
 
   uninstallModuleVersion:
@@ -906,6 +937,46 @@ actions:
                 moduleSymname: ${this.moduleSymname}
                 moduleVersion: ${@i}
         - log: ${this.moduleSymname} module completely uninstalled
+
+  triggerAugSearchFullReindex:
+    # Parameters:
+    #   asynchronous: true to not wait for the end of the fullReindex, false otherwise. Default true
+    cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        curl -XPOST \
+          http://localhost:8080/modules/graphql \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H "Content-Type: application/json" \
+          -H "Origin: http://localhost:8080" \
+          -d '{"query":"mutation {admin {search {startIndex {jobs {id status project {siteKey} } } } } } "}'
+
+        if [ "${this.asynchronous:true}" == "true" ]; then
+          exit 0
+        fi
+
+        check_indexation_state() {
+          res=$(curl -s -XPOST \
+          http://localhost:8080/modules/graphql \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Content-Type: application/json' \
+          -H 'Origin: http://localhost:8080' \
+          -d '{"query":"{admin {search {listSites {sites {indexationStatus siteKey} } } } } "}')
+          echo $res | jq -r '.data.admin.search.listSites.sites | .[] | select(.indexationStatus!="COMPLETED")'
+        }
+
+        check=$(check_indexation_state)
+        while [ ! -z "$check" ]; do
+          sleep 30
+          check=$(check_indexation_state)
+
+          # As the operation can take several hours, it's impossible to set a timeout value
+          # The manual and "clean" way to abort the package is to create the /tmp/stopWaitingForReindexEnd file.
+          if [ -f "/tmp/stopWaitingForReindexEnd" ]; then
+            echo "Force quit"
+            exit 1
+          fi
+        done
+
 
   ####################
   # proxysql related #
@@ -1315,6 +1386,102 @@ actions:
         }
 
         return resp
+
+  getAugSearchConnectionName:
+    # Returns:
+    #   - globals.augSearchConnectionName : contains the augmented search connection name configured, empty if there is nothing configured
+    - getPatTokenAndKey
+    - cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        get_current_as_connection() {
+          curl -fLSs http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"query { admin { search { currentConnection } } }"}' \
+            | jq -r '.data.admin.search.currentConnection'
+        }
+        current_connection=$(get_current_as_connection)
+        if [ "$current_connection" != "null" ]; then
+          echo $current_connection
+        fi
+
+    - setGlobals:
+        augSearchConnectionName: ${response.out}
+
+  removeDefaultESConnection:
+    # Delete the jahia-cloud_augmented-search connexion from elasticsearch-connector module
+    - cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+
+        es_connection_name="jahia-cloud_augmented-search"
+
+        result=$(curl -fLSs -XDELETE \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Origin: http://localhost:8080' \
+          -H 'Content-Type: application/json' \
+          http://localhost:8080/modules/dbconn/elasticsearch/remove/$es_connection_name | jq -r ".success" )
+        if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
+          echo "Failed to remove the old connection"
+          exit 1
+        fi
+
+  setDefaultESConnection:
+    # Set the jahia-cloud_augmented-search connexion from elasticsearch-connector module
+    - getPapiInfoAll
+    - cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
+
+        es_connection_name="jahia-cloud_augmented-search"
+
+        result=$(curl -fLSs -XPOST \
+          -H 'Authorization: APIToken $__secret__API_TOKEN' \
+          -H 'Origin: http://localhost:8080' \
+          -H 'Content-Type: application/json' \
+          -d "{\"id\": \"$es_connection_name\", \"isConnected\": true, \"host\": \"$es_endpoint\", \"port\": 443, \"user\": \"${env.envName}\", \"password\": \"${globals.elasticsearch_password}\", \"options\": {\"useXPackSecurity\": true, \"useEncryption\": true} }" \
+          http://localhost:8080/modules/dbconn/elasticsearch/add
+        )
+        success=$(echo $result | jq -r .success)
+        verified=$(echo $result | jq -r .connectionVerified)
+        if [ "$success" != "Connection successfully added" ]; then
+          echo "Failed to add the connection"
+          exit 1
+        elif [ "$verified" != "true" ]; then
+          echo "The new connection could not be verified"
+          exit 1
+        fi
+
+  setAugSearchESConnection:
+    - getAugSearchConnectionName
+    - if ("${globals.augSearchConnectionName}" != "jahia-cloud_augmented-search"):
+        cmd[proc]: |-
+          __secret__API_TOKEN="${globals.__secret__pat_token}"
+
+          es_connection_name="jahia-cloud_augmented-search"
+
+          response=$(curl -fLSs -XPOST \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"mutation { admin { search { setDbConnection(connectionId:\"jahia-cloud_augmented-search\") } } }"}' \
+            http://localhost:8080/modules/graphql)
+            result=$(echo $response | jq -r '.data.admin.search.setDbConnection')
+          if [ "$result" != "Successful" ]; then
+            echo "Failed to use the $es_connection_name connection for AS: $response"
+            exit 1
+          fi
 
   #######################
   # jexperience related #

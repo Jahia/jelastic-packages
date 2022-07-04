@@ -509,6 +509,33 @@ actions:
     - setGlobals:
         elasticCloudDeploymentId: ${response.out}
 
+  purgeEnvIndicesInES:
+    - getPapiInfoAll
+    - cmd[proc]: |-
+        __secret__PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        if [[ ! "$jahia_cfg_elasticsearch_prefix" =~ "${env.envName}".* ]]; then
+          echo "jahia_cfg_elasticsearch_prefix value is wrong. Exiting to avoid deleting wrong indices"
+          exit0
+        fi
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+        ec_deployment_credentials=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
+
+        es_password=$(echo $ec_deployment_credentials | jq -r .password)
+        es_login=$(echo $ec_deployment_credentials | jq -r .login)
+
+        curl -u "$es_login:$es_password" -XDELETE "$es_endpoint/${jahia_cfg_elasticsearch_prefix}__*"
+
+
   setAwsSnapshotRepository:
     # Parameters:
     #   - repositoryName

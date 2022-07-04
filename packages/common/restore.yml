@@ -71,6 +71,7 @@ onInstall:
               target: bl
               logAction: ${globals.logAction}
       - initialJexperienceStatus
+      - initialAugSearchStatus
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -144,6 +145,34 @@ actions:
         - cmd[proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
           user: root
+
+  initialAugSearchStatus:
+    # Saves AS module version and status (installed/started) in /tmp/as-state if augsearch variable present and set to true in nodegroup data
+    - cmd[proc]: |-
+        [ -f /tmp/as-state ] && echo "true" || echo "false"
+    - setGlobals:
+        restoreAS: ${response.out}
+    # if restoreAS is True, it means that the file was already saved at a previous restore that failed
+    # so there is nothing to do because we want to keep it
+    - if (! ${globals.restoreAS}):
+        - isAugSearchEnabled
+        - if (${globals.isAugSearchEnabled}):
+            - checkModule:
+                moduleSymname: augmented-search
+            - if ("${globals.moduleState}" == "uninstalled"):
+                return:
+                  type: error
+                  message: "augsearch variable value is true, but augmented-search module is not installed. Don't know what to do. Exiting"
+            - cmd[proc]: |-
+                filename=/tmp/as-state
+                echo '{"status":"${globals.moduleState}",' > $filename
+                if [ "${globals.moduleState}" = "started" ]; then
+                  echo ' "version":"${globals.runningVersion}"}' >> $filename
+                else
+                  echo ' "version":"${globals.mostRecentInstalledVersion}"}' >> $filename
+                fi
+            - setGlobals:
+                restoreAS: true
 
   restoreJahia:
     - cmd [proc,cp]: |-
@@ -313,12 +342,50 @@ actions:
         - installOrUpgradeModule:
             moduleSymname: jexperience
             moduleVersion: ${globals.jexperience_active_version}
-
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
     - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
     - if (${this.remove_restored_jexperience}):
         - removeAndCleanJexperience
+
+    - restoreAugSearch
+
+  restoreAugSearch:
+    - if (${globals.restoreAS}):
+        # AS was present on the env before the backup. Need to restore its state
+        - checkModule:
+            moduleSymname: augmented-search
+        - cmd[proc] : cat /tmp/as-state | jq -r .version
+        - set:
+            as-version: ${response.out}
+        - cmd[proc] : cat /tmp/as-state | jq -r .status
+        - set:
+            as-state: ${response.out}
+        - if ("${globals.moduleState}" == "started")  && ("${this.as-version}" != "${globals.runningVersion}"):
+            # Stop module if AS backup and environment version mismatch
+            stopModule:
+              moduleSymname: augmented-search
+        - installOrUpgradeModule:
+            moduleSymname: augmented-search
+            moduleVersion: ${this.as-version}
+        - setGlobals:
+            elasticsearch_password: ${fn.password(20)}
+        - createESAccount4AS
+        - removeDefaultESConnection
+        - setDefaultESConnection
+        - setAugSearchESConnection
+        - purgeEnvIndicesInES
+        - if ("${this.as-state}" == "started"):
+            triggerAugSearchFullReindex
+        - else:
+            # Stops AS module if it was not running on the env before the restore
+            stopModule:
+              moduleSymname: augmented-search
+        - cmd[proc] : rm -f /tmp/as-state
+    - else:
+        - uninstallModule:
+            moduleSymname: augmented-search
+        - removeDefaultESConnection
 
   envSource:
     - script: |
