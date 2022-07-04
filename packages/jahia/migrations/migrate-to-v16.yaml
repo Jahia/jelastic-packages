@@ -117,9 +117,7 @@ actions:
         if ! ls /data/digital-factory-data/modules/*.jar &> /dev/null; then
           echo "folder is empty"
         fi
-    - set:
-        folderState: ${response.out}
-    - if("${this.folderState}" == "folder is empty"):
+    - if("${response.out}" == "folder is empty"):
         - setGlobals:
             modulesFolderCleanupNeeded: false
     - else:
