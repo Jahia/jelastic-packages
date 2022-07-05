@@ -292,6 +292,7 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp
+  - setJelEnvRoleInNodeGroupData
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId

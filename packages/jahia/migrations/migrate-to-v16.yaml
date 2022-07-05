@@ -33,6 +33,7 @@ onInstall:
 
   - upgradeSam                                                # PAAS-2089
   - cleanupASRolesAndUsersForMutualizedECDeployment           # PAAS-2108
+  - setJelEnvRoleInNodeGroupData                              # PAAS-1997
 
   # Actions that require a restart:
   - setESPrefixNodeGroupData                                  # PAAS-1855
