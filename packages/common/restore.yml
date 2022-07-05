@@ -258,7 +258,9 @@ actions:
             gunzip jahia-env-vars.gz
             mv jahia-env-vars /tmp/
             sed -i "/^jahia_cfg_mvnPath/d" /tmp/jahia-env-vars
+            sed -i "/^jahia_cfg_elasticsearch_prefix/d" /tmp/jahia-env-vars
             grep "jahia_cfg_mvnPath" /.jelenv >> /tmp/jahia-env-vars
+            grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> /tmp/jahia-env-vars
             grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
         - cmd [proc,cp]: |-
             cat /tmp/jahia-env-vars > /.jelenv
@@ -351,16 +353,16 @@ actions:
     - restoreAugSearch
 
   restoreAugSearch:
+    - checkModule:
+        moduleSymname: augmented-search
+    - cmd[proc] : [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
+    - set:
+        as-version: ${response.out}
+    - cmd[proc] : [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
+    - set:
+        as-state: ${response.out}
     - if (${globals.restoreAS}):
         # AS was present on the env before the backup. Need to restore its state
-        - checkModule:
-            moduleSymname: augmented-search
-        - cmd[proc] : cat /tmp/as-state | jq -r .version
-        - set:
-            as-version: ${response.out}
-        - cmd[proc] : cat /tmp/as-state | jq -r .status
-        - set:
-            as-state: ${response.out}
         - if ("${globals.moduleState}" == "started")  && ("${this.as-version}" != "${globals.runningVersion}"):
             # Stop module if AS backup and environment version mismatch
             stopModule:
@@ -383,9 +385,10 @@ actions:
               moduleSymname: augmented-search
         - cmd[proc] : rm -f /tmp/as-state
     - else:
-        - uninstallModule:
-            moduleSymname: augmented-search
-        - removeDefaultESConnection
+        if ("${globals.moduleState}" != "uninstalled"):
+          - removeDefaultESConnection
+          - uninstallModule:
+              moduleSymname: augmented-search
 
   envSource:
     - script: |
