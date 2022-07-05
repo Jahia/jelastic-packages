@@ -260,10 +260,9 @@ actions:
 
   updatePIMConnectorConf:
   - cmd [proc, cp]: |-
-      es_connection_name="${globals.es_connection_name}"
       ls /data/digital-factory-data/karaf/etc/org.jahia.modules.pim.connector.edp.* | while read pim_conf_file; do
         echo "Updating the esConnector property for $pim_conf_file file..."
-        sed -i "s/^esConnector\s=\s.*/esConnector = ${es_connection_name}" $pim_conf_file || exit 1
+        sed -r -i 's/^(esConnector\s*=\s*).*/\1${globals.es_connection_name}/' $pim_conf_file
       done
 
   configureESConnector:
