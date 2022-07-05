@@ -1407,10 +1407,22 @@ actions:
 
   removeDefaultESConnection:
     # Delete the jahia-cloud_augmented-search connexion from elasticsearch-connector module
+    # If the connection does not exist, it does nothing
     - cmd[proc]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
 
         es_connection_name="jahia-cloud_augmented-search"
+
+        # Check if the connection exists before deleting it
+        result=$(curl -fLSs \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H 'Origin: http://localhost:8080' \
+          -H 'Content-Type: application/json' \
+          http://localhost:8080/modules/dbconn/elasticsearch/status/$es_connection_name | jq -r ".failed" )
+        if [ "$result" == "Cannot get database status" ]; then
+          echo "Connection does not exist, nothing to do"
+          exit 0
+        fi
 
         result=$(curl -fLSs -XDELETE \
           -H "Authorization: APIToken $__secret__API_TOKEN" \
