@@ -739,17 +739,9 @@ actions:
         creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
-        // Get Paas organization name from PAPI
-        paasOrganizationId = paasEnv["paas_organization_id"];
-        getPaasOrganization = new HttpGet(papiBaseUrl + "paas-organization/" + paasOrganizationId );
-        getPaasOrganization.setHeader("X-PAPI-KEY", papiToken);
-        httpClient = HttpClients.createDefault();
-        resp = httpClient.execute(getPaasOrganization);
-        if (resp.getStatusLine().getStatusCode() != 200) {
-          return {"result": 1, errOut: "Can't get paas organization for " + paasOrganizationId + ": " + resp};
-        }
-        paasOrganization = JSON.parse(EntityUtils.toString(resp.getEntity()));
-        organizationName = paasOrganization["name"]
+        // Get Paas organization name from nodeGroupData 
+        organizationName = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                                  return object.name == "cp";}).pop().ORGANIZATION_NAME;
 
         // Get Kibana roles
         getKibanaRolesAll = new HttpGet(ecDeployment["kibana_endpoint"] + "/api/security/role");
