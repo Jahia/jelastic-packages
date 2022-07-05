@@ -92,7 +92,7 @@ actions:
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        tar -czf digital-factory-data.tar.gz -C / data/digital-factory-data/ 2>>${globals.logsPath}
+        tar -cz -H posix -f digital-factory-data.tar.gz -C / data/digital-factory-data/ 2>>${globals.logsPath}
         if [ "$?" -gt 1 ]; then
           echo "tar command return an error code greater than 1. Exiting" >>${globals.logsPath}
           exit 1
@@ -109,7 +109,7 @@ actions:
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        tar -czf digital-factory-config.tar.gz -C / opt/tomcat/conf/digital-factory-config/ 2>>${globals.logsPath} || exit 1
+        tar -cz -H posix -f digital-factory-config.tar.gz -C / opt/tomcat/conf/digital-factory-config/ 2>>${globals.logsPath} || exit 1
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f digital-factory-config.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
         rm -f digital-factory-config.tar.gz
     - if ("${response.errOut}" != ""):
@@ -287,7 +287,7 @@ actions:
         if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_JAHIA_CONF; then
             awk '/user .* password .*/ {print $2" "$4}' $HAPROXY_JAHIA_CONF > auth_basic
         fi
-        tar -czf haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME auth_basic
+        tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME auth_basic
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f haproxy.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
         rm -f haproxy.tar.gz
     - if ("${response.errOut}" != ""):
@@ -312,7 +312,7 @@ actions:
           GALERA_INFOS="--galera-info"
         fi
         ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
-        tar -C "$PWD/$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
+        tar -H posix -C "$PWD/$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f $BACKUP_NAME ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
         rm -rf $BACKUP_DIR $BACKUP_NAME
     - if ("${response.errOut}" != ""):
