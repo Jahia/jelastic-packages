@@ -258,7 +258,9 @@ actions:
             gunzip jahia-env-vars.gz
             mv jahia-env-vars /tmp/
             sed -i "/^jahia_cfg_mvnPath/d" /tmp/jahia-env-vars
+            sed -i "/^jahia_cfg_elasticsearch_prefix/d" /tmp/jahia-env-vars
             grep "jahia_cfg_mvnPath" /.jelenv >> /tmp/jahia-env-vars
+            grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> /tmp/jahia-env-vars
             grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
         - cmd [proc,cp]: |-
             cat /tmp/jahia-env-vars > /.jelenv
