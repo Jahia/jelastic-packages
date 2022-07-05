@@ -19,8 +19,6 @@ onInstall:
   - getUnomiDnsAndPwd:
       unomi_env_name: ${settings.unomienv}
   - getJexperienceVersion
-  - refreshUnomiAllowedIPs:
-      unomiEnvName: ${settings.unomienv}
   - installOrUpgradeModule:
       moduleSymname: jexperience
       moduleVersion: ${globals.jexperienceVersion}
@@ -32,6 +30,8 @@ onInstall:
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
+  - refreshUnomiAllowedIPs:
+      unomiEnvName: ${settings.unomienv}
 
 
 actions:
