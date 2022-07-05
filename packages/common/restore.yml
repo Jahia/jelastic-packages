@@ -355,10 +355,10 @@ actions:
   restoreAugSearch:
     - checkModule:
         moduleSymname: augmented-search
-    - cmd[proc] : [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
+    - cmd[proc]: [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
     - set:
         as-version: ${response.out}
-    - cmd[proc] : [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
+    - cmd[proc]: [ -f /tmp/as-state ] && (cat /tmp/as-state | jq -r .version) || true
     - set:
         as-state: ${response.out}
     - if (${globals.restoreAS}):
