@@ -694,7 +694,7 @@ actions:
             gunzip jcustomer-env-vars.gz
             echo "Restoring jcustomer env vars" >> ${globals.logsPath}
             # Exclude UNOMI_ELASTICSEARCH env vars if backup pre EC release
-            grep -v '(^UNOMI_ELASTICSEARCH|^UNOMI_THIRDPARTY_PROVIDER1_)' jcustomer-env-vars > /tmp/jcustomer-env-vars
+            grep -Ev '(^UNOMI_ELASTICSEARCH|^UNOMI_THIRDPARTY_PROVIDER1_)' jcustomer-env-vars > /tmp/jcustomer-env-vars
             rm -f jcustomer-env-vars
             grep -vP '^UNOMI_(?!ELASTICSEARCH)' /.jelenv  >> /tmp/jcustomer-env-vars
             cat /tmp/jcustomer-env-vars > /.jelenv
