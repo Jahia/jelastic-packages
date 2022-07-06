@@ -34,6 +34,7 @@ onInstall:
   - upgradeSam                                                # PAAS-2089
   - cleanupASRolesAndUsersForMutualizedECDeployment           # PAAS-2108
   - setJelEnvRoleInNodeGroupData                              # PAAS-1997
+  - updateDDIPSecConnStatus                                   # COPS-579
 
   # Actions that require a restart:
   - setESPrefixNodeGroupData                                  # PAAS-1855
@@ -181,3 +182,11 @@ actions:
     - isAugSearchEnabled
     - if (${globals.isAugSearchEnabled}):
         cleanupRolesAndUsersForMutualizedECDeployment
+
+  updateDDIPSecConnStatus:
+    - cmd[proc, cp]: |-
+        filename="strongswan_connections_status.py"
+        curl -fLSso /etc/datadog-agent/checks.d/$filename ${baseUrl}/v16_assets/$filename || exit 1
+        chown dd-agent: /etc/datadog-agent/checks.d/$filename
+        systemctl restart datadog-agent
+      user: root
