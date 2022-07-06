@@ -48,6 +48,14 @@ actions:
       jps: "${baseUrl}/../update-events.yml"
 
   configureDatadogAPM:
+    - cmd [proc, cp]: |-
+        dd_dir=/opt/jcustomer/jcustomer/datadog
+        dd_file=$dd_dir/dd-java-agent.jar
+        [ -d  $dd_dir ] || mkdir $dd_dir
+        if [ ! -f $dd_file ]; then
+          curl -fSsLo $dd_file https://dtdg.co/latest-java-tracer || exit 1
+          chown karaf: -R /opt/jcustomer/jcustomer/datadog
+        fi
     - api: env.control.AddContainerEnvVars
       nodeGroup: cp
       vars: {"DATADOG_APM_ENABLED": "true"}
