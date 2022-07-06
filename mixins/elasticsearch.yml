@@ -140,7 +140,7 @@ actions:
         login=$(echo $creds | jq -r .login)
 
         # Create Kibana role
-        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__as_*"], "privileges": ["all"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}_*"], "privileges": ["all"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
         if [ $? -ne 0 ]; then
           echo "Failed to create kibana role." && exit 1
         fi
@@ -173,7 +173,7 @@ actions:
         login=$(echo $creds | jq -r .login)
 
         # Create Kibana role
-        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
+        curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}_*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}' -XPUT
         if [ $? -ne 0 ]; then
           echo "Failed to create kibana role." && exit 1
         fi
@@ -373,9 +373,8 @@ actions:
             nodes = jelastic.env.control.GetNodeGroups("${env.envName}", session)
             jahia_env = (nodes.object.filter(function (object) {return object.name == "proc"}).length == 1);
 
-            indices_prefix = jahia_env ? "${env.shortdomain}__as_*" : "${env.shortdomain}__jc-*"
             // Delete indices
-            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/" + indices_prefix);
+            deleteESIndices = new HttpDelete(ec_deployment["es_endpoint"] + "/${env.shortdomain}_*");
             deleteESIndices.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
             httpClient = HttpClients.createDefault();
             resp = httpClient.execute(deleteESIndices);
@@ -714,7 +713,7 @@ actions:
           return {"result": 1, errOut: "Can't get ec deployment " + ecDeploymentId + ": " + resp};
         }
         ecDeployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
-        
+
         // Check if ec deployment is mutualized
         if (!ecDeployment["mutualized"]) {
           return {"result": 0, "out": "Not a mutualized EC deployment. Nothing to do"};
@@ -739,7 +738,7 @@ actions:
         creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
-        // Get Paas organization name from nodeGroupData 
+        // Get Paas organization name from nodeGroupData
         organizationName = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
                                                   return object.name == "cp";}).pop().ORGANIZATION_NAME;
 
@@ -757,7 +756,7 @@ actions:
           kibanaRoles.push(allKibanaRoles[i].name);
         }
         roles = kibanaRoles.filter(function(item){ return item.includes(organizationName); });
-        
+
         rolesToDelete = [];
         for (i=0; i < roles.length; i++) {
           if (!paasEnvsLinked.includes(roles[i])) {
@@ -789,7 +788,7 @@ actions:
         }
         allESUsers = JSON.parse(EntityUtils.toString(resp.getEntity()));
         esUsers = Object.keys(allESUsers);
-        
+
         usersToDelete = [];
         for (i=0; i < esUsers.length; i++) {
           if (!paasEnvsLinked.includes(esUsers[i])) {
