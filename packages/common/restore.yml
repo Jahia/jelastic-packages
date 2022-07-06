@@ -496,7 +496,7 @@ actions:
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d'{
             "indices": "-global-geonameentry*,-context-geonameentry*",
-            "rename_pattern": "(.*)(__jc|__as|^context)-(.*)",
+            "rename_pattern": "(.*)(__[a-z0-9]+|^context)-(.*)",
             "rename_replacement": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-$3"
           }')
         exit=0
@@ -797,7 +797,7 @@ actions:
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
         res=$(curl -so /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" \
                 -H 'Content-Type:application/json' \
-                -d'{"indices": "-context-geonameentry*","rename_pattern": "(.*)(__jc|__as)-(.*)","rename_replacement": "context-$3"}')
+                -d'{"indices": "-context-geonameentry*","rename_pattern": "(.*)(__[a-z0-9]+)-(.*)","rename_replacement": "context-$3"}')
         return_code=$?
         error=$(grep error /tmp/restore-res)
         res=$(wc -l<<<$error)

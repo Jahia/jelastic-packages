@@ -26,7 +26,7 @@ onInstall:
 
   # Actions that require a restart:
   - configureDatadogAPM                                    # PAAS-2022
-  - addManagePermissionToESRoles                           # PAAS-2109
+  - addManagePermissionToESRoles                           # PAAS-2109 and PAAS-2116
 
   # Restart action:
   - install:
@@ -86,7 +86,7 @@ actions:
       # Create Kibana role
       curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -XPUT \
            -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" \
-           -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}'
+           -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}_*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}'
       if [ $? -ne 0 ]; then
         echo "Failed to update kibana role." && exit 1
       fi
