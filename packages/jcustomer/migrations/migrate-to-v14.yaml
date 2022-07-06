@@ -48,7 +48,7 @@ actions:
       jps: "${baseUrl}/../update-events.yml"
 
   configureDatadogAPM:
-    - cmd [proc, cp]: |-
+    - cmd [cp]: |-
         dd_dir=/opt/jcustomer/jcustomer/datadog
         dd_file=$dd_dir/dd-java-agent.jar
         [ -d  $dd_dir ] || mkdir $dd_dir
@@ -69,7 +69,9 @@ actions:
     - cmd [cp]: |-
         set_dd_tag="/usr/local/bin/set_dd_tags.sh"
         if ! grep -q "apm_config" $set_dd_tag; then
-          sed -i "/logs_enabled/i echo \"apm_config:\"\necho \"  enabled: \${DATADOG_APM_ENABLED:-true}\"" $set_dd_tag
+          # Because cloudscripting interprets the bash form ${<variable name>:<something>} as its own placeholder, we have to use a trick with ¤
+          sed -i "/logs_enabled/i echo \"apm_config:\"\necho \"  enabled: \${DATADOG_APM_ENABLED¤-true}\"" $set_dd_tag
+          sed -i 's/¤/:/' $set_dd_tag
         fi
 
   addManagePermissionToESRoles:
