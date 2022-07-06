@@ -26,6 +26,7 @@ onInstall:
 
   # Actions that require a restart:
   - configureDatadogAPM                                    # PAAS-2022
+  - addManagePermissionToESRoles                           # PAAS-2109
 
   # Restart action:
   - install:
@@ -62,3 +63,30 @@ actions:
         if ! grep -q "apm_config" $set_dd_tag; then
           sed -i "/logs_enabled/i echo \"apm_config:\"\necho \"  enabled: \${DATADOG_APM_ENABLED:-true}\"" $set_dd_tag
         fi
+
+  addManagePermissionToESRoles:
+  - if ("${globals.papiToken.print()}" == ""):
+      getPapiInfoAll
+  - cmd [${nodes.cp.first.id}]: |-
+      export PAPI_TOKEN="${globals.papiToken}"
+      export PAPI_HOSTNAME="${globals.papiHostname}"
+      export PAPI_ENV_ID="${globals.papiEnvId}"
+      export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+      environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+      ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+      ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+
+      kibana_endpoint=$(echo $ec_deployment | jq -r .kibana_endpoint)
+
+      creds=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
+      password=$(echo $creds | jq -r .password)
+      login=$(echo $creds | jq -r .login)
+
+      # Create Kibana role
+      curl -fLSsu "$login:$password" "$kibana_endpoint/api/security/role/${env.envName}" -XPUT \
+           -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" \
+           -d '{"metadata": {},"elasticsearch": {"cluster": ["monitor", "manage_index_templates", "manage"], "indices": [{"names": ["${env.envName}__jc-*"], "privileges": ["all"]},{"names": ["global-geonameentry"], "privileges": ["view_index_metadata"]}] }, "kibana": [{"base": ["all"], "feature": {}, "spaces": ["${env.envName}"]}]}'
+      if [ $? -ne 0 ]; then
+        echo "Failed to update kibana role." && exit 1
+      fi
