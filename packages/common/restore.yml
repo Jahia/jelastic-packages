@@ -163,14 +163,27 @@ actions:
                 return:
                   type: error
                   message: "augsearch variable value is true, but augmented-search module is not installed. Don't know what to do. Exiting"
+            - set:
+                asModuleState: ${globals.moduleState}
+                asModuleVersion: ${globals.runningVersion:[globals.mostRecentInstalledVersion]}
+            - checkModule:
+                moduleSymname: database-connector
+            - set:
+              databaseModuleVersion: ${globals.runningVersion:[globals.mostRecentInstalledVersion]}
+            - checkModule:
+                moduleSymname: elasticsearch-connector
+            - set:
+                elasticsearchModuleVersion: ${globals.runningVersion:[globals.mostRecentInstalledVersion]}
+
             - cmd[proc]: |-
-                filename=/tmp/as-state
-                echo '{"status":"${globals.moduleState}",' > $filename
-                if [ "${globals.moduleState}" = "started" ]; then
-                  echo ' "version":"${globals.runningVersion}"}' >> $filename
-                else
-                  echo ' "version":"${globals.mostRecentInstalledVersion}"}' >> $filename
-                fi
+                echo '''
+                  {
+                    "status":"${this.asModuleState}",
+                    "version":"${this.asModuleVersion}",
+                    "database-connector-version":"${this.databaseModuleVersion}",
+                    "elasticsearch-connector-version":"${this.elasticsearchModuleVersion}"
+                  }
+                ''' > /tmp/as-state
             - setGlobals:
                 restoreAS: true
 
@@ -373,6 +386,14 @@ actions:
             # Stop module if AS backup and environment version mismatch
             stopModule:
               moduleSymname: augmented-search
+        - cmd[proc]: cat /tmp/as-state | jq -r '."database-connector-version"'
+        - installOrUpgradeModule:
+            moduleSymname: database-connector
+            moduleVersion: ${response.out}
+        - cmd[proc]: cat /tmp/as-state | jq -r '."elasticsearch-connector-version"'
+        - installOrUpgradeModule:
+            moduleSymname: elasticsearch-connector
+            moduleVersion: ${response.out}
         - installOrUpgradeModule:
             moduleSymname: augmented-search
             moduleVersion: ${this.as-version}
