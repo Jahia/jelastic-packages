@@ -732,6 +732,19 @@ actions:
           PAPI_API_VERSION: ${this.papiApiVersion}
           PAPI_ENV_ID: ${this.papiEnvId}
 
+  setJelEnvRoleInNodeGroupData:
+    - cmd[${nodes.cp.first.id}]: |-
+        source /metadata_from_HOST
+        if [ -z $JEL_ENV_ROLE ]; then
+          echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
+          exit 1
+        fi
+        echo $JEL_ENV_ROLE
+
+    - environment.nodegroup.ApplyData [cp]:
+        data:
+          JEL_ENV_ROLE: ${response.out}
+
   getVaultData:
     - script: |
         const envName = "${env.envName}";
