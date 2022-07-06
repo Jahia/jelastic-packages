@@ -213,8 +213,7 @@ actions:
           echo "AS connection is clear"
           result=$(curl_delete_es)
           if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
-            echo "Failed to remove the old connection"
-            exit 1
+            echo "Failed to remove the old connection but may be normal, so we can continue"
           fi
           echo "Old ES connection is now removed"
           add_es
