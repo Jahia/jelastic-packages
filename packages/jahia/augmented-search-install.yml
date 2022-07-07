@@ -59,7 +59,7 @@ actions:
             res: jahia810
         - if(globals.jahia810):
             - setGlobals:  # if jahia 8.1.0
-                graphql_ver: 2.8.0
+                graphql_ver: 2.8.1
         - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
             b: 8.1.2.0
