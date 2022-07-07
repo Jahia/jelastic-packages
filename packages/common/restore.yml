@@ -178,8 +178,8 @@ actions:
             - cmd[proc]: |-
                 echo '''
                   {
-                    "status":"${this.asModuleState}",
-                    "version":"${this.asModuleVersion}",
+                    "as-status":"${this.asModuleState}",
+                    "as-version":"${this.asModuleVersion}",
                     "database-connector-version":"${this.databaseModuleVersion}",
                     "elasticsearch-connector-version":"${this.elasticsearchModuleVersion}"
                   }
@@ -375,19 +375,19 @@ actions:
         return {"result": 0, "onAfterReturn": {set: {modulesState: ${response.out.toJSON()} } } }
     - if (${globals.restoreAS}):
         # AS was present on the env before the backup. Need to restore its state
-        - if ("${globals.moduleState}" == "started")  && ("${this.modulesState.asModuleVersion}" != "${globals.runningVersion}"):
+        - if ("${globals.moduleState}" == "started")  && ("${this.modulesState.as-version}" != "${globals.runningVersion}"):
             # Stop module if AS backup and environment version mismatch
             stopModule:
               moduleSymname: augmented-search
         - installOrUpgradeModule:
             moduleSymname: database-connector
-            moduleVersion: ${this.modulesState.databaseModuleVersion}
+            moduleVersion: ${this.modulesState.database-connector-version}
         - installOrUpgradeModule:
             moduleSymname: elasticsearch-connector
-            moduleVersion: ${this.modulesState.elasticsearchModuleVersion}
+            moduleVersion: ${this.modulesState.elasticsearch-connector-version}
         - installOrUpgradeModule:
             moduleSymname: augmented-search
-            moduleVersion: ${this.modulesState.asModuleVersion}
+            moduleVersion: ${this.modulesState.as-version}
         - setGlobals:
             elasticsearch_password: ${fn.password(20)}
         - createESAccount4AS
@@ -395,7 +395,7 @@ actions:
         - setDefaultESConnection
         - setAugSearchESConnection
         - purgeEnvIndicesInES
-        - if ("${this.modulesState.asModuleState}" == "started"):
+        - if ("${this.modulesState.as-status}" == "started"):
             triggerAugSearchFullReindex
         - else:
             # Stops AS module if it was not running on the env before the restore
