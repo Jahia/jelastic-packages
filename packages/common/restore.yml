@@ -169,7 +169,7 @@ actions:
             - checkModule:
                 moduleSymname: database-connector
             - set:
-              databaseModuleVersion: ${globals.runningVersion:[globals.mostRecentInstalledVersion]}
+                databaseModuleVersion: ${globals.runningVersion:[globals.mostRecentInstalledVersion]}
             - checkModule:
                 moduleSymname: elasticsearch-connector
             - set:
