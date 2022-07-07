@@ -198,7 +198,7 @@ actions:
         elif [ "$current_es_connection" = "$es_connection_name" ]; then
           echo "Connection already configured, we recreate it"
           result=$(curl_clear_as_conn)
-          if [ "$result" != "Successful" ] && [ "$result" != "Exist already"; then
+          if [ "$result" != "Successful" ] && [ "$result" != "Exist already" ]; then
             echo "Failed to clear AS database connection"
             exit 1
           fi
