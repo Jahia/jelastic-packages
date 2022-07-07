@@ -369,11 +369,11 @@ actions:
     - checkModule:
         moduleSymname: augmented-search
     # Get augmented search/ and db/es connector modules status before restore
-    - cmd[proc]: |-
-        cat /tmp/as-state
-    - script: |-
-        return {"result": 0, "onAfterReturn": {set: {modulesState: ${response.out.toJSON()} } } }
     - if (${globals.restoreAS}):
+        - cmd[proc]: |-
+            cat /tmp/as-state
+        - script: |-
+            return {"result": 0, "onAfterReturn": {set: {modulesState: ${response.out.toJSON()} } } }
         # AS was present on the env before the backup. Need to restore its state
         - if ("${globals.moduleState}" == "started")  && ("${this.modulesState.as-version}" != "${globals.runningVersion}"):
             # Stop module if AS backup and environment version mismatch
