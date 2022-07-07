@@ -65,7 +65,7 @@ actions:
             b: 8.1.2.0
             res: lessjahia812
         - if(globals.lessjahia812):
-            - setGlobals:  # if jahia < 8.1.2 jContent have to be upgraded
+            - setGlobals:  # if jahia < 8.1.2 jContent has to be upgraded
                 jcontent_ver: 2.7.0
 
   installModules:
@@ -90,16 +90,8 @@ actions:
         moduleVersion: ${globals.augsearch_ver}
 
   setNodeGroupData:
-    - cmd[${nodes.cp.first.id}]: |-
-        source /metadata_from_HOST
-        if [ -z $JEL_ENV_ROLE ]; then
-          echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
-          exit 1
-        fi
-        echo $JEL_ENV_ROLE
     - environment.nodegroup.ApplyData[cp]:
         data:
-          JEL_ENV_ROLE: ${response.out}
           augsearch: enable
 
   setupAugSearch:
