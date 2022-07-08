@@ -78,6 +78,7 @@ onBeforeRedeployContainer[cp]:
       - cmd [cp]: |-
           service tomcat stop
         user: root
+      - saveApplicationcontextFilesBeforeRedeploy: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - removeBrowsingNodeFromHaproxy:
@@ -86,15 +87,18 @@ onBeforeRedeployContainer[cp]:
       - cmd [${event.params.nodeId}]: |-
           service tomcat stop
         user: root
+      - saveApplicationcontextFilesBeforeRedeploy: ${event.params.nodeId}
 
 onAfterRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
+      - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
       - startupJahiaHealthCheck: ${event.params.nodeGroup}
       - resetHaproxyBackends
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
+      - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - forEach(nodes.cp):
           if ("${event.params.nodeId}" == "${@i.id}"):
@@ -106,6 +110,7 @@ onAfterRedeployContainer[cp]:
   - cleanJRLocalRevisionsTable
 
 onBeforeRedeployContainer[proc]:
+  - saveApplicationcontextFilesBeforeRedeploy: proc
   - removeProcNodeFromHaproxy:
       reload: true
   - cmd [proc]: |-
@@ -115,6 +120,7 @@ onBeforeRedeployContainer[proc]:
 onAfterRedeployContainer[proc]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
+      - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
       - cmd [proc]: |-
           echo $JAHIA_UPGRADE
@@ -123,6 +129,7 @@ onAfterRedeployContainer[proc]:
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
+      - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
   - addProcNodeToHaproxy:
