@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - updateJelasticRedeployConf        # PAAS-1993
+  - setImageMagickMemoryLimit         # PAAS-2024
 
   # Actions that require a restart:
 
@@ -61,3 +62,13 @@ actions:
   updateJelasticRedeployConf:
     cmd[proc,cp]: |-
       echo "/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp" >> /etc/jelastic/redeploy.conf
+
+  setImageMagickMemoryLimit:
+    - cmd[proc, cp]: |-
+        # if needed, this will uncomment the line for memory limit and also set the value
+        sed -r '/name="memory"/ {
+                  s/(<!)?\s?--\s?(>)?//g
+                  s/value=".+"/value="2GiB"/
+                }' \
+            -i /etc/ImageMagick-7/policy.xml
+      user: root
