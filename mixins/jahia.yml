@@ -338,6 +338,16 @@ actions:
         target: ${this}
         checkName: strongswan_connections_status
 
+  saveApplicationcontextFilesBeforeRedeploy:
+    cmd[${this}]: |-
+      mkdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
+      mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext*.xml /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/
+
+  restoreApplicationcontextFilesAfterRedeploy:
+    cmd[${this}]: |-
+      mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/* /opt/tomcat/conf/digital-factory-config/jahia/
+      rmdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
+
   deleteEnvLinkJahia:
     # Parameters:
     #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
