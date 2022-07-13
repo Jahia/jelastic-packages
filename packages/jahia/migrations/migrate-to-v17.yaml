@@ -35,8 +35,12 @@ onInstall:
   - setImageMagickMemoryLimit         # PAAS-2024
 
   # Actions that require a restart:
+  - revertCORSFilter                  # PAAS-2049
 
   # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -72,3 +76,23 @@ actions:
                 }' \
             -i /etc/ImageMagick-7/policy.xml
       user: root
+
+  revertCORSFilter:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: isHigherOrEqualThan8100
+    - if ( ${globals.isHigherOrEqualThan8100} ):
+        # Remove CORS filter
+        - cmd[cp,proc]: |-
+            file=/opt/tomcat/webapps/ROOT/WEB-INF/web.xml
+            check=$(md5sum $file)
+            xmlstarlet edit -L -d '/_:web-app/_:filter-mapping[_:filter-name="CorsFilter"]' $file
+            xmlstarlet edit -L -d '/_:web-app/_:filter[_:filter-name="CorsFilter"]' $file
+            if [ "$check" != "$(md5sum $file)" ]; then
+              echo "restart"
+            fi
+        - if ("${response.out}" == "restart"):
+            setGlobals:
+              jahiaRollingRestartNeeded: true
