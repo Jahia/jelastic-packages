@@ -532,17 +532,8 @@ actions:
 
   getJahiaVersion:
     - log: "Get jahia version"
-    - script: |-
-        var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session)
-        for (var i = 0, g = resp.nodes; i < g.length; i++) {
-          if (g[i].nodeGroup == "proc") {
-            var jahia_version = g[i].version.split("-", 1)[0]
-            break
-            }
-          }
-        return {'result': 0, 'jahia_version': jahia_version}
     - setGlobals:
-        jahiaVersion: ${response.jahia_version}
+        jahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
     - log: "Jahia is v${globals.jahiaVersion}"
 
   installOrUpgradeModule:
