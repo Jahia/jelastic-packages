@@ -13,7 +13,6 @@ actions:
         for (var i = 0, g = resp.nodes; i < g.length; i++) {
           if (g[i].nodeGroup == "cp") {
             var unomi_nodeid = g[i].id
-            var unomi_version = g[i].version.split("-", 1)[0]
             break
           }
         }
@@ -34,15 +33,14 @@ actions:
           'result': 0,
           'domain': resp.env.domain,
           'unomi_pwd_b64': unomi_pwd_b64,
-          'unomi_version': unomi_version,
           'allowed_ips': allowed_ips
         }
 
     - setGlobals:
         unomidns: ${response.domain}
         unomi_pwd_b64: ${response.unomi_pwd_b64}
-        unomi_version: ${response.unomi_version}
         unomi_allowed_ips: ${response.allowed_ips}
+        unomi_version: ${nodes.cp.first.customitem.nodeVersion}
 
   checkJcustomerHealth:
     cmd [${this}]: |-
