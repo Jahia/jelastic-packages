@@ -488,8 +488,22 @@ actions:
             backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
+    - vaultSecretReadKeyB64:
+        secretPath: paas/envs-common/cloud-ec-infra-circleci-api
+        secretKey: token
+    - set:
+        circleCiToken: ${globals.vaultSecretData}
+    - if ("${globals.papiToken.print()}" == ""):
+        getPapiInfoAll
+    - getCloudConf
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 4/5
+        source /metadata_from_HOST
+        if [ -z $JEL_ENV_ROLE ]; then
+          echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
+          exit 1
+        fi
+
         output_file=$(mktemp)
         ec_admin_credentials=${globals.ecAdminCredentials}
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
@@ -499,9 +513,106 @@ actions:
           echo "The Elasticsearch snapshot you are trying to restore is not complete, aborting" >&2
           exit 1
         fi
+
+        export PAPI_TOKEN="${globals.papiToken}"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+        ec_deployment_mutualized=$(echo $ec_deployment | jq -r .mutualized)
+
+        dev_dedicated=50
+        dev_mutualized=70
+        preprod_dedicated=50
+        preprod_mutualized=70
+        prod_dedicated=20
+        prod_mutualized=50
+
+        if [ "$ec_deployment_mutualized" = true ]; then
+          eval ratio=\$${JEL_ENV_ROLE}_mutualized
+        else
+          eval ratio=\$${JEL_ENV_ROLE}_dedicated
+        fi
+
+        # Get the total shards and score before the restore
+        current_total_shards=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats | jq -r '.indices.shards.total')
+        current_score=$(( (current_total_shards/ratio) + ((current_total_shards%ratio) > 0 )))
+
         curl -sSo /dev/null \
           -u $ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
+        
+        # Calculate the new total shards and score from the snapshot
+        temp_total_shards=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats | jq -r '.indices.shards.total')
+        shards_to_be_added=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
+        new_total_shards=$(( temp_total_shards + shards_to_be_added ))
+        new_score=$(( (new_total_shards/ratio) + ((new_total_shards%ratio) > 0 )))
+
+        # Update PAPI and trigger CircleCI pipeline only if new score is greater
+        if [ "$new_score" -gt "$current_score" ]; then
+          organization_id=$(echo $environment | jq -r .paas_organization_id)
+          ec_deployment_name=$(echo $ec_deployment | jq -r .name)
+          papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}'
+
+          CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
+
+          generate_payload() {
+          if [[ "${globals.cloud_conf.ec.tag}" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            branch_or_tag="tag"
+          else
+            branch_or_tag="branch"
+          fi
+          cat << EOF
+          {
+            "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
+            "parameters": {
+              "workflow": "terraform_apply",
+              "env": "$JEL_ENV_ROLE",
+              "papi_organization_id": $organization_id,
+              "papi_instance_id": $ec_deployment_id,
+              "papi_instance_name": "$ec_deployment_name"
+            }
+          }
+          EOF
+          }
+
+          response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline \
+                        -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
+          if [ $? -ne 0 ]; then
+            echo "Pipeline trigger failed: $response"
+            exit 1
+          fi
+
+          pipelineId=$(echo $response | jq -r .id)
+          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+          if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
+            echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
+            exit 1
+          fi
+
+          # Wait for max 10 minutes for EC deployment update to finish then restore the snapshot anyways
+          timeout=600 # 10 minutes
+          sleep_interval=20
+          workflow_status="running"
+          while [ "$workflow_status" = "running" ]; do
+            sleep $sleep_interval
+            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+            if [ $? -eq 0 ]; then
+              new_workflow_status=$(echo $response | jq -r '.items[0].status')
+              if [ "$new_workflow_status" != "null" ]; then
+                workflow_status=$new_workflow_status
+              fi
+            fi
+            if [ $timeout -lt 1 ]; then
+              break
+            fi
+            ((timeout-=$sleep_interval))
+          done
+        fi
+        
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $ec_admin_credentials \
