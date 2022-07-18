@@ -35,6 +35,7 @@ onInstall:
   - updateJelasticRedeployConf        # PAAS-1993
   - setImageMagickMemoryLimit         # PAAS-2024
   - upgradeHaproxy                    # PAAS-1879
+  - getAugSearchDatadogCheck          # PAAS-2114
 
   # Actions that require a restart:
   - revertCORSFilter                  # PAAS-2049
@@ -118,7 +119,7 @@ actions:
           -e '/^\s*pidfile\s*/d' \
           -e '/^\s*debug\s*$/d' \
           -e "s#^\s*option httpchk GET.*#$HTTP_CHK_NEWLINE#g" $HAPROXY_CONF_BASE
-      
+
       if [ ! -f $HAPROXY_PRESTART_SCRIPT ]; then
         curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/packages/jahia/migrations/v17_assets/haproxy_prestart.sh || exit 1
         chmod +x $HAPROXY_PRESTART_SCRIPT
@@ -149,3 +150,34 @@ actions:
         productName: haproxy
         productVersion: ${globals.haproxy_version}
 
+  getAugSearchDatadogCheck:
+    - getPatTokenAndKey
+    - isAugSearchEnabled
+    - cmd[proc,cp]: |-
+        __secret_pat_token="${globals.__secret__pat_token}"
+        check_conf_path="/etc/datadog-agent/conf.d/augmented_search.yaml-disabled"
+        check_conf_path_enabled="/etc/datadog-agent/conf.d/augmented_search.yaml"
+        check_path="/etc/datadog-agent/checks.d/augmented_search.py"
+        if [ ! -f $check_conf_path ] || [ ! -f check_conf_path_enabled ]; then
+          curl -fLsSo $check_conf_path ${baseUrl}/v17_assets/augmented_search.yaml
+          if [ $? -ne 0 ]; then
+            echo "Failed to get ${baseUrl}/v17_assets/augmented_search.yaml"
+            exit 0
+          fi
+          sed -i "s/jahia_root_token_placeholder/$__secret_pat_token/g" $check_conf_path
+          chmod 640 $check_conf_path
+          chown dd-agent: $check_conf_path
+        fi
+        if [ ! -f $check_path ]; then
+          curl -fLsSo $check_path ${baseUrl}/v17_assets/augmented_search.py
+          if [ $? -ne 0 ]; then
+            echo "Failed to get ${baseUrl}/v17_assets/augmented_search.py"
+            exit 0
+          fi
+          chown dd-agent: $check_path
+        fi
+        if [ "${globals.isAugSearchEnabled}" == "true" ] && [ ! -f check_conf_path_enabled ]; then
+          mv $check_conf_path $check_conf_path_enabled
+          systemctl restart datadog-agent
+        fi
+      user: root

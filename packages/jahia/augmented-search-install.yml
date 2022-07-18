@@ -23,6 +23,7 @@ onInstall:
   - installModules
   - setupModules
   - setNodeGroupData
+  - enableDatadogAugSearchCheck
 
 
 actions:
@@ -225,3 +226,13 @@ actions:
   setupModules:
     - setupAugSearch
     - setupESConnector
+
+  enableDatadogAugSearchCheck:
+    - cmd[proc,cp]: |-
+        check_conf_path="/etc/datadog-agent/conf.d/augmented_search.yaml-disabled"
+        check_conf_path_enabled="/etc/datadog-agent/conf.d/augmented_search.yaml"
+        if [ ! -f $check_conf_path_enabled ]; then
+          mv $check_conf_path $check_conf_path_enabled
+          systemctl restart datadog-agent
+        fi
+      user: root

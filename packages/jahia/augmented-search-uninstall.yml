@@ -18,39 +18,40 @@ onInstall:
   - deleteAugSearch
   - removeNodeGroupData
   - destroyESDeployment
+  - disableDatadogAugSearchCheck
 
 actions:
   deleteESConnection:
-  - getPatTokenAndKey
-  - cmd[proc]: |-
-      __secret__API_TOKEN="${globals.__secret__pat_token}"
-      get_current_es_connection() {
-        curl -fLSs http://localhost:8080/modules/graphql \
-          -H "Authorization: APIToken $__secret__API_TOKEN" \
-          -H 'Origin: http://localhost:8080' \
-          -H 'Content-Type: application/json' \
-          -d '{"query":"query { admin { search { currentConnection } } }"}' \
-          | jq -r '.data.admin.search.currentConnection'
-      }
-      curl_delete_es(){
-        curl -fLSs -XDELETE http://localhost:8080/modules/dbconn/elasticsearch/remove/$current_es_connection \
-          -H "Authorization: APIToken $__secret__API_TOKEN" \
-          -H 'Origin: http://localhost:8080' \
-          -H 'Content-Type: application/json' \
-          | jq -r ".success"
-      }
-      current_es_connection=$(get_current_es_connection)
-      if [ "$current_es_connection" = "null" ]; then
-        echo "No ES connection found in AS module, nothing to do"
-        exit 0
-      fi
-      echo "Deleting ES connection"
-      result=$(curl_delete_es)
-      if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
-        echo "Failed to remove the old connection"
-        exit 1
-      fi
-      echo "ES connection is now removed"
+    - getPatTokenAndKey
+    - cmd[proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        get_current_es_connection() {
+          curl -fLSs http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"query { admin { search { currentConnection } } }"}' \
+            | jq -r '.data.admin.search.currentConnection'
+        }
+        curl_delete_es(){
+          curl -fLSs -XDELETE http://localhost:8080/modules/dbconn/elasticsearch/remove/$current_es_connection \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            | jq -r ".success"
+        }
+        current_es_connection=$(get_current_es_connection)
+        if [ "$current_es_connection" = "null" ]; then
+          echo "No ES connection found in AS module, nothing to do"
+          exit 0
+        fi
+        echo "Deleting ES connection"
+        result=$(curl_delete_es)
+        if [ "$result" != "Successfully removed ElasticSearch connection" ]; then
+          echo "Failed to remove the old connection"
+          exit 1
+        fi
+        echo "ES connection is now removed"
 
   deleteAugSearch:
     - uninstallModule:
@@ -62,3 +63,13 @@ actions:
     - environment.nodegroup.ApplyData[cp]:
         data:
           augsearch: null
+
+  disableDatadogAugSearchCheck:
+    - cmd[proc,cp]: |-
+        check_conf_path="/etc/datadog-agent/conf.d/augmented_search.yaml-disabled"
+        check_conf_path_enabled="/etc/datadog-agent/conf.d/augmented_search.yaml"
+        if [ ! -f $check_conf_path ]; then
+          mv $check_conf_path_enabled $check_conf_path
+          systemctl restart datadog-agent
+        fi
+      user: root
