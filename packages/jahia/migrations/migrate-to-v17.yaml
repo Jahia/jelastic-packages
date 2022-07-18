@@ -15,6 +15,7 @@ mixins:
 
 globals:
   version: 17
+  haproxy_version: 2.6.1
 
 onInstall:
   ### Pre-checks
@@ -33,6 +34,7 @@ onInstall:
 
   - updateJelasticRedeployConf        # PAAS-1993
   - setImageMagickMemoryLimit         # PAAS-2024
+  - upgradeHaproxy                    # PAAS-1879
 
   # Actions that require a restart:
   - revertCORSFilter                  # PAAS-2049
@@ -96,3 +98,54 @@ actions:
         - if ("${response.out}" == "restart"):
             setGlobals:
               jahiaRollingRestartNeeded: true
+
+  upgradeHaproxy:
+  - setGlobalRepoRootUrl
+  - cmd[bl]: |-
+      REDEPLOY_FILE=/etc/jelastic/redeploy.conf
+      HAPROXY_CONF_BASE=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      HAPROXY_PRESTART_SCRIPT=/usr/local/sbin/haproxy_prestart.sh
+      HAPROXY_SERVICE_OVERRIDE_DIR=/etc/systemd/system/haproxy.service.d
+      HAPROXY_SERVICE_OVERRIDE=$HAPROXY_SERVICE_OVERRIDE_DIR/override.conf
+      HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
+      HTTP_CHK_NEWLINE='    option httpchk\n    http-check send meth GET uri "/modules/healthcheck?severity=critical" hdr authorization "APIToken ${jahia_cfg_healthcheck_token}" hdr User-Agent "HAProxy"'
+
+      # First we make ure that Haproxy conf is working before attempting anything
+      /usr/local/bin/haproxy-reload.sh || exit 1
+
+      sed -i '#/etc/sysconfig/haproxy#d' $REDEPLOY_FILE
+      sed -i \
+          -e '/^\s*pidfile\s*/d' \
+          -e '/^\s*debug\s*$/d' \
+          -e "s#^\s*option httpchk GET.*#$HTTP_CHK_NEWLINE#g" $HAPROXY_CONF_BASE
+      
+      if [ ! -f $HAPROXY_PRESTART_SCRIPT ]; then
+        curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/packages/jahia/migrations/v17_assets/haproxy_prestart.sh || exit 1
+        chmod +x $HAPROXY_PRESTART_SCRIPT
+      fi
+      grep -q "$HAPROXY_PRESTART_SCRIPT" $REDEPLOY_FILE || echo $HAPROXY_PRESTART_SCRIPT >> $REDEPLOY_FILE
+
+      mkdir -p $HAPROXY_SERVICE_OVERRIDE_DIR
+      curl -fLSso $HAPROXY_SERVICE_OVERRIDE ${globals.repoRootUrl}/packages/jahia/migrations/v17_assets/haproxy_service_override || exit 1
+      grep -q "$HAPROXY_SERVICE_OVERRIDE" $REDEPLOY_FILE || echo $HAPROXY_SERVICE_OVERRIDE >> $REDEPLOY_FILE
+
+      sed -i "s/service haproxy reload/systemctl reload haproxy/" $HAPROXY_RELOAD
+      grep -q "$HAPROXY_RELOAD" $REDEPLOY_FILE || echo $HAPROXY_RELOAD >> $REDEPLOY_FILE
+    user: root
+  - foreach (nodes.bl):
+    - cmd [${@i.id}]: service haproxy stop
+      user: root
+    - if ("${nodes.bl.first.version}" != "${globals.haproxy_version}"):
+      - api: environment.control.RedeployContainerById
+        nodeId: ${@i.id}
+        tag: ${globals.haproxy_version}
+        useExistingVolumes: true
+        skipReinstall: false
+        envName: ${env.envName}
+    - cmd [${@i.id}]: systemctl restart haproxy
+      user: root
+  - environment.nodegroup.ApplyData [bl]:
+      data:
+        productName: haproxy
+        productVersion: ${globals.haproxy_version}
+

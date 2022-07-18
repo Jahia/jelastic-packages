@@ -1,0 +1,6 @@
+[Service]
+ExecStartPre=/usr/local/sbin/haproxy_prestart.sh
+ExecReload=/usr/local/sbin/haproxy_prestart.sh
+ExecReload=/usr/local/sbin/haproxy -Ws -f $CONFIG -c -q $EXTRAOPTS
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=no

@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
-output=$(service haproxy reload 2>&1)
+output=$(systemctl reload haproxy 2>&1)
 if [[ $? -eq 0 ]]; then
     exit 0
 fi
