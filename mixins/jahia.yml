@@ -604,6 +604,10 @@ actions:
     # - globals.mostRecentInstalledVersion: if globals.moduleState is "installed", then globals.mostRecentInstalledVersion
     #       is the most recent version installed
     # - globals.runningVersion: if globals.moduleState is "started", then globals.runningVersion is the version running
+    - setGlobals:  # re-initialise globals to prevent successive calls to this action from overlapping
+        moduleState: ""
+        runningVersion: ""
+        mostRecentInstalledVersion: ""
     - set:
         curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
