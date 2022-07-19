@@ -21,21 +21,21 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
-        HAPROXY_SYSCONFIG=/etc/sysconfig/haproxy
+        HAPROXY_PRESTART_SCRIPT=/usr/local/sbin/haproxy_prestart.sh
+        HAPROXY_SERVICE_OVERRIDE=/etc/systemd/system/haproxy.service.d/override.conf
         HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
         curl -fLSso /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d
         curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
-        curl -fLSso $HAPROXY_SYSCONFIG ${globals.repoRootUrl}/assets/haproxy/haproxy-sysconfig || exit 1
+        curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/assets/haproxy/haproxy_prestart.sh || exit 1
+        chmod +x $HAPROXY_PRESTART_SCRIPT
+        curl -fLSso $HAPROXY_SERVICE_OVERRIDE ${globals.repoRootUrl}/assets/haproxy/haproxy_service_override || exit 1
         curl -fLSso $HAPROXY_RELOAD ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $HAPROXY_RELOAD
-        echo $HAPROXY_SYSCONFIG >> /etc/jelastic/redeploy.conf
-        # We empty the file instead of deleting it because of Jelastic trying to update it
-        # when scaling
-        echo "### WARNING : this config file is not used for haproxy configuration" > /etc/haproxy/haproxy.cfg
+        echo $HAPROXY_PRESTART_SCRIPT >> /etc/jelastic/redeploy.conf
         chown -R haproxy:haproxy /etc/haproxy
         systemctl daemon-reload
-        service haproxy restart
+        systemctl restart haproxy
       user: root
     - if ("${response.errOut}" != ""):
         - return:
