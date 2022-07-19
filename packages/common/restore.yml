@@ -576,7 +576,7 @@ actions:
               "papi_instance_name": "$ec_deployment_name"
             }
           }
-          EOF
+        EOF
           }
 
           response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
