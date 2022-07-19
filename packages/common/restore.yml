@@ -538,7 +538,7 @@ actions:
         fi
 
         # Get the total shards and score before the restore
-        current_total_shards=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats | jq -r '.indices.shards.total')
+        current_total_shards=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
         current_score=$(( (current_total_shards/ratio) + ((current_total_shards%ratio) > 0 )))
 
         curl -sSo /dev/null \
@@ -546,8 +546,8 @@ actions:
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
         
         # Calculate the new total shards and score from the snapshot
-        temp_total_shards=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats | jq -r '.indices.shards.total')
-        shards_to_be_added=$(curl -sS -u $ec_admin_credentials https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
+        temp_total_shards=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
+        shards_to_be_added=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
         new_total_shards=$(( temp_total_shards + shards_to_be_added ))
         new_score=$(( (new_total_shards/ratio) + ((new_total_shards%ratio) > 0 )))
 
@@ -579,7 +579,7 @@ actions:
           EOF
           }
 
-          response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline \
+          response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
                         -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
           if [ $? -ne 0 ]; then
             echo "Pipeline trigger failed: $response"
