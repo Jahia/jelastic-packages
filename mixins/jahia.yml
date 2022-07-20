@@ -230,10 +230,12 @@ actions:
   setupDatadogAgentJahia:
     - log: "## Finalize Datadog agent setup on ${this}"
     - setGlobalRepoRootUrl
+    - isAugSearchEnabled
+    - getPatTokenAndKey
     - cmd[${this}]: |-
+        __secret_pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
-
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
         sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
@@ -242,6 +244,11 @@ actions:
         chown tomcat:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
         curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        # Configure AS check
+        sed -i "s/jahia_root_token_placeholder/$__secret_pat_token/g" /etc/datadog-agent/conf.d/augmented_search.yaml-disabled
+        if [ "${globals.isAugSearchEnabled}" == "true" ]; then
+          mv /etc/datadog-agent/conf.d/augmented_search.yaml-disabled /etc/datadog-agent/conf.d/augmented_search.yaml
+        fi
         /usr/local/bin/set_dd_tags.sh
         systemctl restart crond
         systemctl enable datadog-agent

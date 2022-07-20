@@ -1,0 +1,4 @@
+init_config:
+instances:
+  - jahia_root_token: jahia_root_token_placeholder
+    min_collection_interval: 60
