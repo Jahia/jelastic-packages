@@ -1,0 +1,38 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Rolling redeploy
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jahia-rolling-redeploy
+description:
+  short: Jahia - Rolling redeploy
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
+
+onInstall:
+  - muteDatadogSynthetics:
+      duration: 240 # 4h
+  - muteEnvWideMonitors
+
+  - set:
+      currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
+
+  ## Redeploy Jahia nodes
+  - cmd [proc]: |-
+      ## [Rolling redeploy] - 1/2
+      exit 0
+  - procRedeploy:
+      upgradeJahia: false
+      targetDockerTag: ${this.currentDockerTag}
+      useExistingVolumes: true
+  - cmd [proc]: |-
+      ## [Rolling redeploy] - 2/2
+      exit 0
+  - browsingNodesRollingRedeploy:
+      targetDockerTag: ${this.currentDockerTag}
+
+  - unmuteEnvWideMonitors
+  - unmuteDatadogSynthetics

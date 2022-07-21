@@ -16,68 +16,44 @@ onInstall:
   - muteDatadogSynthetics:
       duration: 240 # 4h
   - muteEnvWideMonitors
-  ## Globals definition
+
+  # If a Docker tag suffix was passed we need to append it to the Jahia version
+  - if ('${settings.dockerTagSuffix.print()}' == ''):
+      - set:
+          targetDockerTag: ${settings.targetVersion}
+  - else:
+      - set:
+          targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
+
+  # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [proc]: |-
       ## [Upgrade] - 1/2
       exit 0
-  - if ('${settings.rollingRedeploy.print()}' == ''):
-      set:
-        rollingRedeploy: false
-  - else:
-      set:
-        rollingRedeploy: ${settings.rollingRedeploy}
-  - set:
-      currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
-      currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
+  - cmd [cp, proc]:
+      - service tomcat stop
+    user: root
+  - setVersionPropertiesValue:
+      targetJahiaVersion: ${settings.targetVersion}
+  - procRedeploy:
+      upgradeJahia: true
+      targetDockerTag: ${this.targetDockerTag}
+      useExistingVolumes: false
+  - cmd [proc]: |-
+      ## [Upgrade] - 2/2
+      exit 0
+  - browsingNodesBulkRedeploy:
+      targetDockerTag: ${this.targetDockerTag}
 
-  # Determine target Docker tag from provided settings:
-  - if ('${settings.targetVersion.print()}' != ''):
-      # If a Docker tag suffix was passed we need to append it to the Jahia version
-      - if ('${settings.dockerTagSuffix.print()}' == ''):
-          - set:
-              targetDockerTag: ${settings.targetVersion}
-      - else:
-          - set:
-              targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
-  - else:
-      # If no target version provided, we use the current Docker tag (rolling redeploy)
-      - set:
-          targetDockerTag: ${this.currentDockerTag}
+  # Update Jahia version in node group data, envvar, and PAPI:
+  - env.nodegroup.ApplyData[cp, proc]:
+      data:
+        productVersion: ${settings.targetVersion}
+  - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"DX_VERSION": "${settings.targetVersion}"}
+  - updateProductVersionInPapi:
+      version: "${settings.targetVersion}"
+      product: "dx"
 
-  ## Redeploy Jahia nodes
-  - if (${this.rollingRedeploy}):
-      - procUpgrade:
-          upgradeJahia: false
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: true
-      - rollingCpUpgrade:
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: true
-  - else:
-      # In case of Jahia upgrade, all jahia nodes must be stopped first
-      - cmd [cp, proc]:
-          - service tomcat stop
-        user: root
-      - setVersionPropertiesValue:
-          currentJahiaVersion: ${this.currentJahiaVersion}
-          targetJahiaVersion: ${settings.targetVersion}
-      - procUpgrade:
-          upgradeJahia: true
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: false
-      - bulkCpUpgrade:
-          targetDockerTag: ${this.targetDockerTag}
-          useExistingVolumes: false
-
-      ## Update Jahia version in node group data, envvar, and PAPI:
-      - env.nodegroup.ApplyData[cp, proc]:
-          data:
-            productVersion: ${settings.targetVersion}
-      - env.control.AddContainerEnvVars[cp, proc]:
-          vars: {"DX_VERSION": "${settings.targetVersion}"}
-      - updateProductVersionInPapi:
-          version: "${settings.targetVersion}"
-          product: "dx"
   - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
 
@@ -88,16 +64,9 @@ settings:
       type: string
       caption: DX Target Version
       vtype: text
-      required: false
-      tooltip: Optional. If you don't specify a version, the current Jahia version of the target environment will be selected.
+      required: true
     - name: dockerTagSuffix
       type: string
       caption: Docker tag suffix
       required: false
       tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
-    - name: rollingRedeploy
-      type: toggle
-      caption: Rolling redeploy ?
-      value: false
-      required: false
-      tooltip: Redeploying cp nodes one at a time. Used for redeploying with the same Jahia version to run new image.

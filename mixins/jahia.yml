@@ -1128,7 +1128,7 @@ actions:
         fi
       user: root
 
-  procUpgrade:
+  procRedeploy:
     # Parameters:
     #   - upgradeJahia: true or false (false = rolling redeploy)
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
@@ -1157,42 +1157,35 @@ actions:
       user: root
     - startupJahiaHealthCheck: ${nodes.proc.first.id}
 
-  bulkCpUpgrade:
+  browsingNodesBulkRedeploy:
     # Parameters:
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
-    #   - useExistingVolumes: true or false
-    - cmd [proc]: |-
-        ## [Upgrade] - 2/2
-        exit 0
     - api: environment.control.RedeployContainersByGroup
       nodeGroup: cp
       tag: ${this.targetDockerTag}
-      useExistingVolumes: ${this.useExistingVolumes}
+      useExistingVolumes: false
       skipReinstall: false
       envName: ${env.envName}
 
-  rollingCpUpgrade:
+  browsingNodesRollingRedeploy:
     # Parameters:
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
-    #   - useExistingVolumes: true or false
-    - cmd [proc]: |-
-        ## [Upgrade] - 2/2
-        exit 0
     - forEach (nodes.cp):
         - api: environment.control.RedeployContainerById
           nodeId: ${@i.id}
           tag: ${this.targetDockerTag}
-          useExistingVolumes: ${this.useExistingVolumes}
+          useExistingVolumes: true
           skipReinstall: false
           envName: ${env.envName}
 
   setVersionPropertiesValue:
     # Parameters:
-    #   - currentJahiaVersion: Jahia version string (eg: "7.3.7.0")
     #   - targetJahiaVersion: Jahia version string (eg: "8.0.3.0")
     # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
     # in case we upgrade from a version that does not handle it to a version that does,
     # namely if we upgrade from Jahia < 7.3.8.0 to Jahia >= 7.3.8.0
+    - set:
+        currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
     - isVersionStrictlyLower:
         a: "${this.currentJahiaVersion}"
         b: "7.3.8.0"
