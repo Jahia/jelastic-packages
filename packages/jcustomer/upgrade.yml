@@ -13,20 +13,13 @@ mixins:
 
 
 onInstall:
-  - set:
-      currentDockerTag: ${nodes.cp.first.customitem.dockerTag}
-  # By default we assume it is a (rolling) redeploy only, so target tag = current tag
-  - set:
-      targetDockerTag: ${this.currentDockerTag}
-  # If a version/docker tag is passed as parameter
-  - if ('${settings.targetVersion.print()}' != ''):
-      # If a Docker tag suffix is passed we need to append it to the jCustomer version
-      - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
-          - set:
-              targetDockerTag: ${settings.targetVersion}
-      - else:
-          - set:
-              targetDockerTag: ${settings.targetVersion}_${settings.jCustomerDockerTagSuffix}
+  # If a Docker tag suffix is passed we need to append it to the jCustomer version
+  - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
+      - set:
+          targetDockerTag: ${settings.targetVersion}
+  - else:
+      - set:
+          targetDockerTag: ${settings.targetVersion}_${settings.jCustomerDockerTagSuffix}
 
   - cmd[cp]: |-
       service datadog-agent stop
@@ -61,8 +54,7 @@ settings:
       type: string
       caption: Target Version
       vtype: text
-      required: false
-      tooltip: Optional. If you don't specify a version, the current version of the target environment will be selected.
+      required: true
     - name: jCustomerDockerTagSuffix
       type: string
       caption: jCustomer Docker tag suffix
