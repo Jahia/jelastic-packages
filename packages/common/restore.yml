@@ -246,7 +246,9 @@ actions:
         tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
         chown tomcat:tomcat -R /opt/tomcat/conf
         rm -f digital-factory-config.tar.gz
-        rm -rf /data/digital-factory-data/repository/.lock /data/digital-factory-data/repository/workspace /data/digital-factory-data/repository/index
+        rm -f /data/digital-factory-data/repository/.lock
+        # Add reindex flag to trigger reindex on restart
+        touch /data/digital-factory-data/repository/reindex
         touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
