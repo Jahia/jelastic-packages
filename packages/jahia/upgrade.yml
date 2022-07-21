@@ -13,6 +13,17 @@ mixins:
   - ../../mixins/haproxy.yml
 
 onInstall:
+  # Check if target version is consistent (higher than current version)
+  - isVersionStrictlyHigher:
+      a: "${settings.targetVersion}"
+      b: "${nodes.proc.first.customitem.nodeVersion}"
+      res: targetVersionIsConsistent
+  - if (!${globals.targetVersionIsConsistent}):
+      - return:
+          type: error
+          message: "Target version must be higher than current version."
+
+  # Mute monitors
   - muteDatadogSynthetics:
       duration: 240 # 4h
   - muteEnvWideMonitors
@@ -54,6 +65,7 @@ onInstall:
       version: "${settings.targetVersion}"
       product: "dx"
 
+  # Unmute monitors
   - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
 

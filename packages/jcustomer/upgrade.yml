@@ -13,6 +13,16 @@ mixins:
 
 
 onInstall:
+  # Check if target version is consistent (higher than current version)
+  - isVersionStrictlyHigher:
+      a: "${settings.targetVersion}"
+      b: "${nodes.cp.first.customitem.nodeVersion}"
+      res: targetVersionIsConsistent
+  - if (!${globals.targetVersionIsConsistent}):
+      - return:
+          type: error
+          message: "Target version must be higher than current version."
+
   # If a Docker tag suffix is passed we need to append it to the jCustomer version
   - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
       - set:
