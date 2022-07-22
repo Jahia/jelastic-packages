@@ -95,8 +95,6 @@ actions:
     #   - unomi_root_password_b64
     - forEach(nodes.cp):
         cmd[${@i.id}]: |-
-          sed -i "/<interface>/d" $HAZELCAST_CONFIG
-          sed -i "/<member>node/d" $HAZELCAST_CONFIG
           envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
           sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
               -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
