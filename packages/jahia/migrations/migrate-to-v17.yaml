@@ -36,6 +36,7 @@ onInstall:
   - setImageMagickMemoryLimit         # PAAS-2024
   - upgradeHaproxy                    # PAAS-1879
   - getAugSearchDatadogCheck          # PAAS-2114
+  - updateDatadogServiceParam         # PAAS-2062
 
   # Actions that require a restart:
   - revertCORSFilter                  # PAAS-2049
@@ -180,4 +181,16 @@ actions:
           mv $check_conf_path $check_conf_path_enabled
           systemctl restart datadog-agent
         fi
+      user: root
+
+  updateDatadogServiceParam:
+    - cmd[proc,cp]: |-
+        sed 's/service: ${env.shortdomain}/service: tomcat/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
+        sed 's/service: ${env.shortdomain}/service: proxysql/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+        sed 's/service: ${env.shortdomain}/service: ipsec/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
+        service datadog-agent restart
+      user: root
+    - cmd[sqldb]: |-
+        sed 's/service: ${env.shortdomain}/service: mysql/' -i /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        service datadog-agent restart
       user: root

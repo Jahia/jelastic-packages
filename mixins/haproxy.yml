@@ -135,7 +135,6 @@ actions:
         chown dd-agent:dd-agent /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
         ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_browsing.yaml
         curl -fLSso /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml || exit 1
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/haproxy.d/conf.yaml
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown haproxy:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
