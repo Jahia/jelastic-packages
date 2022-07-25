@@ -738,10 +738,6 @@ actions:
         creds_bytes = (new java.lang.String(auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
-        // Get Paas organization name from nodeGroupData
-        organizationName = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
-                                                  return object.name == "cp";}).pop().ORGANIZATION_NAME;
-
         // Get Kibana roles
         getKibanaRolesAll = new HttpGet(ecDeployment["kibana_endpoint"] + "/api/security/role");
         getKibanaRolesAll.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
@@ -753,14 +749,15 @@ actions:
         allKibanaRoles = JSON.parse(EntityUtils.toString(resp.getEntity()));
         kibanaRoles = [];
         for (i = 0; i < allKibanaRoles.length; i++) {
-          kibanaRoles.push(allKibanaRoles[i].name);
+          if (!allKibanaRoles[i].metadata._reserved) {
+            kibanaRoles.push(allKibanaRoles[i].name);
+          }
         }
-        roles = kibanaRoles.filter(function(item){ return item.includes(organizationName); });
 
         rolesToDelete = [];
-        for (i=0; i < roles.length; i++) {
-          if (!paasEnvsLinked.includes(roles[i])) {
-            rolesToDelete.push(roles[i]);
+        for (i=0; i < kibanaRoles.length; i++) {
+          if (!paasEnvsLinked.includes(kibanaRoles[i])) {
+            rolesToDelete.push(kibanaRoles[i]);
           }
         }
 
