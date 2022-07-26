@@ -1,0 +1,29 @@
+---
+type: update
+version: 1.5.2
+name: jahia - Set jahia_cfg_elasticsearch_prefix env var
+id: jahia-set-es-prefix-env-var
+description:
+  short: jahia - Set jahia_cfg_elasticsearch_prefix env var
+
+mixins:
+  - "/../../mixins/common.yml"
+
+onInstall:
+  - script: |-
+      const envVars = jelastic.env.control.GetContainerEnvVars(
+          "${env.envName}",
+          session,
+          "${nodes.proc.first.id}"
+      );
+      return {'result': 0, 'done': "jahia_cfg_elasticsearch_prefix" in envVars.object}
+  - if ("${response.done}" == "false"):
+      - setGlobalRepoRootUrl
+      - env.control.AddContainerEnvVars[cp, proc]:
+          vars: {"jahia_cfg_elasticsearch_prefix": "${env.envName}"}
+      - env.nodegroup.ApplyData[cp, proc]:
+        data:
+          jahia_cfg_elasticsearch_prefix: null
+
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
