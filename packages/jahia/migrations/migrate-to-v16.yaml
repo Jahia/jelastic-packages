@@ -37,7 +37,7 @@ onInstall:
   - updateDDIPSecConnStatus                                   # COPS-579
 
   # Actions that require a restart:
-  - setESPrefixNodeGroupData                                  # PAAS-1855
+  - setESPrefixJahiaProperty                                  # PAAS-1855
   - enableApmByDefault                                        # PAAS-2057
   - removeModulesFolderAndRestartAllJahia                     # PAAS-2079
 
@@ -137,9 +137,9 @@ actions:
       user: root
     - startupJahiaHealthCheck: ${this.target}
 
-  setESPrefixNodeGroupData:
-    - env.nodegroup.ApplyData[cp, proc]:
-        data:
+  setESPrefixJahiaProperty:
+    - env.control.AddContainerEnvVars [cp, proc]:
+        vars:
           jahia_cfg_elasticsearch_prefix: ${env.envName}
     - setGlobals:
         jahiaRollingRestartNeeded: true
