@@ -24,7 +24,7 @@ onInstall:
 
     - environment.nodegroup.ApplyData [cp]:
         data:
-          augsearch: "enabled"
+          augsearch: "enable"
 
     - getVaultData
     - getPapiInfoAll
