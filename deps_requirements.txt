@@ -1,0 +1,4 @@
+cmd2==2.3.3
+pygraphviz==1.9
+PyYAML==6.0
+rich==12.4.4
