@@ -191,7 +191,9 @@ actions:
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 2/5
         sudo service tomcat stop
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -236,7 +238,9 @@ actions:
 
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 3/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -260,7 +264,9 @@ actions:
             message: "An error occurred while restoring jahia configuration. ${response.errOut}"
 
     - cmd [proc,cp]: |-
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -295,6 +301,7 @@ actions:
     - getPatTokenAndKey
     - cmd [proc]: |-
         ## [${globals.logAction}] - 5/5
+        __secret__pat_token="${globals.__secret__pat_token}"
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
 
         # Clean up any possible remainder of previous script execution
@@ -312,12 +319,12 @@ actions:
         echo """
           org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
             def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
-            def tokenExists = service.verifyToken(\"${globals.__secret__pat_token}\", session)
+            def tokenExists = service.verifyToken(\"$__secret__pat_token\", session)
             if (! tokenExists) {
                def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session)
                service.deleteToken(tokenDetails.key, session)
                service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
-                      .setToken(\"${globals.__secret__pat_token}\")
+                      .setToken(\"$__secret__pat_token\")
                       .setActive(true)
                       .create()
                   session.save();
@@ -391,7 +398,7 @@ actions:
             moduleSymname: augmented-search
             moduleVersion: ${this.modulesState.as-version}
         - setGlobals:
-            elasticsearch_password: ${fn.password(20)}
+            __secret__elasticsearch_password: ${fn.password(20)}
         - createESAccount4AS
         - removeDefaultESConnection
         - setDefaultESConnection
@@ -478,13 +485,13 @@ actions:
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
     - else:
         - setAzureSnapshotRepository:
             repositoryName: ${env.shortdomain}
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
             operation: "restore"
             account: ${globals.account}
             backupName: ${settings.backup_name}
@@ -494,8 +501,8 @@ actions:
         secretPath: paas/envs-common/cloud-ec-infra-circleci-api
         secretKey: token
     - set:
-        circleCiToken: ${globals.vaultSecretData}
-    - if ("${globals.papiToken.print()}" == ""):
+        __secret__circleCiToken: ${globals.__secret__vaultSecretData}
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - getCloudConf
     - cmd[${nodes.cp.first.id}]: |-
@@ -507,16 +514,17 @@ actions:
         fi
 
         output_file=$(mktemp)
-        ec_admin_credentials=${globals.ecAdminCredentials}
+        __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
-        snapshot_state=$(curl -sS -u $ec_admin_credentials \
+        snapshot_state=$(curl -sS -u $__secret__ec_admin_credentials \
           "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r ".snapshots[0].state")
         if [[ "$snapshot_state" != "SUCCESS" ]]; then
           echo "The Elasticsearch snapshot you are trying to restore is not complete, aborting" >&2
           exit 1
         fi
 
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -540,16 +548,16 @@ actions:
         fi
 
         # Get the total shards and score before the restore
-        current_total_shards=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
+        current_total_shards=$(curl -sS -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
         current_score=$(( (current_total_shards/ratio) + ((current_total_shards%ratio) > 0 )))
 
         curl -sSo /dev/null \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
         
         # Calculate the new total shards and score from the snapshot
-        temp_total_shards=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
-        shards_to_be_added=$(curl -sS -u $ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
+        temp_total_shards=$(curl -sS -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
+        shards_to_be_added=$(curl -sS -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
         new_total_shards=$(( temp_total_shards + shards_to_be_added ))
         new_score=$(( (new_total_shards/ratio) + ((new_total_shards%ratio) > 0 )))
 
@@ -559,7 +567,7 @@ actions:
           ec_deployment_name=$(echo $ec_deployment | jq -r .name)
           papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}'
 
-          CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
+          __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
 
           generate_payload() {
           if [[ "${globals.cloud_conf.ec.tag}" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
@@ -582,14 +590,14 @@ actions:
           }
 
           response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
-                        -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
+                        -H "Circle-Token: $__secret__CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
           if [ $? -ne 0 ]; then
             echo "Pipeline trigger failed: $response"
             exit 1
           fi
 
           pipelineId=$(echo $response | jq -r .id)
-          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
           if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
             echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
             exit 1
@@ -601,7 +609,7 @@ actions:
           workflow_status="running"
           while [ "$workflow_status" = "running" ]; do
             sleep $sleep_interval
-            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
             if [ $? -eq 0 ]; then
               new_workflow_status=$(echo $response | jq -r '.items[0].status')
               if [ "$new_workflow_status" != "null" ]; then
@@ -617,7 +625,7 @@ actions:
         
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}/_restore" \
           -d'{
             "indices": "-global-geonameentry*,-context-geonameentry*",
@@ -638,7 +646,9 @@ actions:
 
   restoreHaproxy:
     - cmd [bl]: |-
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -714,7 +724,9 @@ actions:
   restoreMariadb:
     - cmd[sqldb]: |-
         ## [${globals.logAction}] - 4/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -780,7 +792,9 @@ actions:
           fi
       user: mysql
     - cmd [proc]: |-
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -806,7 +820,9 @@ actions:
   restoreJcustomer:
     - cmd [cp]: |-
         ## [${globals.logAction}] - 5/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region

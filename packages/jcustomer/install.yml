@@ -15,7 +15,7 @@ description:
 globals:
   jcustomer_env_version: 15
   unomi_version: ${settings.productVersion}
-  elasticsearch_password: ${fn.password(20)}
+  __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
     - 3.65.225.246
     - 3.66.45.94
@@ -34,6 +34,8 @@ mixins:
 onBeforeInstall: |
   var unomiVersion = '${settings.productVersion}';
   var envmode = '${settings.envmode}';
+  var __secret__elasticsearchPassword = "${globals.__secret__elasticsearch_password}";
+  var __secret__DATADOGAPIKEY = "${settings.ddogApikey}";
 
   var resp = {
     result: 0,
@@ -76,18 +78,20 @@ onBeforeInstall: |
     startServiceOnCreation: false,
     env: {
       DATADOG_APM_ENABLED: true,
+      DATADOGAPIKEY: __secret__DATADOGAPIKEY,
       UNOMI_VERSION: unomiVersion,
       UNOMI_HTTP_PORT: '80',
       UNOMI_ELASTICSEARCH_SSL_ENABLE: 'true',
       UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
       UNOMI_ELASTICSEARCH_INDEXPREFIX: '${settings.shortdomain}__jc',
       UNOMI_ELASTICSEARCH_USERNAME: '${settings.shortdomain}',
-      UNOMI_ELASTICSEARCH_PASSWORD: '${globals.elasticsearch_password}',
+      UNOMI_ELASTICSEARCH_PASSWORD: __secret__elasticsearchPassword,
       UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES: "127.0.0.1,::1,${globals.workato_ips.join(,)}",
       UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS: shards_number,
       UNOMI_ELASTICSEARCH_MONTHLYINDEX_SHARDS: shards_number,
       UNOMI_ELASTICSEARCH_DEFAULTINDEX_REPLICAS: replicas_number,
       UNOMI_ELASTICSEARCH_MONTHLYINDEX_REPLICAS: replicas_number,
+      envName: "${settings.shortdomain}",
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       envmode: envmode,
@@ -110,14 +114,14 @@ onInstall:
   - installRequiredPackages:
       target: "cp"
       packages: "python36 python36-pip jq"
-  - if(settings.rootPassword):
+  - if("HideThisLine" && "${settings.rootPassword}"):
       setGlobals:
-        unomi_root_password_b64: ${settings.rootPassword.toBase64()}
+        __secret__unomi_root_password_b64: ${settings.rootPassword.toBase64()}
   - else:
       - set:
-          random_unomi_root_password: ${fn.password(20)}
+          __secret__random_unomi_root_password: ${fn.password(20)}
       - setGlobals:
-          unomi_root_password_b64: ${this.random_unomi_root_password.toBase64()}
+          __secret__unomi_root_password_b64: ${this.__secret__random_unomi_root_password.toBase64()}
   - environment.nodegroup.ApplyData [cp]:
       data:
         productName: unomi
@@ -125,12 +129,10 @@ onInstall:
   - setJournaldLimit
   - getLogEventScript: cp
   - installPapiScript: cp
-  - env.control.AddContainerEnvVars [*]:
-    vars: {"envName": "${env.envName}", "DATADOGAPIKEY": "${settings.ddogApikey}"}
   - createJelasticPackagesLogDir
   - addEnvMetadataToNodeGroup:
-      vaultRoleId: ${settings.vaultRoleId}
-      vaultSecretId: ${settings.vaultSecretId}
+      __secret__vaultRoleId: ${settings.vaultRoleId}
+      __secret__vaultSecretId: ${settings.vaultSecretId}
       vaultClusterUrl: ${settings.vaultClusterUrl}
       papiHostname: ${settings.papiHostname}
       papiApiVersion: ${settings.papiApiVersion}
@@ -139,10 +141,10 @@ onInstall:
   - setupES:
       papiEnvId: ${settings.papiEnvId}
   - setupUnomi:
-      unomi_root_password_b64: ${globals.unomi_root_password_b64}
+      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
   - setupDatadogAgentUnomi:
       target: cp
-      unomi_root_password_b64: ${globals.unomi_root_password_b64}
+      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
   - setEnvVersion: ${globals.jcustomer_env_version}
   - setJcustomerApiKey
   - configureDatadogAPM

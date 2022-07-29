@@ -57,8 +57,10 @@ actions:
 
         conf_tmpfile=$(mktemp)
         secret_tmpfile=$(mktemp)
-        echo ${globals.IPsecConfB64} | base64 -d > $conf_tmpfile
-        echo ${globals.IPsecPSKB64} | base64 -d > $secret_tmpfile
+        __secret__IPsecConfB64="${globals.__secret__IPsecConfB64}"
+        __secret__IPsecPSKB64="${globals.__secret__IPsecPSKB64}"
+        echo $__secret__IPsecConfB64 | base64 -d > $conf_tmpfile
+        echo $__secret__IPsecPSKB64 | base64 -d > $secret_tmpfile
 
         # check if right subnets overlap with env's subnet
         pip install ipconflict -qq

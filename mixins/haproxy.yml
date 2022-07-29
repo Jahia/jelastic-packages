@@ -3,7 +3,7 @@
 #   - common.yml
 
 globals:
-  haproxy_admin_stats_pass: ${fn.password(20)}
+  __secret__haproxy_admin_stats_pass: ${fn.password(20)}
 
 actions:
   installHaproxy:
@@ -45,8 +45,8 @@ actions:
   updateHaproxyConf:
     - cmd[bl]: |-
         # Various configuration changes
-        stats_pwd="${globals.haproxy_admin_stats_pass}"
-        sed -i "s/admin-stat-password/$stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        __secret__stats_pwd="${globals.__secret__haproxy_admin_stats_pass}"
+        sed -i "s/admin-stat-password/$__secret__stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
       user: haproxy
 
   # Parameters:
@@ -182,12 +182,13 @@ actions:
     #   - haproxy_frontend_file
     #   - enable_auth_basic
     #   - new_login
-    #   - new_password
+    #   - __secret__new_password
     - setGlobalRepoRootUrl
     - cmd[bl]: |-
         curl -fLSso ${this.auth_basic_script} ${globals.repoRootUrl}/assets/haproxy/manage-auth-basic.py || exit 1
         chmod u+x ${this.auth_basic_script}
-        ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" "${this.new_password.toBase64()}"
+        __secret__new_password="${this.__secret__new_password.toBase64()}"
+        ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" $__secret__new_password
         service haproxy reload
       user: root
     - environment.nodegroup.ApplyData [proc, cp]:

@@ -30,16 +30,17 @@ actions:
         const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
 
         return {
-          'result': 0,
-          'domain': resp.env.domain,
-          'unomi_pwd_b64': unomi_pwd_b64,
-          'allowed_ips': allowed_ips
-        }
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "unomi_allowed_ips": allowed_ips,
+              "unomidns": resp.env.domain,
+              "__secret__unomi_pwd_b64": unomi_pwd_b64
+            }
+          }
+        };
 
     - setGlobals:
-        unomidns: ${response.domain}
-        unomi_pwd_b64: ${response.unomi_pwd_b64}
-        unomi_allowed_ips: ${response.allowed_ips}
         unomi_version: ${nodes.cp.first.customitem.nodeVersion}
 
   checkJcustomerHealth:
@@ -61,30 +62,43 @@ actions:
   saveUnomiRootPassword:
     - cmd [${nodes.cp.first.id}]: |-
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-        awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv
-    - environment.nodegroup.ApplyData[cp]:
-        data:
-          temp_unomi_root_password_b64: ${response.out}
+        temp_unomi_root_password_b64=$(awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv)
+        printf '{"HideThisOutput": true, "temp_unomi_root_password_b64": "%s"}' "$temp_unomi_root_password_b64"
+    - script: |-
+        __secret__response = ${response.out};
+        tempUnomiRootPasswordB64 = __secret__response["temp_unomi_root_password_b64"]
+        return jelastic.env.control.ApplyNodeGroupData(
+          '${env.envName}',
+          session,
+          nodeGroup='cp',
+          data={"temp_unomi_root_password_b64": tempUnomiRootPasswordB64}
+        );
 
   getUnomiRootPassword:
     - script: |-
         nodeGroups = jelastic.environment.control.getnodegroups("${env.envName}", session)["object"];
         for (n in nodeGroups) {
           if (typeof nodeGroups[n]["temp_unomi_root_password_b64"] !== "undefined") {
-            return {"result": 0, "temp_unomi_root_password_b64": nodeGroups[n]["temp_unomi_root_password_b64"]}
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                setGlobals: {
+                  "__secret__unomi_root_password_b64": nodeGroups[n]["temp_unomi_root_password_b64"]
+                }
+              }
+            };
           }
         }
-    - setGlobals:
-        unomi_root_password_b64: ${response.temp_unomi_root_password_b64}
 
   setupDatadogAgentUnomi:
     # Parameters:
     #   - target
-    #   - unomi_root_password_b64
+    #   - __secret__unomi_root_password_b64
     - setGlobalRepoRootUrl
     - forEach(nodes.${this.target}):
         cmd[${@i.id}]: |-
-          sed -i "s/\(password: \).*/\1$(echo ${this.unomi_root_password_b64} | base64 -d | sed 's;\\;\\\\;g')/" /etc/datadog-agent/conf.d/jmx.d/conf.yaml
+          __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
+          sed -i "s/\(password: \).*/\1$(echo $__secret__unomi_root_password_b64 | base64 -d | sed 's;\\;\\\\;g')/" /etc/datadog-agent/conf.d/jmx.d/conf.yaml
           mkdir /etc/datadog-agent/conf.d/jelastic.d
           chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
           curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
@@ -92,7 +106,7 @@ actions:
 
   updateHazelcast:
     # Parameters:
-    #   - unomi_root_password_b64
+    #   - __secret__unomi_root_password_b64
     - forEach(nodes.cp):
         cmd[${@i.id}]: |-
           envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
@@ -100,9 +114,10 @@ actions:
               -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
               -e '/UNOMI_ROOT_PASSWORD/d' \
               -i $envfile
+          __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
           echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
           echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
-          echo "UNOMI_ROOT_PASSWORD_B64=\"${this.unomi_root_password_b64}\"" >> $envfile
+          echo "UNOMI_ROOT_PASSWORD_B64=$__secret__unomi_root_password_b64" >> $envfile
           echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
           echo >> $envfile
           systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
@@ -114,9 +129,9 @@ actions:
 
   setupUnomi:
     # Parameters:
-    #   - unomi_root_password_b64
+    #   - __secret__unomi_root_password_b64
     - updateHazelcast:
-        unomi_root_password_b64: ${this.unomi_root_password_b64}
+        __secret__unomi_root_password_b64: ${this.__secret__unomi_root_password_b64}
     - cmd[${nodes.cp.master.id}]:
         - systemctl enable --now karaf
       user: root
@@ -215,7 +230,7 @@ actions:
 
   updateJahia:
     # Parameters:
-    #   - new_password_b64
+    #   - __secret__new_password_b64
     # Update the jcustomer's root password in all linked jahia env(s)
     - setGlobalRepoRootUrl
     - getLinkedJahiaEnvs
@@ -229,9 +244,10 @@ actions:
         res = ""
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
+            __secret__newPasswordB64 = "${this.__secret__new_password_b64}";
             data = {
               "targetAppid": jahiaEnvname,
-              "settings": {"pwd_b64": "${this.new_password_b64}"},
+              "settings": {"pwd_b64": __secret__newPasswordB64},
               "manifest": "${globals.repoRootUrl}/packages/jahia/set-jcustomer-password-in-jahia.yml"
             };
             res += res + jelastic.dev.scripting.eval("appstore", session, "InstallApp", data);
@@ -241,20 +257,31 @@ actions:
 
   setJcustomerApiKey:
     - cmd[${nodes.cp.first.id}]: |-
-        openssl rand -hex 256 | sha1sum | cut -d' ' -f1
-    - setGlobals:
-        apiKey: ${response.out}
-    - api[cp]: env.control.AddContainerEnvVars
-      vars: {"UNOMI_THIRDPARTY_PROVIDER1_KEY": "${globals.apiKey}"}
+        api_key=$(openssl rand -hex 256 | sha1sum | cut -d' ' -f1)
+        printf '{"HideThisOutput": true, "jcustomer_api_key": "%s"}' "$api_key"
+    - script: |-
+        __secret__response = ${response.out};
+        jCustomerApiKey = __secret__response["jcustomer_api_key"];
+        return jelastic.env.control.AddContainerEnvVars(
+                  '${env.envName}',
+                  session,
+                  nodeGroup='cp',
+                  vars={"UNOMI_THIRDPARTY_PROVIDER1_KEY": jCustomerApiKey}
+        );
     - cmd[cp]: systemctl restart karaf
 
   getJcustomerKey:
     - script: |
         const jcustomerEnv = "${this.jcustomerEnv}"
         resp = jelastic.env.control.GetContainerEnvVarsByGroup(jcustomerEnv, session, nodeGroup='cp');
-        return {'result': 0, 'out': resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]};
-    - setGlobals:
-        jcustomerKey: ${response.out}
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__jcustomerKey": resp.object["UNOMI_THIRDPARTY_PROVIDER1_KEY"]
+            }
+          }
+        };
 
   refreshUnomiAllowedIPs:
     # Parameters:
