@@ -621,7 +621,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                 target_node_id = search_node(get="id", name=first_word, parent=mixin_node_id)[0]
                 if node_id != target_node_id:
                     update_node(node_id, add_call=[target_node_id])
-                    update_node(mixin_node_id, add_called=[node_id])
+                    update_node(target_node_id, add_called_by=[node_id])
 
         elif re.search(regex_dict["is_event"], item):
             legit=True
