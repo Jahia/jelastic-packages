@@ -341,6 +341,9 @@ actions:
     - checkDatadogAgentCheck:
         target: ${this}
         checkName: strongswan_connections_status
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: augmented_search
 
   saveApplicationcontextFilesBeforeRedeploy:
     cmd[${this}]: |-
