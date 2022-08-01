@@ -1,0 +1,22 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Rolling redeploy
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jcustomer-rolling-redeploy
+description:
+  short: Unomi - Rolling redeploy
+
+
+onInstall:
+  - cmd[${nodes.cp.first.id}]: |-
+      ## [Rolling redeploy] - 1/1
+      exit 0
+
+  - forEach (nodes.cp):
+      - api: environment.control.RedeployContainerById
+        nodeId: ${@i.id}
+        tag: ${nodes.cp.first.customitem.dockerTag}
+        useExistingVolumes: true
+        skipReinstall: false
+        envName: ${env.envName}
