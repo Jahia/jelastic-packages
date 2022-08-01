@@ -236,9 +236,6 @@ actions:
         __secret_pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/tomcat.d/conf.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
-        sed 's/service: jahia/service: ${env.shortdomain}/' -i /etc/datadog-agent/conf.d/strongswan_connections_status.yaml
         chmod 644 /opt/tomcat/logs/catalina.out
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown tomcat:root /var/log/jelastic-packages

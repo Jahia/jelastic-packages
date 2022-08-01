@@ -87,7 +87,7 @@ actions:
         echo "  - type: file" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    path: /var/log/mysql/mysqld.log" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    source: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "    service: ${env.shortdomain}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    service: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    log_processing_rules:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "      - type: multi_line " >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "        name: new_log_start_with_date" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
@@ -95,7 +95,7 @@ actions:
         echo "  - type: file" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    path: /var/log/mysql/slow-queries.log" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    source: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "    service: ${env.shortdomain}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    service: mysql" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "init_config:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "instances:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "  - server: 127.0.0.1" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
