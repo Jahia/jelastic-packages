@@ -63,7 +63,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
             elif as_probe["status"]["health"] == "YELLOW":
                 self.service_check(
                     self.AS_SERVICE_CHECK_NAME,
-                    AgentCheck.WARNINIG,
+                    AgentCheck.WARNING,
                     message=as_probe["status"]["message"]
                 )
             else:
@@ -72,6 +72,12 @@ class CheckAugmentedSearchStatus(AgentCheck):
                     AgentCheck.CRITICAL,
                     message=as_probe["status"]["message"]
                 )
+        else:
+            self.service_check(
+                self.AS_SERVICE_CHECK_NAME,
+                AgentCheck.CRITICAL,
+                message="No Augmented Search probe found in healthcheck response"
+            )
 
     def check_as_connection(self, instance):
         jahia_cloud_connection_name = "jahia-cloud_augmented-search"
@@ -93,16 +99,8 @@ class CheckAugmentedSearchStatus(AgentCheck):
         currentConnection = None
         try:
             currentConnection = response["data"]["admin"]["search"]["currentConnection"]
-        except KeyError:
-            message = "Cannot get AS currentConnection in response body"
-            self.service_check(
-                self.AS_CONNECTION_SERVICE_CHECK_NAME,
-                AgentCheck.CRITICAL,
-                message=message
-            )
-            return
         except Exception as error:
-            message = "No AS connection found because an unknown error happened: " + str(error)
+            message = "Cannot get AS currentConnection in response body: " + str(response)
             self.service_check(
                 self.AS_CONNECTION_SERVICE_CHECK_NAME,
                 AgentCheck.CRITICAL,
