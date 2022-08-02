@@ -599,7 +599,7 @@ actions:
 
   checkModule:
     # Checks the state of a module.
-    # First we check the state of the module, uninstalled, installed or started. Then, is installed or started,
+    # First we check the state of the module, uninstalled, installed or started. Then, if installed or started,
     # we check the version: most recent version installed if module is not running, or running version otherwise.
     #
     # Parameters:
@@ -609,13 +609,14 @@ actions:
     #   - "started" if the module is running
     #   - "installed" if the module is installed but not running
     #   - "uninstalled" if the module is not installed
-    # - globals.mostRecentInstalledVersion: if globals.moduleState is "installed", then globals.mostRecentInstalledVersion
-    #       is the most recent version installed
-    # - globals.runningVersion: if globals.moduleState is "started", then globals.runningVersion is the version running
+    # - globals.mostRecentInstalledVersion: the most recent version installed
+    # - globals.runningVersion: the version running (if any)
+    # - globals.installedVersionsCount: the number of installed versions
     - setGlobals:  # re-initialise globals to prevent successive calls to this action from overlapping
         moduleState: ""
         runningVersion: ""
         mostRecentInstalledVersion: ""
+        installedVersionsCount: 0
     - set:
         curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
@@ -649,21 +650,30 @@ actions:
         - cmd [proc]: |-
             resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
             module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
-            # If module is started, then we print the running version and we exit
+            # If module is started, then we get the running version
+            running_version=""
             if [ $? -eq 0 ]; then
-              echo $module_started | cut -d';' -f1 | awk -F'/' '{print $NF}'
-              exit 0;
+              running_version=$(echo $module_started | cut -d';' -f1 | awk -F'/' '{print $NF}')
             fi
-            # Otherzise we print the most recent version installed
-            jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | head -1
-        - if ("${globals.moduleState}" == "started"):
-            - setGlobals:
-                runningVersion: ${response.out}
-            - log: ${this.moduleSymname} is running with version ${globals.runningVersion}
-        - else:
-            - setGlobals:
-                mostRecentInstalledVersion: ${response.out}
-            - log: ${this.moduleSymname} is installed but not running, most recent version installed is ${globals.mostRecentInstalledVersion}
+            most_recent_installed_version=$(jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | head -1)
+            installed_versions_count=$(jq -r "keys | length" <<< $resp)
+            echo "{ \
+                'runningVersion': '$running_version', \
+                'mostRecentInstalledVersion': '$most_recent_installed_version', \
+                'installedVersionsCount': '$installed_versions_count'\
+              }"
+        - script: |-
+            const resp = ${response.out.toJSON()}
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                setGlobals: {
+                  "runningVersion": resp.runningVersion,
+                  "mostRecentInstalledVersion": resp.mostRecentInstalledVersion,
+                  "installedVersionsCount": resp.installedVersionsCount
+                }
+              }
+            };
 
   checkVersionOfModule:
     # Checks the state of a module for a specific version: uninstalled, installed or started.
