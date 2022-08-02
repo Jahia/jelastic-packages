@@ -916,7 +916,7 @@ def check_if_not_legit():
 if __name__ == "__main__":
     SILENT_MODE = False
 
-    with console.status("reading files...", spinner="line"):
+    with console.status("reading files…", spinner="line"):
         generate_lists()
 
     if args.command in ["check", "graph"]:
@@ -937,18 +937,26 @@ if __name__ == "__main__":
         sys.exit(InternalShell.cmdloop())
     elif args.command == "graph":
         SILENT_MODE = args.quiet
-        with console.status("graphing files...", spinner="line"):
-            for file in files:
-                graph_manifest(file, None)
+        if SILENT_MODE:
+            for i in track(range(len(files)), description="graphing file(s)…"):
+                graph_manifest(files[i], None)
+        else:
+            with console.status("graphing file(s)…", spinner="line"):
+                for file in files:
+                    graph_manifest(file, None)
         if args.output:
             graph.write(args.output)
         if args.console:
             graph.write()
     elif args.command == "check":
         SILENT_MODE = args.quiet
-        with console.status("checking files...", spinner="line"):
-            for file in files:
-                crawl_by_manifest(file)
+        if SILENT_MODE:
+            for i in track(range(len(files)), description="checking file(s)…"):
+                crawl_by_manifest(files[i])
+        else:
+            with console.status("checking file(s)…", spinner="line"):
+                for file in files:
+                    crawl_by_manifest(file)
         check_if_not_legit()
     elif args.command == "mixins_duplicates":
         if check_for_duplicate_action_in_mixins():
@@ -965,7 +973,7 @@ if __name__ == "__main__":
 
         SILENT_MODE = True
 
-        for i in track(range(len(manifest_list)), description="Building data..."):
+        for i in track(range(len(manifest_list)), description="Building data…"):
             crawl_by_manifest(manifest_list[i].name())
 
         result = search_node(**criteria_dict)
