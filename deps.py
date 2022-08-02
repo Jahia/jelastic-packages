@@ -700,7 +700,7 @@ def inspect_manifest(manifest, section):
 
 def crawl_by_manifest(name):
     manifest_id = get_manifest_id_by_name(name)
-    if not manifest_id:
+    if not manifest_id and manifest_id != 0:
         return
 
     for section in ["actions", "events", "onInstall"]:
