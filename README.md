@@ -34,6 +34,125 @@ Here are some rules that should be observed:
     ├── jcustomer
     └── one-shot
 ```
+### `deps.py`
+
+This is a script that allows you to do:
+* checks
+    * check that the actions used by manifest(s) are well defined
+        ```console
+		 $ ./deps.py check packages/one-shot/paas-1982-fix-jessionid.yml 
+		for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'actions':
+				[checkJahiaVersion] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+						[getJahiaVersion] is an action from ['./mixins/jahia.yml']
+						[if] is a keyword
+								[return] is a jelastic keyword with args
+						[getJahiaVersion] is an action from ['./mixins/jahia.yml']
+						[if] is a keyword
+								[return] is a jelastic keyword with args
+				[temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+						[if] is a keyword
+							[api] is a jelastic keyword with args
+						[if] is a keyword
+							[api] is a jelastic keyword with args
+		for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'events':
+		no events detected
+		for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'onInstall':
+			[checkJahiaVersion] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+			[temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+			[foreach] is a keyword
+				[temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+        ```
+		If a called action can't be found, you will have something like this:
+        ```console
+         $ ./deps.py check packages/one-shot/paas-1982-fix-jessionid.yml
+        for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'actions':
+                [checkJahiaVersion] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+                        [getJahiaVersion] is an action from ['./mixins/jahia.yml']
+                        [WellStillNotDefinedAnywhere] is an action not defined anywhere !
+                        [if] is a keyword
+                                [return] is a jelastic keyword with args
+                        [getJahiaVersion] is an action from ['./mixins/jahia.yml']
+                        [WellStillNotDefinedAnywhere] is an action not defined anywhere !
+                        [if] is a keyword
+                                [return] is a jelastic keyword with args
+                [temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+                        [if] is a keyword
+                            [api] is a jelastic keyword with args
+                        [if] is a keyword
+                            [api] is a jelastic keyword with args
+        for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'events':
+        no events detected
+        for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'onInstall':
+            [checkJahiaVersion] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+            [temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+            [IMPrettySureThisActionIsOnMyMixins] is an action not defined anywhere !
+            [foreach] is a keyword
+                [temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
+        ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+        ❌'WellStillNotDefinedAnywhere' from ./packages/one-shot/paas-1982-fix-jessionid.yml isn't defined
+        ❌'IMPrettySureThisActionIsOnMyMixins' from ./packages/one-shot/paas-1982-fix-jessionid.yml isn't defined
+        ```
+    * check for duplicated actions in mixins files
+        ```console
+        $ ./deps.py mixins_duplicates
+        ❌'setJournaldLimit' is duplicated: ['./mixins/common.yml', './mixins/jcustomer.yml']
+        ```
+* graph dependencies tree from manifest(s)
+    ```console
+    $ ./deps.py graph -q -o AS_manifest_deps.dot ./packages/jahia/augmented-search-*.yml
+    ```
+* (really) simple search
+	```console
+	$ ./deps.py search --name checkJahiaHealth
+	Building data... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+	 id    name              kind    section    call  called_by                                                          parent  childs  legit 
+	 99    checkJahiaHealth  action  actions    146   1056,1091,937,1033,1003,1037,974,1165,1104,1073,434,1138,948,1119  86              true  
+	 937   checkJahiaHealth  action  onInstall  99                                                                       393             true  
+	 948   checkJahiaHealth  action  onInstall  99                                                                       398             true  
+	 974   checkJahiaHealth  action  onInstall  99                                                                       410             true  
+	 1003  checkJahiaHealth  action  onInstall  99                                                                       425             true  
+	 1033  checkJahiaHealth  action  onInstall  99                                                                       432             true  
+	 1037  checkJahiaHealth  action  onInstall  99                                                                       444             true  
+	 1056  checkJahiaHealth  action  onInstall  99                                                                       454             true  
+	 1073  checkJahiaHealth  action  onInstall  99                                                                       461             true  
+	 1091  checkJahiaHealth  action  onInstall  99                                                                       472             true  
+	 1104  checkJahiaHealth  action  onInstall  99                                                                       475             true  
+	 1119  checkJahiaHealth  action  onInstall  99                                                                       484             true  
+	 1138  checkJahiaHealth  action  onInstall  99                                                                       498             true  
+	 1165  checkJahiaHealth  action  onInstall  99                                                                       515             true
+	```
+
+#### `PRE-COMMIT` hook
+Here is an exemple of what you can have in order to automatically check before committing:
+```bash
+#!/usr/bin/env bash
+echo "PRE-COMMIT check for ${PWD##*/}"
+
+manifest_involved=$(git diff --cached --name-only | grep -v "^.*/?assets/" | grep -E "(mixins|packages)*ya?ml")
+mixin_involved=$(echo "${manifest_involved}" | grep "^mixins/")
+error=0
+
+if [ -n "${manifest_involved}" ]; then
+    if ! (./deps.py check -q ${manifest_involved}); then
+        ((error++))
+    fi
+fi
+
+if [ -n "${mixin_involved}" ]; then
+    if ! (./deps.py mixins_duplicates); then
+        ((error++))
+    fi
+fi
+
+echo
+
+if [ $error -gt 0 ]; then
+    echo "Can't commit, you must fix previous error(s) before..."
+    exit $error
+fi
+
+echo "Looks ok, commit can occure..."
+```
 
 ## Environments
 
