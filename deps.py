@@ -464,7 +464,6 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
     for mixin in mixins_list:
         if mixin.startswith("/"):   # yes, one manifest has a '/../../mixins/blabla.yml' mixin
             mixin = re.sub(r"^/\W*", "./", mixin)
-        mixin_node = search_node(name=mixin)[0]
 
     if isinstance(item, dict):
         legit = False
@@ -728,13 +727,6 @@ def graph_by_manifest(name):
     for mixin in manifest.mixins():
         graph_by_manifest(mixin)
 
-    # get all related actions nodes
-    manifest_id = get_manifest_id_by_name(name)
-    mixins_list = manifest_list[manifest_id].mixins()
-
-    for mixin in mixins_list:
-        mixin_node = search_node(name=mixin)[0]
-
     child_section_subgraph = {}
 
     for section in ["actions", "events", "onInstall"]:
@@ -766,7 +758,7 @@ def graph_by_manifest(name):
 
 def graph_manifest(name: str, output=None, to_terminal=False):
     if re.search(regex_dict["is_mixins"], name):
-        other_mixins = [ x.name() for x in manifest_list if re.search(regex_dict["is_mixins"], x.name()) and x.name() != name ]
+        other_mixins = [x.name() for x in manifest_list if re.search(regex_dict["is_mixins"], x.name()) and x.name() != name]
         for mixin in other_mixins:
             crawl_by_manifest(mixin)
             graph_by_manifest(mixin)
@@ -774,9 +766,9 @@ def graph_manifest(name: str, output=None, to_terminal=False):
     crawl_by_manifest(name)
     graph_by_manifest(name)
 
-    mixins_list =  [ node for node in graph.nodes() if re.search(regex_dict["is_mixins"], node.name) and not re.search(rf"{name}", node.name)]
+    mixins_list = [node for node in graph.nodes() if re.search(regex_dict["is_mixins"], node.name) and not re.search(rf"{name}", node.name)]
     for node in mixins_list:
-        node_edges_list = [ edge for edge in graph.edges() if node.name in edge ]
+        node_edges_list = [edge for edge in graph.edges() if node.name in edge]
 
         if not node_edges_list:
             graph.delete_node(node.get_name())
@@ -801,17 +793,17 @@ def display_not_legit(items_list):
 
 
 def check_for_duplicate_action_in_mixins():
-    mixins_list = [ x.name() for x in manifest_list if "mixins" in x.kind() ]
+    mixins_list = [x.name() for x in manifest_list if "mixins" in x.kind()]
     actions = {}
     for mixin in mixins_list:
-        actions[mixin] = { x.name() for x in actions_list if x.from_file() == mixin }
+        actions[mixin] = {x.name() for x in actions_list if x.from_file() == mixin}
 
-    all_actions = [ action for mixin in actions.keys() for action in actions[mixin] ]
+    all_actions = [action for mixin in actions.keys() for action in actions[mixin]]
 
-    duplicated = { action for action in all_actions if all_actions.count(action) > 1 }
+    duplicated = {action for action in all_actions if all_actions.count(action) > 1}
 
     for action in duplicated:
-        from_file = [ file for file in actions.keys() if action in actions[file] ]
+        from_file = [file for file in actions.keys() if action in actions[file]]
         log(f"'{action}' is duplicated: {from_file}", not_legit=True)
 
     return duplicated
@@ -953,7 +945,7 @@ if __name__ == "__main__":
         criteria_dict = vars(args)
         for criteria in ["childs", "call", "called_by"]:
             if criteria and criteria_dict[criteria] is not None:
-                criteria_dict[criteria] = [ int(x) for x in criteria_dict[criteria].split(",") ]
+                criteria_dict[criteria] = [int(x) for x in criteria_dict[criteria].split(",")]
         if args.not_legit:
             criteria_dict["legit"] = False
         else:
