@@ -124,7 +124,7 @@ actions:
 
         # check connection is alive, rollback if needed
         sleep 5  # little wait to be sure
-        conn_status=$(datadog-agent check strongswan_connections_status --json 2>/dev/null | tail -n +2 | jq '.[0].aggregator.service_checks[0].status')
+        conn_status=$(datadog-agent check strongswan_connections_status --json 2>/dev/null | jq '.[0].aggregator.service_checks[0].status')
         if [ $conn_status -ne 0 ]; then
           echo "[ERROR] Connection $conn_name is not established" >&2
           for f in $confdir/$confname.conf ${secretsfile}; do
