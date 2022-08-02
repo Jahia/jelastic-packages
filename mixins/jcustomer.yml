@@ -125,16 +125,6 @@ actions:
         - systemctl enable --now karaf
       user: root
 
-  setJournaldLimit:
-    - cmd[cp]: |-
-        sed -i 's/.*SystemMaxUse=.*/SystemMaxUse=200M/g' /etc/systemd/journald.conf
-        systemctl restart systemd-journald.service
-      user: root
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred during journald configuration."
-
   getLinkedJahiaEnvs:
     # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global
     # Parameters:
