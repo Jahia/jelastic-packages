@@ -37,6 +37,7 @@ onInstall:
   - upgradeHaproxy                    # PAAS-1879
   - getAugSearchDatadogCheck          # PAAS-2114
   - updateDatadogServiceParam         # PAAS-2062
+  - updateDatadogAgentToLatest        # PAAS-2139
 
   # Actions that require a restart:
   - revertCORSFilter                  # PAAS-2049
