@@ -15,8 +15,6 @@ from rich.progress import track
 console = Console()
 
 
-
-
 parser = argparse.ArgumentParser()
 subparser_toplevel = parser.add_subparsers(help='command', dest='command')
 
@@ -38,8 +36,6 @@ subparser_check.add_argument("file", nargs='*', type=argparse.FileType('r'), hel
 subparser_check.add_argument("-q", "--quiet", help="be quiet", default=False, action='store_true')
 
 
-
-
 subparser_search.add_argument('-i', '--id', help="id number")
 subparser_search.add_argument('-n', '--name', help="which name")
 subparser_search.add_argument('-k', '--kind', help="which kind", choices=['manifest', 'action'])
@@ -54,9 +50,6 @@ subparser_search.add_argument('--not_legit', help="action is not legit", default
 args = parser.parse_args()
 
 
-
-
-
 graph_manifest_parser = cmd2.Cmd2ArgumentParser()
 graph_manifest_parser.add_argument('file', type=str, help='the manifest to check')
 graph_manifest_parser.add_argument('-o', '--output', type=str, help='where to output dot', default="output.dot")
@@ -66,9 +59,6 @@ graph_manifest_parser.add_argument("-c", "--console", help="output generated dot
 
 check_manifest_parser = cmd2.Cmd2ArgumentParser()
 check_manifest_parser.add_argument('file', type=str, help='the manifest to check')
-
-
-
 
 
 folder_list = []
@@ -153,8 +143,8 @@ graph_attributes = {
         "section_onInstall": {
             "concentrate": "true",
             "bgcolor": "lavender",
-            },
             "constraint": "false",
+            },
         "section_actions": {
             "concentrate": "true",
             "bgcolor": "lightcyan",
@@ -180,6 +170,7 @@ graph_attributes = {
 
 graph = pgv.AGraph(**graph_attributes["root"])
 
+
 class Action():
     def __init__(self, name: str, **kwargs):
         self.__name = name
@@ -192,13 +183,15 @@ class Action():
 
     def name(self) -> str:
         return self.__name
+
     def content(self):
         return self.__content
+
     def parameters(self):
         return self.__params
+
     def from_file(self) -> str:
         return self.__from_file
-
 
 
 class Manifest():
@@ -217,9 +210,9 @@ class Manifest():
 
         if "onInstall" in self.__full_content:
             # it's a list but items can be string or dict
-            self.__onInstall = self.__full_content["onInstall"]
+            self.__on_install = self.__full_content["onInstall"]
         else:
-            self.__onInstall = []
+            self.__on_install = []
 
         if "actions" in self.__full_content:
             # transform self.__full_content["actions"] dict
@@ -246,8 +239,8 @@ class Manifest():
     def mixins(self) -> list:
         return self.__mixins
 
-    def onInstall(self) -> list:
-        return self.__onInstall
+    def on_install(self) -> list:
+        return self.__on_install
 
     def embeded_actions(self) -> list:
         return self.__embeded_actions
@@ -266,6 +259,7 @@ class Node():
         self.__kind = kwargs.get('kind', None)
         self.__section = kwargs.get('section', None)
         self.__legit = kwargs.get('legit', True)
+
     def get_all_attributes(self) -> dict:
         methods = [
                 x for x in dir(self) if x.startswith('_') is False
@@ -278,36 +272,52 @@ class Node():
             method_to_call = getattr(self, method)
             attributes[method] = method_to_call()
         return attributes
+
     def name(self):
         return self.__name
+
     def kind(self):
         return self.__kind
+
     def section(self):
         return self.__section
+
     def legit(self):
         return self.__legit
+
     def parent(self):
         return self.__parent
+
     def childs(self):
         return self.__childs
+
     def call(self):
         return self.__call
+
     def called_by(self):
         return self.__called_by
+
     def set_parent(self, node_id: int):
         self.__parent = node_id
+
     def add_childs(self, childs: list):
         self.__childs = list(set([*self.__childs, *childs]))  # also remove duplicates
+
     def add_call(self, call: list):
         self.__call = list(set([*self.__call, *call]))  # also remove duplicates
+
     def add_called_by(self, called_by: list):
         self.__called_by = list(set([*self.__called_by, *called_by]))  # also remove duplicates
+
     def set_kind(self, kind: str):
         self.__kind = kind
+
     def set_section(self, section: str):
         self.__section = section
+
     def set_legit(self, legit: bool):
         self.__legit = legit
+
 
 def update_node(node_id: int, **kwargs):
     parent = kwargs.get('parent', None)
@@ -334,9 +344,9 @@ def update_node(node_id: int, **kwargs):
         nodes_list[node_id].set_legit(legit)
 
 
-
 def get_node_parents_id_by_name(name: str) -> list:
     return [ nodes_list.index(x) for x in nodes_list if x.name() == name ]
+
 
 def search_node(get="object", **criteria) -> list:
     name = criteria.get('name', None)
@@ -391,7 +401,7 @@ def log(string, **kwargs):
     console.print(f"{prefix_with}{string}", **options)
 
 
-def isKeyword(word: str) -> bool:
+def is_keyword(word: str) -> bool:
     return word in jelastic_keywords
 
 
@@ -404,8 +414,8 @@ def generate_lists():
                 try:
                     manifest_list.append(Manifest(f"{root}/{file}",
                         full_content=data_loaded))
-                except Exception as e:
-                    print(f"error on {root}/{file}: {e}")
+                except Exception as error:
+                    print(f"error on {root}/{file}: {error}")
                 nodes_list.append(Node(f"{root}/{file}", kind="manifest"))
                 parent_id = len(nodes_list) - 1
                 if "actions" in data_loaded:
@@ -446,31 +456,29 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
         previous_degree=1, previous_item_id=0, called_by=""):
     padding = ' '
     width = degree * 4
-    manifest=manifest_list[get_manifest_id_by_name(manifest_name)]
+    manifest = manifest_list[get_manifest_id_by_name(manifest_name)]
 
     # get all related actions nodes
-    all_action_nodes = []
     manifest_id = get_manifest_id_by_name(manifest_name)
     mixins_list = manifest_list[manifest_id].mixins()
     for mixin in mixins_list:
         if mixin.startswith("/"):   # yes, one manifest has a '/../../mixins/blabla.yml' mixin
             mixin = re.sub(r"^/\W*", "./", mixin)
         mixin_node = search_node(name=mixin)[0]
-        all_action_nodes += mixin_node.childs()
 
     if isinstance(item, dict):
-        legit=False
-        to_break=False
-        i=0
+        legit = False
+        to_break = False
+        i = 0
         for k in item:
             i+=1
             first_word = re.split(r"[\W]", k)[0]
-            if isKeyword(first_word):
+            if is_keyword(first_word):
                 if first_word in jelastic_script_keyword:
                     kind = "script_keyword"
                 elif first_word in jelastic_keywords_with_args:
                     kind = "jelastic keyword with args"
-                    to_break=True
+                    to_break=False
                 elif first_word in jelastic_keywords_args:
                     kind = "jelastic keyword args"
                 else:
@@ -481,20 +489,20 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
             elif first_word in jelastic_keywords_args:
                 continue
             elif re.search(regex_dict["is_event"], k):
-                legit=True
-                kind="event"
+                legit = True
+                kind = "event"
                 log(rf"{padding :>{width}}\[{k}] is an event")
                 # isn't in the nodes objects list yet, so append to it:
                 parent_id = search_node(get="id", name=manifest_name, kind="manifest")
                 nodes_list.append(Node(k, parent=parent_id, kind=kind, legit=legit, section=section))
-            elif first_word in [x.name() for x in actions_list]:
-                matching_actions = [x for x in actions_list if x.name() == first_word]
+            elif first_word in [ x.name() for x in actions_list ]:
+                matching_actions = [ x for x in actions_list if x.name() == first_word ]
                 # select the actions used in case of actions with the same name
-                for x in matching_actions:
-                    if x.from_file() == manifest_name:
-                        matching_actions = [x]
-                    elif x.from_file() in manifest.mixins():
-                        matching_actions = [x]
+                for matching_action in matching_actions:
+                    if matching_action.from_file() == manifest_name:
+                        matching_actions = [matching_action]
+                    elif matching_action.from_file() in manifest.mixins():
+                        matching_actions = [matching_action]
                 legit = True
                 kind = "action"
                 log(rf"{padding :>{width}}\[{first_word}] is an action from {[x.from_file() for x in matching_actions]}")
@@ -544,13 +552,14 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                             previous_degree=degree, previous_item_id=i, called_by=node_id)
 
             elif degree > 1 and previous_item_id != 0:
-                legit=True
-                kind="parameter"
+                legit = True
+                kind = "parameter"
                 log(rf"{padding :>{width}}\[{k}] is a parameter")
+
             elif not legit and previous_was_legit:
-                legit=False
-                to_break=True
-                kind="action"
+                legit = False
+                to_break = True
+                kind = "action"
                 parent_id = search_node(get="id", name=manifest_name, kind="manifest")[0]
                 nodes_list.append(Node(k, parent=parent_id, kind=kind, legit=legit, section=section))
                 log(rf"{padding :>{width}}\[{k}] is an action not defined anywhere !")
@@ -580,20 +589,20 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
         legit=False
         to_break=False
         first_word = re.split(r"[\W]", item)[0]
-        if isKeyword(first_word):
+        if is_keyword(first_word):
             if first_word in jelastic_script_keyword:
                 kind = "script_keyword"
             else:
                 kind = "keyword"
             log(rf"{padding :>{width}}\[{first_word}] is a {kind}")
-        elif first_word in [x.name() for x in actions_list]:
-            matching_actions = [x for x in actions_list if x.name() == first_word]
+        elif first_word in [ x.name() for x in actions_list ]:
+            matching_actions = [ x for x in actions_list if x.name() == first_word ]
             # select the actions used in case of actions with the same name
-            for x in matching_actions:
-                if x.from_file() == manifest_name:
-                    matching_actions = [x]
-                elif x.from_file() in manifest.mixins():
-                    matching_actions = [x]
+            for matching_action in matching_actions:
+                if matching_action.from_file() == manifest_name:
+                    matching_actions = [matching_action]
+                elif matching_action.from_file() in manifest.mixins():
+                    matching_actions = [matching_action]
             legit = True
             kind = "action"
             log(rf"{padding :>{width}}\[{first_word}] is an action from {[x.from_file() for x in matching_actions]}")
@@ -658,8 +667,9 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
             crawl(to_crawl, degree + 1, section=section, manifest_name=manifest_name,
                     previous_degree=degree, called_by=called_by)
 
-    elif isinstance(item, (bool, int)) or item is None:
+    elif isinstance(item, (type(None), bool, int)):
         pass
+
     else:
         log(f"THAT SHOULD NEVER BE SHOWNED: {type(item)}")
 
@@ -668,10 +678,10 @@ def inspect_manifest(manifest, section):
     log(f"for manifest '{manifest.name()}, section '{section}':")
     manifest_name = manifest.name()
     if section == "onInstall":
-        if len(manifest.onInstall()) < 1:
+        if len(manifest.on_install()) < 1:
             log('no onInstall section')
             return
-        for item in manifest.onInstall():
+        for item in manifest.on_install():
             crawl(item, section=section, manifest_name=manifest_name)
     elif section == "actions":
         if manifest.embeded_actions():
@@ -722,13 +732,11 @@ def graph_by_manifest(name):
         graph_by_manifest(mixin)
 
     # get all related actions nodes
-    all_action_nodes = []
     manifest_id = get_manifest_id_by_name(name)
     mixins_list = manifest_list[manifest_id].mixins()
 
     for mixin in mixins_list:
         mixin_node = search_node(name=mixin)[0]
-        all_action_nodes += mixin_node.childs()
 
     child_section_subgraph = {}
 
@@ -799,11 +807,11 @@ def check_for_duplicate_action_in_mixins():
     mixins_list = [ x.name() for x in manifest_list if "mixins" in x.kind() ]
     actions = {}
     for mixin in mixins_list:
-        actions[mixin] = set([ x.name() for x in actions_list if x.from_file() == mixin ])
+        actions[mixin] = { x.name() for x in actions_list if x.from_file() == mixin }
 
     all_actions = [ action for mixin in actions.keys() for action in actions[mixin] ]
 
-    duplicated = set([action for action in all_actions if all_actions.count(action) > 1 ])
+    duplicated = { action for action in all_actions if all_actions.count(action) > 1 }
 
     for action in duplicated:
         from_file = [ file for file in actions.keys() if action in actions[file] ]
@@ -833,7 +841,6 @@ class InternalShell(cmd2.Cmd):
     @cmd2.with_argparser(graph_manifest_parser)
     def do_graph(self, opts):
         """Generate dot format of actions dependencies tree for a given manifest"""
-        SILENT_MODE = opts.quiet
         graph_manifest(opts.file, opts.output, to_terminal=opts.console)
 
     @cmd2.with_argparser(graph_manifest_parser)
@@ -894,7 +901,6 @@ def pretty_search_result(result: list, title=""):
     for row in rows:
         table.add_row(*row)
 
-
     console.print(table)
 
 
@@ -904,8 +910,8 @@ def check_if_not_legit():
         display_not_legit(not_legit)
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    global SILENT_MODE
     SILENT_MODE = False
 
     with console.status("reading files...", spinner="line"):

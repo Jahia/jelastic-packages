@@ -62,7 +62,7 @@ This is a script that allows you to do:
 			[foreach] is a keyword
 				[temporaryWorkaround] is an action from ['./packages/one-shot/paas-1982-fix-jessionid.yml']
         ```
-		If you called action can't be found, you will have something like this:
+		If a called action can't be found, you will have something like this:
         ```console
          $ ./deps.py check packages/one-shot/paas-1982-fix-jessionid.yml
         for manifest './packages/one-shot/paas-1982-fix-jessionid.yml, section 'actions':
