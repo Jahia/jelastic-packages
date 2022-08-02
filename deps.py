@@ -470,14 +470,14 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
         to_break = False
         i = 0
         for k in item:
-            i+=1
+            i += 1
             first_word = re.split(r"[\W]", k)[0]
             if is_keyword(first_word):
                 if first_word in jelastic_script_keyword:
                     kind = "script_keyword"
                 elif first_word in jelastic_keywords_with_args:
                     kind = "jelastic keyword with args"
-                    to_break=False
+                    to_break = True
                 elif first_word in jelastic_keywords_args:
                     kind = "jelastic keyword args"
                 else:
@@ -561,7 +561,8 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                 nodes_list.append(Node(k, parent=parent_id, kind=kind, legit=legit, section=section))
                 log(rf"{padding :>{width}}\[{k}] is an action not defined anywhere !")
 
-                if section == "actions":
+                if section == "actions" and \
+                        not search_node(name=first_word, parent=parent_id, section=section):
                     nodes_list.append(Node(k, parent=parent_id, kind=kind, legit=legit, section=section))
 
                 if called_by:
@@ -572,7 +573,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                         update_node(called_by, add_call=[node_id])
 
             else:
-                legit=False
+                legit = False
                 log(rf"{padding :>{width}}\[{k}] is an unknown kind, this should never be showned")
 
         if not isinstance(item[k], str) and not to_break:
@@ -582,8 +583,8 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
         return legit, to_break
 
     elif isinstance(item, str):
-        legit=False
-        to_break=False
+        legit = False
+        to_break = False
         first_word = re.split(r"[\W]", item)[0]
         if is_keyword(first_word):
             if first_word in jelastic_script_keyword:
@@ -629,19 +630,19 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                     update_node(target_node_id, add_called_by=[node_id])
 
         elif re.search(regex_dict["is_event"], item):
-            legit=True
+            legit = True
             kind = "event"
             log(rf"{padding :>{width}}\[{first_word}] is an event")
             parent_id = search_node(get="id", name=manifest_name, kind="manifest")[0]
             nodes_list.append(Node(first_word, parent=parent_id, kind=kind, legit=legit, section=section))
         elif degree > previous_degree and previous_item_id != 0:
-            legit=True
+            legit = True
             kind = "parameter"
             if first_word:
                 log(rf"{padding :>{width}}\[{first_word}] is a parameter")
         else:
-            legit=False
-            to_break=True
+            legit = False
+            to_break = True
             kind = "action"
             log(rf"{padding :>{width}}\[{first_word}] is an action not defined anywhere !")
             parent_id = search_node(get="id", name=manifest_name, kind="manifest")[0]
