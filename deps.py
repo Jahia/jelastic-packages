@@ -453,7 +453,7 @@ def get_node_id_by_name(name: str) -> list:
 
 
 def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
-        previous_degree=1, previous_item_id=0, called_by=""):
+        previous_degree=1, previous_item_id=0, called_by=None):
     padding = ' '
     width = degree * 4
     manifest = manifest_list[get_manifest_id_by_name(manifest_name)]
@@ -499,9 +499,8 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                 matching_actions = [ x for x in actions_list if x.name() == first_word ]
                 # select the actions used in case of actions with the same name
                 for matching_action in matching_actions:
-                    if matching_action.from_file() == manifest_name:
-                        matching_actions = [matching_action]
-                    elif matching_action.from_file() in manifest.mixins():
+                    if matching_action.from_file() == manifest_name or \
+                       matching_action.from_file() in manifest.mixins():
                         matching_actions = [matching_action]
                 legit = True
                 kind = "action"
@@ -553,7 +552,6 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
 
             elif degree > 1 and previous_item_id != 0:
                 legit = True
-                kind = "parameter"
                 log(rf"{padding :>{width}}\[{k}] is a parameter")
 
             elif not legit and previous_was_legit:
@@ -578,10 +576,9 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                 legit=False
                 log(rf"{padding :>{width}}\[{k}] is an unknown kind, this should never be showned")
 
-        if not isinstance(item[k], str):
-            if not to_break:
-                crawl(item[k], degree + 1, section=section, manifest_name=manifest_name,
-                        previous_degree=degree, previous_item_id=i)
+        if not isinstance(item[k], str) and not to_break:
+            crawl(item[k], degree + 1, section=section, manifest_name=manifest_name,
+                    previous_degree=degree, previous_item_id=i)
 
         return legit, to_break
 
@@ -599,10 +596,10 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
             matching_actions = [ x for x in actions_list if x.name() == first_word ]
             # select the actions used in case of actions with the same name
             for matching_action in matching_actions:
-                if matching_action.from_file() == manifest_name:
+                if matching_action.from_file() == manifest_name or \
+                   matching_action.from_file() in manifest.mixins():
                     matching_actions = [matching_action]
-                elif matching_action.from_file() in manifest.mixins():
-                    matching_actions = [matching_action]
+
             legit = True
             kind = "action"
             log(rf"{padding :>{width}}\[{first_word}] is an action from {[x.from_file() for x in matching_actions]}")
