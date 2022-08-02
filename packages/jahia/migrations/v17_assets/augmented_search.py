@@ -37,7 +37,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
         except requests.exceptions.JSONDecodeError as error:
             message = "Error while decoding json from healthcheck response. Error: " + str(error)
             self.service_check(
@@ -45,7 +45,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
 
         as_probe = None
         # Look for Augmented search probe in healthcheck response
@@ -88,6 +88,9 @@ class CheckAugmentedSearchStatus(AgentCheck):
         }
 
         response = self.__send_post_request(url, headers, data, self.AS_CONNECTION_SERVICE_CHECK_NAME)
+        if not response:
+            return
+        currentConnection = None
         try:
             currentConnection = response["data"]["admin"]["search"]["currentConnection"]
         except KeyError:
@@ -97,7 +100,16 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
+        except Exception as error:
+            message = "No AS connection found because an unknown error happened: " + str(error)
+            self.service_check(
+                self.AS_CONNECTION_SERVICE_CHECK_NAME,
+                AgentCheck.CRITICAL,
+                message=message
+            )
+            return
+
         if currentConnection == "jahia-cloud_augmented-search":
             message = "AS is using " + jahia_cloud_connection_name + " connection id."
             self.service_check(
@@ -105,8 +117,15 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.OK,
                 message=message
             )
+        elif not currentConnection:
+            message = "There is no connection configured for AS."
+            self.service_check(
+                self.AS_CONNECTION_SERVICE_CHECK_NAME,
+                AgentCheck.CRITICAL,
+                message=message
+            )
         else:
-            message = "AS is using " + currentConnection + " connection id instead of " + jahia_cloud_connection_name + "."
+            message = "AS is using " + str(currentConnection) + " connection id instead of " + jahia_cloud_connection_name + "."
             self.service_check(
                 self.AS_CONNECTION_SERVICE_CHECK_NAME,
                 AgentCheck.CRITICAL,
@@ -118,6 +137,8 @@ class CheckAugmentedSearchStatus(AgentCheck):
             "query": "query { admin { search { dbConnections {connectionId} } } }"
         }
         response = self.__send_post_request(url, headers, data, self.AS_CONNECTION_HEALTH_SERVICE_CHECK_NAME)
+        if not response:
+            return
         try:
             valid_connections = response["data"]["admin"]["search"]["dbConnections"]
         except KeyError:
@@ -127,7 +148,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
         as_connection_found = False
         for connection in valid_connections:
             if connection["connectionId"] == jahia_cloud_connection_name:
@@ -160,7 +181,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
         except requests.exceptions.JSONDecodeError as error:
             message = "Error while decoding json from healthcheck response. Error: " + str(error)
             self.service_check(
@@ -168,4 +189,4 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
-            raise
+            return
