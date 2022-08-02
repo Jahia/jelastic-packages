@@ -354,12 +354,19 @@ actions:
     #  - target: target node group or id
     #  - checkName: name of the Datadog agent check to check
     - cmd[${this.target}]: |-
-        # "tail -n +2" is needed because the command outputs "=== JSON ===" before the JSON content...
-        error_count=$(datadog-agent check ${this.checkName} --json | tail -n +2 | jq '.[].runner.TotalErrors')
+        error_count=$(datadog-agent check ${this.checkName} --json | jq '.[].runner.TotalErrors')
         if [ $error_count -gt 0 ]; then
           echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
           exit 1
         fi
+      user: root
+
+  updateDatadogAgentToLatest:
+    - cmd[*]: |-
+        source /.jelenv
+        export DD_AGENT_MAJOR_VERSION=6
+        export DD_API_KEY=$DATADOGAPIKEY
+        bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
       user: root
 
   installRequiredPackages:
