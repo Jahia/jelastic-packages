@@ -11,7 +11,7 @@ mixins:
   - "../../../mixins/elasticsearch.yml"
 
 globals:
-  version: 14
+  version: 15
 
 onInstall:
   ### Pre-checks
