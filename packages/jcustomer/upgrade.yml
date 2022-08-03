@@ -23,6 +23,9 @@ onInstall:
           type: error
           message: "Target version must be higher than current version."
 
+  # Mute monitors
+  - muteEnvWideMonitors
+
   # If a Docker tag suffix is passed we need to append it to the jCustomer version
   - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
       - set:
@@ -57,6 +60,9 @@ onInstall:
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
       product: "unomi"
+
+  # Unmute monitors
+  - unmuteEnvWideMonitors
 
 settings:
   fields:
