@@ -64,6 +64,7 @@ onBeforeDelete:
       - muteDatadogHost:
           target: "*"
           duration: 2880 # 48h
+      - muteEnvWideMonitors
   - deleteEnvironment
   - removeAllSecrets
 
@@ -75,6 +76,7 @@ onBeforeStop:
   - muteDatadogHost:
       target: "*"
       duration: 2880 # 48h
+  - muteEnvWideMonitors
   - updateEnvStatusInPapi:
       status: stopped
 
@@ -87,6 +89,7 @@ onAfterStart:
   - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
       target: "*"
+  - unmuteEnvWideMonitors
   - updateEnvStatusInPapi:
       status: running
 
@@ -98,6 +101,7 @@ onBeforeMigrate:
   - muteDatadogHost:
       target: "*"
       duration: 60
+  - muteEnvWideMonitors
 
 onAfterMigrate:
   - logEvent:
@@ -106,6 +110,7 @@ onAfterMigrate:
       text: "$envName has been migrated"
   - unmuteDatadogHost:
       target: "*"
+  - unmuteEnvWideMonitors
 
 onBeforeRestartNode:
   - logEvent:
