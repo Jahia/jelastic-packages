@@ -122,6 +122,12 @@ This is a script that allows you to do:
 	 1165  checkJahiaHealth  action  onInstall  99                                                                       515             true
 	```
 
+In order for the script to work, you need to have:
+* `graphviz` and its development files
+* gcc
+* python 3.8 or higher
+then do a `pip install -r deps_requirements.txt`
+
 #### `PRE-COMMIT` hook
 Here is an exemple of what you can have in order to automatically check before committing:
 ```bash

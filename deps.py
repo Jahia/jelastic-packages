@@ -86,7 +86,6 @@ jelastic_simple_keywords = (
         "installAddon",
         "log",
         "message",
-        "sleep",
         "type",
         "unpack",
         )
@@ -100,14 +99,16 @@ jelastic_keywords_with_args = (
         "api",
         "appendFile",
         "cmd",
-        "replaceInFile",
-        "script",
         "env",
         "environment",
+        "replaceInFile",
+        "return",
+        "script",
         "set",
         "setGlobals",
+        "setNodeDisplayName",
+        "sleep",
         "upload",
-        "return",
         "writeFile",
         "writefile",
         )
@@ -453,7 +454,7 @@ def get_node_id_by_name(name: str) -> list:
 
 
 def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
-        previous_degree=1, previous_item_id=0, called_by=None):
+        previous_degree=1, previous_item_id=0, called_by=None, root_action=None):
     padding = ' '
     width = degree * 4
     manifest = manifest_list[get_manifest_id_by_name(manifest_name)]
@@ -472,6 +473,10 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
         for k in item:
             i += 1
             first_word = re.split(r"[\W]", k)[0]
+
+            if degree == 2:
+                root_action = first_word
+
             if is_keyword(first_word):
                 if first_word in jelastic_script_keyword:
                     kind = "script_keyword"
@@ -509,6 +514,8 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                     parent_id = search_node(get="id", name=manifest_name)[0]
                 else:
                     parent_id = get_node_parents_id_by_name(matching_actions[0].from_file())[0]
+                    
+
                 try:
                     node_id = search_node(get="id", name=first_word, kind=kind,
                             parent=parent_id, section=section)[0]
@@ -540,6 +547,11 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                     for target in calls:
                         update_node(target, add_called_by=[node_id])
 
+                if degree > 2 and section == "actions":
+                    root_action_id = search_node(get="id", name=root_action, kind="action", section="actions")[0]
+                    update_node(root_action_id, add_call=[node_id])
+                    update_node(node_id, add_called_by=[root_action_id])
+
                 if isinstance(item[k], list) and len(item[k]) == 1:
                     next_item = str(item[k])
                 else:
@@ -547,7 +559,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
 
                 if not isinstance(item[k], dict):
                     crawl(next_item, degree = degree + 1, section=section, manifest_name=manifest_name,
-                            previous_degree=degree, previous_item_id=i, called_by=node_id)
+                            previous_degree=degree, previous_item_id=i, called_by=node_id, root_action=root_action)
 
             elif degree > 1 and previous_item_id != 0:
                 legit = True
@@ -578,7 +590,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
 
         if not isinstance(item[k], str) and not to_break:
             crawl(item[k], degree + 1, section=section, manifest_name=manifest_name,
-                    previous_degree=degree, previous_item_id=i)
+                    previous_degree=degree, previous_item_id=i, root_action=root_action)
 
         return legit, to_break
 
@@ -662,7 +674,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
     elif isinstance(item, list):
         for _, to_crawl in enumerate(item):
             crawl(to_crawl, degree + 1, section=section, manifest_name=manifest_name,
-                    previous_degree=degree, called_by=called_by)
+                    previous_degree=degree, called_by=called_by, root_action=root_action)
 
     elif isinstance(item, (type(None), bool, int)):
         pass
@@ -699,7 +711,7 @@ def inspect_manifest(manifest, section):
 
 def crawl_by_manifest(name):
     manifest_id = get_manifest_id_by_name(name)
-    if not manifest_id:
+    if not manifest_id and manifest_id != 0:
         return
 
     for section in ["actions", "events", "onInstall"]:
@@ -904,7 +916,7 @@ def check_if_not_legit():
 if __name__ == "__main__":
     SILENT_MODE = False
 
-    with console.status("reading files...", spinner="line"):
+    with console.status("reading files…", spinner="line"):
         generate_lists()
 
     if args.command in ["check", "graph"]:
@@ -925,19 +937,26 @@ if __name__ == "__main__":
         sys.exit(InternalShell.cmdloop())
     elif args.command == "graph":
         SILENT_MODE = args.quiet
-        with console.status("graphing files...", spinner="line"):
-            for file in files:
-                graph_manifest(file, None)
+        if SILENT_MODE:
+            for i in track(range(len(files)), description="graphing file(s)…"):
+                graph_manifest(files[i], None)
+        else:
+            with console.status("graphing file(s)…", spinner="line"):
+                for file in files:
+                    graph_manifest(file, None)
         if args.output:
             graph.write(args.output)
         if args.console:
             graph.write()
-        check_if_not_legit()
     elif args.command == "check":
         SILENT_MODE = args.quiet
-        with console.status("checking files...", spinner="line"):
-            for file in files:
-                crawl_by_manifest(file)
+        if SILENT_MODE:
+            for i in track(range(len(files)), description="checking file(s)…"):
+                crawl_by_manifest(files[i])
+        else:
+            with console.status("checking file(s)…", spinner="line"):
+                for file in files:
+                    crawl_by_manifest(file)
         check_if_not_legit()
     elif args.command == "mixins_duplicates":
         if check_for_duplicate_action_in_mixins():
@@ -954,7 +973,7 @@ if __name__ == "__main__":
 
         SILENT_MODE = True
 
-        for i in track(range(len(manifest_list)), description="Building data..."):
+        for i in track(range(len(manifest_list)), description="Building data…"):
             crawl_by_manifest(manifest_list[i].name())
 
         result = search_node(**criteria_dict)
