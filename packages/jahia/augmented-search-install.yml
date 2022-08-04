@@ -8,7 +8,7 @@ description:
   short: Jahia - Install Augmented Search
 
 globals:
-  elasticsearch_password: ${fn.password(20)}
+  __secret__elasticsearch_password: ${fn.password(20)}
 
 mixins:
   - ../../mixins/common.yml
@@ -110,7 +110,7 @@ actions:
   setupESConnector:
     - cmd[proc]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
-        __secret__PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
@@ -131,6 +131,7 @@ actions:
             | jq -r '.data.admin.search.currentConnection'
         }
 
+        __secret__elasticsearch_password="${globals.__secret__elasticsearch_password}"
         payload_add_es() {
         cat << EOF
         {
@@ -139,7 +140,7 @@ actions:
           "host": "$es_endpoint",
           "port": 443,
           "user": "${env.envName}",
-          "password": "${globals.elasticsearch_password}",
+          "password": "$__secret__elasticsearch_password",
           "options": {
             "useXPackSecurity": true,
             "useEncryption": true

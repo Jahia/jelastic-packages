@@ -399,15 +399,15 @@ actions:
   ###################
   vaultAppRoleLogin:
     # Returns:
-    #   ${globals.vaultToken}
+    #   ${globals.__secret__vaultToken}
     - set:
         generateNewToken: true
     - script: |
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
-        vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/auth/token/lookup-self");
-        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpGet.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(httpGet).getStatusLine().getStatusCode();
         if (resp != 200) {
@@ -423,12 +423,12 @@ actions:
             import org.apache.http.impl.client.HttpClients;
             import org.apache.http.util.EntityUtils;
             import org.apache.http.entity.StringEntity;
-            vaultRoleId = "${globals.vaultRoleId}";
-            vaultSecretId = "${globals.vaultSecretId}";
+            __secret__vaultRoleId = "${globals.__secret__vaultRoleId}";
+            __secret__vaultSecretId = "${globals.__secret__vaultSecretId}";
             httpPost = new HttpPost("${globals.vaultClusterUrl}/v1/auth/approle/login");
             json = toJSON({
-                  "role_id": vaultRoleId,
-                  "secret_id": vaultSecretId
+                  "role_id": __secret__vaultRoleId,
+                  "secret_id": __secret__vaultSecretId
                   }
              );
             stringEntity = new StringEntity(json);
@@ -440,9 +440,14 @@ actions:
             }
             data = JSON.parse(EntityUtils.toString(resp.getEntity()));
             vaultToken = data["auth"]["client_token"];
-            return {"result": 0, out: vaultToken };
-        - setGlobals:
-            vaultToken: ${response.out}
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                setGlobals: {
+                  "__secret__vaultToken": vaultToken
+                }
+              }
+            };
 
   vaultSecretExists:
     # Check if a secret exists. It must be in an authorized path for the env token, otherwise it will fail and exit
@@ -456,7 +461,7 @@ actions:
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import java.util.Base64;
-        __secret__vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
         httpGet.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
@@ -476,16 +481,16 @@ actions:
     # Parameters:
     #   - secretPath: path (and name) of the secret to fetch
     # Returns:
-    #   ${globals.vaultSecretData}: A JSON string with all key and data for the specified secret, base64 encoded
+    #   ${globals.__secret__vaultSecretData}: A JSON string with all key and data for the specified secret, base64 encoded
     - vaultAppRoleLogin
     - script: |
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import java.util.Base64;
-        vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
-        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpGet.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(httpGet);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -494,25 +499,30 @@ actions:
         data = JSON.parse(EntityUtils.toString(resp.getEntity()));
         secrets = java.lang.String(data["data"]["data"]);
         secretsB64 = Base64.getEncoder().encodeToString(secrets.getBytes());
-        return {"result": 0, out: secretsB64 };
-    - setGlobals:
-        vaultSecretData: ${response.out}
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__vaultSecretData": secretsB64
+            }
+          }
+        };
 
   vaultSecretReadKeyB64:
     # Parameters:
     #   - secretPath: path (and name) of the secret to fetch
     #   - secretKey: the secret's key
     # Returns:
-    #   ${globals.vaultSecretData}: the specified secret's data, base64 encoded
+    #   ${globals.__secret__vaultSecretData}: the specified secret's data, base64 encoded
     - vaultAppRoleLogin
     - script: |
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
         import java.util.Base64;
-        vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         httpGet = new HttpGet("${globals.vaultClusterUrl}/v1/kv/data/${this.secretPath}");
-        httpGet.setHeader("X-Vault-Token", vaultToken);
+        httpGet.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(httpGet);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -521,9 +531,14 @@ actions:
         data = JSON.parse(EntityUtils.toString(resp.getEntity()));
         secret = java.lang.String(data["data"]["data"]["${this.secretKey}"]);
         secretB64 = Base64.getEncoder().encodeToString(secret.getBytes());
-        return {"result": 0, out: secretB64 };
-    - setGlobals:
-        vaultSecretData: ${response.out}
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__vaultSecretData": secretB64
+            }
+          }
+        };
 
   vaultSecretSet:
     # Parameters:
@@ -536,7 +551,7 @@ actions:
         import org.apache.http.util.EntityUtils;
         import org.apache.http.entity.StringEntity;
         __secret__secretData = ${this.__secret__secretData};
-        __secret__vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         secretPath = "${this.secretPath}";
 
         httpPost = new HttpPost("${globals.vaultClusterUrl}/v1/kv/data/" + secretPath);
@@ -561,9 +576,9 @@ actions:
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
-        vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.vaultToken}";
         secretDelete = new HttpDelete("${globals.vaultClusterUrl}/v1/kv/metadata/${this.secretPath}");
-        secretDelete.setHeader("X-Vault-Token", vaultToken);
+        secretDelete.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(secretDelete);
         if (resp.getStatusLine().getStatusCode() != 204) {
@@ -585,18 +600,23 @@ actions:
 
   getBackrestAwsAccessKey:
     # Returns:
-    #   ${globals.backrestAwsAccessKeyId}: Access key ID of backrest AWS user
-    #   ${globals.backrestAwsSecretAccessKey}: Access secret key of backrest AWS user
+    #   ${globals.__secret__backrestAwsAccessKeyId}: Access key ID of backrest AWS user
+    #   ${globals.__secret__backrestAwsSecretAccessKey}: Access secret key of backrest AWS user
     - getVaultData
     - vaultSecretReadAllKeysB64:
         secretPath: "paas/envs-common/aws-backrest"
     - script: |-
-        let vaultResponseBase64 = "${globals.vaultSecretData}";
-        let vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(vaultResponseBase64)))
-        return {"result": 0, "access_key_id": vaultResponse.access_key_id, "secret_access_key": vaultResponse.secret_access_key}
-    - setGlobals:
-        backrestAwsAccessKeyId: '${response.access_key_id}'
-        backrestAwsSecretAccessKey: '${response.secret_access_key}'
+        let __secret__vaultResponseBase64 = "${globals.__secret__vaultSecretData}";
+        let vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__vaultResponseBase64)))
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__backrestAwsAccessKeyId": vaultResponse.access_key_id,
+              "__secret__backrestAwsSecretAccessKey": vaultResponse.secret_access_key
+            }
+          }
+        };
 
   muteDatadogHost:
     # Parameters:
@@ -608,7 +628,7 @@ actions:
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
-        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
 
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
 
@@ -616,7 +636,7 @@ actions:
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
-          -H "DD-APPLICATION-KEY: $DD_APP_KEY"  \
+          -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"  \
           -d "{\"end\": $MUTE_END, \"action\":\"Muted\", \"override\": \"true\"}"
 
       user: root
@@ -630,12 +650,12 @@ actions:
         secretKey: "datadog_app_key"
     - cmd[${this.target}]: |-
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
-        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
 
         curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/unmute" \
           -XPOST \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
-          -H "DD-APPLICATION-KEY: $DD_APP_KEY"
+          -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"
       user: root
 
 
@@ -645,16 +665,17 @@ actions:
         secretPath: "paas/customers/${globals.organizationName}/paas_${env.envName}/papi"
         secretKey: "token"
     - setGlobals:
-        papiToken: '${globals.vaultSecretData.fromBase64()}'
+        __secret__papiToken: '${globals.__secret__vaultSecretData.fromBase64()}'
     - getPapiData
 
   updateEnvStatusInPapi:
     # Parameters:
     #  - status: stopped, running, creating
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -665,10 +686,11 @@ actions:
     # Parameters:
     #  - product: dx, unomi
     #  - version: product verion
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -676,25 +698,26 @@ actions:
         papi.py -X PUT -d "{\"paas_product_version_id\": \"$version\"}" paas-environment/$PAPI_ENV_ID
 
   setEnvironmentAppId:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
         papi.py -X PUT -d '{"jelastic_appid": "${env.appid}"}' paas-environment/$PAPI_ENV_ID
 
   deleteEnvironment:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
-        papiToken = "${globals.papiToken}";
+        __secret__papiToken = "${globals.__secret__papiToken}";
         getPaasEnv = new HttpGet("https://${globals.papiHostname}/api/${globals.papiApiVersion}/paas-environment/${globals.papiEnvId}");
-        getPaasEnv.setHeader("X-PAPI-KEY", papiToken);
+        getPaasEnv.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getPaasEnv);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -709,9 +732,9 @@ actions:
         import org.apache.http.client.methods.HttpDelete;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
-        papiToken = "${globals.papiToken}";
+        __secret__papiToken = "${globals.__secret__papiToken}";
         paasEnvDelete = new HttpDelete("https://${globals.papiHostname}/api/${globals.papiApiVersion}/paas-environment/${globals.papiEnvId}");
-        paasEnvDelete.setHeader("X-PAPI-KEY", papiToken);
+        paasEnvDelete.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(paasEnvDelete);
         if (resp.getStatusLine().getStatusCode() != 204) {
@@ -729,15 +752,28 @@ actions:
     - cmd[cp]: echo "${user.email}" | cut -d'@' -f1
     - set:
         organizationName: ${response.out}
-    - environment.nodegroup.ApplyData [cp]:
-        data:
-          ORGANIZATION_NAME: ${this.organizationName}
-          VAULT_ROLE_ID: ${this.vaultRoleId}
-          VAULT_SECRET_ID: ${this.vaultSecretId}
-          VAULT_CLUSTER_URL: ${this.vaultClusterUrl}
-          PAPI_HOSTNAME: ${this.papiHostname}
-          PAPI_API_VERSION: ${this.papiApiVersion}
-          PAPI_ENV_ID: ${this.papiEnvId}
+    - script: |-
+        orgName = "${this.organizationName}";
+        __secret__vaultRoleId = "${this.__secret__vaultRoleId}";
+        __secret__vaultSecretId = "${this.__secret__vaultSecretId}";
+        vaultClusterUrl = "${this.vaultClusterUrl}";
+        papiHostname = "${this.papiHostname}";
+        papiApiVersion = "${this.papiApiVersion}";
+        papiEnvId = "${this.papiEnvId}";
+
+        return jelastic.env.control.ApplyNodeGroupData(
+          '${env.envName}',
+          session,
+          nodeGroup='cp',
+          data={"ORGANIZATION_NAME": orgName,
+                "VAULT_ROLE_ID": __secret__vaultRoleId,
+                "VAULT_SECRET_ID": __secret__vaultSecretId,
+                "VAULT_CLUSTER_URL": vaultClusterUrl,
+                "PAPI_HOSTNAME": papiHostname,
+                "PAPI_API_VERSION": papiApiVersion,
+                "PAPI_ENV_ID": papiEnvId
+              }
+        );
 
   setJelEnvRoleInNodeGroupData:
     - cmd[${nodes.cp.first.id}]: |-
@@ -764,17 +800,16 @@ actions:
         secretId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
                                         return object.name == "cp";}).pop().VAULT_SECRET_ID;
         return {
-          'result': 0,
-          'org': orgName,
-          'vault_url': vaultUrl,
-          'role_id': roleId,
-          'secret_id': secretId
-        };
-    - setGlobals:
-        organizationName: ${response.org}
-        vaultClusterUrl: ${response.vault_url}
-        vaultRoleId: ${response.role_id}
-        vaultSecretId: ${response.secret_id}
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "organizationName": orgName,
+              "vaultClusterUrl": vaultUrl,
+              "__secret__vaultRoleId": roleId,
+              "__secret__vaultSecretId" secretId
+            }
+          }
+        };       
 
   getPapiData:
     - script: |
@@ -811,13 +846,13 @@ actions:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
-        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
         monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
                       -H 'Content-Type: application/json' \
                       -H "DD-API-KEY: $DATADOGAPIKEY" \
-                      -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                      -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
                       | jq -er '.tests[] | select(.config.request.url | contains("https://${env.shortdomain}.")) | .monitor_id')
         if [[ $? -ne 0 ]]; then
           echo "[INFO] No synthetics defined for ${env.envName}"
@@ -827,7 +862,7 @@ actions:
         monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
                              -H 'Content-Type: application/json' \
                              -H "DD-API-KEY: $DATADOGAPIKEY" \
-                             -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                             -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
                              | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
         if [ $monitor_mute_status != null ]; then
           echo "[INFO] Synthetics is already muted. Nothing to do."
@@ -837,7 +872,7 @@ actions:
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
-          -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+          -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
           -d "{\"end\": $MUTE_END}"
 
   unmuteDatadogSynthetics:
@@ -846,12 +881,12 @@ actions:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
-        DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
         monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
                     -H 'Content-Type: application/json' \
                     -H "DD-API-KEY: $DATADOGAPIKEY" \
-                    -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                    -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
                     | jq -er '.tests[] | select(.config.request.url | contains("https://${env.shortdomain}.")) | .monitor_id')
         if [[ $? -ne 0 ]]; then
           echo "[INFO] No synthetics defined for ${env.envName}"
@@ -861,7 +896,7 @@ actions:
         monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
                              -H 'Content-Type: application/json' \
                              -H "DD-API-KEY: $DATADOGAPIKEY" \
-                             -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                             -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
                              | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .muted_until_ts')
         if [ $monitor_mute_status == null ]; then
           echo "[INFO] Synthetics is already unmuted. Nothing to do."
@@ -873,7 +908,7 @@ actions:
           monitor_status=$(curl -s $DD_MONITOR_SEARCH \
                           -H 'Content-Type: application/json' \
                           -H "DD-API-KEY: $DATADOGAPIKEY" \
-                          -H "DD-APPLICATION-KEY: $DD_APP_KEY" \
+                          -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
                           | jq -er '.monitors[] | select(.id | contains('$monitor_id')) | .status')
           if [[ "$monitor_status" == "OK" ]]; then
             break
@@ -884,7 +919,7 @@ actions:
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
-          -H "DD-APPLICATION-KEY: $DD_APP_KEY"
+          -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"
 
   muteEnvWideMonitors:
     # Parameters:
@@ -894,7 +929,7 @@ actions:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
-        __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
         monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
         MUTE_END=$(date -d "+${this.duration:2880}min" +%s)
@@ -910,7 +945,7 @@ actions:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
-        __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
         monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
 

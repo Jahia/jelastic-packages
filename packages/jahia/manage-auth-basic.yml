@@ -16,7 +16,7 @@ globals:
 
 onInstall:
   - setAuthBasic:
-      new_password: ${settings.pwd}
+      __secret__new_password: ${settings.pwd}
       new_login: ${settings.login}
       enable_auth_basic: ${settings.enable}
       haproxy_frontend_file: ${globals.haproxy_frontend_file}

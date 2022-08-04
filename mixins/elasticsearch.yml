@@ -23,14 +23,15 @@ actions:
         secretPath: paas/envs-common/cloud-ec-infra-circleci-api
         secretKey: token
     - set:
-        circleCiToken: ${globals.vaultSecretData}
+        __secret__circleCiToken: ${globals.__secret__vaultSecretData}
 
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - getCloudConf
 
     - cmd [${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -56,7 +57,7 @@ actions:
         ec_deployment_mutualized=$(echo $ec_deployment | jq -r .mutualized)
         ec_deployment_es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
 
-        CCToken=$(echo -n ${this.circleCiToken} | base64 -d)
+        __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
 
         generate_payload() {
         if [[ "${globals.cloud_conf.ec.tag}" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
@@ -79,7 +80,7 @@ actions:
         }
 
         response=$(curl -fLSs -XPOST https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline \
-                        -H "Circle-Token: $CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
+                        -H "Circle-Token: $__secret__CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
         if [ $? -ne 0 ]; then
           echo "Pipeline trigger failed: $response"
           exit 1
@@ -88,7 +89,7 @@ actions:
         # Skip the timeout while updating a mutualized EC deployment but wait till end if it's a new EC deployment
         if [ "$ec_deployment_mutualized" = "false" ] || [ "$ec_deployment_es_endpoint" = null ]; then
           pipelineId=$(echo $response | jq -r .id)
-          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
           if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
             echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
             exit 1
@@ -98,7 +99,7 @@ actions:
           workflow_status="running"
           while [ "$workflow_status" = "running" ]; do
             sleep $sleep_interval
-            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $CCToken")
+            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
             if [ $? -eq 0 ]; then
               new_workflow_status=$(echo $response | jq -r '.items[0].status')
               if [ "$new_workflow_status" != "null" ]; then
@@ -119,11 +120,12 @@ actions:
         fi
 
   createESAccount4AS:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [proc]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -146,17 +148,19 @@ actions:
         fi
 
         # Create ES user
-        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "${globals.elasticsearch_password}", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
+        __secret__elasticsearch_password="${globals.__secret__elasticsearch_password}"
+        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "'"$__secret__elasticsearch_password"'", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
         if [ $? -ne 0 ]; then
           echo "Failed to create ES user." && exit 1
         fi
 
   createESAccountAndAliases:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -179,7 +183,8 @@ actions:
         fi
 
         # Create ES user
-        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "${globals.elasticsearch_password}", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
+        __secret__elasticsearch_password="${globals.__secret__elasticsearch_password}"
+        curl -fLSsu "$login:$password" "$es_endpoint/_security/user/${env.envName}" -XPUT  -d '{"password": "'"$__secret__elasticsearch_password"'", "roles": ["${env.envName}"], "full_name": "${env.envName}"}'  -H 'Content-Type:application/json'
         if [ $? -ne 0 ]; then
           echo "Failed to create ES user." && exit 1
         fi
@@ -265,10 +270,11 @@ actions:
         fi
 
   setESEndpointInJcustomerConfig:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd [cp]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -292,10 +298,11 @@ actions:
         return api.env.control.AddContainerEnvVars("${env.envName}", session, "cp", envVars);
 
   getECAdminCredentials:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd [${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -308,9 +315,18 @@ actions:
           echo "Failed to fetch EC admin credentials"
           exit 1
         fi
-        echo $ec_admin_login:$ec_admin_password
-    - setGlobals:
-        ecAdminCredentials: ${response.out}
+        printf '{"HideThisOutput": true, "ecAdminCredentials": "%s:%s"}' "$ec_admin_login" "$ec_admin_password"
+    - script: |-
+        __secret__response = ${response.out};
+        ecAdminCredentials = __secret__response["ecAdminCredentials"];
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__ecAdminCredentials": ecAdminCredentials
+            }
+          }
+        };
 
   destroyESDeployment:
     - getVaultData
@@ -318,8 +334,8 @@ actions:
         secretPath: paas/envs-common/cloud-ec-infra-circleci-api
         secretKey: token
     - set:
-        circleCiToken: ${globals.vaultSecretData}
-    - if ("${globals.papiToken.print()}" == ""):
+        __secret__circleCiToken: ${globals.__secret__vaultSecretData}
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;
@@ -331,12 +347,12 @@ actions:
         import org.apache.http.entity.StringEntity;
         import java.util.Base64;
 
-        papiToken = "${globals.papiToken}";
+        __secret__papiToken = "${globals.__secret__papiToken}";
         papiEnvId = "${globals.papiEnvId}";
         papiBaseUrl = "https://${globals.papiHostname}/api/${globals.papiApiVersion}/";
 
         getPaasEnv = new HttpGet(papiBaseUrl + "paas-environment/" + papiEnvId);
-        getPaasEnv.setHeader("X-PAPI-KEY", papiToken);
+        getPaasEnv.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getPaasEnv);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -346,7 +362,7 @@ actions:
         ecDeploymentId = paasEnv["ec_deployment_id"]
 
         getECDeployment = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId);
-        getECDeployment.setHeader("X-PAPI-KEY", papiToken);
+        getECDeployment.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getECDeployment);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -359,7 +375,7 @@ actions:
         if (ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) {
             // Get ES credentials from PAPI
             getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
-            getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
+            getECDeploymentCreds.setHeader("X-PAPI-KEY", __secret__papiToken);
             httpClient = HttpClients.createDefault();
             resp = httpClient.execute(getECDeploymentCreds);
             if (resp.getStatusLine().getStatusCode() != 200) {
@@ -416,7 +432,7 @@ actions:
         }
 
         updateECDeployment = new HttpPut(papiBaseUrl + "paas-environment/" + papiEnvId);
-        updateECDeployment.setHeader("X-PAPI-KEY", papiToken);
+        updateECDeployment.setHeader("X-PAPI-KEY", __secret__papiToken);
         updateECDeployment.setHeader("Content-Type", "application/json");
         json = toJSON({"ec_deployment_id": undefined});
         stringEntity = new StringEntity(json);
@@ -434,9 +450,9 @@ actions:
           return {"result": 1, errOut: "Can't get JEL_ENV_ROLE from node group data" };
         }
 
-        circleCiToken="${this.circleCiToken.fromBase64()}"
+        __secret__circleCiToken="${this.__secret__circleCiToken.fromBase64()}"
         triggerPipeline = new HttpPost("https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline");
-        triggerPipeline.setHeader("Circle-Token", circleCiToken);
+        triggerPipeline.setHeader("Circle-Token", __secret__circleCiToken);
         triggerPipeline.setHeader("Content-Type", "application/json");
         cloud_conf = jelastic.env.control.getnodegroups('${env.envName}', session).object.filter(function (object) {
                                                         return object.name == "cp"}).pop().cloud_conf
@@ -475,7 +491,7 @@ actions:
           java.lang.Thread.sleep(sleep_interval);
 
           getWorkflow = new HttpGet("https://circleci.com/api/v2/pipeline/" + pipelineId + "/workflow");
-          getWorkflow.setHeader("Circle-Token", circleCiToken);
+          getWorkflow.setHeader("Circle-Token", __secret__circleCiToken);
           httpClient = HttpClients.createDefault();
           resp = httpClient.execute(getWorkflow);
           if (resp.getStatusLine().getStatusCode() == 200) {
@@ -493,10 +509,11 @@ actions:
   getElasticCloudDeploymentId:
     # Returns:
     #   ${globals.elasticCloudDeploymentId}
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
-        export PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
         export PAPI_API_VERSION="${globals.papiApiVersion}"
@@ -542,16 +559,16 @@ actions:
     #   - region
     #   - account
     #   - logsPath
-    #   - awsAccessKeyId
-    #   - awsSecretAccessKey
+    #   - __secret__awsAccessKeyId
+    #   - __secret__awsSecretAccessKey
     - cmd[${nodes.cp.first.id}]: |-
-        aws_access_key="${this.awsAccessKeyId}"
-        aws_secret_key="${this.awsSecretAccessKey}"
+        __secret__aws_access_key="${this.__secret__awsAccessKeyId}"
+        __secret__aws_secret_key="${this.__secret__awsSecretAccessKey}"
         output_file=$(mktemp)
-        ec_admin_credentials=${globals.ecAdminCredentials}
+        __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
           -d'{
             "type": "s3",
@@ -559,8 +576,8 @@ actions:
                 "bucket": "'${this.account}'",
                 "region": "'${this.region}'",
                 "base_path" : "'${this.backupName}'/elasticsearch",
-                "access_key": "'$aws_access_key'",
-                "secret_key": "'$aws_secret_key'"
+                "access_key": "'$__secret__aws_access_key'",
+                "secret_key": "'$__secret__aws_secret_key'"
             }
           }')
         exit=0
@@ -573,33 +590,45 @@ actions:
 
   getElasticCloudApiKey:
     # Returns:
-    #   ${globals.elasticCloudApiKey}
+    #   ${globals.__secret__elasticCloudApiKey}
     - vaultSecretReadKeyB64:
         secretPath: paas/envs-common/elastic-cloud-api-key
         secretKey: key
     - setGlobals:
-        elasticCloudApiKey: ${globals.vaultSecretData}
+        __secret__elasticCloudApiKey: ${globals.__secret__vaultSecretData}
 
   getAzureElasticsearchSecret:
     # Parameters:
-    #   - awsAccessKeyId
-    #   - awsSecretAccessKey
+    #   - __secret__awsAccessKeyId
+    #   - __secret__awsSecretAccessKey
     #   - backupName
     #   - operation
     #   - account
     #   - logsPath
     # Returns:
-    #   ${globals.azure_secret}
+    #   ${globals.__secret__azure_secret}
     - cmd[${nodes.cp.first.id}]: |-
-        export AWS_ACCESS_KEY_ID="${this.awsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${this.awsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${this.__secret__awsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${this.__secret__awsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         cd jelastic_backup
         python3 elasticsearch.py --bucketname ${this.account} --backupname ${this.backupName} --cloudprovider=azure --operation=${this.operation} 2>>${this.logsPath} || exit 1
     - cmd[${nodes.cp.first.id}]: |-
-        cat /tmp/azurecred
+        azure_secret=$(cat /tmp/azurecred)
         rm -f /tmp/azurecred
-    - setGlobals:
-        azure_secret: "${response.out}"
-    - if ("${globals.azure_secret}" == ""):
+        printf '{"HideThisOutput": true, "azure_secret": "%s"}' "$azure_secret"
+    - script: |-
+        __secret__response = ${response.out};
+        azureSecret = __secret__response["azure_secret"];
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__azure_secret": azureSecret
+            }
+          }
+        };
+    - if ("HideThisLine" && "${globals.__secret__azure_secret}" == ""):
         - return:
             type: error
             message: "An error occurred during backup repository configuration."
@@ -609,27 +638,28 @@ actions:
     #   - repositoryName
     #   - backupName
     #   - logsPath
-    #   - awsAccessKeyId
-    #   - awsSecretAccessKey
+    #   - __secret__awsAccessKeyId
+    #   - __secret__awsSecretAccessKey
     #   - operation
     #   - account
     - getElasticCloudDeploymentId
     - getElasticCloudApiKey
     - getAzureElasticsearchSecret:
-        awsAccessKeyId: ${this.awsAccessKeyId}
-        awsSecretAccessKey: ${this.awsSecretAccessKey}
+        __secret__awsAccessKeyId: ${this.__secret__awsAccessKeyId}
+        __secret__awsSecretAccessKey: ${this.__secret__awsSecretAccessKey}
         backupName: ${this.backupName}
         operation: "${this.operation}"
         account: ${this.account}
         logsPath: ${this.logsPath}
     - cmd[${nodes.cp.first.id}]: |-
         output_file=$(mktemp)
-        api_key=$(echo "${globals.elasticCloudApiKey}" | base64 -d)
+        __secret__api_key=$(echo "${globals.__secret__elasticCloudApiKey}" | base64 -d)
+        __secret__azure_secret="${globals.__secret__azure_secret}"
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
-          -H "Authorization: ApiKey $api_key" \
+          -H "Authorization: ApiKey $__secret__api_key" \
           -XPATCH "https://cloud.elastic.co/api/v1/deployments/${globals.elasticCloudDeploymentId}/elasticsearch/main-elasticsearch/keystore" \
-          -d'{"secrets":{"azure.client.${this.repositoryName}.account":{"value":"${this.account}"},"azure.client.${this.repositoryName}.key":{"value":"${globals.azure_secret}"}}}')
+          -d'{"secrets":{"azure.client.${this.repositoryName}.account":{"value":"${this.account}"},"azure.client.${this.repositoryName}.key":{"value":$__secret__azure_secret}}}')
         exit=0
         if [ $return_code -ne 200 ]; then
           cat $output_file | tee -a ${globals.logsPath}
@@ -639,11 +669,11 @@ actions:
         exit $exit
     - cmd[${nodes.cp.first.id}]: |-
         output_file=$(mktemp)
-        ec_admin_credentials=${globals.ecAdminCredentials}
+        __secret__ec_admin_credentials="${globals.__secret__ecAdminCredentials}"
         # First we need to reload the secure settings to take into account the ney keys in the keystore
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_nodes/reload_secure_settings")
         if [ $return_code -ne 200 ]; then
           cat $output_file | tee -a ${this.logsPath}
@@ -655,7 +685,7 @@ actions:
         for (( i=1; i<=60; i++ )); do
           return_code=$(curl -sS -o $output_file -w '%{http_code}' \
             -H 'Content-Type: application/json' \
-            -u $ec_admin_credentials \
+            -u $__secret__ec_admin_credentials \
             -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
             -d'{
               "type": "azure",
@@ -679,7 +709,7 @@ actions:
         exit $exit
 
   cleanupRolesAndUsersForMutualizedECDeployment:
-    - if ("${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;
@@ -691,12 +721,12 @@ actions:
         import org.apache.http.entity.StringEntity;
         import java.util.Base64;
 
-        papiToken = "${globals.papiToken}";
+        __secret__papiToken = "${globals.__secret__papiToken}";
         papiEnvId = "${globals.papiEnvId}";
         papiBaseUrl = "https://${globals.papiHostname}/api/${globals.papiApiVersion}/";
 
         getPaasEnv = new HttpGet(papiBaseUrl + "paas-environment/" + papiEnvId);
-        getPaasEnv.setHeader("X-PAPI-KEY", papiToken);
+        getPaasEnv.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getPaasEnv);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -706,7 +736,7 @@ actions:
         ecDeploymentId = paasEnv["ec_deployment_id"]
 
         getECDeployment = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId);
-        getECDeployment.setHeader("X-PAPI-KEY", papiToken);
+        getECDeployment.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getECDeployment);
         if (resp.getStatusLine().getStatusCode() != 200) {
@@ -727,7 +757,7 @@ actions:
 
         // Get ES credentials from PAPI
         getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
-        getECDeploymentCreds.setHeader("X-PAPI-KEY", papiToken);
+        getECDeploymentCreds.setHeader("X-PAPI-KEY", __secret__papiToken);
         httpClient = HttpClients.createDefault();
         resp = httpClient.execute(getECDeploymentCreds);
         if (resp.getStatusLine().getStatusCode() != 200) {

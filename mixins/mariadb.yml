@@ -10,7 +10,7 @@ actions:
   installDatabase:
     # Parameters:
       #   - user: DB username
-      #   - password: DB user's password
+      #   - __secret__password: DB user's password
     - setSudoer: sqldb
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
@@ -42,8 +42,9 @@ actions:
           user: root
     - log: "## Create DX's Jahia database and user"
     - cmd[${nodes.sqldb.master.id}]: |-
+        __secret__password="${this.__secret__password}"
         mysql -e "CREATE DATABASE IF NOT EXISTS jahia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-        mysql -e "grant all privileges on jahia.* to '${this.user}'@'%' identified by '${this.password}';"
+        mysql -e "grant all privileges on jahia.* to '${this.user}'@'%' identified by '$__secret__password';"
         mysql -e "flush privileges;"
       user: root
     - if ("${response.errOut}" != ""):

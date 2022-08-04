@@ -16,8 +16,8 @@ success: ../../assets/jahia/success_install.md
 globals:
   jahia_env_version: 17
   db_user: jahia-db-${fn.random}
-  db_pass: ${fn.password(20)}
-  db_user_datadog: ${fn.password(20)}
+  __secret__db_pass: ${fn.password(20)}
+  __secret__db_user_datadog: ${fn.password(20)}
   mngr_user: manager
   dbnodeType: mariadb-dockerized
   xms: 256M
@@ -32,11 +32,16 @@ mixins:
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
 
+# If a new secret is added as an env var,
+# it must be added to the regex in the datadog agent to hide it from jelastic console logs.
 onBeforeInstall: |
   nodes = []
   var envmode = ${settings.sqldbNodeCount} > 1 ? 'production' : 'development';
   var db_scheme = "galera";
   var dockerImage = "${settings.jahiaDockerImage}";
+  var __secret__dbPass = "${globals.__secret__db_pass}";
+  var __secret__dbUserDatadog = "${globals.__secret__db_user_datadog}";
+  var __secret__DATADOGAPIKEY = "${settings.ddogApikey}";
 
   // HAProxy nodes
 
@@ -48,7 +53,7 @@ onBeforeInstall: |
     "count": ${settings.haproxyNodeCount},
     "cloudlets": 8,
     "env": {
-        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
         "_PROVIDE": "haproxy",
         "_ROLE": "reverse_proxy",
         "envName": "${settings.shortdomain}",
@@ -105,11 +110,11 @@ onBeforeInstall: |
     "isSLBAccessEnabled": false,
     "env": {
         "DB_USER": "${globals.db_user}",
-        "DB_PASSWORD": "${globals.db_pass}",
+        "DB_PASSWORD": __secret__dbPass,
         "MANAGER_USER": "${globals.mngr_user}",
         "XMS": "${globals.xms}",
         "XMX": browsingXmx,
-        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
         "DATADOG_APM_ENABLED": "true",
         "DX_VERSION": "${settings.productVersion}",
         "_PROVIDE": "jahia",
@@ -173,11 +178,11 @@ onBeforeInstall: |
     "isSLBAccessEnabled": false,
     "env": {
         "DB_USER": "${globals.db_user}",
-        "DB_PASSWORD": "${globals.db_pass}",
+        "DB_PASSWORD": __secret__dbPass,
         "MANAGER_USER": "${globals.mngr_user}",
         "XMS": "${globals.xms}",
         "XMX": procXmx,
-        "DATADOGAPIKEY": "${settings.ddogApikey}",
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
         "DATADOG_APM_ENABLED": "true",
         "DX_VERSION": "${settings.productVersion}",
         "_PROVIDE": "jahia",
@@ -230,11 +235,11 @@ onBeforeInstall: |
     "isSLBAccessEnabled": false,
     "env": {
         "ADMINPANEL_ENABLED": false,
-        "DATADOGAPIKEY": "${settings.ddogApikey}",
-        "DB_USER_DATADOG": "${globals.db_user_datadog}",
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
+        "DB_USER_DATADOG": __secret__dbUserDatadog,
         "PHPMYADMIN_ENABLED": false,
         "DB_USER": "${globals.db_user}",
-        "DB_PASS": "${globals.db_pass}",
+        "DB_PASS": __secret__dbPass,
         "_PROVIDE": "Database",
         "_ROLE": db_scheme,
         "envName": "${settings.shortdomain}",
@@ -266,11 +271,11 @@ onInstall:
   - setJournaldLimit
   - installDatabase:
       user: ${globals.db_user}
-      password: ${globals.db_pass}
+      __secret__password: ${globals.__secret__db_pass}
   - finishProxysqlInstall
   - addEnvMetadataToNodeGroup:
-      vaultRoleId: ${settings.vaultRoleId}
-      vaultSecretId: ${settings.vaultSecretId}
+      __secret__vaultRoleId: ${settings.vaultRoleId}
+      __secret__vaultSecretId: ${settings.vaultSecretId}
       vaultClusterUrl: ${settings.vaultClusterUrl}
       papiHostname: ${settings.papiHostname}
       papiApiVersion: ${settings.papiApiVersion}
@@ -279,8 +284,8 @@ onInstall:
       jahiaVersion: ${settings.productVersion}
   - installJahia:
       jahiaVersion: ${settings.productVersion}
-      rootpwd: ${settings.rootpwd}
-      toolspwd: ${settings.toolspwd}
+      __secret__rootpwd: ${settings.rootpwd}
+      __secret__toolspwd: ${settings.toolspwd}
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb
   - installPapiScript: bl, proc, cp, sqldb

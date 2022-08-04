@@ -111,8 +111,8 @@ actions:
   installJahia:
     # Parameters:
     #   - jahiaVersion
-    #   - rootpwd: Jahia root user password
-    #   - toolspwd: Jahia Tools password
+    #   - __secret__rootpwd: Jahia root user password
+    #   - __secret__toolspwd: Jahia Tools password
     - setSudoer: proc, cp
     - getLogEventScript: proc, cp
 
@@ -135,10 +135,11 @@ actions:
     - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
     - cmd[proc]: |-
-        base64 -d <<< "${this.rootpwd.toBase64()}" > $DATA_PATH/digital-factory-data/root.pwd
+        __secret__rootpwd="${this.__secret__rootpwd.toBase64()}"
+        base64 -d <<< $__secret__rootpwd > $DATA_PATH/digital-factory-data/root.pwd
       user: tomcat
     - defineToolsPwd:
-        toolspwd: ${this.toolspwd}
+        __secret__toolspwd: ${this.__secret__toolspwd}
     - setToolsPwd: proc, cp
     - api: env.control.ExecDockerRunCmd
       nodeId: ${nodes.proc.first.id}
@@ -200,7 +201,7 @@ actions:
 
   defineToolsPwd:
     # Parameters:
-    #   - toolspwd: Jahia Tools password
+    #   - __secret__toolspwd: Jahia Tools password
     - log: "## Now setting tools password"
     - setGlobalRepoRootUrl
     - cmd[proc]: |-
@@ -208,7 +209,8 @@ actions:
           curl -fLSso /usr/local/bin/reset-jahia-tools-manager-password.py ${globals.repoRootUrl}/assets/jahia/reset-jahia-tools-manager-password.py || exit 1
           chmod u+x /usr/local/bin/reset-jahia-tools-manager-password.py
         fi
-        /usr/local/bin/reset-jahia-tools-manager-password.py "${this.toolspwd.toBase64()}" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+        __secret__toolspwd="${this.__secret__toolspwd.toBase64()}"
+        /usr/local/bin/reset-jahia-tools-manager-password.py $__secret__toolspwd $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
       user: root
     - if ("${response.errOut}" != ""):
         - return:
@@ -1274,7 +1276,7 @@ actions:
         graph_token=$(cat /dev/urandom | tr -dc '[[:graph:]]' | fold -w 32 | head -n 1)
         token=$(echo -n "$graph_token" | base64)
         key=$(echo -n "$graph_token" | awk '{printf substr($1,0,16)}' | od -A n -t x1 | awk '{printf "%s%s%s%s-%s%s-%s%s-%s%s-%s%s%s%s%s%s",$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16}')
-        printf '{"hideThisOutput": true, "token": "%s", "key": "%s"}' "$token" "$key"
+        printf '{"HideThisOutput": true, "token": "%s", "key": "%s"}' "$token" "$key"
 
     - script: |-
         __secret__response = ${response.out};
@@ -1333,11 +1335,12 @@ actions:
     # Parameters:
     # __secret__pat_token: the personal access token
     - script: |-
+        __secret__patToken = "${this.__secret__pat_token}";
         return jelastic.env.control.AddContainerEnvVars(
           '${env.envName}',
           session,
           nodeGroup='bl',
-          vars={"jahia_cfg_healthcheck_token": "${this.__secret__pat_token}"}
+          vars={"jahia_cfg_healthcheck_token": __secret__patToken}
         );
 
   getPatTokenAndKey:
@@ -1347,7 +1350,7 @@ actions:
         - vaultSecretReadAllKeysB64:
             secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/PAT/root"
         - script: |-
-            __secret__pat_creds_base64 = "${globals.vaultSecretData}";
+            __secret__pat_creds_base64 = "${globals.__secret__vaultSecretData}";
             pat_creds = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__pat_creds_base64)))
             return {
               "result": 0,
@@ -1456,11 +1459,13 @@ actions:
 
         es_connection_name="jahia-cloud_augmented-search"
 
+        __secret__elasticsearch_password="${globals.__secret__elasticsearch_password}"
+
         result=$(curl -fLSs -XPOST \
           -H 'Authorization: APIToken $__secret__API_TOKEN' \
           -H 'Origin: http://localhost:8080' \
           -H 'Content-Type: application/json' \
-          -d "{\"id\": \"$es_connection_name\", \"isConnected\": true, \"host\": \"$es_endpoint\", \"port\": 443, \"user\": \"${env.envName}\", \"password\": \"${globals.elasticsearch_password}\", \"options\": {\"useXPackSecurity\": true, \"useEncryption\": true} }" \
+          -d "{\"id\": \"$es_connection_name\", \"isConnected\": true, \"host\": \"$es_endpoint\", \"port\": 443, \"user\": \"${env.envName}\", \"password\": \"$__secret__elasticsearch_password\", \"options\": {\"useXPackSecurity\": true, \"useEncryption\": true} }" \
           http://localhost:8080/modules/dbconn/elasticsearch/add
         )
         success=$(echo $result | jq -r .success)
@@ -1515,7 +1520,7 @@ actions:
   checkJexperienceCfg:
     # Parameters:
     #   - jcustomerDns: jahia env name to fetch info from
-    #   - jcustomerPwdB64: Jcustomer password (base64 encoded)
+    #   - __secret__jcustomerPwdB64: Jcustomer password (base64 encoded)
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         URL=$(grep jexperience.jCustomerURL $CONFIG_FILE | cut -d'=' -f2 | sed 's/ //g' |sed 's/https\?...//g')
@@ -1529,7 +1534,8 @@ actions:
     - cmd[proc]: |-
         CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
         PASSWD=$(sed -n 's/\( *jexperience.jCustomerPassword *= *\)\(.*\) *$/\2/p' $CONFIG_FILE | tr -d '\n' | base64)
-        if [ "$PASSWD" != "$(echo -n ${this.jcustomerPwdB64})" ]; then
+        __secret__jcustomerPwdB64="${this.__secret__jcustomerPwdB64}"
+        if [ "$PASSWD" != "$(echo -n $__secret__jcustomerPwdB64)" ]; then
           >&2 echo "error"
         fi
     - if ("${response.errOut}" != ""):
@@ -1552,20 +1558,20 @@ actions:
 ### Vault related actions ###
   vaultGetIPsecConfB64:
     # Returns:
-    #   ${globals.vaultSecretData}: the IPsec conf, base64 encoded
+    #   ${globals.__secret__IPsecConfB64}: the IPsec conf, base64 encoded
     - getVaultData
     - vaultSecretReadKeyB64:
         secretPath: paas/customers/${globals.organizationName}/paas_${env.shortdomain}/ipsec/conn-1
         secretKey: conf
     - setGlobals:
-        IPsecConfB64: ${globals.vaultSecretData}
+        __secret__IPsecConfB64: ${globals.__secret__vaultSecretData}
 
   vaultGetIPsecPSKB64:
     # Returns:
-    #   ${globals.vaultPSKB64}: the PSK, base64 encoded
+    #   ${globals.__secret__IPsecPSKB64}: the PSK, base64 encoded
     - getVaultData
     - vaultSecretReadKeyB64:
         secretPath: paas/customers/${globals.organizationName}/paas_${env.shortdomain}/ipsec/conn-1
         secretKey: secret
     - setGlobals:
-        IPsecPSKB64: ${globals.vaultSecretData}
+        __secret__IPsecPSKB64: ${globals.__secret__vaultSecretData}

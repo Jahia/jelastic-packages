@@ -87,7 +87,9 @@ actions:
   backupJahia:
     - cmd [proc]: |-
         ## [${globals.logAction}] - 3/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -104,7 +106,9 @@ actions:
             type: error
             message: "An error occurred during jahia data backup. ${response.errOut}"
     - cmd [proc]: |-
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -117,7 +121,9 @@ actions:
             type: error
             message: "An error occurred during jahia configuration backup. ${response.errOut}"
     - cmd [proc]: |-
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -134,7 +140,9 @@ actions:
   addMetadata:
     - cmd [${this}]: |-
         ## [${globals.logAction}] - 4/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -148,7 +156,9 @@ actions:
   rotateBackups:
     - cmd [${this}]: |-
         ## [${globals.logAction}] - 5/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -189,7 +199,9 @@ actions:
     - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
         - cmd[${nodes.cp.first.id}]: |-
             # Create the bucket if doesn't exists
-            export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+            __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+            __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+            export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
             cd jelastic_backup
             python3 elasticsearch.py --bucketname ${globals.account} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
         - if ("${globals.provider}" == "aws"):
@@ -204,13 +216,13 @@ actions:
             region: ${this.region}
             account: ${globals.account}
             logsPath: ${globals.logsPath}
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
     - else:
         - setAzureSnapshotRepository:
             repositoryName: ${env.shortdomain}
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
+            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
             operation: "backup"
             account: ${globals.account}
             backupName: ${settings.backup_name}
@@ -220,11 +232,11 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 3/5
         output_file=$(mktemp)
-        ec_admin_credentials=${globals.ecAdminCredentials}
+        __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
           -d'{
             "indices": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-*,-global-geonameentry*",
@@ -246,13 +258,13 @@ actions:
     - getECAdminCredentials
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 5/5
-        ec_admin_credentials=${globals.ecAdminCredentials}
+        __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
         cd jelastic_backup
         # filter and format snapshot list
         snapshots=$(curl -s \
           -H 'Content-Type: application/json' \
-          -u $ec_admin_credentials \
+          -u $__secret__ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/_all?pretty" \
           | grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}')
         delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
@@ -265,7 +277,7 @@ actions:
           python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
           if [ $? -eq 0 ]; then
             curl \
-              -u $ec_admin_credentials \
+              -u $__secret__ec_admin_credentials \
               -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/$snapshot"
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
@@ -277,7 +289,9 @@ actions:
         HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
         HAPROXY_JAHIA_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
         HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -298,7 +312,9 @@ actions:
   backupMariadb:
     - cmd[${this}]: |-
         ## [${globals.logAction}] - 2/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
@@ -343,7 +359,9 @@ actions:
   backupJcustomer:
     - cmd [${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 3/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region

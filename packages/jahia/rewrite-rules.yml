@@ -35,7 +35,9 @@ actions:
         fi
 
         # Connect to Vault and check if rules exist
-        VAULT_TOKEN=$(curl -s -XPOST ${globals.vaultClusterUrl}/v1/auth/approle/login --data '{"role_id": "${globals.vaultRoleId}", "secret_id": "${globals.vaultSecretId}"}' | jq -r .auth.client_token)
+        __secret__vaultRoleId="${globals.__secret__vaultRoleId}"
+        __secret__vaultSecretId="${globals.__secret__vaultSecretId}"
+        VAULT_TOKEN=$(curl -s -XPOST ${globals.vaultClusterUrl}/v1/auth/approle/login --data '{"role_id": "'"$__secret__vaultRoleId"'", "secret_id": "'"$__secret__vaultSecretId"'"}' | jq -r .auth.client_token)
         VAULT_SECRET_PATH="paas/customers/${globals.organizationName}/paas_${env.shortdomain}/haproxy"
         rules_sets=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" ${globals.vaultClusterUrl}/v1/kv/data/$VAULT_SECRET_PATH | jq -e .data.data)
         if [ $? -ne 0 ]; then
