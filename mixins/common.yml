@@ -806,7 +806,7 @@ actions:
               "organizationName": orgName,
               "vaultClusterUrl": vaultUrl,
               "__secret__vaultRoleId": roleId,
-              "__secret__vaultSecretId" secretId
+              "__secret__vaultSecretId": secretId
             }
           }
         };       
