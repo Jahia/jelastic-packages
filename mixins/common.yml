@@ -810,7 +810,7 @@ actions:
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
-    - cmd[${nodes.proc.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
         DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
@@ -845,7 +845,7 @@ actions:
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
-    - cmd[${nodes.proc.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
         DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
         monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
@@ -893,7 +893,7 @@ actions:
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
-    - cmd[${nodes.proc.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
         monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
@@ -909,7 +909,7 @@ actions:
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
-    - cmd[${nodes.proc.first.id}]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
         monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
