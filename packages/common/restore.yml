@@ -653,9 +653,13 @@ actions:
         AUTH_BASIC=auth_basic
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME=customer.errorpages.d
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME=http-errors.cfg
         HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
         HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
         HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
@@ -664,11 +668,21 @@ actions:
         cd jelastic_backup
         python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}
 
-        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* 2>/dev/null
-        cd jelastic_backup
+        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
         tar -xzf $BACKUP_FILE
         # Rules
         mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
+
+        if [ -d $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME ]; then
+          mv $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/ 2>/dev/null
+          mv $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
+        else
+          echo "Legacy haproxy backup without error page customization. Fetching default config" >> ${globals.logsPath}
+          mkdir -p $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
+          curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
+          curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
+        fi
+
         # Basic auth
         old_auth_basic_disabled=1
         user=env-admin
@@ -678,7 +692,7 @@ actions:
           user=$(awk '{print $1}' $AUTH_BASIC)
           password=$(awk '{print $2}' $AUTH_BASIC)
         fi
-        rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC
+        rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         # Basic auth
         sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
         auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)

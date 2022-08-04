@@ -24,9 +24,10 @@ actions:
         HAPROXY_PRESTART_SCRIPT=/usr/local/sbin/haproxy_prestart.sh
         HAPROXY_SERVICE_OVERRIDE=/etc/systemd/system/haproxy.service.d/override.conf
         HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
-        curl -fLSso /etc/haproxy/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
-        mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d
+        mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d $HAPROXY_CONF_DIR/customer.errorpages.d
+        curl -fLSso $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        curl -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/assets/haproxy/haproxy_prestart.sh || exit 1
         chmod +x $HAPROXY_PRESTART_SCRIPT
         curl -fLSso $HAPROXY_SERVICE_OVERRIDE ${globals.repoRootUrl}/assets/haproxy/haproxy_service_override || exit 1
