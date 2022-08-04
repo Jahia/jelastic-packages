@@ -638,7 +638,7 @@ actions:
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"  \
           -d "{\"end\": $MUTE_END, \"action\":\"Muted\", \"override\": \"true\"}"
-
+        exit 0  # always exit with 0 so that Jelastic does not stop there in case of problems with Datadog
       user: root
 
   unmuteDatadogHost:
