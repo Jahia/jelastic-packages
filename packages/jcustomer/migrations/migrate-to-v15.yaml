@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate jCustomer env to v14
-id: migrate-jcustomer-env-v14
+name: Migrate jCustomer env to v15
+id: migrate-jcustomer-env-v15
 
 # Required for healthchecks
 mixins:
