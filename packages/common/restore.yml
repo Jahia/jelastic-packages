@@ -554,7 +554,7 @@ actions:
         curl -sSo /dev/null \
           -u $__secret__ec_admin_credentials \
           -X DELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${UNOMI_ELASTICSEARCH_INDEXPREFIX}-*"
-        
+
         # Calculate the new total shards and score from the snapshot
         temp_total_shards=$(curl -sS -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cluster/stats" | jq -r '.indices.shards.total')
         shards_to_be_added=$(curl -sS -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}" | jq -r '.snapshots[0].shards.total')
@@ -622,7 +622,7 @@ actions:
             ((timeout-=$sleep_interval))
           done
         fi
-        
+
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $__secret__ec_admin_credentials \
@@ -648,57 +648,51 @@ actions:
     - cmd [bl]: |-
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+
+        BACKUP_FILE=haproxy.tar.gz
+        AUTH_BASIC=auth_basic
+        CUSTOMER_RULES_FILE=customer_rules.cfg
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME=customer.errorpages.d
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME=http-errors.cfg
+        HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
+        HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
+        HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
+
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
         provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
         python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}
-        [ -f haproxy.tar.gz ] && exit 0
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy-00-global.cfg.gz 2>>${globals.logsPath} || exit 1
-        ls haproxy-00-global.cfg.gz || exit 0
-    - if ("${response.errOut}" == ""):
-        restoreHaproxyIfWorkaround:
-    - else:
-        log: "No haproxy configuration backup available"
 
-  restoreHaproxyIfWorkaround:
-    - cmd [bl]: |-
-        OLD_HAPROXY_CONF=haproxy-00-global.cfg
-        BACKUP_FILE=haproxy.tar.gz
-        AUTH_BASIC=auth_basic
-        CUSTOMER_RULES_FILE=customer_rules.cfg
-        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
-        HAPROXY_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
-        HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
-        HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
-        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* 2>/dev/null
-        cd jelastic_backup
-        if [ -f $OLD_HAPROXY_CONF.gz ]; then
-          gunzip $OLD_HAPROXY_CONF.gz
-          # Rewrite rules
-          awk '/## START_REWRITES ##/{flag=1; next} /## END_REWRITES ##/{flag=0} flag' $OLD_HAPROXY_CONF > $CUSTOMER_RULES_FILE
-          [ -s $CUSTOMER_RULES_FILE ] && mv $CUSTOMER_RULES_FILE $HAPROXY_CUSTOMER_CONF_DIR || rm -f $CUSTOMER_RULES_FILE
-          # Basic auth
-          old_auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $OLD_HAPROXY_CONF)
-          user=$(awk '/user .* password .*/ {print $2}' $OLD_HAPROXY_CONF)
-          password=$(awk '/user .* password .*/ {print $4}' $OLD_HAPROXY_CONF)
-          rm -f $OLD_HAPROXY_CONF
+        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
+        tar -xzf $BACKUP_FILE
+        # Rules
+        mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
+
+        if [ -d $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME ]; then
+          mv $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/ 2>/dev/null
+          mv $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
         else
-          tar -xzf $BACKUP_FILE
-          # Rules
-          mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
-          # Basic auth
-          old_auth_basic_disabled=1
-          user=env-admin
-          password=XXXXXXX
-          if [ -s $AUTH_BASIC ]; then
-            old_auth_basic_disabled=0
-            user=$(awk '{print $1}' $AUTH_BASIC)
-            password=$(awk '{print $2}' $AUTH_BASIC)
-          fi
-          rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC
+          echo "Legacy haproxy backup without error page customization. Fetching default config" >> ${globals.logsPath}
+          mkdir -p $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
+          curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
+          curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         fi
+
+        # Basic auth
+        old_auth_basic_disabled=1
+        user=env-admin
+        password=XXXXXXX
+        if [ -s $AUTH_BASIC ]; then
+          old_auth_basic_disabled=0
+          user=$(awk '{print $1}' $AUTH_BASIC)
+          password=$(awk '{print $2}' $AUTH_BASIC)
+        fi
+        rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         # Basic auth
         sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
         auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)

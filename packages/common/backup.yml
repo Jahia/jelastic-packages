@@ -287,8 +287,12 @@ actions:
     - cmd [${nodes.bl.first.id}]: |-
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
         HAPROXY_CUSTOMER_CONF_DIR_NAME=customer.configuration.d
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME=customer.errorpages.d
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME=http-errors.cfg
         HAPROXY_JAHIA_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
         HAPROXY_CUSTOMER_CONF_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_CONF_DIR_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+        HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -296,14 +300,16 @@ actions:
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        cp -a $HAPROXY_CUSTOMER_CONF_DIR $HAPROXY_CUSTOMER_CONF_DIR_NAME
+        cp -a $HAPROXY_CUSTOMER_CONF_DIR .
+        cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_CONF $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+        cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_DIR .
         touch auth_basic
         if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_JAHIA_CONF; then
             awk '/user .* password .*/ {print $2" "$4}' $HAPROXY_JAHIA_CONF > auth_basic
         fi
-        tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME auth_basic
+        tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME auth_basic $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f haproxy.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
-        rm -f haproxy.tar.gz
+        rm -rf haproxy.tar.gz $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_CONF_DIR_NAME
     - if ("${response.errOut}" != ""):
         - return:
             type: error

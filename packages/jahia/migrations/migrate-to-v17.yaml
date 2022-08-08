@@ -38,6 +38,7 @@ onInstall:
   - getAugSearchDatadogCheck          # PAAS-2114
   - updateDatadogServiceParam         # PAAS-2062
   - updateDatadogAgentToLatest        # PAAS-2139
+  - addHaproxyErrorPages              # PAAS-1094
 
   # Actions that require a restart:
   - revertCORSFilter                  # PAAS-2049
@@ -194,4 +195,23 @@ actions:
     - cmd[sqldb]: |-
         sed 's/service: ${env.shortdomain}/service: mysql/' -i /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         service datadog-agent restart
+      user: root
+
+  addHaproxyErrorPages:
+    - cmd[bl]: |-
+        HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
+        mkdir -p $HAPROXY_CONF_DIR/customer.errorpages.d
+        if ! grep -q error-pages $HAPROXY_CONF_DIR/jahia-cloud.cfg; then
+          sed -i '/beg #HTTP_AUTH_BASIC/a \\n    errorfiles error-pages' $HAPROXY_CONF_DIR/jahia-cloud.cfg
+          printf "\nhttp-errors error-pages\n##HTTP_ERRORS_START_HERE##\n##HTTP_ERRORS_END_HERE##\n" >> $HAPROXY_CONF_DIR/jahia-cloud.cfg
+        fi
+        # Remove line handling pre-migration 502 error page
+        sed -i '/errorfile 503 .*502.http/d' $HAPROXY_CONF_DIR/jahia-cloud.cfg
+        HAPROXY_PRESTART_SCRIPT=/usr/local/sbin/haproxy_prestart.sh
+        curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/assets/haproxy/haproxy_prestart.sh || exit 1
+        [ ! -f $HAPROXY_CONF_DIR/http-errors.cfg ] && curl -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg
+        chown -R haproxy: $HAPROXY_CONF_DIR
+        systemctl daemon-reload
+        [ ! -f $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ] && mv /etc/haproxy/502.http $HAPROXY_CONF_DIR/customer.errorpages.d/502.http
+        systemctl reload haproxy
       user: root
