@@ -117,7 +117,7 @@ actions:
           __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
           echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
           echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
-          echo "UNOMI_ROOT_PASSWORD_B64=$__secret__unomi_root_password_b64" >> $envfile
+          echo "UNOMI_ROOT_PASSWORD_B64=\"$__secret__unomi_root_password_b64\"" >> $envfile
           echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
           echo >> $envfile
           systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
