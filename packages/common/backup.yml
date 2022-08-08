@@ -259,7 +259,7 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         ## [${globals.logAction}] - 5/5
         __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         cd jelastic_backup
         # filter and format snapshot list
         snapshots=$(curl -s \
