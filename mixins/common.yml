@@ -576,7 +576,7 @@ actions:
         import org.apache.http.client.methods.HttpGet;
         import org.apache.http.impl.client.HttpClients;
         import org.apache.http.util.EntityUtils;
-        __secret__vaultToken = "${globals.vaultToken}";
+        __secret__vaultToken = "${globals.__secret__vaultToken}";
         secretDelete = new HttpDelete("${globals.vaultClusterUrl}/v1/kv/metadata/${this.secretPath}");
         secretDelete.setHeader("X-Vault-Token", __secret__vaultToken);
         httpClient = HttpClients.createDefault();
