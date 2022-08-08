@@ -742,7 +742,7 @@ actions:
           return {"result": 1, errOut: "Can't delete paas environment " + "${globals.papiEnvId}" };
         }
         papierDelete = new HttpDelete("https://${globals.papiHostname}/api/${globals.papiApiVersion}/papier/${globals.papierId}");
-        papierDelete.setHeader("X-PAPI-KEY", papiToken);
+        papierDelete.setHeader("X-PAPI-KEY", __secret__papiToken);
         resp1 = httpClient.execute(papierDelete);
         if (resp1.getStatusLine().getStatusCode() != 204) {
           return {"result": 1, errOut: "Can't delete papier " + "${globals.papierId}" };
