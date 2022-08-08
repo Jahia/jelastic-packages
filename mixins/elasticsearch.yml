@@ -659,7 +659,7 @@ actions:
           -H 'Content-Type: application/json' \
           -H "Authorization: ApiKey $__secret__api_key" \
           -XPATCH "https://cloud.elastic.co/api/v1/deployments/${globals.elasticCloudDeploymentId}/elasticsearch/main-elasticsearch/keystore" \
-          -d'{"secrets":{"azure.client.${this.repositoryName}.account":{"value":"${this.account}"},"azure.client.${this.repositoryName}.key":{"value":$__secret__azure_secret}}}')
+          -d "{\"secrets\":{\"azure.client.${this.repositoryName}.account\":{\"value\":\"${this.account}\"},\"azure.client.${this.repositoryName}.key\":{\"value\":\"$__secret__azure_secret\"}}}")
         exit=0
         if [ $return_code -ne 200 ]; then
           cat $output_file | tee -a ${globals.logsPath}
