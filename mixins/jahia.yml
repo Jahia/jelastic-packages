@@ -1220,11 +1220,15 @@ actions:
     - cmd [${nodes.sqldb.first.id}]: |-
         mysql jahia -Nse "SELECT revision_id FROM JR_J_LOCAL_REVISIONS WHERE journal_id LIKE 'processing.%'"
         mysql jahia -e "TRUNCATE JR_J_LOCAL_REVISIONS"
-
-    - cmd [cp, proc]: |-
-        node_name=$(awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties)
-        current_revision=${response.out}
-        mysql -E -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033 -e "INSERT INTO JR_J_LOCAL_REVISIONS values ('$node_name',$current_revision)"
+    - set:
+        currentRevision: ${response.out}
+    - setEnvNodesAndRevision:
+        target: proc
+        currentRevision: ${this.currentRevision}
+    - forEach(nodes.cp):
+        setEnvNodesAndRevision:
+          target: ${@i.id}
+          currentRevision: ${this.currentRevision}
     - cleanJRJJournalTable:
         batchSize: 100000
 
@@ -1232,11 +1236,10 @@ actions:
   cleanJRJJournalTable:
     # Parameters:
     #   - batchSize: the number of lines to delete per batch
-    - cmd [proc]: |-
+    - cmd [${nodes.sqldb.first.id}]: |-
         batch_size=${this.batchSize}
-        sql_cmd="mysql -u $DB_USER -p$DB_PASSWORD -h 127.0.0.1 -D jahia -P6033"
         query="SELECT MIN(REVISION_ID) FROM JR_J_LOCAL_REVISIONS;"
-        min_revision_number=$($sql_cmd -sN -e "$query")
+        min_revision_number=$(mysql jahia -sN -e "$query")
         if [ $? -ne 0 ]; then
           echo "Can't get the minimum revision number, aborting"
           exit 1
@@ -1245,7 +1248,7 @@ actions:
         echo "Deleting rows with revision_id < $min_revision_number in table JR_J_JOURNAL. Batch size: $batch_size"
         n=1
         while true; do
-          result=$($sql_cmd -vv -e "$query")
+          result=$(mysql jahia -vv -e "$query")
           if [ $? -ne 0 ]; then
             echo "Error when trying to delete the rows, aborting"
             exit 1
@@ -1257,6 +1260,16 @@ actions:
           ((n+=1))
           sleep 2
         done
+
+  setEnvNodesAndRevision:
+    # Parameters:
+    #   - target: target node group or id
+    #   - currentRevision: Current Revision number
+    - cmd [${this.target}]: awk '$1=="cluster.node.serverId" {print $NF; exit}' /opt/tomcat/conf/digital-factory-config/jahia/jahia.node.properties
+    - cmd [${nodes.sqldb.first.id}]: |-
+        node_name=${response.out}
+        current_revision=${this.currentRevision}
+        mysql jahia -e "INSERT INTO JR_J_LOCAL_REVISIONS values ('$node_name',$current_revision)"
 
   setupPat:
     # Parameters:
