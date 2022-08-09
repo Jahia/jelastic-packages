@@ -212,6 +212,7 @@ actions:
         [ ! -f $HAPROXY_CONF_DIR/http-errors.cfg ] && curl -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg
         chown -R haproxy: $HAPROXY_CONF_DIR
         systemctl daemon-reload
-        [ ! -f $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ] && mv /etc/haproxy/502.http $HAPROXY_CONF_DIR/customer.errorpages.d/502.http
+        [ ! -f $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ] && cp /etc/haproxy/502.http $HAPROXY_CONF_DIR/customer.errorpages.d/502.http
         systemctl reload haproxy
+        rm -f /etc/haproxy/502.http
       user: root
