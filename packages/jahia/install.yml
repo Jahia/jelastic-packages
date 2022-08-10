@@ -11,8 +11,6 @@ description:
     experiences, foster internal collaboration and support dynamic business
     needs for sustainable growth.
 
-success: ../../assets/jahia/success_install.md
-
 globals:
   jahia_env_version: 17
   db_user: jahia-db-${fn.random}
