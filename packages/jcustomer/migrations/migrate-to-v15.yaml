@@ -12,16 +12,24 @@ mixins:
 
 globals:
   version: 15
+  jCustomerRollingRestartNeeded: false
 
 onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
   - checkJcustomerHealth: cp
   - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - eventsUpdate
+  # Actions that require a restart:
+  - fixAPM                           # PAAS-2145
+
+  # Restart action:
+  - if (${globals.jCustomerRollingRestartNeeded}):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -37,3 +45,67 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}/../update-events.yml"
+
+  fixAPM:
+    - cmd[${nodes.cp.first.id}]: |-
+        to_restart="false"
+        if ! (pgrep -u karaf -a -f dd-java-agent.jar > /dev/null); then
+          to_restart="true"
+        fi
+        if (grep -q '^APM' /opt/jcustomer/jcustomer/bin/setenv); then
+          setenv_set="true"
+        else
+          setenv_set="false"
+          to_restart="true"
+        fi
+        if [ -f /opt/jcustomer/jcustomer/datadog/dd-java-agent.jar ]; then
+          agent_jar="true"
+        else
+          agent_jar="false"
+          to_restart="true"
+        fi
+        if (grep -q DATADOG_APM_ENABLED /proc/$(pgrep -u karaf java)/environ); then
+          apm_envvar="true"
+        else
+          apm_envvar="false"
+          to_restart="true"
+        fi
+        echo """
+        {
+          "setenv_set": $setenv_set,
+          "agent_jar": $agent_jar,
+          "apm_envvar": $apm_envvar,
+          "to_restart": $to_restart
+        }
+        """
+
+    - script: |-
+        const rep = ${response.out.toJSON()}
+        const result = {"result": 0}
+        return Object.assign({}, result, rep)
+
+    - set:
+        setenv_set: ${response.setenv_set}
+        agent_jar: ${response.agent_jar}
+        apm_envvar: ${response.apm_envvar}
+        to_restart: ${response.to_restart}
+
+    - if(${this.to_restart}):
+        - cmd[cp]: |-
+            if ! ${this.agent_jar}; then
+              [ -d opt/jcustomer/jcustomer/datadog ] || mkdir opt/jcustomer/jcustomer/datadog
+              curl -fLSso /opt/jcustomer/jcustomer/datadog/dd-java-agent.jar https://dtdg.co/latest-java-tracer || exit 1
+              chown karaf: -R /opt/jcustomer/jcustomer/datadog/
+            fi
+            if ! ${this.setenv_set}; then
+              setenv=/opt/jcustomer/jcustomer/bin/setenv
+              echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
+              # Because cloudscripting interprets the bash form ${<variable name>:<something>} as its own placeholder, we have to use a trick
+              echo '${DATADOG_APM_ENABLED¤-true} && JAVA_OPTS+=" $APM_OPTS"' | sed 's/¤/:/' >> $setenv
+            fi
+          user: root
+        - if(!${this.apm_envvar}):
+            - env.control.AddContainerEnvVars[cp]:
+                vars: {"DATADOG_APM_ENABLED": "true"}
+        - setGlobals:
+            - jCustomerRollingRestartNeeded: true
