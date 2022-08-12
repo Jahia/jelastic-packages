@@ -34,6 +34,14 @@ onInstall:
   - upgradeSam                        # PAAS-2131
   - upgradePat                        # PAAS-2144
 
+  # Actions that require a restart:
+  - increaseMaxAge                    # PAAS-2132
+
+  # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
   ### Post-actions
   - setEnvVersion: ${globals.version}
   - logEvent:
@@ -96,3 +104,16 @@ actions:
             - installOrUpgradeModule:
                 moduleSymname: personal-api-tokens
                 moduleVersion: 1.2.0
+
+  increaseMaxAge:
+    - cmd[proc, cp]: |-
+        restart="false"
+        if ( grep -q 'maxAge="3' /opt/tomcat/webapps/ROOT/META-INF/context.xml ); then
+          restart="true"
+          sed -i 's/maxAge="300000/maxAge="900000/g' /opt/tomcat/webapps/ROOT/META-INF/context.xml
+        fi
+        echo $restart
+
+    - if (${response.out}):
+        setGlobals:
+          jahiaRollingRestartNeeded: true

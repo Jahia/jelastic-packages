@@ -1117,7 +1117,7 @@ actions:
         if [[ "$my_node_name_index" == "galera_${this.target}" ]]; then
           exit 0
         fi
-        timeout=600 # wait for 600s
+        timeout=1200 # wait for 1200s
         tries=0
         request="select COUNT(*) from INFORMATION_SCHEMA.PROCESSLIST where db='jahia' and user like 'jahia-db-%'"
         while [[ $(mysql -BNe "$request") -gt 0 ]]; do
