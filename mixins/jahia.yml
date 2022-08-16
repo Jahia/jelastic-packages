@@ -619,11 +619,10 @@ actions:
         runningVersion: ""
         mostRecentInstalledVersion: ""
         installedVersionsCount: 0
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - cmd [proc]: |-
-        resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed
             echo "uninstalled"
@@ -650,7 +649,8 @@ actions:
             moduleState: ${response.out}
     - if ("${globals.moduleState}" == "started") || ("${globals.moduleState}" == "installed"):
         - cmd [proc]: |-
-            resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+            __secret__pat_token="${globals.__secret__pat_token}"
+            resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
             module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
             # If module is started, then we get the running version
             running_version=""
@@ -688,11 +688,10 @@ actions:
     #   - "started" if the specified version of the module is running
     #   - "installed" if the specified version of the module is installed but not running
     #   - "uninstalled" if the specified version of the module is not installed
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - cmd [proc]: |-
-        resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_localInfo")
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_localInfo")
         case "$(jq -r .moduleState <<< $resp)" in
           "") # if response is not JSON, for instance 401 unauthorized
             echo "error"
@@ -733,7 +732,6 @@ actions:
     - if ("${globals.moduleVersionState}" == "uninstalled"):
       - set:
           modulesUrl: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
-          curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
       - if ('${this.startModule.print()}' == ''):
           set:
             startModule: "false"
@@ -743,6 +741,7 @@ actions:
       - getPatTokenAndKey
       - log: Installing ${this.moduleSymname}/${this.moduleVersion}
       - cmd [proc]: |-
+          __secret__pat_token="${globals.__secret__pat_token}"
           if [[ "${this.jarUrl}" == "" ]]; then
             url="${this.modulesUrl}/${this.moduleSymname}/${this.moduleVersion}/${this.moduleSymname}-${this.moduleVersion}.jar"
           else
@@ -756,7 +755,7 @@ actions:
             rm -rf $tmp_dir
             exit 0
           fi
-          resp=$(${this.curl} -XPOST \
+          resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST \
                   --form bundle=@$local_jar_file \
                   --form start=${this.startModule} \
                   localhost/modules/api/bundles)
@@ -792,12 +791,11 @@ actions:
     #
     # Parameters:
     #   - moduleSymname: the symbolic name of the module to stop (for instance "distributed-sessions")
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - log: Stopping ${this.moduleSymname}
     - cmd [proc]: |-
-        resp=$(${this.curl} -XPOST -d "" \
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
                  "localhost/modules/api/bundles/${this.moduleSymname}/_stop")
         case "$(jq -r .bundleInfos <<< $resp)" in
           "null") # If stop failed, there is no bundleInfos attribute in the JSON response
@@ -824,12 +822,11 @@ actions:
     # Parameters:
     #   - moduleSymname: the symbolic name of the module to start (for instance "distributed-sessions")
     #   - moduleVersion: the version of the module to install
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - log: Starting ${this.moduleSymname}/${this.moduleVersion}
     - cmd [proc]: |-
-        resp=$(${this.curl} -XPOST -d "" \
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
                  "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_start")
         case "$(jq -r .bundleInfos <<< $resp)" in
           "null") # If install failed, there is no bundleInfos attribute in the JSON response
@@ -855,12 +852,11 @@ actions:
     # Parameters:
     #   - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
     #   - moduleVersion: the version of the module to install
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - log: Uninstalling ${this.moduleSymname}/${this.moduleVersion}
     - cmd [proc]: |-
-        resp=$(${this.curl} -XPOST -d "" \
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
               "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_uninstall")
         case "$(jq -r .bundleInfos <<< $resp)" in
           "null") # If uninstall failed, there is no bundleInfos attribute in the JSON response
@@ -886,12 +882,11 @@ actions:
     #
     # Parameters:
     #   - moduleSymname: the module to clean
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - log: Uninstalling stopped versions of ${this.moduleSymname} module
     - cmd [proc]: |-
-        resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed, nothing to do
             ;;
@@ -924,12 +919,11 @@ actions:
     #
     # Parameters:
     #   - moduleSymname: the module to clean
-    - set:
-        curl: 'curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}"'
     - getPatTokenAndKey
     - log: Uninstalling all versions of ${this.moduleSymname} module
     - cmd[proc]: |-
-        resp=$(${this.curl} "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+        __secret__pat_token="${globals.__secret__pat_token}"
+        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed
             echo "not installed"
