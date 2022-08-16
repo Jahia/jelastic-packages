@@ -107,29 +107,29 @@ actions:
         moduleSymname: personal-api-tokens
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
-        - isVersionStrictlyLower:
+        - isVersionLowerOrEqual:
             a: ${globals.jahiaVersion}
-            b: 8.0.0.0
-            res: isLowerThan8000
-        - if( ${globals.isLowerThan8100} ):
+            b: 8.1.2.2
+            res: isLowerThan8122
+        - if( ${globals.isLowerThan8122} ):
             - isVersionStrictlyLower:
                 a: ${globals.jahiaVersion}
                 b: 8.1.0.0
                 res: isLowerThan8100
-            - if( ${globals.isLowerThan8000} ):
-                - set:
-                    expectedVersion: 0.5.0
-            - else:
-                - isVersionLowerOrEqual:
+            - if( ${globals.isLowerThan8100} ):
+                - isVersionStrictlyLower:
                     a: ${globals.jahiaVersion}
-                    b: 8.1.2.2
-                    res: isLowerThan8122
+                    b: 8.0.0.0
+                    res: isLowerThan8000
                 - if( ${globals.isLowerThan8000} ):
                     - set:
-                        expectedVersion: 1.0.1
+                        expectedVersion: 0.5.0
                 - else:
                     - set:
-                        expectedVersion: 1.2.0
+                        expectedVersion: 1.0.1
+            - else:
+                - set:
+                    expectedVersion: 1.2.0
             - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
                 - addError:
                     message: "Running personal-api-tokens version is ${globals.runningVersion} instead of ${this.expectedVersion}"
