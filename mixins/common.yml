@@ -363,7 +363,7 @@ actions:
 
   updateDatadogAgentToLatest:
     - cmd[*]: |-
-        source /.jelenv
+        source /etc/profile
         export DD_AGENT_MAJOR_VERSION=6
         export DD_API_KEY=$DATADOGAPIKEY
         bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
