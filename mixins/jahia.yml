@@ -235,7 +235,7 @@ actions:
     - isAugSearchEnabled
     - getPatTokenAndKey
     - cmd[${this}]: |-
-        __secret_pat_token="${globals.__secret__pat_token}"
+        __secret__pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
         chmod 644 /opt/tomcat/logs/catalina.out
