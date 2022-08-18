@@ -247,6 +247,10 @@ actions:
           cat $output_file | tee -a ${globals.logsPath}
           exit=1
         fi
+        if [[ "$(cat $output_file  | jq -r .snapshot.state)" != "SUCCESS" ]]; then
+          cat $output_file | tee -a ${globals.logsPath}
+          exit=1     
+        fi
         rm -f $output_file
         exit $exit
     - if ("${response.out}" != ""):
