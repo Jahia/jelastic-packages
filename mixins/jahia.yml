@@ -134,6 +134,7 @@ actions:
         sed -e '2isource /etc/profile' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
     - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
+    - setJahiaUserFeedbacksConfig
     - cmd[proc]: |-
         __secret__rootpwd="${this.__secret__rootpwd.toBase64()}"
         base64 -d <<< $__secret__rootpwd > $DATA_PATH/digital-factory-data/root.pwd
@@ -991,6 +992,23 @@ actions:
           fi
         done
 
+  setJahiaUserFeedbacksConfig:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia8
+    - if (${globals.jahia8}):
+        - cmd[proc]: |-
+            config_file="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
+            if [ ! -f $config_file ]; then
+              organization=$(echo "${user.email}" | cut -d'@' -f1)
+              env_name=${env.envName}
+              touch $config_file
+              echo "org.jahia.services.env.organization=${organization}" >> $config_file
+              echo "org.jahia.services.env.env_name=${env_name}" >> $config_file
+            fi
+
 
   ####################
   # proxysql related #
@@ -1158,6 +1176,7 @@ actions:
             touch /data/digital-factory-data/modules/*
             service tomcat start
           user: root
+        - setJahiaUserFeedbacksConfig
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
       user: root
