@@ -33,6 +33,7 @@ onInstall:
 
   - upgradeSam                        # PAAS-2131
   - upgradePat                        # PAAS-2144
+  - installScreeb                     # PAAS-2084
 
   # Actions that require a restart:
   - increaseMaxAge                    # PAAS-2132
@@ -123,3 +124,25 @@ actions:
     - if (${response.out}):
         setGlobals:
           jahiaRollingRestartNeeded: true
+
+  installScreeb:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia8
+    - if (${globals.jahia8}):
+        - installModule:
+            moduleSymname: jahia-user-feedbacks
+            moduleVersion: 1.1.0
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
+        - cmd[proc]: |-
+            config_file="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
+            if [ ! -f $config_file ]; then
+              organization=$(echo "${user.email}" | cut -d'@' -f1)
+              env_name=${env.envName}
+              touch $config_file
+              echo "org.jahia.services.env.organization=${organization}" >> $config_file
+              echo "org.jahia.services.env.env_name=${env_name}" >> $config_file
+            fi
