@@ -209,6 +209,8 @@ actions:
       - installOrUpgradeModule:
           moduleSymname: jexperience
           moduleVersion: 1.11.8
+          moduleGroupId: org.jahia.modules
+          moduleRepository: marketing-factory-releases
           startModule: true
     - isVersionHigherOrEqual:
         a: ${globals.jahiaVersion}
@@ -218,4 +220,6 @@ actions:
       - installOrUpgradeModule:
           moduleSymname: jexperience
           moduleVersion: 2.2.2
+          moduleGroupId: org.jahia.modules
+          moduleRepository: marketing-factory-releases
           startModule: true

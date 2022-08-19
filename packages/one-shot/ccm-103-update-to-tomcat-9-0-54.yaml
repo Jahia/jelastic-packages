@@ -21,6 +21,8 @@ actions:
         - installOrUpgradeModule:
             moduleSymname: jahia-csrf-guard
             moduleVersion: 1.4.0
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
 
   rollingRedeployJahiaNodes:
     - install:

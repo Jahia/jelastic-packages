@@ -15,6 +15,8 @@ onInstall:
     - installOrUpgradeModule:
         moduleSymname: ${settings.moduleSymname}
         moduleVersion: ${settings.moduleVersion}
+        moduleGroupId: ${settings.moduleGroupId}
+        moduleRepository: ${settings.moduleRepository}
   - elif ("${settings.action}" == "uninstall"):
     - uninstallModule:
         moduleSymname: ${settings.moduleSymname}
@@ -39,4 +41,12 @@ settings:
     - name: moduleVersion
       type: string
       caption: Module version (for installation only)
+      required: false
+    - name: moduleGroupId
+      type: string
+      caption: Module group id (for installation only)
+      required: false
+    - name: moduleRepository
+      type: string
+      caption: Module repository in Nexus (for installation only)
       required: false

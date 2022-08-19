@@ -77,6 +77,8 @@ actions:
             - installOrUpgradeModule:
                 moduleSymname: server-availability-manager
                 moduleVersion: 2.2.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-releases
             - checkJahiaHealth
             - enableHaproxyHealthcheck
 
@@ -97,6 +99,8 @@ actions:
             - installOrUpgradeModule:
                 moduleSymname: jahia-dashboard
                 moduleVersion: 1.6.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-releases
         # Upgrade personal-api-tokens to 1.2.0
         - checkModule:
             moduleSymname: personal-api-tokens
@@ -104,6 +108,8 @@ actions:
             - installOrUpgradeModule:
                 moduleSymname: personal-api-tokens
                 moduleVersion: 1.2.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-releases
 
   increaseMaxAge:
     - cmd[proc, cp]: |-

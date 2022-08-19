@@ -22,6 +22,8 @@ onInstall:
   - installOrUpgradeModule:
       moduleSymname: jexperience
       moduleVersion: ${globals.jexperienceVersion}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: marketing-factory-releases
   - getJcustomerKey:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc

@@ -161,6 +161,8 @@ actions:
           - installOrUpgradeModule:
               moduleSymname: server-availability-manager
               moduleVersion: 1.2.0
+              moduleGroupId: org.jahia.modules
+              moduleRepository: jahia-releases
           - checkJahiaHealth
           - enableHaproxyHealthcheck
 

@@ -556,6 +556,8 @@ actions:
     # Parameters:
     # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
     # - moduleVersion: the version of the module to install
+    # - moduleGroupId: group id of the artifact
+    # - moduleRepository: repository that the artifact is contained in Nexus
     - set:
         moduleInstalled: true
     - checkModule:
@@ -564,12 +566,16 @@ actions:
         - installModule:
             moduleSymname: ${this.moduleSymname}
             moduleVersion: ${this.moduleVersion}
+            moduleGroupId: ${this.moduleGroupId}
+            moduleRepository: ${this.moduleRepository}
             startModule: true
     - else:
         - if ("${globals.moduleState}" == "installed"):
             - installModule:
                 moduleSymname: ${this.moduleSymname}
                 moduleVersion: ${this.moduleVersion}
+                moduleGroupId: ${this.moduleGroupId}
+                moduleRepository: ${this.moduleRepository}
                 startModule: true
         - if ("${globals.moduleState}" == "started"):
             - isVersionStrictlyHigher:
@@ -580,6 +586,8 @@ actions:
                 - installModule:
                     moduleSymname: ${this.moduleSymname}
                     moduleVersion: ${this.moduleVersion}
+                    moduleGroupId: ${this.moduleGroupId}
+                    moduleRepository: ${this.moduleRepository}
                     startModule: true
             # If the module is already running with the desired version or a more recent one, we don't need to check the status right after
             - else:
@@ -725,32 +733,51 @@ actions:
     # Parameters:
     #   - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
     #   - moduleVersion: the version of the module to install
+    #   - moduleGroupId: group id of the artifact in Nexus
+    #   - moduleRepository: repository that the artifact is contained in Nexus
     #   - startModule (optional): if the module should be started or not, true or false. Default: false
-    #   - jarUrl (optional): the URL to download the jar file. Default: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
     - checkVersionOfModule:
         moduleSymname: ${this.moduleSymname}
         moduleVersion: ${this.moduleVersion}
     - if ("${globals.moduleVersionState}" == "uninstalled"):
       - set:
-          modulesUrl: https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules
+          modulesUrl: https://devtools.jahia.com/nexus/service/local/artifact/maven/content
       - if ('${this.startModule.print()}' == ''):
           set:
             startModule: "false"
-      - if ('${this.jarUrl.print()}' == ''):
-          set:
-            jarUrl: ""
+      - getVaultData
+      - vaultSecretReadAllKeysB64:
+          secretPath: "paas/envs-common/nexus"
+      - script: |-
+          import java.util.Base64;
+
+          __secret__vaultResponseBase64 = "${globals.__secret__vaultSecretData}";
+          vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__vaultResponseBase64)))
+          nexusCreds = vaultResponse.login + ":" + vaultResponse.password
+          credsBytes = (new java.lang.String(nexusCreds)).getBytes("UTF-8");
+          encodedNexusCreds = Base64.getEncoder().encodeToString(credsBytes);
+          return {
+            "result": 0,
+            "onAfterReturn": {
+              set: {
+                "__secret__nexusCreds": encodedNexusCreds
+              }
+            }
+          };
       - getPatTokenAndKey
       - log: Installing ${this.moduleSymname}/${this.moduleVersion}
       - cmd [proc]: |-
+          __secret__nexus_creds="${this.__secret__nexusCreds}"
           __secret__pat_token="${globals.__secret__pat_token}"
-          if [[ "${this.jarUrl}" == "" ]]; then
-            url="${this.modulesUrl}/${this.moduleSymname}/${this.moduleVersion}/${this.moduleSymname}-${this.moduleVersion}.jar"
-          else
-            url=${this.jarUrl}
-          fi
+
           tmp_dir=$(mktemp -d)
           local_jar_file=$tmp_dir/${this.moduleSymname}-${this.moduleVersion}.jar
-          curl -fLSso $local_jar_file $url >&2
+          curl -fLSso $local_jar_file "${this.modulesUrl}" -G \
+            -H "Authorization: Basic $__secret__nexus_creds" \
+            -d "g=${this.moduleGroupId}" \
+            -d "r=${this.moduleRepository}" \
+            -d "a=${this.moduleSymname}" \
+            -d "v=${this.moduleVersion}" >&2
           if [ $? -ne 0 ]; then
             echo "error"
             rm -rf $tmp_dir

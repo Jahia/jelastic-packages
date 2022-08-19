@@ -42,36 +42,51 @@ onInstall:
   - installModule:
       moduleSymname: calendar
       moduleVersion: ${globals.calendar_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: event
       moduleVersion: ${globals.event_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: ldap
       moduleVersion: ${globals.ldap_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: news
       moduleVersion: ${globals.news_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: publication
       moduleVersion: ${globals.publication_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: remotepublish
       moduleVersion: ${globals.remotepublish_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-enterprise-releases
       startModule: "true"
   - installModule:
       moduleSymname: sitemap
       moduleVersion: ${globals.sitemap_version}
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-releases
       startModule: "true"
   - installModule:
       moduleSymname: templates-web-blue-qa
-      moduleVersion: 2.0.2
+      moduleVersion: 2.0.2-SNAPSHOT
+      moduleGroupId: org.jahia.modules
+      moduleRepository: jahia-internal-snapshots
       startModule: "true"
-      jarUrl: "${globals.repoRootUrl}/assets/jahia/templates-web-blue-qa-2.0.2-SNAPSHOT.jar"
   - cmd [cp,proc]:
       - sudo yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && sudo yum install -y ffmpeg
       - sed -i 's/#jahia.dm.thumbnails.video.enabled.*/jahia.dm.thumbnails.video.enabled = true/' ${globals.jahiaPropertiesPath}

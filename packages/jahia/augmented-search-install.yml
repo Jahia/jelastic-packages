@@ -76,23 +76,35 @@ actions:
         - installOrUpgradeModule:
             moduleSymname: graphql-dxm-provider
             moduleVersion: ${globals.graphql_ver}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
         - enableHaproxyHealthcheck
         - installOrUpgradeModule:
             moduleSymname: jahia-administration
             moduleVersion: ${globals.jahia_admin_ver}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
     - if(globals.lessjahia812):
         - installOrUpgradeModule:
             moduleSymname: jcontent
             moduleVersion: ${globals.jcontent_ver}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
     - installOrUpgradeModule:
         moduleSymname: database-connector
         moduleVersion: ${globals.db_connector_ver}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: jahia-connector-enterprise-releases
     - installOrUpgradeModule:
         moduleSymname: elasticsearch-connector
         moduleVersion: ${globals.es_connector_ver}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: jahia-connector-enterprise-releases
     - installOrUpgradeModule:
         moduleSymname: augmented-search
         moduleVersion: ${globals.augsearch_ver}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: augmented-search-releases
 
   setNodeGroupData:
     - environment.nodegroup.ApplyData[cp]:

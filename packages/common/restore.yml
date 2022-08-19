@@ -366,6 +366,8 @@ actions:
         - installOrUpgradeModule:
             moduleSymname: jexperience
             moduleVersion: ${globals.jexperience_active_version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: marketing-factory-releases
     # if the env intialy don't have jexperience active,
     # then we clean the conf and nodegroups data
     - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
@@ -391,12 +393,18 @@ actions:
         - installOrUpgradeModule:
             moduleSymname: database-connector
             moduleVersion: ${this.modulesState.database-connector-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-connector-enterprise-releases
         - installOrUpgradeModule:
             moduleSymname: elasticsearch-connector
             moduleVersion: ${this.modulesState.elasticsearch-connector-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-connector-enterprise-releases
         - installOrUpgradeModule:
             moduleSymname: augmented-search
             moduleVersion: ${this.modulesState.as-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: augmented-search-releases
         - setGlobals:
             __secret__elasticsearch_password: ${fn.password(20)}
         - createESAccount4AS
