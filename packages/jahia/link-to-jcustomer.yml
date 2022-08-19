@@ -12,7 +12,11 @@ mixins:
   - ../../mixins/common.yml
   - ../../mixins/jahia.yml
   - ../../mixins/jcustomer.yml
+  - ../../mixins/elasticsearch.yml
 
+globals:
+  roleAndAccountName: ${env.envName}-kibana-dashboard
+  __secret__password: ${fn.password(20)}
 
 onInstall:
   - checkJcustomerLink
@@ -28,6 +32,10 @@ onInstall:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
+  - configureKibanaDashboard:
+      roleAndAccountName: ${globals.roleAndAccountName}
+      __secret__password: ${globals.__secret__password}
+      jcustomer_env: ${settings.unomienv}
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
       data:

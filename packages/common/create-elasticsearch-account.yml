@@ -1,0 +1,29 @@
+---
+type: update
+version: 1.5.2
+name: Create Elasticsearch user
+id: create-elasticsearch-user
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+  - createESAccount:
+      accountName: ${settings.accountName}
+      __secret__password: ${settings.password}
+      roleName: ${settings.roleName}
+
+settings:
+  fields:
+    - name: accountName
+      type: string
+      caption: The name of the account
+      required: true
+    - name: password
+      type: string
+      caption: Account password
+      required: true
+    - name: roleName
+      type: string
+      caption: Kibana role name

@@ -1,0 +1,29 @@
+---
+type: update
+version: 1.5.2
+name: Create Kibana role
+id: create-kibana-role
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+  - createKibanaRole:
+      roleName: ${settings.roleName}
+      esPermissions: ${settings.esPermissions}
+      kibanaPermissions: ${settings.kibanaPermissions}
+
+settings:
+  fields:
+    - name: roleName
+      type: string
+      caption: The name of the role
+      required: true
+    - name: esPermissions
+      type: string
+      caption: Elasticsearch permissions to set (json format)
+      required: true
+    - name: kibanaPermissions
+      type: string
+      caption: Kibana permissions to set (json format)
