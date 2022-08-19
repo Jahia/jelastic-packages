@@ -72,6 +72,7 @@ onInstall:
               logAction: ${globals.logAction}
       - initialJexperienceStatus
       - initialAugSearchStatus
+      - saveScreebConfig
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -187,6 +188,17 @@ actions:
             - setGlobals:
                 restoreAS: true
 
+  saveScreebConfig:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia8
+    - if (${globals.jahia8}):
+        - cmd[proc,cp]: |-
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg /root
+          user: root
+
   restoreJahia:
     - cmd [proc,cp]: |-
         ## [${globals.logAction}] - 2/5
@@ -207,6 +219,12 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
+    # restore screeb config
+    - if (${globals.jahia8}):
+        - log: "Initial Screeb conf has been restored"
+        - cmd[proc, cp]: |-
+            mv /root/org.jahia.services.env.cfg /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
+          user: root
     # set default value for the management of jexperience
     - set:
         remove_restored_jexperience: false

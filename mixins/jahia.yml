@@ -1026,14 +1026,35 @@ actions:
         b: 8.0.0.0
         res: jahia8
     - if (${globals.jahia8}):
+        - script: |-
+            const envName = "${env.envName}";
+            orgName = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().ORGANIZATION_NAME;
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                "set": {
+                  "organizationName": orgName
+                }
+              }
+            }
         - cmd[proc]: |-
             config_file="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
+            organization_name="${this.organizationName}"
+            env_name="${env.envName}"
             if [ ! -f $config_file ]; then
-              organization=$(echo "${user.email}" | cut -d'@' -f1)
-              env_name=${env.envName}
               touch $config_file
-              echo "org.jahia.services.env.organization=${organization}" >> $config_file
-              echo "org.jahia.services.env.env_name=${env_name}" >> $config_file
+              echo "org.jahia.services.env.organization=$organization_name" >> $config_file
+              echo "org.jahia.services.env.env_name=$env_name" >> $config_file
+            else
+              if ( ! grep -q "organization=$organization_name" $config_file ) || ( grep -qc "organization=$organization_name" $config_file | awk -F: '$NF+0 > 1' ); then
+                sed -i '/.*organization=.*/d' $config_file
+                echo "org.jahia.services.env.organization=$organization_name" >> $config_file
+              fi
+              if ( ! grep -q "env_name=$env_name" $config_file ) || ( grep -qc "env_name=$env_name" $config_file | awk -F: '$NF+0 > 1' ); then
+                sed -i '/.*env_name=.*/d' $config_file
+                echo "org.jahia.services.env.env_name=$env_name" >> $config_file
+              fi
             fi
 
 

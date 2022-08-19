@@ -137,12 +137,4 @@ actions:
             moduleVersion: 1.1.0
             moduleGroupId: org.jahia.modules
             moduleRepository: jahia-releases
-        - cmd[proc]: |-
-            config_file="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
-            if [ ! -f $config_file ]; then
-              organization=$(echo "${user.email}" | cut -d'@' -f1)
-              env_name=${env.envName}
-              touch $config_file
-              echo "org.jahia.services.env.organization=${organization}" >> $config_file
-              echo "org.jahia.services.env.env_name=${env_name}" >> $config_file
-            fi
+        - setJahiaUserFeedbacksConfig
