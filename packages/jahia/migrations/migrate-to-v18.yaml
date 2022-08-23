@@ -137,4 +137,5 @@ actions:
             moduleVersion: 1.1.0
             moduleGroupId: org.jahia.modules
             moduleRepository: jahia-releases
+            startModule: true
         - setJahiaUserFeedbacksConfig
