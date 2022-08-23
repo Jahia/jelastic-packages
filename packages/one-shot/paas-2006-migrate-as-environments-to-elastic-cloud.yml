@@ -398,6 +398,7 @@ actions:
         moduleVersion: ${this.version}
         moduleGroupId: org.jahia.modules
         moduleRepository: augmented-search-releases
+        startModule: true
 
     - setModuleConfiguration:
         jahiaVersion: ${globals.jahiaVersion}
