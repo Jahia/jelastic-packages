@@ -382,6 +382,8 @@ actions:
     - installOrUpgradeModule:
         moduleSymname: elasticsearch-connector
         moduleVersion: ${this.version}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: jahia-connector-enterprise-releases
 
   upgradeASModule:
     - if(${globals.isJahia7}):
@@ -394,6 +396,8 @@ actions:
     - installModule:
         moduleSymname: augmented-search
         moduleVersion: ${this.version}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: augmented-search-releases
 
     - setModuleConfiguration:
         jahiaVersion: ${globals.jahiaVersion}
