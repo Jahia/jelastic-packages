@@ -1,0 +1,20 @@
+---
+type: update
+version: 1.5.2
+name: Delete Kibana role
+id: delete-kibana-role
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+  - deleteKibanaRole:
+      roleName: ${settings.roleName}
+
+settings:
+  fields:
+    - name: roleName
+      type: string
+      caption: The name of the role
+      required: true

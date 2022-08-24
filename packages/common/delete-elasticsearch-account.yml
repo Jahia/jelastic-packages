@@ -1,0 +1,20 @@
+---
+type: update
+version: 1.5.2
+name: Delete Elasticsearch user
+id: delete-elasticsearch-user
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+  - deleteESAccount:
+      accountName: ${settings.accountName}
+
+settings:
+  fields:
+    - name: accountName
+      type: string
+      caption: The name of the account
+      required: true
