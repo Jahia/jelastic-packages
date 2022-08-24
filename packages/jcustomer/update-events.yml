@@ -36,9 +36,6 @@ onBeforeRedeployContainer[cp]:
 
 onAfterRedeployContainer[cp]:
   - createJelasticPackagesLogDir
-  - installRequiredPackages:
-      target: "cp"
-      packages: "python36 python36-pip jq"
   - installPapiScript: cp
   - setESEndpointInJcustomerConfig
   - configureDatadogAPM
@@ -157,9 +154,6 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
           title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
           text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
-      - installRequiredPackages:
-          target: ${event.params.nodeGroup}
-          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
       - installPapiScript: ${event.params.nodeGroup}
@@ -169,9 +163,6 @@ onAfterRedeployContainer:
           target: ${event.params.nodeid}
           title: "Node ${event.params.nodeid} redeployed to ${event.params.tag} version"
           text: "Node ${event.params.nodeid} has been redeploy to ${event.params.tag} version"
-      - installRequiredPackages:
-          target: ${event.params.nodeid}
-          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
       - installPapiScript: ${event.params.nodeId}
@@ -193,6 +184,4 @@ onAfterServiceScaleOut:
         target: ${@i.id}
         title: "Scaled out ${event.params.nodeGroup} node group"
         text: "Node ${@i.id} has been added"
-    - installRequiredPackages:
-        target: ${@i.id}
-        packages: "python36 python36-pip jq"
+    - installPapiScript: ${@i.id}

@@ -140,6 +140,13 @@ onAfterRedeployContainer[bl]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - setSudoer: ${event.params.nodeGroup}
+      - installRequiredPackages:
+          target: ${event.params.nodeGroup}
+          packages: "jq"
+      - installPython:
+          target: ${event.params.nodeGroup}
+          python_major_version: 3
+          python_minor_version: 8
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -148,6 +155,13 @@ onAfterRedeployContainer[bl]:
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setSudoer: ${event.params.nodeId}
+      - installRequiredPackages:
+          target: ${event.params.nodeId}
+          packages: "jq"
+      - installPython:
+          target: ${event.params.nodeId}
+          python_major_version: 3
+          python_minor_version: 8
       - setupDatadogAgentHaproxy: ${event.params.nodeId}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -161,11 +175,18 @@ onAfterScaleIn[bl]:
     user: root
 
 onAfterScaleOut[bl]:
+  - forEach(event.response.nodes):
+      - installRequiredPackages:
+          target: ${@i.id}
+          packages: "jq"
+      - installPython:
+          target: ${@i.id}
+          python_major_version: 3
+          python_minor_version: 8
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
     user: root
-
 
 onBeforeRedeployContainer[sqldb]:
   # disable mysql autostart because JEM will do it
@@ -182,6 +203,13 @@ onAfterRedeployContainer[sqldb]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - setSudoer: ${event.params.nodeGroup}
+      - installRequiredPackages:
+          target: ${event.params.nodeGroup}
+          packages: "jq"
+      - installPython:
+          target: ${event.params.nodeGroup}
+          python_major_version: 3
+          python_minor_version: 8
       - setupDatadogAgentSql: ${event.params.nodeGroup}
       - mysqlService:
           target: ${event.params.nodeGroup}
@@ -189,10 +217,27 @@ onAfterRedeployContainer[sqldb]:
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setSudoer: ${event.params.nodeId}
+      - installRequiredPackages:
+          target: ${event.params.nodeId}
+          packages: "jq"
+      - installPython:
+          target: ${event.params.nodeId}
+          python_major_version: 3
+          python_minor_version: 8
       - setupDatadogAgentSql: ${event.params.nodeId}
       - mysqlService:
           target: ${event.params.nodeId}
           action: enable
+
+onAfterScaleOut[sqldb]:
+  - forEach(event.response.nodes):
+    - installRequiredPackages:
+        target: ${@i.id}
+        packages: "jq"
+    - installPython:
+        target: ${@i.id}
+        python_major_version: 3
+        python_minor_version: 8
 
 onBeforeStop:
   - muteDatadogSynthetics:
@@ -297,9 +342,6 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
           title: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
           text: "${event.params.nodeGroup} nodes have been redeployed to ${event.params.tag} version"
-      - installRequiredPackages:
-          target: ${event.params.nodeGroup}
-          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeGroup}
       - installPapiScript: ${event.params.nodeGroup}
@@ -310,9 +352,6 @@ onAfterRedeployContainer:
           target: ${event.params.nodeId}
           title: "Node ${event.params.nodeId} redeployed to ${event.params.tag} version"
           text: "Node ${event.params.nodeId} has been redeploy to ${event.params.tag} version"
-      - installRequiredPackages:
-          target: ${event.params.nodeId}
-          packages: "python36 python36-pip jq"
       - unmuteDatadogHost:
           target: ${event.params.nodeId}
       - installPapiScript: ${event.params.nodeId}
@@ -333,9 +372,7 @@ onAfterServiceScaleOut:
         target: ${@i.id}
         title: "Scaled out ${event.params.nodeGroup} node group"
         text: "Node ${@i.id} has been added"
-    - installRequiredPackages:
-        target: ${@i.id}
-        packages: "python36 python36-pip jq"
+    - installPapiScript: ${@i.id}
 
 onBeforeDelete:
   - logEvent:
