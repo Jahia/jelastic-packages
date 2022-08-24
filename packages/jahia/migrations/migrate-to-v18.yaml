@@ -34,6 +34,7 @@ onInstall:
   - upgradeSam                        # PAAS-2131
   - upgradePat                        # PAAS-2144
   - installScreeb                     # PAAS-2084
+  - setupKibanaDashboard              # PAAS-2000
 
   # Actions that require a restart:
   - increaseMaxAge                    # PAAS-2132
@@ -139,3 +140,25 @@ actions:
             moduleRepository: jahia-releases
             startModule: true
         - setJahiaUserFeedbacksConfig
+
+  setupKibanaDashboard:
+    - script: |-
+        const envName = "${env.envName}";
+        jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "proc";}).pop().envLink;
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            set: {
+              "jCustomerLinked": jCustomerLinked
+            }
+          }
+        };
+
+        return {"result": 0, "out": jCustomerLinked};
+
+    - if ("${response.out}" != ""):
+        configureKibanaDashboard:
+          roleAndAccountName: ${env.envName}-kibana-dashboard
+          __secret__password: ${fn.password(20)}
+          jcustomer_env: ${this.jCustomerLinked}

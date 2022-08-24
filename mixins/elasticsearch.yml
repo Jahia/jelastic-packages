@@ -25,7 +25,7 @@ actions:
     - set:
         __secret__circleCiToken: ${globals.__secret__vaultSecretData}
 
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - getCloudConf
 
@@ -120,7 +120,7 @@ actions:
         fi
 
   createESAccount4AS:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [proc]: |-
@@ -155,7 +155,7 @@ actions:
         fi
 
   createESAccountAndAliases:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [${nodes.cp.first.id}]: |-
@@ -270,7 +270,7 @@ actions:
         fi
 
   setESEndpointInJcustomerConfig:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd [cp]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -298,32 +298,95 @@ actions:
         return api.env.control.AddContainerEnvVars("${env.envName}", session, "cp", envVars);
 
   getECAdminCredentials:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
-    - cmd [${nodes.cp.first.id}]: |-
-        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
-        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
-        export PAPI_HOSTNAME="${globals.papiHostname}"
-        export PAPI_ENV_ID="${globals.papiEnvId}"
-        export PAPI_API_VERSION="${globals.papiApiVersion}"
-        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
-        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
-        ec_deployment_credentials=$(papi.py -X GET "ec-deployment/$ec_deployment_id/credentials")
-        ec_admin_login=$(echo $ec_deployment_credentials | jq -r .login)
-        ec_admin_password=$(echo $ec_deployment_credentials | jq -r .password)
-        if [ -z "$ec_admin_login" ] || [ -z "$ec_admin_password" ]; then
-          echo "Failed to fetch EC admin credentials"
-          exit 1
-        fi
-        printf '{"HideThisOutput": true, "ecAdminCredentials": "%s:%s"}' "$ec_admin_login" "$ec_admin_password"
     - script: |-
-        __secret__response = ${response.out};
-        ecAdminCredentials = __secret__response["ecAdminCredentials"];
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import org.apache.http.entity.StringEntity;
+        import java.util.Base64;
+
+        __secret__papiToken = "${globals.__secret__papiToken}";
+        papiEnvId = "${globals.papiEnvId}";
+        papiBaseUrl = "https://${globals.papiHostname}/api/${globals.papiApiVersion}/";
+
+        getPaasEnv = new HttpGet(papiBaseUrl + "paas-environment/" + papiEnvId);
+        getPaasEnv.setHeader("X-PAPI-KEY", __secret__papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getPaasEnv);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get paas environment " + papiEnvId};
+        }
+        paasEnv = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        ecDeploymentId = paasEnv["ec_deployment_id"];
+
+        getECDeployment = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId);
+        getECDeployment.setHeader("X-PAPI-KEY", __secret__papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getECDeployment);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get ec deployment " + ecDeploymentId + ": " + resp};
+        }
+        ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
+
+        // Get ES credentials from PAPI
+        getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
+        getECDeploymentCreds.setHeader("X-PAPI-KEY", __secret__papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getECDeploymentCreds);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get ec deployment credentials for " + ecDeploymentId + ": " + resp};
+        }
+        es_credentials = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        ecAdminCredentials = es_credentials["login"] + ":" + es_credentials["password"]
         return {
           "result": 0,
           "onAfterReturn": {
             setGlobals: {
               "__secret__ecAdminCredentials": ecAdminCredentials
+            }
+          }
+        };
+
+  getECDeploymentEndpoints:
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
+        getPapiInfoAll
+    - script: |-
+        import org.apache.http.client.methods.HttpGet;
+        import org.apache.http.impl.client.HttpClients;
+        import org.apache.http.util.EntityUtils;
+        import org.apache.http.entity.StringEntity;
+        import java.util.Base64;
+
+        __secret__papiToken = "${globals.__secret__papiToken}";
+        papiEnvId = "${globals.papiEnvId}";
+        papiBaseUrl = "https://${globals.papiHostname}/api/${globals.papiApiVersion}/";
+
+        getPaasEnv = new HttpGet(papiBaseUrl + "paas-environment/" + papiEnvId);
+        getPaasEnv.setHeader("X-PAPI-KEY", __secret__papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getPaasEnv);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get paas environment " + papiEnvId};
+        }
+        paasEnv = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        ecDeploymentId = paasEnv["ec_deployment_id"]
+
+        getECDeployment = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId);
+        getECDeployment.setHeader("X-PAPI-KEY", __secret__papiToken);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(getECDeployment);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't get ec deployment " + ecDeploymentId + ": " + resp};
+        }
+        ec_deployment = JSON.parse(EntityUtils.toString(resp.getEntity()));
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "es_endpoint": ec_deployment.es_endpoint,
+              "kibana_endpoint": ec_deployment.kibana_endpoint
             }
           }
         };
@@ -335,7 +398,7 @@ actions:
         secretKey: token
     - set:
         __secret__circleCiToken: ${globals.__secret__vaultSecretData}
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;
@@ -509,7 +572,7 @@ actions:
   getElasticCloudDeploymentId:
     # Returns:
     #   ${globals.elasticCloudDeploymentId}
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -709,7 +772,7 @@ actions:
         exit $exit
 
   cleanupRolesAndUsersForMutualizedECDeployment:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;
@@ -838,7 +901,97 @@ actions:
 
         return {"result": 0, "out": "Mutualized ec deployment " + ecDeploymentId + " has no orphan kibana roles and es users" };
 
+  createKibanaRole:
+    # Parameters:
+    #   - roleName: The name of the role
+    #   - esPermissions: elasticsearch permissions (json format)
+    #   - kibanaPermissions: kibana permissions (json format)
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.kibana_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
 
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__credentials="${globals.__secret__ecAdminCredentials}"
+        kibana_endpoint="${globals.kibana_endpoint}"
+        curl -fLSsu "$__secret__credentials" "$kibana_endpoint/api/security/role/${this.roleName}" -H 'Content-Type:application/json' -H "kbn-xsrf: reporting" -d '{"metadata": {},"elasticsearch": ${this.esPermissions}, "kibana": ${this.kibanaPermissions} }' -XPUT
+        if [ $? -ne 0 ]; then
+          echo "Failed to create kibana role." && exit 1
+        fi
+        curl -u "$__secret__credentials" "$kibana_endpoint/api/spaces/space" -H 'Content-Type:application/json' -d '{"name": "${this.roleName}", "id": "${this.roleName}"}' -XPOST
+
+  deleteKibanaAccount:
+    # Parameters:
+    #   - roleName: The name of the role
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.kibana_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
+    - script: |-
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.impl.client.HttpClients;
+        import java.util.Base64;
+
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
+        encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+
+        // Delete Kibana role
+        deleteKibanaRole = new HttpDelete("${globals.kibana_endpoint}/api/security/role/${this.roleName}");
+        deleteKibanaRole.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+        deleteKibanaRole.setHeader("kbn-xsrf", "reporting");
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(deleteKibanaRole);
+        if (resp.getStatusLine().getStatusCode() != 204) {
+          return {"result": 1, errOut: "Can't delete kibana role:" + resp};
+        }
+        return {"result": 0, "out": "${this.roleName} kibana role deleted" };
+
+  createESAccount:
+    # Parameters:
+    #   - accountName: the account name
+    #   - __secret__password
+    #   - roleName: kibana role name
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.es_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
+
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__credentials="${globals.__secret__ecAdminCredentials}"
+        __secret__password="${this.__secret__password}"
+        es_endpoint="${globals.es_endpoint}"
+        curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.accountName}" -XPUT  -d "{\"password\": \"$__secret__password\", \"roles\": [\"${this.roleName}\", \"editor\"], \"full_name\": \"${this.accountName}\"}"  -H 'Content-Type:application/json'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create ES user." && exit 1
+        fi
+
+  deleteESAccount:
+    # Parameters:
+    #   - accountName: the account name
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.es_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
+    - script: |-
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.impl.client.HttpClients;
+        import java.util.Base64;
+
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
+        encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+
+        // Delete ES user
+        deleteESUser = new HttpDelete("${globals.es_endpoint}/_security/user/${this.accountName}");
+        deleteESUser.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(deleteESUser);
+        if (resp.getStatusLine().getStatusCode() != 200) {
+          return {"result": 1, errOut: "Can't delete es user:" + resp};
+        }
+
+        return {"result": 0, "out": "${this.accountName} ES account deleted" };
 ########################################### LEGACY ACTIONS ###########################################
 ############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
 
