@@ -1,0 +1,58 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v16
+id: migrate-jcustomer-env-v16
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 16
+  jCustomerRollingRestartNeeded: false
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - upgradePython                    # PAAS-2028
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  upgradePython:
+  - cmd [cp]: yum erase -y python3-3.6.8
+    user: root
+  - installPython:
+      target: cp
+      python_major_version: 3
+      python_minor_version: 8
+  - cmd [cp]: python3 -m pip install requests boto3 "azure==4.0.0" adal
+    user: root
+  - cmd [cp]: |-
+      tmp_file=/tmp/papi.py
+      final_file=/usr/local/bin/papi.py
+      curl -fLSso $tmp_file ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+      rm -f $final_file && mv $tmp_file $final_file
+      chmod 755 $final_file
+    user: root
