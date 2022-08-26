@@ -920,7 +920,7 @@ actions:
         fi
         curl -u "$__secret__credentials" "$kibana_endpoint/api/spaces/space" -H 'Content-Type:application/json' -d '{"name": "${this.roleName}", "id": "${this.roleName}"}' -XPOST
 
-  deleteKibanaAccount:
+  deleteKibanaRole:
     # Parameters:
     #   - roleName: The name of the role
     - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):

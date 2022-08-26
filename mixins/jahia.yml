@@ -384,6 +384,33 @@ actions:
         resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
         return {"result": 0, "link_removed": true, "out": envName + " removed from envLink of " + jCustomerEnv};
 
+  removeKibanaDashboardAccounts:
+    # Parameters:
+    #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
+    - set:
+        roleAndAccountName: ${env.envName}-kibana-dashboard
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
+              jps: "${globals.repoRootUrl}/packages/common/delete-kibana-role.yml",
+              envName: "${this.jCustomerEnv}",
+              settings: {
+                'roleName': '${this.roleAndAccountName}',
+              }
+            }
+          );
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
+              jps: "${globals.repoRootUrl}/packages/common/delete-elasticsearch-account.yml",
+              envName: "${this.jCustomerEnv:}",
+              settings: {
+                'accountName': '${this.roleAndAccountName}',
+              }
+            }
+          );
+
+
   isFullReadonlyEnabled:
     - cmd[proc]: |-
         RO_ON=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only | grep -e Current -e local | grep ON)
