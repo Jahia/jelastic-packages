@@ -32,10 +32,16 @@ onInstall:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
-  - configureKibanaDashboard:
-      roleAndAccountName: ${globals.roleAndAccountName}
-      __secret__password: ${globals.__secret__password}
-      jcustomer_env: ${settings.unomienv}
+  - getJahiaVersion
+  - isVersionHigherOrEqual:
+      a: ${globals.jahiaVersion}
+      b: 8.0.0.0
+      res: jahia8
+  - if (${globals.jahia8}):
+      configureKibanaDashboard:
+        roleAndAccountName: ${globals.roleAndAccountName}
+        __secret__password: ${globals.__secret__password}
+        jcustomer_env: ${settings.unomienv}
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
