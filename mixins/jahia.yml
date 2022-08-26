@@ -245,7 +245,7 @@ actions:
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
         curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         # Configure AS check
-        sed -i "s/jahia_root_token_placeholder/$__secret_pat_token/g" /etc/datadog-agent/conf.d/augmented_search.yaml-disabled
+        sed -i "s/jahia_root_token_placeholder/$__secret__pat_token/g" /etc/datadog-agent/conf.d/augmented_search.yaml-disabled
         if [ "${globals.isAugSearchEnabled}" == "true" ]; then
           mv /etc/datadog-agent/conf.d/augmented_search.yaml-disabled /etc/datadog-agent/conf.d/augmented_search.yaml
         fi
