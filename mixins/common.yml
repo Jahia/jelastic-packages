@@ -393,6 +393,10 @@ actions:
     - cmd [${this.target}]: |-
         PYTHON_MAJOR_VERSION=${this.python_major_version}
         PYTHON_MINOR_VERSION=${this.python_minor_version}
+        if rpm -q --quiet python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}; then
+          echo "python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} already installed, nothing to do"
+          exit 0
+        fi
         curl -fLSso /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm" || exit 1
         rpm -ivh /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm || exit 1
         cd /usr/bin
