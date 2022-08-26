@@ -143,26 +143,32 @@ actions:
         - setJahiaUserFeedbacksConfig
 
   setupKibanaDashboard:
-    - script: |-
-        const envName = "${env.envName}";
-        jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "proc";}).pop().envLink;
-        return {
-          "result": 0,
-          "onAfterReturn": {
-            set: {
-              "jCustomerLinked": jCustomerLinked
-            }
-          }
-        };
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia8
+    - if (${globals.jahia8}):
+        - script: |-
+            const envName = "${env.envName}";
+            jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                            return object.name == "proc";}).pop().envLink;
+            return {
+              "result": 0,
+              "onAfterReturn": {
+                set: {
+                  "jCustomerLinked": jCustomerLinked
+                }
+              }
+            };
 
-        return {"result": 0, "out": jCustomerLinked};
+            return {"result": 0, "out": jCustomerLinked};
 
-    - if ("${response.out}" != ""):
-        configureKibanaDashboard:
-          roleAndAccountName: ${env.envName}-kibana-dashboard
-          __secret__password: ${fn.password(20)}
-          jcustomer_env: ${this.jCustomerLinked}
+        - if ("${response.out}" != ""):
+            configureKibanaDashboard:
+              roleAndAccountName: ${env.envName}-kibana-dashboard
+              __secret__password: ${fn.password(20)}
+              jcustomer_env: ${this.jCustomerLinked}
 
   upgradePython:
   - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8
