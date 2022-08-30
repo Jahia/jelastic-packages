@@ -12,7 +12,7 @@ onInstall:
   - createESAccount:
       accountName: ${settings.accountName}
       __secret__password: ${settings.password}
-      roleName: ${settings.roleName}
+      rolesList: ${settings.rolesList}
 
 settings:
   fields:
@@ -24,6 +24,6 @@ settings:
       type: string
       caption: Account password
       required: true
-    - name: roleName
+    - name: rolesList
       type: string
-      caption: Kibana role name
+      caption: List of Kibana roles

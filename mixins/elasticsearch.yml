@@ -951,7 +951,7 @@ actions:
     # Parameters:
     #   - accountName: the account name
     #   - __secret__password
-    #   - roleName: kibana role name
+    #   - rolesList: comma-separated list of Kibana roles
     - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
         getECAdminCredentials
     - if ("${globals.es_endpoint.print()}" == ""):
@@ -961,7 +961,8 @@ actions:
         __secret__credentials="${globals.__secret__ecAdminCredentials}"
         __secret__password="${this.__secret__password}"
         es_endpoint="${globals.es_endpoint}"
-        curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.accountName}" -XPUT  -d "{\"password\": \"$__secret__password\", \"roles\": [\"${this.roleName}\", \"editor\"], \"full_name\": \"${this.accountName}\"}"  -H 'Content-Type:application/json'
+        formattedRolesList=$(echo ${this.rolesList} | sed -e 's/\s*,\s*/", "/g' -e 's;^\(.*\)$;"\1";g')
+        curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.accountName}" -XPUT  -d "{\"password\": \"$__secret__password\", \"roles\": [$formattedRolesList], \"full_name\": \"${this.accountName}\"}"  -H 'Content-Type:application/json'
         if [ $? -ne 0 ]; then
           echo "Failed to create ES user." && exit 1
         fi
@@ -992,6 +993,68 @@ actions:
         }
 
         return {"result": 0, "out": "${this.accountName} ES account deleted" };
+
+  resetESAccountPassword:
+  # Parameters:
+  #   - username: the ES username
+  #   - __secret__password
+  - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+      getECAdminCredentials
+  - if ("${globals.es_endpoint.print()}" == ""):
+      getECDeploymentEndpoints
+
+  - cmd[${nodes.cp.first.id}]: |-
+      __secret__credentials="${globals.__secret__ecAdminCredentials}"
+      __secret__password="${this.__secret__password}"
+      es_endpoint="${globals.es_endpoint}"
+      curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.username}/_password" -XPOST  -d '{"password": "__secret__password"}'  -H 'Content-Type:application/json'
+      if [ $? -ne 0 ]; then
+        echo "Failed to reset password for ${this.username} user." && exit 1
+      fi
+
+  createKibanaSpace:
+    # Parameters:
+    #   - spaceName: the Kibana space name
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.es_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
+
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__credentials="${globals.__secret__ecAdminCredentials}"
+        kibana_endpoint="${globals.kibana_endpoint}"
+        curl -fLSsu "$__secret__credentials" "$kibana_endpoint/api/spaces/space" -XPOST -H "kbn-xsrf: reporting" -d '{"id": "${this.spaceName}", "name": "${this.spaceName}"}'  -H 'Content-Type:application/json'
+        if [ $? -ne 0 ]; then
+          echo "Failed to create Kibana space." && exit 1
+        fi
+
+  deleteKibanaSpace:
+    # Parameters:
+    #   - spaceName: The name of the Kibana space
+    - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+        getECAdminCredentials
+    - if ("${globals.kibana_endpoint.print()}" == ""):
+        getECDeploymentEndpoints
+    - script: |-
+        import org.apache.http.client.methods.HttpDelete;
+        import org.apache.http.impl.client.HttpClients;
+        import java.util.Base64;
+
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
+        encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
+
+        // Delete Kibana space
+        deleteKibanaSpace = new HttpDelete("${globals.kibana_endpoint}/api/spaces/space/${this.spaceName}");
+        deleteKibanaSpace.setHeader("Authorization", "Basic " + encoded_auth_basic_creds);
+        deleteKibanaSpace.setHeader("kbn-xsrf", "reporting");
+        httpClient = HttpClients.createDefault();
+        resp = httpClient.execute(deleteKibanaSpace);
+        if (resp.getStatusLine().getStatusCode() != 204) {
+          return {"result": 1, errOut: "Can't delete kibana space:" + resp};
+        }
+        return {"result": 0, "out": "${this.spaceName} kibana space deleted" };
+
 ########################################### LEGACY ACTIONS ###########################################
 ############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
 

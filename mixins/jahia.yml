@@ -384,18 +384,19 @@ actions:
         resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
         return {"result": 0, "link_removed": true, "out": envName + " removed from envLink of " + jCustomerEnv};
 
-  removeKibanaDashboardAccounts:
+  removeKibanaDashboardAccountsAndSpace:
     # Parameters:
     #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
     - set:
-        roleAndAccountName: ${env.envName}-kibana-dashboard
+        dashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
+        adminRoleAndAccountName: ${env.envName}-kibana-dashboard
     - script: |-
         return api.marketplace.jps.Install(
             {
               jps: "${globals.repoRootUrl}/packages/common/delete-kibana-role.yml",
               envName: "${this.jCustomerEnv}",
               settings: {
-                'roleName': '${this.roleAndAccountName}',
+                'roleName': '${this.dashboardRoleAndAccountName}',
               }
             }
           );
@@ -405,7 +406,27 @@ actions:
               jps: "${globals.repoRootUrl}/packages/common/delete-elasticsearch-account.yml",
               envName: "${this.jCustomerEnv:}",
               settings: {
-                'accountName': '${this.roleAndAccountName}',
+                'accountName': '${this.dashboardRoleAndAccountName}',
+              }
+            }
+          );
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
+              jps: "${globals.repoRootUrl}/packages/common/delete-elasticsearch-account.yml",
+              envName: "${this.jCustomerEnv:}",
+              settings: {
+                'accountName': '${this.adminRoleAndAccountName}',
+              }
+            }
+          );
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
+              jps: "${globals.repoRootUrl}/packages/common/delete-kibana-space.yml",
+              envName: "${this.jCustomerEnv}",
+              settings: {
+                'spaceName': '${this.dashboardRoleAndAccountName}',
               }
             }
           );
@@ -1673,7 +1694,6 @@ actions:
         data:
           envLink: null
 
-
   configureKibanaDashboard:
     # Parameters
     # roleAndAccountName: kibana role and es account name
@@ -1695,6 +1715,16 @@ actions:
     - script: |-
         return api.marketplace.jps.Install(
             {
+              jps: "${globals.repoRootUrl}/packages/common/create-kibana-space.yml",
+              envName: "${this.jcustomer_env}",
+              settings: {
+                'spaceName': '${this.roleAndAccountName}',
+              }
+            }
+          );
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
               jps: "${globals.repoRootUrl}/packages/common/create-kibana-role.yml",
               envName: "${this.jcustomer_env}",
               settings: {
@@ -1712,7 +1742,7 @@ actions:
               settings: {
                 'accountName': '${this.roleAndAccountName}',
                 'password': '${this.__secret__password}',
-                'roleName': '${this.roleAndAccountName}',
+                'rolesList': '${this.roleAndAccountName},editor',
               }
             }
           );
@@ -1766,6 +1796,26 @@ actions:
         __secret__vaultToken: ""
         __secret__vaultRoleId: ""
         __secret__vaultSecretId: ""
+
+  createKibanaAdminAccount:
+    # Parameters:
+    # - accountName: name of the kibana admin user
+    # - rolesList: comma-separated list of Kibana roles
+    # - __secret__password: kibana admin user's password
+    # - jcustomerEnv: target jcustomer environment
+  - setGlobalRepoRootUrl
+  - script: |-
+      return api.marketplace.jps.Install(
+          {
+            jps: "${globals.repoRootUrl}/packages/common/create-elasticsearch-account.yml",
+            envName: "${this.jcustomerEnv}",
+            settings: {
+              'accountName': '${this.accountName}',
+              'password': '${this.__secret__password}',
+              'rolesList': '${this.rolesList}',
+            }
+          }
+        );
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:

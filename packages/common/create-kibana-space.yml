@@ -1,0 +1,20 @@
+---
+type: update
+version: 1.5.2
+name: Create Kibana space
+id: create-kibana-space
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+  - createKibanaSpace:
+      spaceName: ${settings.spaceName}
+
+settings:
+  fields:
+    - name: spaceName
+      type: string
+      caption: The name of the Kibana space
+      required: true
