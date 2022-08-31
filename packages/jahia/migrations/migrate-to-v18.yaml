@@ -170,12 +170,16 @@ actions:
             };
 
             return {"result": 0, "out": jCustomerLinked};
-
         - if ("${response.out}" != ""):
-            configureKibanaDashboard:
+          - configureKibanaDashboard:
               roleAndAccountName: ${env.envName}-kibana-dashboard
               __secret__password: ${fn.password(20)}
               jcustomer_env: ${this.jCustomerLinked}
+          - createKibanaAdminAccount:
+              accountName: ${env.envName}-kibana-admin
+              rolesList: ${env.envName}-kibana-dashboard
+              __secret__password: ${fn.password(20)}
+              jcustomerEnv: ${this.jCustomerLinked}
 
   upgradePython:
   - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8

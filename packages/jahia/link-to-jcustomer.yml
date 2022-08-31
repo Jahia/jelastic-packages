@@ -15,8 +15,10 @@ mixins:
   - ../../mixins/elasticsearch.yml
 
 globals:
-  roleAndAccountName: ${env.envName}-kibana-dashboard
-  __secret__password: ${fn.password(20)}
+  kibanaDashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
+  kibanaAdminroleAndAccountName: ${env.envName}-kibana-admin
+  __secret__kibanaDashboardpassword: ${fn.password(20)}
+  __secret__kibanaAdminpassword: ${fn.password(20)}
 
 onInstall:
   - checkJcustomerLink
@@ -38,16 +40,27 @@ onInstall:
       b: 8.0.0.0
       res: jahia8
   - if (${globals.jahia8}):
-      configureKibanaDashboard:
-        roleAndAccountName: ${globals.roleAndAccountName}
-        __secret__password: ${globals.__secret__password}
+    - configureKibanaDashboard:
+        roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
+        __secret__password: ${globals.__secret__kibanaDashboardpassword}
         jcustomer_env: ${settings.unomienv}
+    - createKibanaAdminAccount:
+        accountName: ${globals.kibanaAdminroleAndAccountName}
+        rolesList: ${globals.kibanaDashboardRoleAndAccountName}
+        __secret__password: ${globals.__secret__kibanaAdminpassword}
+        jcustomerEnv: ${settings.unomienv}
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${settings.unomienv}
+  - if (${globals.jahia8}):
+    - set:
+        __secret__returnMessage: '{"kibana_admin_account_name": "${globals.kibanaAdminroleAndAccountName}", "kibana_admin_password": "${globals.__secret__kibanaAdminpassword}"}'
+    - return:
+        type: success
+        message: '${this.__secret__returnMessage.toBase64()}'
 
 
 actions:
