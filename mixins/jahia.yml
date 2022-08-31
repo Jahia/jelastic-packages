@@ -389,7 +389,7 @@ actions:
     #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
     - set:
         dashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
-        adminRoleAndAccountName: ${env.envName}-kibana-dashboard
+        adminRoleAndAccountName: ${env.envName}-kibana-admin
     - script: |-
         return api.marketplace.jps.Install(
             {
