@@ -1007,7 +1007,7 @@ actions:
       __secret__credentials="${globals.__secret__ecAdminCredentials}"
       __secret__password="${this.__secret__password}"
       es_endpoint="${globals.es_endpoint}"
-      curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.username}/_password" -XPOST  -d '{"password": "__secret__password"}'  -H 'Content-Type:application/json'
+      curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/${this.username}/_password" -XPOST  -d '{"password": "'${__secret__password}'"}' -H 'Content-Type:application/json'
       if [ $? -ne 0 ]; then
         echo "Failed to reset password for ${this.username} user." && exit 1
       fi
