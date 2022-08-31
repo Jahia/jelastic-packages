@@ -932,7 +932,7 @@ actions:
         import org.apache.http.impl.client.HttpClients;
         import java.util.Base64;
 
-        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}";
         creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
@@ -979,7 +979,7 @@ actions:
         import org.apache.http.impl.client.HttpClients;
         import java.util.Base64;
 
-        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}";
         creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
@@ -1040,7 +1040,7 @@ actions:
         import org.apache.http.impl.client.HttpClients;
         import java.util.Base64;
 
-        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}"
+        __secret__auth_basic_es_credentials = "${globals.__secret__ecAdminCredentials}";
         creds_bytes = (new java.lang.String(__secret__auth_basic_es_credentials)).getBytes("UTF-8");
         encoded_auth_basic_creds = Base64.getEncoder().encodeToString(creds_bytes);
 
