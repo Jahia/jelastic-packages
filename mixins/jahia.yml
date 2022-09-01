@@ -1694,6 +1694,21 @@ actions:
         data:
           envLink: null
 
+  getKibanaEndpointOfJcustomer:
+    # Parameters:
+    # - jcustomerEnv
+    # Returns:
+    # - globals.kibanaEndpoint
+    - script: |-
+        return api.marketplace.jps.Install(
+            {
+              jps: "${globals.repoRootUrl}/packages/jcustomer/get-kibana-endpoint.yml",
+              envName: "${this.jcustomerEnv}"
+            }
+          );
+    - setGlobals:
+        kibanaEndpoint: "${response.successText.fromBase64()}"
+
   configureKibanaDashboard:
     # Parameters
     # roleAndAccountName: kibana role and es account name
@@ -1747,56 +1762,17 @@ actions:
               }
             }
           );
-
-    - getPapiData
-    # Steal vault credentials and papi env id from the jcustomer env
-    # and set them as globals to fetch papi token in the next block
-    - script: |-
-        const envName = "${this.jcustomer_env}";
-        orgName = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "cp";}).pop().ORGANIZATION_NAME;
-        vaultUrl = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "cp";}).pop().VAULT_CLUSTER_URL;
-        roleId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "cp";}).pop().VAULT_ROLE_ID;
-        secretId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "cp";}).pop().VAULT_SECRET_ID;
-        papiEnvId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                return object.name == "cp";}).pop().PAPI_ENV_ID;
-        return {
-          "result": 0,
-          "onAfterReturn": {
-            setGlobals: {
-              "organizationName": orgName,
-              "vaultClusterUrl": vaultUrl,
-              "__secret__vaultRoleId": roleId,
-              "__secret__vaultSecretId": secretId,
-              "papiEnvId": papiEnvId
-            }
-          }
-        };
-    - setGlobals:
-        __secret__vaultToken: "" # reset vault token so previously fetch creds will be used to get unomi env papi token
-    - vaultSecretReadKeyB64:
-        secretPath: "paas/customers/${globals.organizationName}/paas_${this.jcustomer_env}/papi"
-        secretKey: "token"
-
-    - setGlobals:
-        __secret__papiToken: '${globals.__secret__vaultSecretData.fromBase64()}'
-    - getECDeploymentEndpoints
+    - getKibanaEndpointOfJcustomer:
+        jcustomerEnv: ${this.jcustomer_env}
     - cmd[proc]: |-
         __secret__password="${this.__secret__password}"
         cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
-        sed -i "s,.*\(kibana_dashboards_provider.kibanaURL\).*,\1=${globals.kibana_endpoint},g" $cfg_file
+        sed -i "s,.*\(kibana_dashboards_provider.kibanaURL\).*,\1=${globals.kibanaEndpoint},g" $cfg_file
         sed -i 's/.*\(kibana_dashboards_provider.kibanaUser\).*/\1=${this.roleAndAccountName}/g' $cfg_file
         sed -i "s/.*\(kibana_dashboards_provider.kibanaPassword\).*/\1=$__secret__password/g" $cfg_file
         sed -i 's/.*\(kibana_dashboards_provider.kibanaSpace\).*/\1=${this.roleAndAccountName}/g' $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.enable\).*/\1=true}/g' $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.cloud\).*/\1=true}/g' $cfg_file
-    - setGlobals:
-        __secret__vaultToken: ""
-        __secret__vaultRoleId: ""
-        __secret__vaultSecretId: ""
+        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.enable\).*/\1=true/g' $cfg_file
+        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.cloud\).*/\1=true/g' $cfg_file
 
   createKibanaAdminAccount:
     # Parameters:

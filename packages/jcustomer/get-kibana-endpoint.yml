@@ -1,0 +1,25 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Get Kibana endpoint and return it as a base64 string
+id: jcustomer-get-kibana-endpoint
+logo: ../../assets/common/jahia-logo-70x70.png
+description:
+  short: jCustomer - Get Kibana endpoint and return it as a base64 string
+
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/elasticsearch.yml
+
+onInstall:
+- if ("${globals.kibana_endpoint.print()}" == ""):
+  - if ("HideThisLine" && "${globals.__secret__ecAdminCredentials.print()}" == ""):
+    - getECAdminCredentials
+    - getECDeploymentEndpoints
+- set:
+    __secret__returnMessage: '${globals.kibana_endpoint}'
+- return:
+    type: success
+    message: '${this.__secret__returnMessage.toBase64()}'

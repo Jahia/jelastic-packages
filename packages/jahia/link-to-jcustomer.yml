@@ -56,8 +56,10 @@ onInstall:
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${settings.unomienv}
   - if (${globals.jahia8}):
+    - getKibanaEndpointOfJcustomer:
+        jcustomerEnv: ${settings.unomienv}
     - set:
-        __secret__returnMessage: '{"kibana_admin_account_name": "${globals.kibanaAdminroleAndAccountName}", "kibana_admin_password": "${globals.__secret__kibanaAdminpassword}"}'
+        __secret__returnMessage: '{"kibana_endpoint": "${globals.kibanaEndpoint}", "kibana_admin_account_name": "${globals.kibanaAdminroleAndAccountName}", "kibana_admin_password": "${globals.__secret__kibanaAdminpassword}"}'
     - return:
         type: success
         message: '${this.__secret__returnMessage.toBase64()}'
