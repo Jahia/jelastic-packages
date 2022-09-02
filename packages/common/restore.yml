@@ -198,8 +198,11 @@ actions:
         - cmd[proc,cp]: |-
             screeb_cfg="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
             kibana_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg"
-            [ -f $screeb_cfg ] && cp -p $screeb_cfg /root
-            [ -f $kibana_cfg ] && cp -p $kibana_cfg /root
+            for file in $screeb_cfg $kibana_cfg; do
+              if [ -f $file ]; then
+                cp -p $file /root
+              fi
+            done
           user: root
 
   restoreJahia:
@@ -226,10 +229,13 @@ actions:
     - if (${globals.jahia8}):
         - log: "Initial Screeb and Kibana dashboard config has been restored"
         - cmd[proc, cp]: |-
-            screeb_cfg="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
-            kibana_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg"
-            [ -f /root/org.jahia.services.env.cfg ] && mv /root/org.jahia.services.env.cfg $screeb_cfg
-            [ -f /root/org.jahia.modules.kibana_dashboards_provider.cfg ] && mv /root/org.jahia.modules.kibana_dashboards_provider.cfg $kibana_cfg
+            screeb_cfg="/root/org.jahia.services.env.cfg"
+            kibana_cfg="/root/org.jahia.modules.kibana_dashboards_provider.cfg"
+            for file in $screeb_cfg $kibana_cfg; do
+              if [ -f $file ]; then
+                mv $file /data/digital-factory-data/karaf/etc
+              fi
+            done
           user: root
     # set default value for the management of jexperience
     - set:
