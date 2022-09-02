@@ -389,7 +389,7 @@ actions:
     #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
     - set:
         dashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
-        adminRoleAndAccountName: ${env.envName}-kibana-admin
+        customerUserRoleAndAccountName: ${env.envName}-kibana-user
     - script: |-
         return api.marketplace.jps.Install(
             {
@@ -416,7 +416,7 @@ actions:
               jps: "${globals.repoRootUrl}/packages/common/delete-elasticsearch-account.yml",
               envName: "${this.jCustomerEnv:}",
               settings: {
-                'accountName': '${this.adminRoleAndAccountName}',
+                'accountName': '${this.customerUserRoleAndAccountName}',
               }
             }
           );
@@ -1774,11 +1774,11 @@ actions:
         sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.enable\).*/\1=true/g' $cfg_file
         sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.cloud\).*/\1=true/g' $cfg_file
 
-  createKibanaAdminAccount:
+  createKibanaCustomerUserAccount:
     # Parameters:
-    # - accountName: name of the kibana admin user
+    # - accountName: name of the customer's Kibana user
     # - rolesList: comma-separated list of Kibana roles
-    # - __secret__password: kibana admin user's password
+    # - __secret__password: password of the customer's Kibana user
     # - jcustomerEnv: target jcustomer environment
   - setGlobalRepoRootUrl
   - script: |-

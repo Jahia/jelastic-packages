@@ -175,8 +175,8 @@ actions:
               roleAndAccountName: ${env.envName}-kibana-dashboard
               __secret__password: ${fn.password(20)}
               jcustomer_env: ${this.jCustomerLinked}
-          - createKibanaAdminAccount:
-              accountName: ${env.envName}-kibana-admin
+          - createKibanaCustomerUserAccount:
+              accountName: ${env.envName}-kibana-user
               rolesList: ${env.envName}-kibana-dashboard
               __secret__password: ${fn.password(20)}
               jcustomerEnv: ${this.jCustomerLinked}

@@ -16,9 +16,9 @@ mixins:
 
 globals:
   kibanaDashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
-  kibanaAdminroleAndAccountName: ${env.envName}-kibana-admin
+  kibanaCustomerUserRoleAndAccountName: ${env.envName}-kibana-user
   __secret__kibanaDashboardpassword: ${fn.password(20)}
-  __secret__kibanaAdminpassword: ${fn.password(20)}
+  __secret__kibanaCustomerUserPassword: ${fn.password(20)}
 
 onInstall:
   - checkJcustomerLink
@@ -44,10 +44,10 @@ onInstall:
         roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
         __secret__password: ${globals.__secret__kibanaDashboardpassword}
         jcustomer_env: ${settings.unomienv}
-    - createKibanaAdminAccount:
-        accountName: ${globals.kibanaAdminroleAndAccountName}
+    - createKibanaCustomerUserAccount:
+        accountName: ${globals.kibanaCustomerUserRoleAndAccountName}
         rolesList: ${globals.kibanaDashboardRoleAndAccountName}
-        __secret__password: ${globals.__secret__kibanaAdminpassword}
+        __secret__password: ${globals.__secret__kibanaCustomerUserPassword}
         jcustomerEnv: ${settings.unomienv}
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
@@ -59,7 +59,7 @@ onInstall:
     - getKibanaEndpointOfJcustomer:
         jcustomerEnv: ${settings.unomienv}
     - set:
-        __secret__returnMessage: '{"kibana_endpoint": "${globals.kibanaEndpoint}", "kibana_admin_account_name": "${globals.kibanaAdminroleAndAccountName}", "kibana_admin_password": "${globals.__secret__kibanaAdminpassword}"}'
+        __secret__returnMessage: '{"kibana_endpoint": "${globals.kibanaEndpoint}", "kibana_customer_user_account_name": "${globals.kibanaCustomerUserRoleAndAccountName}", "kibana_customer_user_password": "${globals.__secret__kibanaCustomerUserPassword}"}'
     - return:
         type: success
         message: '${this.__secret__returnMessage.toBase64()}'
