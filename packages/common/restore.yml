@@ -318,8 +318,8 @@ actions:
     - else:
         log: "No env var backup available"
 
-    - cmd [cp]:
-        - sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+    - cmd [cp]: |-
+        sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
     - cleanJRLocalRevisionsTable
     - getPatTokenAndKey
@@ -331,8 +331,11 @@ actions:
         # Clean up any possible remainder of previous script execution
         rm -f ${groovy_file_path}*
 
-        # Replace Pat Token if needed and start tomcat
+        # Disable removeAbandoned in JDBC before the first start
+        sed -E 's:(^\s+removeAbandoned=).*:\1"false":' \
+            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
 
+        # Replace Pat Token if needed and start tomcat
         jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
         if [ $jahia_major_version -eq 7 ]; then
           jahia_7_parameter=", null"
@@ -359,9 +362,26 @@ actions:
         sudo service tomcat start
 
     - startupJahiaHealthCheck: proc
+    - cmd[proc]: |-
+        # re-enable removeAbandoned in JDBC
+        sed -E 's:(^\s+removeAbandoned=).*:\1"true":' \
+            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
+        # restart tomcat
+        sudo service tomcat restart
+    - startupJahiaHealthCheck: proc
 
-    - cmd [cp]:
-        - sudo service tomcat start
+    - cmd[cp]: |-
+        # Disable removeAbandoned in JDBC before the first start
+        sed -E 's:(^\s+removeAbandoned=).*:\1"false":' \
+            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
+        sudo service tomcat start
+    - startupJahiaHealthCheck: cp
+    - cmd[cp]: |-
+        # re-enable removeAbandoned in JDBC
+        sed -E 's:(^\s+removeAbandoned=).*:\1"true":' \
+            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
+        # restart tomcat
+        sudo service tomcat restart
     - startupJahiaHealthCheck: cp
 
     # if the env intialy don't have jexperience active,
