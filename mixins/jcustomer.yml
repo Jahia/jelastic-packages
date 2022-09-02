@@ -165,42 +165,21 @@ actions:
         if (linkedJahiaEnvs.length == 0 || linkedJahiaEnvs == "null") {
           return {"result": 0, "out": "No jahia linked"};
         }
-        commands = [
-          {
-            "command": "sed -i 's/\\(jexperience.jCustomer.*=\\).*/\\1/g' /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
-          }
-        ]
-
         linkedJahiaEnvs = linkedJahiaEnvs.split(',');
         unlinkedJahiaEnvs = [];
         res = "";
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
-            envInfos = jelastic.env.control.GetEnvInfo(jahiaEnvname, session);
-            ["cp","proc"].forEach(
-              function(nodeGroup) {
-                var resp = jelastic.env.nodegroup.ApplyData(jahiaEnvname, session,
-                  nodeGroup=nodeGroup,
-                  data={'envLink': null}
-                );
-                if (envInfos.env.status == 1)  {
-                  jelastic.env.control.ExecCmdByGroup(jahiaEnvname, session,
-                    nodeGroup=nodeGroup,
-                    commandList=toJSON(commands));
-                }
-              }
-            )
             resp = api.marketplace.jps.Install(
-              {
-                jps: "${globals.repoRootUrl}/packages/jahia/manage-module.yml",
-                envName: jahiaEnvname,
-                settings: {
-                  "action": "uninstall",
-                  "moduleName": "jexperience"
+                {
+                  jps: "${globals.repoRootUrl}/packages/jahia/unlink-jahia-jcustomer.yml",
+                  envName: jahiaEnvname,
+                  settings: {
+                    'isUnomiEnvDeletion': true,
+                    'jCustomerEnv': '${env.shortdomain}'
+                  }
                 }
-              }
             )
-            if (resp.result != 0) return resp;
             unlinkedJahiaEnvs.push(jahiaEnvname);
           }
         );

@@ -55,8 +55,8 @@ onBeforeDelete:
       target: ${nodes.cp.first.id}
       title: "Deleting environment $envName"
       text: "$envName is going to be deleted"
-  - destroyESDeployment
   - deleteEnvLinkJcustomer
+  - destroyESDeployment
   - if ("${env.status}" == 1):
       - muteDatadogHost:
           target: "*"
