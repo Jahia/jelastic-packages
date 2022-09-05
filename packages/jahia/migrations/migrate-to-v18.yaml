@@ -37,6 +37,7 @@ onInstall:
   - updateHAProxyConfig               # PAAS-2071
   - setupKibanaDashboard              # PAAS-2000
   - upgradePython                     # PAAS-2028
+  - forceSessionConnectAttrsSize      # PAAS-1944
 
   # Actions that require a restart:
   - increaseRemoveAbandonedTimeout    # PAAS-2132
@@ -185,3 +186,13 @@ actions:
         rm -f $final_file && mv $tmp_file $final_file
         chmod 755 $final_file
       user: root
+
+  forceSessionConnectAttrsSize:
+  # only set the global parameters, no forced reboot of nodes
+    - cmd[sqldb]: |-
+        conf_file=/etc/mysql/conf.d/mysql.cnf
+        if ! (grep -q "^performance_schema_session_connect_attrs_size = -1" $conf_file); then
+          sed -e '/performance_schema_session_connect_attrs_size/d' \
+              -e '4i performance_schema_session_connect_attrs_size = -1' \
+              -i $conf_file
+        fi
