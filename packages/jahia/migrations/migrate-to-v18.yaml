@@ -170,18 +170,18 @@ actions:
               jcustomerEnv: ${globals.unomi_env_name}
 
   upgradePython:
-  - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8
-    user: root
-  - installPython:
-      target: "bl, cp, sqldb, proc"
-      python_major_version: 3
-      python_minor_version: 8
-  - cmd [bl, cp, sqldb, proc]: python3 -m pip install requests boto3 "azure==4.0.0" adal
-    user: root
-  - cmd [bl, cp, sqldb, proc]: |-
-      tmp_file=/tmp/papi.py
-      final_file=/usr/local/bin/papi.py
-      curl -fLSso $tmp_file ${globals.repoRootUrl}/assets/common/papi.py || exit 1
-      rm -f $final_file && mv $tmp_file $final_file
-      chmod 755 $final_file
-    user: root
+    - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8
+      user: root
+    - installPython:
+        target: "bl, cp, sqldb, proc"
+        python_major_version: 3
+        python_minor_version: 8
+    - cmd [bl, cp, sqldb, proc]: python3 -m pip install requests boto3 "azure==4.0.0" adal
+      user: root
+    - cmd [bl, cp, sqldb, proc]: |-
+        tmp_file=/tmp/papi.py
+        final_file=/usr/local/bin/papi.py
+        curl -fLSso $tmp_file ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+        rm -f $final_file && mv $tmp_file $final_file
+        chmod 755 $final_file
+      user: root
