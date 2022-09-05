@@ -1,0 +1,8 @@
+[mysqld]
+key_buffer_size = 128M
+myisam_sort_buffer_size = 128M
+performance_schema_session_connect_attrs_size = -1
+innodb_buffer_pool_instances = 4
+innodb_buffer_pool_chunk_size = 32M
+wsrep_sst_auth = mysql:
+wsrep_sst_method = mariabackup
