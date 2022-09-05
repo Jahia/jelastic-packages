@@ -43,7 +43,7 @@ onInstall:
     - configureKibanaDashboard:
         roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
         __secret__password: ${globals.__secret__kibanaDashboardpassword}
-        jcustomer_env: ${settings.unomienv}
+        jcustomerEnv: ${settings.unomienv}
     - createKibanaCustomerUserAccount:
         accountName: ${globals.kibanaCustomerUserRoleAndAccountName}
         rolesList: ${globals.kibanaDashboardRoleAndAccountName}

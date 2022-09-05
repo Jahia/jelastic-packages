@@ -1713,9 +1713,9 @@ actions:
     # Parameters
     # roleAndAccountName: kibana role and es account name
     # __secret__password: es account password
-    # jcustomer_env: jcustomer
+    # jcustomerEnv: target jcustomer environment
     - set:
-        es_permissions: '{"indices": [{"names": ["${this.jcustomer_env}_*"], "privileges": ["read"]}]}'
+        es_permissions: '{"indices": [{"names": ["${this.jcustomerEnv}_*"], "privileges": ["read"]}]}'
         kibana_permissions: '[{"base": ["all"], "feature": {}, "spaces": ["${this.roleAndAccountName}"]}]'
     - installOrUpgradeModule:
         moduleSymname: kibana-dashboards-provider
@@ -1731,7 +1731,7 @@ actions:
         return api.marketplace.jps.Install(
             {
               jps: "${globals.repoRootUrl}/packages/common/create-kibana-space.yml",
-              envName: "${this.jcustomer_env}",
+              envName: "${this.jcustomerEnv}",
               settings: {
                 'spaceName': '${this.roleAndAccountName}',
               }
@@ -1741,7 +1741,7 @@ actions:
         return api.marketplace.jps.Install(
             {
               jps: "${globals.repoRootUrl}/packages/common/create-kibana-role.yml",
-              envName: "${this.jcustomer_env}",
+              envName: "${this.jcustomerEnv}",
               settings: {
                 'roleName': '${this.roleAndAccountName}',
                 'esPermissions': '${this.es_permissions}',
@@ -1754,7 +1754,7 @@ actions:
         return api.marketplace.jps.Install(
             {
               jps: "${globals.repoRootUrl}/packages/common/create-elasticsearch-account.yml",
-              envName: "${this.jcustomer_env}",
+              envName: "${this.jcustomerEnv}",
               settings: {
                 'accountName': '${this.roleAndAccountName}',
                 'password': __secret__password,
@@ -1763,7 +1763,7 @@ actions:
             }
           );
     - getKibanaEndpointOfJcustomer:
-        jcustomerEnv: ${this.jcustomer_env}
+        jcustomerEnv: ${this.jcustomerEnv}
     - cmd[proc]: |-
         __secret__password="${this.__secret__password}"
         cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
