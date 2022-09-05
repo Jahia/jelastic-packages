@@ -37,6 +37,7 @@ onInstall:
   - updateHAProxyConfig               # PAAS-2071
   - setupKibanaDashboard              # PAAS-2000
   - upgradePython                     # PAAS-2028
+  - forceSessionConnectAttrsSize      # PAAS-1944
 
   # Actions that require a restart:
   - increaseRemoveAbandonedTimeout    # PAAS-2132
@@ -170,18 +171,28 @@ actions:
               jcustomerEnv: ${globals.unomi_env_name}
 
   upgradePython:
-  - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8
-    user: root
-  - installPython:
-      target: "bl, cp, sqldb, proc"
-      python_major_version: 3
-      python_minor_version: 8
-  - cmd [bl, cp, sqldb, proc]: python3 -m pip install requests boto3 "azure==4.0.0" adal
-    user: root
-  - cmd [bl, cp, sqldb, proc]: |-
-      tmp_file=/tmp/papi.py
-      final_file=/usr/local/bin/papi.py
-      curl -fLSso $tmp_file ${globals.repoRootUrl}/assets/common/papi.py || exit 1
-      rm -f $final_file && mv $tmp_file $final_file
-      chmod 755 $final_file
-    user: root
+    - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8
+      user: root
+    - installPython:
+        target: "bl, cp, sqldb, proc"
+        python_major_version: 3
+        python_minor_version: 8
+    - cmd [bl, cp, sqldb, proc]: python3 -m pip install requests boto3 "azure==4.0.0" adal
+      user: root
+    - cmd [bl, cp, sqldb, proc]: |-
+        tmp_file=/tmp/papi.py
+        final_file=/usr/local/bin/papi.py
+        curl -fLSso $tmp_file ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+        rm -f $final_file && mv $tmp_file $final_file
+        chmod 755 $final_file
+      user: root
+
+  forceSessionConnectAttrsSize:
+  # only set the global parameters, no forced reboot of nodes
+    - cmd[sqldb]: |-
+        conf_file=/etc/mysql/conf.d/mysql.cnf
+        if ! (grep -q "^performance_schema_session_connect_attrs_size = -1" $conf_file); then
+          sed -e '/performance_schema_session_connect_attrs_size/d' \
+              -e '4i performance_schema_session_connect_attrs_size = -1' \
+              -i $conf_file
+        fi

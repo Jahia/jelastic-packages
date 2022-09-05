@@ -21,7 +21,7 @@ actions:
         sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
-        printf "[mysqld]\nkey_buffer_size = 128M\nmyisam_sort_buffer_size = 128M\ninnodb_buffer_pool_instances = 4\ninnodb_buffer_pool_chunk_size = 32M\nwsrep_sst_auth = mysql:\nwsrep_sst_method = mariabackup" > /etc/mysql/conf.d/mysql.cnf
+        curl -fLSso /etc/mysql/conf.d/mysql.cnf ${globals.repoRootUrl}/assets/database/mysql.cnf || exit 1
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
         echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
         curl -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
@@ -327,7 +327,7 @@ actions:
           return {'result':0, 'newMasterIndex': newMasterIndex}
 
       - proxysqlSwitchMaster:
-          - target: ${response.newMasterIndex}
+          target: ${response.newMasterIndex}
 
       - setDonorNode:
           target: ${globals.origMasterId}
