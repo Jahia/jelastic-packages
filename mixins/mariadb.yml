@@ -327,7 +327,7 @@ actions:
           return {'result':0, 'newMasterIndex': newMasterIndex}
 
       - proxysqlSwitchMaster:
-          - target: ${response.newMasterIndex}
+          target: ${response.newMasterIndex}
 
       - setDonorNode:
           target: ${globals.origMasterId}
