@@ -39,7 +39,7 @@ onInstall:
   - upgradePython                     # PAAS-2028
 
   # Actions that require a restart:
-  - increaseMaxAge                    # PAAS-2132
+  - increaseRemoveAbandonedTimeout    # PAAS-2132
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -115,12 +115,12 @@ actions:
                 moduleGroupId: org.jahia.modules
                 moduleRepository: jahia-releases
 
-  increaseMaxAge:
+  increaseRemoveAbandonedTimeout:
     - cmd[proc, cp]: |-
         restart="false"
-        if ( grep -q 'maxAge="3' /opt/tomcat/webapps/ROOT/META-INF/context.xml ); then
+        if (! grep -qE '\s+removeAbandonedTimeout="900"$' /opt/tomcat/webapps/ROOT/META-INF/context.xml); then
           restart="true"
-          sed -i 's/maxAge="300000/maxAge="900000/g' /opt/tomcat/webapps/ROOT/META-INF/context.xml
+          sed -E 's:(^\s+removeAbandonedTimeout=).*:\1"900":' -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
         fi
         echo $restart
 
