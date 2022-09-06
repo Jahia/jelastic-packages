@@ -1318,14 +1318,13 @@ actions:
 
   setVersionPropertiesValue:
     # Parameters:
-    #   - targetJahiaVersion: Jahia version string (eg: "8.0.3.0")
+    #   - initialJahiaVersion: the initial Jahia version string (eg: "8.0.3.0")
+    #   - targetJahiaVersion: the target Jahia version string (eg: "8.0.3.0")
     # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
     # in case we upgrade from a version that does not handle it to a version that does,
     # namely if we upgrade from Jahia < 7.3.8.0 to Jahia >= 7.3.8.0
-    - set:
-        currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
     - isVersionStrictlyLower:
-        a: "${this.currentJahiaVersion}"
+        a: "${this.initialJahiaVersion}"
         b: "7.3.8.0"
         res: isCurrentVersionStriclyLowerThan7380
     - isVersionHigherOrEqual:
@@ -1338,7 +1337,7 @@ actions:
           INFO_DIR="/data/digital-factory-data/info"
           if [ ! -f $INFO_DIR/version.properties ]; then
             mkdir -p $INFO_DIR
-            echo "version=${this.currentJahiaVersion}" > $INFO_DIR/version.properties
+            echo "version=${this.initialJahiaVersion}" > $INFO_DIR/version.properties
           fi
         user: tomcat
 

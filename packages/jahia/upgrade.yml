@@ -13,10 +13,13 @@ mixins:
   - ../../mixins/haproxy.yml
 
 onInstall:
+  - getJahiaVersion
+  - setGlobals:
+      initialVersion: ${globals.jahiaVersion}
   # Check if target version is consistent (higher than current version)
   - isVersionStrictlyHigher:
       a: "${settings.targetVersion}"
-      b: "${nodes.proc.first.customitem.nodeVersion}"
+      b: "${globals.initialVersion}"
       res: targetVersionIsConsistent
   - if (!${globals.targetVersionIsConsistent}):
       - return:
@@ -44,6 +47,7 @@ onInstall:
       - service tomcat stop
     user: root
   - setVersionPropertiesValue:
+      initialJahiaVersion: ${globals.initialVersion}
       targetJahiaVersion: ${settings.targetVersion}
   - procRedeploy:
       upgradeJahia: true
@@ -59,7 +63,7 @@ onInstall:
   # The setupKibanaDashboardAndCreateCustomerAccount action will make sure that the new version is >= 8.0.0.0 and that the env is linked to a
   # jCustomer prior to doing anything
   - isVersionStrictlyLower:
-      a: ${nodes.proc.first.customitem.nodeVersion}
+      a: ${globals.initialVersion}
       b: 8.0.0.0
       res: jahia7
   - if (${this.jahia7}):
