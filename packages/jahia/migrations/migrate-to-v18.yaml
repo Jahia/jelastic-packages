@@ -39,6 +39,7 @@ onInstall:
   - upgradePython                                 # PAAS-2028
   - forceSessionConnectAttrsSize                  # PAAS-1944
   - setMaxConnections                             # PAAS-2156
+  - fixHaproxyReload                              # PAAS-2157
 
   # Actions that require a restart:
   - increaseRemoveAbandonedTimeout                # PAAS-2132
@@ -189,3 +190,17 @@ actions:
         if [[ $(mysql -e "select @@global.max_connections" | tail -n1) != 360 ]]; then
           mysql -e "set global max_connections=360"
         fi
+
+  fixHaproxyReload:
+    - cmd[bl]: |-
+        dest_file=/etc/systemd/system/haproxy.service.d/override.conf
+        if [[ $(md5sum $dest_file | awk '{print $1}') != "ff7527154f4f4146193a92b9ee61b795" ]]; then
+          curl -fLSso $dest_file ${globals.repoRootUrl}/assets/haproxy/haproxy_service_override || exit 1
+          systemctl daemon-reload
+        fi
+
+        dest_file=/usr/local/bin/haproxy-reload.sh
+        if [[ $(md5sum $dest_file | awk '{print $1}') != "ff34e97fb4a96a7cf13957393e9bb022" ]]; then
+          curl -fLSso $dest_file ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
+        fi
+      user: root
