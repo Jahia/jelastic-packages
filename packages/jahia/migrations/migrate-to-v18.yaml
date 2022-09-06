@@ -38,6 +38,7 @@ onInstall:
   - setupKibanaDashboard              # PAAS-2000
   - upgradePython                     # PAAS-2028
   - forceSessionConnectAttrsSize      # PAAS-1944
+  - setMaxConnections                 # PAAS-2156
 
   # Actions that require a restart:
   - increaseRemoveAbandonedTimeout    # PAAS-2132
@@ -195,4 +196,16 @@ actions:
           sed -e '/performance_schema_session_connect_attrs_size/d' \
               -e '4i performance_schema_session_connect_attrs_size = -1' \
               -i $conf_file
+        fi
+
+  setMaxConnections:
+    - cmd[sqldb]: |-
+        conf_file=/etc/mysql/conf.d/mysql.cnf
+        if ! (grep -q "^max_connections = 360" $conf_file); then
+          sed -e '/max_connections/d' \
+              -e '5i max_connections = 360' \
+              -i $conf_file
+        fi
+        if [[ $(mysql -e "select @@global.max_connections" | tail -n1) != 360 ]]; then
+          mysql -e "set global max_connections=360"
         fi
