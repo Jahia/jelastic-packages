@@ -31,17 +31,17 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - upgradeSam                        # PAAS-2131
-  - upgradePat                        # PAAS-2144
-  - installScreeb                     # PAAS-2084
-  - updateHAProxyConfig               # PAAS-2071
-  - setupKibanaDashboard              # PAAS-2000
-  - upgradePython                     # PAAS-2028
-  - forceSessionConnectAttrsSize      # PAAS-1944
-  - setMaxConnections                 # PAAS-2156
+  - upgradeSam                                    # PAAS-2131
+  - upgradePat                                    # PAAS-2144
+  - installScreeb                                 # PAAS-2084
+  - updateHAProxyConfig                           # PAAS-2071
+  - setupKibanaDashboardAndCreateCustomerAccount  # PAAS-2000
+  - upgradePython                                 # PAAS-2028
+  - forceSessionConnectAttrsSize                  # PAAS-1944
+  - setMaxConnections                             # PAAS-2156
 
   # Actions that require a restart:
-  - increaseRemoveAbandonedTimeout    # PAAS-2132
+  - increaseRemoveAbandonedTimeout                # PAAS-2132
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -150,26 +150,6 @@ actions:
       sed -i 's/req.hdr(X-Forwarded-For)/req.fhdr(X-Forwarded-For)/g' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
       service haproxy reload
     user: root
-
-  setupKibanaDashboard:
-    - getJahiaVersion
-    - isVersionHigherOrEqual:
-        a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: jahia8
-    - if (${globals.jahia8}):
-        - getEnvLinkedJcustomer:
-            envName: ${env.envName}
-        - if (${globals.unomi_env_linked}):
-          - configureKibanaDashboard:
-              roleAndAccountName: ${env.envName}-kibana-dashboard
-              __secret__password: ${fn.password(20)}
-              jcustomerEnv: ${globals.unomi_env_name}
-          - createKibanaCustomerUserAccount:
-              accountName: ${env.envName}-kibana-user
-              rolesList: ${env.envName}-kibana-dashboard
-              __secret__password: ${fn.password(20)}
-              jcustomerEnv: ${globals.unomi_env_name}
 
   upgradePython:
     - cmd [bl, cp, sqldb, proc]: yum erase -y python3-3.6.8

@@ -40,7 +40,7 @@ onInstall:
       b: 8.0.0.0
       res: jahia8
   - if (${globals.jahia8}):
-    - configureKibanaDashboard:
+    - setupKibanaDashboard:
         roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
         __secret__password: ${globals.__secret__kibanaDashboardpassword}
         jcustomerEnv: ${settings.unomienv}

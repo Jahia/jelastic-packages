@@ -1318,14 +1318,13 @@ actions:
 
   setVersionPropertiesValue:
     # Parameters:
-    #   - targetJahiaVersion: Jahia version string (eg: "8.0.3.0")
+    #   - initialJahiaVersion: the initial Jahia version string (eg: "8.0.3.0")
+    #   - targetJahiaVersion: the target Jahia version string (eg: "8.0.3.0")
     # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
     # in case we upgrade from a version that does not handle it to a version that does,
     # namely if we upgrade from Jahia < 7.3.8.0 to Jahia >= 7.3.8.0
-    - set:
-        currentJahiaVersion: ${nodes.proc.first.customitem.nodeVersion}
     - isVersionStrictlyLower:
-        a: "${this.currentJahiaVersion}"
+        a: "${this.initialJahiaVersion}"
         b: "7.3.8.0"
         res: isCurrentVersionStriclyLowerThan7380
     - isVersionHigherOrEqual:
@@ -1338,7 +1337,7 @@ actions:
           INFO_DIR="/data/digital-factory-data/info"
           if [ ! -f $INFO_DIR/version.properties ]; then
             mkdir -p $INFO_DIR
-            echo "version=${this.currentJahiaVersion}" > $INFO_DIR/version.properties
+            echo "version=${this.initialJahiaVersion}" > $INFO_DIR/version.properties
           fi
         user: tomcat
 
@@ -1709,7 +1708,35 @@ actions:
     - setGlobals:
         kibanaEndpoint: "${response.successText.fromBase64()}"
 
-  configureKibanaDashboard:
+  setupKibanaDashboardAndCreateCustomerAccount:
+  # Parameters
+  # envVersion (default: the env version): the environment version (useful for upgrades)
+  - if ("${this.envVersion.print()}" == ""):
+    - getJahiaVersion
+    - set:
+        version: ${globals.jahiaVersion}
+  - else:
+      set:
+        version: ${this.envVersion}
+  - isVersionHigherOrEqual:
+      a: ${this.version}
+      b: 8.0.0.0
+      res: jahia8
+  - if (${globals.jahia8}):
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+    - if (${globals.unomi_env_linked}):
+      - setupKibanaDashboard:
+          roleAndAccountName: ${env.envName}-kibana-dashboard
+          __secret__password: ${fn.password(20)}
+          jcustomerEnv: ${globals.unomi_env_name}
+      - createKibanaCustomerUserAccount:
+          accountName: ${env.envName}-kibana-user
+          rolesList: ${env.envName}-kibana-dashboard
+          __secret__password: ${fn.password(20)}
+          jcustomerEnv: ${globals.unomi_env_name}
+
+  setupKibanaDashboard:
     # Parameters
     # roleAndAccountName: kibana role and es account name
     # __secret__password: es account password
