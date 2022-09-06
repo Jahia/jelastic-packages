@@ -1709,7 +1709,35 @@ actions:
     - setGlobals:
         kibanaEndpoint: "${response.successText.fromBase64()}"
 
-  configureKibanaDashboard:
+  setupKibanaDashboardAndCreateCustomerAccount:
+  # Parameters
+  # envVersion (default: the env version): the environment version (useful for upgrades)
+  - if ("${this.envVersion.print()}" == ""):
+    - getJahiaVersion
+    - set:
+        version: ${globals.jahiaVersion}
+  - else:
+      set:
+        version: ${this.envVersion}
+  - isVersionHigherOrEqual:
+      a: ${this.version}
+      b: 8.0.0.0
+      res: jahia8
+  - if (${globals.jahia8}):
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+    - if (${globals.unomi_env_linked}):
+      - setupKibanaDashboard:
+          roleAndAccountName: ${env.envName}-kibana-dashboard
+          __secret__password: ${fn.password(20)}
+          jcustomerEnv: ${globals.unomi_env_name}
+      - createKibanaCustomerUserAccount:
+          accountName: ${env.envName}-kibana-user
+          rolesList: ${env.envName}-kibana-dashboard
+          __secret__password: ${fn.password(20)}
+          jcustomerEnv: ${globals.unomi_env_name}
+
+  setupKibanaDashboard:
     # Parameters
     # roleAndAccountName: kibana role and es account name
     # __secret__password: es account password

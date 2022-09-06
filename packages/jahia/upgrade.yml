@@ -55,6 +55,17 @@ onInstall:
   - browsingNodesBulkRedeploy:
       targetDockerTag: ${this.targetDockerTag}
 
+  # If we're upgrading from Jahia 7 to Jahia 8, then we need to install and configure kibana-dashboard-provider.
+  # The setupKibanaDashboardAndCreateCustomerAccount action will make sure that the new version is >= 8.0.0.0 and that the env is linked to a
+  # jCustomer prior to doing anything
+  - isVersionStrictlyLower:
+      a: ${nodes.proc.first.customitem.nodeVersion}
+      b: 8.0.0.0
+      res: jahia7
+  - if (${this.jahia7}):
+      setupKibanaDashboardAndCreateCustomerAccount:
+        envVersion: ${settings.targetVersion}
+
   # Update Jahia version in node group data, envvar, and PAPI:
   - env.nodegroup.ApplyData[cp, proc]:
       data:
@@ -68,7 +79,6 @@ onInstall:
   # Unmute monitors
   - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
-
 
 settings:
   fields:
