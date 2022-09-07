@@ -685,9 +685,9 @@ actions:
     #   - "started" if the module is running
     #   - "installed" if the module is installed but not running
     #   - "uninstalled" if the module is not installed
-    # - globals.mostRecentInstalledVersion: the most recent version installed
-    # - globals.runningVersion: the version running (if any)
-    # - globals.installedVersionsCount: the number of installed versions
+    # - globals.mostRecentInstalledVersion: the most recent version installed (or an empty string if the module is uninstalled)
+    # - globals.installedVersionsCount: the number of installed versions (or an empty string if the module is uninstalled)
+    # - globals.runningVersion: the version running (or an empty string if the module is not running)
     - setGlobals:  # re-initialise globals to prevent successive calls to this action from overlapping
         moduleState: ""
         runningVersion: ""
@@ -699,57 +699,38 @@ actions:
         resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed
-            echo "uninstalled"
+            module_state=uninstalled
             ;;
           "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
             echo $resp >&2
+            exit 1
             ;;
           *)
-            if jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep -q STARTED; then
-              echo "started"
-            else
-              echo "installed"
-            fi
-            ;;
-        esac
-    - if ("${response.out}" == "error"):
-        - return:
-            type: error
-            message: "An error occurred during module verification."
-    - else:
-        - log: ${this.moduleSymname} is ${response.out}
-        - setGlobals:
-            moduleState: ${response.out}
-    - if ("${globals.moduleState}" == "started") || ("${globals.moduleState}" == "installed"):
-        - cmd [proc]: |-
-            __secret__pat_token="${globals.__secret__pat_token}"
-            resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
             module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
-            # If module is started, then we get the running version
-            running_version=""
             if [ $? -eq 0 ]; then
+              module_state=started
               running_version=$(echo $module_started | cut -d';' -f1 | awk -F'/' '{print $NF}')
+            else
+              module_state=installed
             fi
             most_recent_installed_version=$(jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | head -1)
             installed_versions_count=$(jq -r "keys | length" <<< $resp)
-            echo "{ \
-                'runningVersion': '$running_version', \
-                'mostRecentInstalledVersion': '$most_recent_installed_version', \
-                'installedVersionsCount': '$installed_versions_count'\
-              }"
-        - script: |-
-            const resp = ${response.out.toJSON()}
-            return {
-              "result": 0,
-              "onAfterReturn": {
-                setGlobals: {
-                  "runningVersion": resp.runningVersion,
-                  "mostRecentInstalledVersion": resp.mostRecentInstalledVersion,
-                  "installedVersionsCount": resp.installedVersionsCount
-                }
-              }
-            };
+            ;;
+        esac
+        echo "{ \
+            'moduleState': '$module_state', \
+            'runningVersion': '$running_version', \
+            'mostRecentInstalledVersion': '$most_recent_installed_version', \
+            'installedVersionsCount': '$installed_versions_count' \
+          }"
+    - script: |-
+        const resp = ${response.out.toJSON()}
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: resp
+          }
+        };
 
   checkVersionOfModule:
     # Checks the state of a module for a specific version: uninstalled, installed or started.
@@ -869,7 +850,6 @@ actions:
           - return:
               type: error
               message: "An error occurred during module installation."
-      - log: ${this.moduleSymname}/${this.moduleVersion} has been installed
     - elif ("${globals.moduleVersionState}" == "installed"):
         - log: ${this.moduleSymname}/${this.moduleVersion} is already installed, skipping the installation
         - if (${this.startModule}):
@@ -878,6 +858,21 @@ actions:
                 moduleVersion: ${this.moduleVersion}
     - else:
         - log: ${this.moduleSymname}/${this.moduleVersion} is already running, nothing to do
+    - if ("${globals.moduleVersionState}" != "started") && (${this.startModule}):
+      - script: |-
+          return {"result": 0, "tryCount": [1,2,3,4,5,6,7,8,9,10]}
+      - forEach(response.tryCount):
+        - if ("${globals.moduleVersionState}" != "started"):
+          - checkVersionOfModule:
+              moduleSymname: ${this.moduleSymname}
+              moduleVersion: ${this.moduleVersion}
+          - cmd [proc]: 'echo "Try #${@i}"; sleep 5'
+      - if ("${globals.moduleVersionState}" != "started"):
+        - log: ${this.moduleSymname}/${this.moduleVersion} has been installed
+      - else:
+        - return:
+            type: error
+            message: "An error occurred during module startup."
 
   stopModule:
     # Stops the running version of a module.
