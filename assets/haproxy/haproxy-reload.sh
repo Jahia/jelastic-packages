@@ -1,8 +1,9 @@
 #!/usr/bin/bash
 HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
-output=$(systemctl reload haproxy 2>&1)
+output=$(haproxy -c -f /etc/haproxy/haproxy.cfg)
 if [[ $? -eq 0 ]]; then
-    exit 0
+  systemctl reload haproxy
+  exit $?
 fi
 
 # create/populate custom files arrays for mapping purpose
@@ -20,7 +21,7 @@ eval "$(awk '/^## CUSTOMER_FILENAME/ \
 
 while read -r error; do                                            # For each "parsing" error on haproxy reload:
   l=$(echo "$error" | sed -E 's/^.+\[.+:([[:digit:]]+)\].+$/\1/')  # we extract the linue number in HAPROXY_CFG,
-  errormsg+=("$(echo $error | cut -d':' -f 4-)")                   # and we create/populate a errormsg array.
+  errormsg+=("$(echo $error | cut -d':' -f5-)")                    # and we create/populate a errormsg array.
   for f in ${!lines[@]}; do                                        # Then for each mapped customer's conf files:
     bottom=${lines[$f]}                                            # we get the range a customer's file with the start line
     upper=${lines[$f+1]}                                           # and the start of the next file (if any).
