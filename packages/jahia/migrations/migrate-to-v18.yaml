@@ -200,7 +200,7 @@ actions:
         fi
 
         dest_file=/usr/local/bin/haproxy-reload.sh
-        if [[ $(md5sum $dest_file | awk '{print $1}') != "ff34e97fb4a96a7cf13957393e9bb022" ]]; then
+        if [[ $(md5sum $dest_file | awk '{print $1}') != "3f1991d6327e915b2e9278e2488ba004" ]]; then
           curl -fLSso $dest_file ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         fi
       user: root
