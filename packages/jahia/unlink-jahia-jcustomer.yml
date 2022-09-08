@@ -13,11 +13,26 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
-  - getJcustomer
+  - if ("${settings.jCustomerEnv.print()}" == ""):
+    - getJcustomer
+  - else:
+    - setGlobals:
+        jCustomerEnv: ${settings.jCustomerEnv}
+  - getJahiaVersion
+  - isVersionHigherOrEqual:
+      a: ${globals.jahiaVersion}
+      b: 8.0.0.0
+      res: jahia8
+  - if (${globals.jahia8}):
+    - removeKibanaAndJexperienceDashboards
+    - removeKibanaDashboardAccountsAndSpace:
+        jCustomerEnv: ${globals.jCustomerEnv}
   - removeAndCleanJexperience
-  - updateEnvLink
-  - refreshUnomiAllowedIPs:
-      unomiEnvName: ${globals.jCustomerEnv}
+  - updateEnvLinkJahia
+  - if (! ${settings.isUnomiEnvDeletion}):
+    - updateEnvLinkJcustomer
+    - refreshUnomiAllowedIPs:
+        unomiEnvName: ${globals.jCustomerEnv}
 
 actions:
   getJcustomer:
@@ -33,10 +48,12 @@ actions:
     - setGlobals:
         jCustomerEnv: ${response.out}
 
-  updateEnvLink:
+  updateEnvLinkJahia:
     - environment.nodegroup.ApplyData [proc, cp]:
         data:
           envLink: null
+
+  updateEnvLinkJcustomer:
     - script: |
         const jahiaEnv = "${env.envName}";
         const jCustomerEnv = "${globals.jCustomerEnv}";
@@ -56,3 +73,16 @@ actions:
         }
         resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
         return {"result": 0, "out": jahiaEnv + " removed from envLink of " + jCustomerEnv};
+
+settings:
+  fields:
+    - name: isUnomiEnvDeletion
+      type: toggle
+      caption: Is the jCustomer env being deleted? (OPTIONAL, default value is false)
+      required: false
+      value: false
+    - name: jCustomerEnv
+      type: envlist
+      caption: Linked jCustomer env (OPTIONAL, if not set then the envname will be retrieved)
+      required: false
+      valueField: shortdomain

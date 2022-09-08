@@ -387,6 +387,7 @@ actions:
   removeKibanaDashboardAccountsAndSpace:
     # Parameters:
     #   - jCustomerEnv: Jcustomer env name in the env link of Jahia
+    - setGlobalRepoRootUrl
     - set:
         dashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
         customerUserRoleAndAccountName: ${env.envName}-kibana-user
@@ -1816,6 +1817,16 @@ actions:
             }
           }
         );
+
+  removeKibanaAndJexperienceDashboards:
+  - uninstallModule:
+      moduleSymname: kibana-dashboards-provider
+  - uninstallModule:
+      moduleSymname: jexperience-dashboards
+  - cmd [proc]: |-
+      cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
+      sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
+      sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:
