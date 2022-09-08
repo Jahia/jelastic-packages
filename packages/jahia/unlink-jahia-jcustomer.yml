@@ -13,6 +13,12 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
+  - if ("${settings.isUnomiEnvDeletion.print()}" == ""):
+      setGlobals:
+        isUnomiEnvDeletion: false
+  - else:
+      setGlobals:
+        isUnomiEnvDeletion: ${settings.isUnomiEnvDeletion}
   - if ("${settings.jCustomerEnv.print()}" == ""):
     - getJcustomer
   - else:
@@ -29,7 +35,7 @@ onInstall:
         jCustomerEnv: ${globals.jCustomerEnv}
   - removeAndCleanJexperience
   - updateEnvLinkJahia
-  - if (! ${settings.isUnomiEnvDeletion}):
+  - if (! ${globals.isUnomiEnvDeletion}):
     - updateEnvLinkJcustomer
     - refreshUnomiAllowedIPs:
         unomiEnvName: ${globals.jCustomerEnv}
