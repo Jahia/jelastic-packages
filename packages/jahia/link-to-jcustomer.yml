@@ -104,33 +104,6 @@ actions:
         var new_prop = jelastic.env.control.GetNodeGroups('${settings.unomienv}', session);
         return {'result': new_prop.result, 'new_prop': new_prop};
 
-  getJexperienceVersion:
-    # Get jExperience version to install according to Jahia env version:
-    # - Jahia 7.3.x ==> jExperience 1.11.8
-    # - Jahia 8.0.x ==> jExperience 2.2.0
-    # - Jahia 8.1.x ==> jExperience 2.2.2
-    # Returns:
-    #   ${globals.jexperienceVersion}: jExperience version to install according to current Jahia version
-    - getJahiaVersion
-    - isVersionStrictlyLower:
-        a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: isLowerThan8000
-    - if( ${globals.isLowerThan8000} ):
-        - setGlobals:
-            jexperienceVersion: 1.11.8
-    - else:
-      - isVersionStrictlyLower:
-          a: ${globals.jahiaVersion}
-          b: 8.1.0.0
-          res: isLowerThan8100
-      - if( ${globals.isLowerThan8100} ):
-          - setGlobals:
-              jexperienceVersion: 2.2.0
-      - else:
-          - setGlobals:
-              jexperienceVersion: 2.2.2
-
   confJexperience:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
