@@ -1768,6 +1768,7 @@ actions:
     # roleAndAccountName: kibana role and es account name
     # __secret__password: es account password
     # jcustomerEnv: target jcustomer environment
+    - setGlobalRepoRootUrl
     - set:
         es_permissions: '{"indices": [{"names": ["${this.jcustomerEnv}_*"], "privileges": ["read"]}]}'
         kibana_permissions: '[{"base": ["all"], "feature": {}, "spaces": ["${this.roleAndAccountName}"]}]'
