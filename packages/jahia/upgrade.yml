@@ -31,6 +31,12 @@ onInstall:
       duration: 240 # 4h
   - muteEnvWideMonitors
 
+  # Check if jExperience is running
+  - checkModule:
+      moduleSymname: jexperience
+  - setGlobals:
+      jexperienceStatus: ${globals.moduleState}
+
   # If a Docker tag suffix was passed we need to append it to the Jahia version
   - if ('${settings.dockerTagSuffix.print()}' == ''):
       - set:
@@ -60,12 +66,13 @@ onInstall:
       targetDockerTag: ${this.targetDockerTag}
 
   # Update jExperience if needed
-  - getJexperienceVersion
-  - installOrUpgradeModule:
-      moduleSymname: jexperience
-      moduleVersion: ${globals.jexperienceVersion}
-      moduleGroupId: org.jahia.modules
-      moduleRepository: marketing-factory-releases
+  - if ("${globals.jexperienceStatus}" == "started"):
+    - getJexperienceVersion
+    - installOrUpgradeModule:
+        moduleSymname: jexperience
+        moduleVersion: ${globals.jexperienceVersion}
+        moduleGroupId: org.jahia.modules
+        moduleRepository: marketing-factory-releases
 
   # If we're upgrading from Jahia 7 to Jahia 8, then we need to install and configure kibana-dashboard-provider.
   # The setupKibanaDashboardAndCreateCustomerAccount action will make sure that the new version is >= 8.0.0.0 and that the env is linked to a
