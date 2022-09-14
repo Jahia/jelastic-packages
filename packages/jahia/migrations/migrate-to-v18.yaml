@@ -92,7 +92,7 @@ actions:
   upgradePat:
     - getJahiaVersion
     - isVersionBetween:
-        lower: 8.1.0.0
+        lower: 8.1.1.0
         lower_may_equal: true
         version: ${globals.jahiaVersion}
         higher: 8.1.2.2
