@@ -97,8 +97,8 @@ actions:
         version: ${globals.jahiaVersion}
         higher: 8.1.2.2
         higher_may_equal: true
-        res: isBetween8100and8122
-    - if( ${globals.isBetween8100and8122} ):
+        res: isBetween8110and8122
+    - if( ${globals.isBetween8110and8122} ):
         # First, we need to upgrade jahia-dashboard to 1.6.0 (dependency)
         - checkModule:
             moduleSymname: jahia-dashboard
