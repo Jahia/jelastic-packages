@@ -333,19 +333,19 @@ actions:
                     message: "Running webflow-filter version is ${globals.runningVersion}, which is lower than expected ${this.expectedVersion}"
 
   checkJahiaDashboard:
-    # Jahia 8.1 <= 8.1.2.2 ==> 1.6.0
+    # Jahia 8.1.1.0 <= 8.1.2.2 ==> 1.6.0
     - basicModuleCheck:
         moduleSymname: jahia-dashboard
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
         - isVersionBetween:
-            lower: 8.1.0.0
+            lower: 8.1.1.0
             lower_may_equal: true
             version: ${globals.jahiaVersion}
             higher: 8.1.2.2
             higher_may_equal: true
-            res: isBetween8100and8122
-        - if( ${globals.isBetween8100and8122} ):
+            res: isBetween8110and8122
+        - if( ${globals.isBetween8110and8122} ):
             - if( ${fn.compare([globals.runningVersion], 1.6.0)} < 0 ):
                 - addError:
                     message: "Running jahia-dashboard version is ${globals.runningVersion}, which is lower than expected 1.6.0"
