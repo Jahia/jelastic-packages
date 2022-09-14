@@ -1088,9 +1088,9 @@ actions:
     - getJahiaVersion
     - isVersionHigherOrEqual:
         a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: jahia8
-    - if (${globals.jahia8}):
+        b: 8.1.0.0
+        res: jahia81plus
+    - if (${globals.jahia81plus}):
         - script: |-
             const envName = "${env.envName}";
             orgName = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
