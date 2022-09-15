@@ -835,7 +835,7 @@ actions:
               "__secret__vaultSecretId": secretId
             }
           }
-        };       
+        };
 
   getPapiData:
     - script: |
