@@ -502,7 +502,7 @@ actions:
         secretKey: token
     - set:
         __secret__circleCiToken: ${globals.__secret__vaultSecretData}
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - getCloudConf
     - cmd[${nodes.cp.first.id}]: |-

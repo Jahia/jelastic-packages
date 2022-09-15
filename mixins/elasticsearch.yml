@@ -25,7 +25,7 @@ actions:
     - set:
         __secret__circleCiToken: ${globals.__secret__vaultSecretData}
 
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - getCloudConf
 
@@ -120,7 +120,7 @@ actions:
         fi
 
   createESAccount4AS:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [proc]: |-
@@ -155,7 +155,7 @@ actions:
         fi
 
   createESAccountAndAliases:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
 
     - cmd [${nodes.cp.first.id}]: |-
@@ -270,7 +270,7 @@ actions:
         fi
 
   setESEndpointInJcustomerConfig:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd [cp]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -298,7 +298,7 @@ actions:
         return api.env.control.AddContainerEnvVars("${env.envName}", session, "cp", envVars);
 
   getECAdminCredentials:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd [${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -335,7 +335,7 @@ actions:
         secretKey: token
     - set:
         __secret__circleCiToken: ${globals.__secret__vaultSecretData}
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;
@@ -509,7 +509,7 @@ actions:
   getElasticCloudDeploymentId:
     # Returns:
     #   ${globals.elasticCloudDeploymentId}
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -528,7 +528,7 @@ actions:
   purgeEnvIndicesInES:
     - getPapiInfoAll
     - cmd[proc]: |-
-        __secret__PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
@@ -709,7 +709,7 @@ actions:
         exit $exit
 
   cleanupRolesAndUsersForMutualizedECDeployment:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |-
         import org.apache.http.client.methods.HttpGet;

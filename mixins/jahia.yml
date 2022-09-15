@@ -1458,7 +1458,7 @@ actions:
     - cmd[proc]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
 
-        __secret__PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
