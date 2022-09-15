@@ -672,7 +672,7 @@ actions:
   updateEnvStatusInPapi:
     # Parameters:
     #  - status: stopped, running, creating
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -687,7 +687,7 @@ actions:
     # Parameters:
     #  - product: dx, unomi
     #  - version: product verion
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -699,7 +699,7 @@ actions:
         papi.py -X PUT -d "{\"paas_product_version_id\": \"$version\"}" paas-environment/$PAPI_ENV_ID
 
   setEnvironmentAppId:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -710,7 +710,7 @@ actions:
         papi.py -X PUT -d '{"jelastic_appid": "${env.appid}"}' paas-environment/$PAPI_ENV_ID
 
   deleteEnvironment:
-    - if ("HideThisLine" && "${globals.papiToken.print()}" == ""):
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - script: |
         import org.apache.http.client.methods.HttpGet;
@@ -810,7 +810,7 @@ actions:
               "__secret__vaultSecretId": secretId
             }
           }
-        };       
+        };
 
   getPapiData:
     - script: |
