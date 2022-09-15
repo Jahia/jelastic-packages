@@ -40,14 +40,7 @@ onInstall:
   - forceSessionConnectAttrsSize                  # PAAS-1944
   - setMaxConnections                             # PAAS-2156
   - fixHaproxyReload                              # PAAS-2157
-
-  # Actions that require a restart:
   - increaseRemoveAbandonedTimeout                # PAAS-2132
-
-  # Restart action:
-  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
-    - install:
-        jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -120,16 +113,9 @@ actions:
 
   increaseRemoveAbandonedTimeout:
     - cmd[proc, cp]: |-
-        restart="false"
         if (! grep -qE '\s+removeAbandonedTimeout="900"$' /opt/tomcat/webapps/ROOT/META-INF/context.xml); then
-          restart="true"
           sed -E 's:(^\s+removeAbandonedTimeout=).*:\1"900":' -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
         fi
-        echo $restart
-
-    - if (${response.out}):
-        setGlobals:
-          jahiaRollingRestartNeeded: true
 
   installScreeb:
     - getJahiaVersion
