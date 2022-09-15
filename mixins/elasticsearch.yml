@@ -528,7 +528,7 @@ actions:
   purgeEnvIndicesInES:
     - getPapiInfoAll
     - cmd[proc]: |-
-        __secret__PAPI_TOKEN="${globals.papiToken}"
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
         export PAPI_ENV_ID="${globals.papiEnvId}"
