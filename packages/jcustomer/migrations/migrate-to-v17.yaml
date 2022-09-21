@@ -1,0 +1,55 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v17
+id: migrate-jcustomer-env-v17
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 17
+  jCustomerRollingRestartNeeded: false
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - updateJVMParameters             # PAAS-1974
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  updateJVMParameters:
+    - foreach (nodes.cp):
+        - cmd[${@i.id}]: |-
+            SETENV_FILE=/opt/jcustomer/jcustomer/bin/setenv
+            sum=$(md5sum $SETENV_FILE)
+            sed -ie 's/export JAVA_OPTS.*/export JAVA_OPTS="$JAVA_OPTS -Dlog4j2.formatMsgNoLookups=true -XX:+HeapDumpOnOutOfMemoryError -XX:+PrintGCDetails -Xloggc:\/opt\/jcustomer\/jcustomer\/data\/log\/gc.log -Xms1G -Xmx$JAVA_MAX_MEM"/g' $SETENV_FILE
+            if [ "$sum" != "$(md5sum $SETENV_FILE)" ];  then
+              echo "restart"
+            fi
+        - if ("${response.out}" == "restart"):
+            api: environment.control.RestartNodeById
+            nodeId: ${@i.id}
+
