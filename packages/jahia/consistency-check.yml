@@ -114,9 +114,9 @@ actions:
         - if( ${globals.isLowerThan8122} ):
             - isVersionStrictlyLower:
                 a: ${globals.jahiaVersion}
-                b: 8.1.0.0
-                res: isLowerThan8100
-            - if( ${globals.isLowerThan8100} ):
+                b: 8.1.1.0
+                res: isLowerThan8110
+            - if( ${globals.isLowerThan8110} ):
                 - isVersionStrictlyLower:
                     a: ${globals.jahiaVersion}
                     b: 8.0.0.0
