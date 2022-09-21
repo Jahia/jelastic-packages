@@ -13,6 +13,7 @@ mixins:
 globals:
   version: 17
   jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
 
 onInstall:
   ### Pre-checks
@@ -27,10 +28,17 @@ onInstall:
   - updateJVMParameters             # PAAS-1974
   - disablePurge                    # PAAS-2168
 
-  # Restart action:
-  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+  # Actions that require a redeploy:
+  - upgradeToJdk11                  # PAAS-2167
+
+  # Redeploy and restart actions:
+  - if ("${globals.jCustomerRollingRedeployNeeded}" == "true"):
       - install:
-          jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+          jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-redeploy.yml"
+  - else:
+      - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+          - install:
+              jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -71,3 +79,15 @@ actions:
             UNOMI_PROFILE_PURGE_INACTIVETIME: -1
         - setGlobals:
             - jCustomerRollingRestartNeeded: true
+
+  upgradeToJdk11:
+    - foreach (nodes.cp):
+        - cmd[${@i.id}]: |-
+            # Credits to https://stackoverflow.com/a/56243046/3441689
+            jdk_version=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
+            if [ $jdk_version -lt 11 ]; then
+              echo "redeploy"
+            fi
+        - if ("${response.out}" == "redeploy"):
+            - setGlobals:
+                - jCustomerRollingRedeployNeeded: true
