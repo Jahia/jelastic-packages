@@ -327,8 +327,6 @@ actions:
 
   checkJahiaDashboard:
     # Jahia 8.1.1.0 <= 8.1.2.2 ==> 1.6.0
-    - basicModuleCheck:
-        moduleSymname: jahia-dashboard
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
         - isVersionBetween:
@@ -339,6 +337,8 @@ actions:
             higher_may_equal: true
             res: isBetween8110and8122
         - if( ${globals.isBetween8110and8122} ):
+            - basicModuleCheck:
+                moduleSymname: jahia-dashboard
             - if( ${fn.compare([globals.runningVersion], 1.6.0)} < 0 ):
                 - addError:
                     message: "Running jahia-dashboard version is ${globals.runningVersion}, which is lower than expected 1.6.0"
