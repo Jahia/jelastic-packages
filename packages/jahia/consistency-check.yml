@@ -184,29 +184,22 @@ actions:
 
   checkGraphQL:
     # Jahia 7.3 < 7.3.9 ==> 1.10.0
-    # Jahia 8.0 ==> 2.6.0
+    # Jahia 8.0.3 ==> 2.6.0
     - basicModuleCheck:
         moduleSymname: graphql-dxm-provider
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
         - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
-            b: 8.1.0.0
-            res: isLowerThan8100
-        - if( ${globals.isLowerThan8100} ):
-            - isVersionStrictlyLower:
-                a: ${globals.jahiaVersion}
-                b: 8.0.0.0
-                res: isLowerThan8000
-            - if( ${globals.isLowerThan8000} ):
-                - set:
-                    expectedVersion: 1.10.0
-            - else:
-                - set:
-                    expectedVersion: 2.6.0
-            - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
+            b: 7.3.9.0
+            res: isLowerThan739
+        - if( ${globals.isLowerThan739} && "${globals.runningVersion}" != "1.10.0" ):
+            - addError:
+                message: "Running graphql-dxm-provider version is ${globals.runningVersion} instead of 1.10.0"
+        - else:
+            - if( "${globals.jahiaVersion}" == "8.0.3" && "${globals.runningVersion}" != "2.6.0" ):
                 - addError:
-                    message: "Running graphql-dxm-provider version is ${globals.runningVersion} instead of ${this.expectedVersion}"
+                    message: "Running graphql-dxm-provider version is ${globals.runningVersion} instead of 2.6.0"
 
   checkJExperience:
     # Jahia 7.3.x ==> jExperience 1.11.8
