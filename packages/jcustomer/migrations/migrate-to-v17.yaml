@@ -23,7 +23,14 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  # Actions that require a restart:
   - updateJVMParameters             # PAAS-1974
+  - disablePurge                    # PAAS-2168
+
+  # Restart action:
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -50,6 +57,17 @@ actions:
               echo "restart"
             fi
         - if ("${response.out}" == "restart"):
-            api: environment.control.RestartNodeById
-            nodeId: ${@i.id}
+            - setGlobals:
+                - jCustomerRollingRestartNeeded: true
 
+  disablePurge:
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: cp
+    - if ("${response.object.UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_INACTIVETIME}" != "-1"):
+        - env.control.AddContainerEnvVars[cp]:
+          vars:
+            UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1
+            UNOMI_PROFILE_PURGE_EXISTTIME: -1
+            UNOMI_PROFILE_PURGE_INACTIVETIME: -1
+        - setGlobals:
+            - jCustomerRollingRestartNeeded: true

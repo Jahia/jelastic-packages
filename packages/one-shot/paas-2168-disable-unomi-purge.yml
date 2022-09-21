@@ -1,0 +1,18 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Disable purge
+id: paas-2168-disable-unomi-purge
+
+mixins:
+    - "../../mixins/common.yml"
+
+onInstall:
+    - setGlobalRepoRootUrl
+    - env.control.AddContainerEnvVars[cp]:
+      vars:
+          UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1
+          UNOMI_PROFILE_PURGE_EXISTTIME: -1
+          UNOMI_PROFILE_PURGE_INACTIVETIME: -1
+    - install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
