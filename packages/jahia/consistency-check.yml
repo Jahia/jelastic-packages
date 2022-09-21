@@ -102,37 +102,42 @@ actions:
   checkPAT:
     # Jahia 7.3 ==> 0.5.0
     # Jahia 8.0 ==> 1.0.1
-    # Jahia 8.1 <= 8.1.2.2 ==> 1.2.0
+    # Jahia between 8.1.1.0 and 8.1.2.2 ==> 1.2.0
     - basicModuleCheck:
         moduleSymname: personal-api-tokens
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
-        - isVersionLowerOrEqual:
+        - set:
+            expectedVersion: ""
+        - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
-            b: 8.1.2.2
-            res: isLowerThan8122
-        - if( ${globals.isLowerThan8122} ):
+            b: 8.0.0.0
+            res: isJahia7
+        - if( ${globals.isJahia7} ):
+            - set:
+                expectedVersion: 0.5.0
+        - else:
             - isVersionStrictlyLower:
                 a: ${globals.jahiaVersion}
-                b: 8.1.1.0
-                res: isLowerThan8110
-            - if( ${globals.isLowerThan8110} ):
-                - isVersionStrictlyLower:
-                    a: ${globals.jahiaVersion}
-                    b: 8.0.0.0
-                    res: isLowerThan8000
-                - if( ${globals.isLowerThan8000} ):
-                    - set:
-                        expectedVersion: 0.5.0
-                - else:
-                    - set:
-                        expectedVersion: 1.0.1
-            - else:
+                b: 8.1.0.0
+                res: isJahia80
+            - if( ${globals.isJahia80} ):
                 - set:
-                    expectedVersion: 1.2.0
-            - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
-                - addError:
-                    message: "Running personal-api-tokens version is ${globals.runningVersion} instead of ${this.expectedVersion}"
+                    expectedVersion: 1.0.1
+            - else:
+                - isVersionBetween:
+                    lower: 8.1.1.0
+                    lower_may_equal: true
+                    version: ${globals.jahiaVersion}
+                    higher: 8.1.2.2
+                    higher_may_equal: true
+                    res: isBetween8110and8122
+                - if( ${globals.isBetween8110and8122} ):
+                    - set:
+                        expectedVersion: 1.2.0
+        - if( "${this.expectedVersion}" != "" && "${globals.runningVersion}" != "${this.expectedVersion}" ):
+            - addError:
+                message: "Running personal-api-tokens version is ${globals.runningVersion} instead of ${this.expectedVersion}"
 
   checkSAM:
     # Jahia 7.3 < 7.3.9 ==> 1.0.1
