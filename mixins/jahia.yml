@@ -163,9 +163,12 @@ actions:
     - log: "## Copying Jahia app and setting its properties"
     - cmd[${this}]: |-
         [ "$_ROLE" == "Browsing" ] && sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-        rm -rf $STACK_PATH/webapps
-        mv $STACK_PATH/webapps-tmp $STACK_PATH/webapps
+        if [ -d $STACK_PATH/webapps-tmp ]; then
+          rm -rf $STACK_PATH/webapps
+          mv $STACK_PATH/webapps-tmp $STACK_PATH/webapps
+        fi
         chown -R tomcat:tomcat $STACK_PATH/webapps
+
         tomcat_env=/opt/tomcat/conf/tomcat-env.sh
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
