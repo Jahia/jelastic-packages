@@ -31,7 +31,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - updateThreadDumpsScript # PAAS-2158
+  - updateThreadDumpsScript       # PAAS-2158
+  - dontRaiseErrorsInCustomChecks # PAAS-2137
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -69,5 +70,28 @@ actions:
         echo "The $script_name script is already up-to-date. nothing to do"
         exit 0
       fi
+      curl -fSsLo $script_path $script_url || exit 1
+    user: root
+
+  dontRaiseErrorsInCustomChecks:
+  - cmd [cp, proc]: |-
+      checks=(
+        augmented_search
+        jahia_node_not_in_haproxy_pool
+        proxysql_backend_missing
+        proxysql_connections_discrepancies
+        strongswan_connections_status
+      )
+      for check in ${checks[@]}; do
+        script_name=${check}.py
+        script_path=/etc/datadog-agent/checks.d/${script_name}
+        script_url=${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/${script_name}
+        curl -fSsLo $script_path $script_url || exit 1
+      done
+    user: root
+  - cmd [bl]: |-
+      script_name=haproxy_one_remaining_browsing.py
+      script_path=/etc/datadog-agent/checks.d/${script_name}
+      script_url=${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/${script_name}
       curl -fSsLo $script_path $script_url || exit 1
     user: root
