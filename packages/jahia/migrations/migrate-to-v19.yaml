@@ -32,7 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - updateThreadDumpsScript       # PAAS-2158
-  - dontRaiseErrorsInCustomChecks # PAAS-2137
+  - dontRaiseErrorsInCustomChecks # PAAS-2137 It will also perform changes for PAAS-2176
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
