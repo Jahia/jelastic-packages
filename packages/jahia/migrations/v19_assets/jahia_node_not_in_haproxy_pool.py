@@ -1,4 +1,5 @@
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 import os
 
 # the following try/except block will make the custom check compatible with any Agent version
@@ -41,8 +42,20 @@ class CheckJahiaNodeNotInHaproxyPool(AgentCheck):
                     for line in f.read().splitlines():
                         if self.LOCALHOST not in line and self.PATTERN in line and self.SOURCE in line:
                             haproxy_ip = line.strip().split(' - - ')[0]
-                            date = line.strip().split('[')[1].split(' +0000')[0]
+                            res = re.search('[0-9]{1,2}\/[a-z-A-Z]+\/[0-9]{4}:[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2} (\-|\+)[0-9]{4}', line)
+                            if not res:
+                                continue
+                            tz_date = datetime.strptime(res.group(0).split(" ")[0], '%d/%b/%Y:%H:%M:%S')
+                            timezone = res.group(0).split(" ")[1]
+                            if timezone != "+0000": # If log time is not in UTC, convert it to UTC
+                                if timezone[0] == "-":
+                                    utc_date = tz_date + timedelta(hours=int(timezone[1:3]), minutes=int(timezone[3:5]))
+                                else:
+                                    utc_date = tz_date - timedelta(hours=int(timezone[1:3]), minutes=int(timezone[3:5]))
+                            date = utc_date.strftime('%d/%b/%Y:%H:%M:%S')
+
                             haproxy_ips[haproxy_ip] = date
+
                     count = 0
                     for date in haproxy_ips.values():
                         date_dt = datetime.strptime(date, '%d/%b/%Y:%H:%M:%S')
