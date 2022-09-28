@@ -354,8 +354,11 @@ actions:
     #  - target: target node group or id
     #  - checkName: name of the Datadog agent check to check
     - cmd[${this.target}]: |-
-        error_count=$(datadog-agent check ${this.checkName} --json | jq '.[].runner.TotalErrors')
-        if [ $error_count -gt 0 ]; then
+        check_response=$(datadog-agent check ${this.checkName} --json)
+        total_errors=$(echo $check_response | jq '.[].runner.TotalErrors')
+        monitors_in_error=$(echo $check_response | jq '.[0].aggregator.service_checks[] | select (.status != 0) | .check')
+        # Make sure total errors is an integer and equals 0, and that the check is not in error
+        if ! [[ $(echo "$total_errors" | grep "^[0-9]*$") ]] || [ $total_errors -gt 0 ] || [ "$monitors_in_error" != "" ]; then
           echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
           exit 1
         fi

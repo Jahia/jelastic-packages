@@ -344,9 +344,14 @@ actions:
     - checkDatadogAgentCheck:
         target: ${this}
         checkName: strongswan_connections_status
-    - checkDatadogAgentCheck:
-        target: ${this}
-        checkName: augmented_search
+    - cmd[${this}]: |-
+        if [ -f /etc/datadog-agent/conf.d/augmented_search.yaml-disabled ]; then
+          echo "disabled"
+        fi
+    - if ("${response.out}" != "disabled"):
+      - checkDatadogAgentCheck:
+          target: ${this}
+          checkName: augmented_search
 
   saveApplicationcontextFilesBeforeRedeploy:
     cmd[${this}]: |-
