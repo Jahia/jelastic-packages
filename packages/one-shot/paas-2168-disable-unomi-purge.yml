@@ -11,6 +11,7 @@ onInstall:
     - setGlobalRepoRootUrl
     - env.control.AddContainerEnvVars[cp]:
       vars:
+          UNOMI_EVENT_PURGE_EXISTTIME: -1
           UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1
           UNOMI_PROFILE_PURGE_EXISTTIME: -1
           UNOMI_PROFILE_PURGE_INACTIVETIME: -1

@@ -71,9 +71,10 @@ actions:
   disablePurge:
     - api: env.control.GetContainerEnvVarsByGroup
       nodeGroup: cp
-    - if ("${response.object.UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_INACTIVETIME}" != "-1"):
+    - if ("${response.object.UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_EXISTTIME}" != "-1" || "${response.object.UNOMI_PROFILE_PURGE_INACTIVETIME}" != "-1" || "${response.object.UNOMI_EVENT_PURGE_EXISTTIME}" != "-1"):
         - env.control.AddContainerEnvVars[cp]:
           vars:
+            UNOMI_EVENT_PURGE_EXISTTIME: -1
             UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1
             UNOMI_PROFILE_PURGE_EXISTTIME: -1
             UNOMI_PROFILE_PURGE_INACTIVETIME: -1
