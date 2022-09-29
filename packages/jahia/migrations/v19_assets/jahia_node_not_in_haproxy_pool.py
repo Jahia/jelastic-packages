@@ -45,14 +45,15 @@ class CheckJahiaNodeNotInHaproxyPool(AgentCheck):
                             res = re.search('[0-9]{1,2}\/[a-z-A-Z]+\/[0-9]{4}:[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2} (\-|\+)[0-9]{4}', line)
                             if not res:
                                 continue
-                            tz_date = datetime.strptime(res.group(0).split(" ")[0], '%d/%b/%Y:%H:%M:%S')
+                            date = res.group(0).split(" ")[0]
                             timezone = res.group(0).split(" ")[1]
                             if timezone != "+0000": # If log time is not in UTC, convert it to UTC
+                                tz_date = datetime.strptime(date, '%d/%b/%Y:%H:%M:%S')
                                 if timezone[0] == "-":
                                     utc_date = tz_date + timedelta(hours=int(timezone[1:3]), minutes=int(timezone[3:5]))
                                 else:
                                     utc_date = tz_date - timedelta(hours=int(timezone[1:3]), minutes=int(timezone[3:5]))
-                            date = utc_date.strftime('%d/%b/%Y:%H:%M:%S')
+                                date = utc_date.strftime('%d/%b/%Y:%H:%M:%S')
 
                             haproxy_ips[haproxy_ip] = date
 
