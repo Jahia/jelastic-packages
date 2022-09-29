@@ -33,6 +33,7 @@ onInstall:
 
   - updateThreadDumpsScript       # PAAS-2158
   - dontRaiseErrorsInCustomChecks # PAAS-2137 It will also perform changes for PAAS-2176
+  - updateBinErrorLoggerLevel     # PAAS-1528
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -95,3 +96,8 @@ actions:
       script_url=${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/${script_name}
       curl -fSsLo $script_path $script_url || exit 1
     user: root
+
+  updateBinErrorLoggerLevel:
+    - cmd[cp,proc]: |-
+        log4j_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml"
+        sed -i 's/\(Logger name="org.jahia.bin.errors" level="\)warn"/\1info"/' $log4j_file
