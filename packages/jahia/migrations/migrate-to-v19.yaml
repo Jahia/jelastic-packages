@@ -100,8 +100,16 @@ actions:
 
   updateBinErrorLoggerLevel:
     - cmd[cp,proc]: |-
-        log4j_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml"
-        sed -i 's/\(Logger name="org.jahia.bin.errors" level="\)warn"/\1info"/' $log4j_file
+        log4j_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j.xml"
+        log4j2_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml"
+        if [ -f $log4j2_file ]; then
+          sed -i 's/\(Logger name="org.jahia.bin.errors" level="\)warn"/\1info"/' $log4j2_file
+        elif [ -f $log4j_file ]; then
+          sed -i '/logger name="org.jahia.bin.errors/!b;n;c\        <level value="info"/>' $log4j_file
+        else
+          echo "No log4j file found"
+          exit 1
+        fi
 
   updateMariadbDatadogConf:
   - set:
