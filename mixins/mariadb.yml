@@ -72,6 +72,11 @@ actions:
     - createDataDogUser
     - log: "## Finalize Datadog agent setup on ${this}"
     - setGlobalRepoRootUrl
+    - set:
+        cluster: "false"
+    - if (nodes.sqldb.length > 1):
+        set:
+          cluster: "true"
     - cmd [${this}]: |-
         DD_API_KEY=$(sed -n 's/DATADOGAPIKEY=\(.*\)/\1/p' < /.jelenv) bash -c "$(curl -sL https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
         NODE_NAME=${HOSTNAME/-*}
@@ -107,8 +112,8 @@ actions:
         echo "      - 'env:${env.envName}'" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "      - 'role:database'" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    options:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "       replication: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "       galera_cluster: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       replication: false" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "       galera_cluster: ${this.cluster}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       extra_status_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       extra_innodb_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       extra_performance_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
