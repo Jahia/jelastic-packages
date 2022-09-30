@@ -545,6 +545,7 @@ actions:
             logsPath: ${globals.logsPath}
             __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
             __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
+            readonly: "true"
     - else:
         - setAzureSnapshotRepository:
             repositoryName: ${env.shortdomain}
@@ -554,6 +555,7 @@ actions:
             account: ${globals.account}
             backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
+            readonly: "true"
 
     - vaultSecretReadKeyB64:
         secretPath: paas/envs-common/cloud-ec-infra-circleci-api

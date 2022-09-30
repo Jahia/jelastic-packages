@@ -624,6 +624,7 @@ actions:
     #   - logsPath
     #   - __secret__awsAccessKeyId
     #   - __secret__awsSecretAccessKey
+    #   - readonly Mount the repository in readonly if true. Set to false if not provided
     - cmd[${nodes.cp.first.id}]: |-
         __secret__aws_access_key="${this.__secret__awsAccessKeyId}"
         __secret__aws_secret_key="${this.__secret__awsSecretAccessKey}"
@@ -640,7 +641,8 @@ actions:
                 "region": "'${this.region}'",
                 "base_path" : "'${this.backupName}'/elasticsearch",
                 "access_key": "'$__secret__aws_access_key'",
-                "secret_key": "'$__secret__aws_secret_key'"
+                "secret_key": "'$__secret__aws_secret_key'",
+                "readonly": "${this.readonly:false}"
             }
           }')
         exit=0
@@ -705,6 +707,7 @@ actions:
     #   - __secret__awsSecretAccessKey
     #   - operation
     #   - account
+    #   - readonly Mount the repository in readonly if true. Set to false if not provided
     - getElasticCloudDeploymentId
     - getElasticCloudApiKey
     - getAzureElasticsearchSecret:
@@ -755,7 +758,8 @@ actions:
               "settings": {
                   "container": "'${this.backupName}'",
                   "base_path": "elasticsearch",
-                  "client": "'${this.repositoryName}'"
+                  "client": "'${this.repositoryName}'",
+                  "readonly": "${this.readonly:false}"
               }
             }')
           if [ $return_code -eq 200 ]; then
