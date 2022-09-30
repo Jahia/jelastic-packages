@@ -26,7 +26,7 @@ onInstall:
   - checkMariadbHealth:
       target: sqldb
   - checkGaleraClusterHealth: sqldb
-  - checkMariadbDatadogCustomChecks: sqldb
+  # - checkMariadbDatadogCustomChecks: sqldb #### THIS CHECK IS DISABLED BECAUSE OF PAAS-2178 BUT SHOULD BE REACTIVATED ONCE THIS RELEASE IS OVER
   - eventsUpdate
   - setGlobalRepoRootUrl
   ### End Pre-checks
@@ -34,6 +34,7 @@ onInstall:
   - updateThreadDumpsScript       # PAAS-2158
   - dontRaiseErrorsInCustomChecks # PAAS-2137 It will also perform changes for PAAS-2176
   - updateBinErrorLoggerLevel     # PAAS-1528
+  - updateMariadbDatadogConf      # PAAS-2178
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -101,3 +102,17 @@ actions:
     - cmd[cp,proc]: |-
         log4j_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml"
         sed -i 's/\(Logger name="org.jahia.bin.errors" level="\)warn"/\1info"/' $log4j_file
+
+  updateMariadbDatadogConf:
+  - set:
+      cluster: "false"
+  - if (nodes.sqldb.length > 1):
+      set:
+        cluster: "true"
+  - cmd [sqldb]: |-
+      sed -i \
+          -e "s;^\(\s*replication:\)\s*.*;\1 false;" \
+          -e "s;^\(\s*galera_cluster:\)\s*.*;\1 ${this.cluster};" \
+          /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+      systemctl restart datadog-agent || exit 1
+    user: root
