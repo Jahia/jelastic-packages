@@ -34,6 +34,7 @@ onInstall:
   - updateThreadDumpsScript       # PAAS-2158
   - dontRaiseErrorsInCustomChecks # PAAS-2137 It will also perform changes for PAAS-2176
   - updateBinErrorLoggerLevel     # PAAS-1528
+  - addDocIDLoggerLevel           # PAAS-2166
   - updateMariadbDatadogConf      # PAAS-2178
 
   # Restart action:
@@ -107,6 +108,22 @@ actions:
         elif [ -f $log4j_file ]; then
           sed -i '/logger name="org.jahia.bin.errors/!b;n;c\        <level value="info"/>' $log4j_file
         else
+          echo "No log4j file found"
+          exit 1
+        fi
+
+  addDocIDLoggerLevel:
+    - cmd[cp,proc]: |-
+        log4j_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j.xml"
+        log4j2_file="/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml"
+        if [ -f $log4j2_file ] && (! grep -q 'name="org.apache.jackrabbit.core.query.lucene.DocId$UUIDDocId"' $log4j2_file); then
+          sed -i '119i\        <Logger name="org.apache.jackrabbit.core.query.lucene.DocId$UUIDDocId" level="error" />' $log4j2_file
+        elif [ -f $log4j_file ] && (! grep -q 'name="org.apache.jackrabbit.core.query.lucene.DocId$UUIDDocId"' $log4j_file); then
+          sed -e '163i\    <logger name="org.apache.jackrabbit.core.query.lucene.DocId$UUIDDocId">' \
+              -e '163i\        <level value="error"/>' \
+              -e '163i\    </logger>' \
+              -i $log4j_file
+        elif ! [ -f $log4j2_file ] && ! [ -f $log4j_file ]; then
           echo "No log4j file found"
           exit 1
         fi
