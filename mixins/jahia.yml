@@ -337,7 +337,10 @@ actions:
   checkJahiaDatadogCustomChecks:
     - checkDatadogAgentCheck:
         target: ${this}
-        checkName: proxysql
+        checkName: proxysql_backend_missing
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: proxysql_connections_discrepancies
     - checkDatadogAgentCheck:
         target: ${this}
         checkName: jahia_node_not_in_haproxy_pool

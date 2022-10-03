@@ -124,3 +124,25 @@ actions:
           /etc/datadog-agent/conf.d/mysql.d/conf.yaml
       systemctl restart datadog-agent || exit 1
     user: root
+
+  checkJahiaDatadogCustomChecks:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: proxysql_backend_missing
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: proxysql_connections_discrepancies
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: jahia_node_not_in_haproxy_pool
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: strongswan_connections_status
+    - cmd[${this}]: |-
+        if [ -f /etc/datadog-agent/conf.d/augmented_search.yaml-disabled ]; then
+          echo "disabled"
+        fi
+    - if ("${response.out}" != "disabled"):
+      - checkDatadogAgentCheck:
+          target: ${this}
+          checkName: augmented_search
