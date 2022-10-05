@@ -794,6 +794,9 @@ actions:
   dbRestore:
     - cmd[sqldb]: |-
         sudo service mysql stop
+        if (pgrep mysqld > /dev/null); then
+          sudo pkill -e -9 mysqld
+        fi
         rm -rf /var/lib/mysql/*
         cd /var/lib/mysql/
         mv /home/jelastic/jelastic_backup/database.tar .
