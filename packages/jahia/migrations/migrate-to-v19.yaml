@@ -36,6 +36,7 @@ onInstall:
   - updateBinErrorLoggerLevel     # PAAS-1528
   - addDocIDLoggerLevel           # PAAS-2166
   - updateMariadbDatadogConf      # PAAS-2178
+  - preserveJournalEventReader    # PAAS-1794
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -168,3 +169,9 @@ actions:
       - checkDatadogAgentCheck:
           target: ${this}
           checkName: augmented_search
+
+  preserveJournalEventReader:
+    cmd[proc,cp]: |-
+      if ! grep -q org.jahia.utils.journal-event-reader.properties /etc/jelastic/redeploy.conf;then
+        echo "/data/digital-factory-data/journal-event-reader/org.jahia.utils.journal-event-reader.properties" >> /etc/jelastic/redeploy.conf
+      fi
