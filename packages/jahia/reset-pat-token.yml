@@ -5,14 +5,16 @@ id: jahia-reset-pat-token
 name: Jahia reset PAT token
 description:
     Re-creates the "Jahia Cloud Token" PAT token on all Jahia nodes using the token stored in Vault.
-    BE VERY CAREFUL when using the package, as this will overwrite the token and may bring down the env in the worst case.
+    Also updates the token on HAProxy side.
 
 mixins:
   - ../../mixins/common.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
 
 onInstall:
   - getPatTokenAndKey
+  - disableHaproxyHealthcheck
   - cmd [proc]: |-
       __secret__pat_token="${globals.__secret__pat_token}"
       groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
@@ -32,8 +34,10 @@ onInstall:
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
           def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter);
           def tokenExists = service.verifyToken(\"$__secret__pat_token\", session);
-          def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session);
-          service.deleteToken(tokenDetails.key, session);
+          if (tokenExists) {
+            def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session);
+            service.deleteToken(tokenDetails.key, session);
+          }
           service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
             .setToken(\"$__secret__pat_token\")
             .setActive(true)
@@ -42,3 +46,7 @@ onInstall:
         })
       """ > ${groovy_file_path}
   - checkPatGroovyScriptExecution
+  - checkJahiaHealth: "cp, proc"
+  - setPatInHaproxy:
+      __secret__pat_token: ${globals.__secret__pat_token}
+  - enableHaproxyHealthcheck
