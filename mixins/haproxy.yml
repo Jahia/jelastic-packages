@@ -199,9 +199,9 @@ actions:
   disableHaproxyHealthcheck:
     cmd[bl]: |- # make haproxy check target /ping.jsp instead of /modules/healthcheck
       haproxy_conf_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-      if ! grep -qe "#option httpchk.*healthcheck" $haproxy_conf_file ; then
-        sed -i -e 's/\(option httpchk\)/#\1/g' -e 's/\(http-check expect rstring\)/#\1/g' $haproxy_conf_file
-        sed -i -e '/\(#option httpchk\)/a option httpchk GET "/ping.jsp" "HTTP/1.0\\r\\nUser-Agent: HAProxy"' -e '/\(http-check expect rstring\)/a http-check expect rstring PONG' $haproxy_conf_file
+      if ! grep -qe "#http-check.*healthcheck" $haproxy_conf_file ; then
+        sed -i -e 's/\(http-check send\)/#\1/g' -e 's/\(http-check expect rstring\)/#\1/g' $haproxy_conf_file
+        sed -i -e '/\(option httpchk\)/a http-check send meth GET uri "/ping.jsp" hdr User-Agent "HAProxy"' -e '/\(http-check expect rstring\)/a http-check expect rstring PONG' $haproxy_conf_file
         service haproxy reload
       fi
     user: root
@@ -209,7 +209,7 @@ actions:
   enableHaproxyHealthcheck:
     cmd[bl]: |-
       haproxy_conf_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-      sed -i -e 's/#\(option httpchk.*\)/\1/g' -e 's/#\(http-check expect rstring\)/\1/g' $haproxy_conf_file
+      sed -i -e 's/#\(http-check send.*\)/\1/g' -e 's/#\(http-check expect rstring\)/\1/g' $haproxy_conf_file
       sed -i -e '/.*ping.jsp.*/d' -e '/.*rstring PONG.*/d' $haproxy_conf_file
       service haproxy reload
     user: root
