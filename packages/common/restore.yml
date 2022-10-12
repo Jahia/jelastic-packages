@@ -657,6 +657,7 @@ actions:
           fi
 
           pipelineId=$(echo $response | jq -r .id)
+          sleep 1  # it seems to take a few milliseconds for the pipeline to really be created in CCI...
           response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
           if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
             echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
