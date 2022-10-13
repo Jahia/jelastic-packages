@@ -70,5 +70,5 @@ done | jq -cMRrn 'reduce inputs as $line
                   | . [$elements[0]] += 
                     [ $elements[1]
                     ]
-                  )' 1>&2
+                  )' | sed -r "s/'([^']+)'/«\1»/g" 1>&2
 exit 100

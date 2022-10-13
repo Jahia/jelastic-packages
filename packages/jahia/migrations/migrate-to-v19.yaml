@@ -38,6 +38,7 @@ onInstall:
   - updateMariadbDatadogConf      # PAAS-2178
   - preserveJournalEventReader    # PAAS-1794
   - disableCronMailNotifications  # PAAS-2096
+  - fixHaproxyReload              # PAAS-2162
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -195,3 +196,11 @@ actions:
         systemctl enable --now sendmail
       fi
     user: root
+
+  fixHaproxyReload:
+    - cmd[bl]: |-
+        dest_file=/usr/local/bin/haproxy-reload.sh
+        if [[ $(md5sum $dest_file | awk '{print $1}') != "e27db523d2f9e746f7dc8f2ba3c2e1dc" ]]; then
+          curl -fLSso $dest_file ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
+        fi
+      user: root
