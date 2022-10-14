@@ -37,6 +37,7 @@ onInstall:
   - addDocIDLoggerLevel           # PAAS-2166
   - updateMariadbDatadogConf      # PAAS-2178
   - preserveJournalEventReader    # PAAS-1794
+  - disableCronMailNotifications  # PAAS-2096
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -175,3 +176,22 @@ actions:
       if ! grep -q org.jahia.utils.journal-event-reader.properties /etc/jelastic/redeploy.conf;then
         echo "/data/digital-factory-data/journal-event-reader/org.jahia.utils.journal-event-reader.properties" >> /etc/jelastic/redeploy.conf
       fi
+
+  disableCronMailNotifications:
+    # Also re-enable and start sendmail service if disabled
+    cmd[*]: |-
+      cronjob_path=/etc/cron.d/set_dd_tags_cron
+      cronjob_url=${globals.repoRootUrl}/assets/common/set_dd_tags_cron
+      cronjob_md5=adac09665cb06e3a7420b1ecdd899cca
+      if [[ "$(md5sum $cronjob_path | awk '{print $1}')" != "$cronjob_md5" ]]; then
+        curl -fSsLo $cronjob_path $cronjob_url || exit 1
+        service crond restart
+        echo "" > /var/spool/mail/root
+      fi
+
+      if [ "$(systemctl is-enabled sendmail)" != "enable" ]; then
+        # clean /var/spool/clientmqueue before starting sendmail
+        find /var/spool/clientmqueue -type f ! -name sm-client.st -delete
+        systemctl enable --now sendmail
+      fi
+    user: root
