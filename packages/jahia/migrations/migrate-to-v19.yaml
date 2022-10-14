@@ -39,6 +39,7 @@ onInstall:
   - preserveJournalEventReader    # PAAS-1794
   - disableCronMailNotifications  # PAAS-2096
   - fixHaproxyReload              # PAAS-2162
+  - upgradeJexperience            # PAAS-2186
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -204,3 +205,21 @@ actions:
           curl -fLSso $dest_file ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         fi
       user: root
+
+  upgradeJexperience:
+    # Upgrade jExperience to 1.11.9 on Jahia 7.3 envs
+    - getEnvLinkedJcustomer:
+        envName: ${env.shortdomain}
+    - if(${globals.unomi_env_linked}):
+        - getJahiaVersion
+        - isVersionStrictlyLower:
+            a: ${globals.jahiaVersion}
+            b: 8.0.0.0
+            res: isLowerThan8000
+        - if(${globals.isLowerThan8000}):
+            - installOrUpgradeModule:
+                moduleSymname: jexperience
+                moduleVersion: 1.11.9
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+                startModule: true
