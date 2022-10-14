@@ -40,6 +40,7 @@ onInstall:
   - disableCronMailNotifications  # PAAS-2096
   - fixHaproxyReload              # PAAS-2162
   - upgradeJexperience            # PAAS-2186
+  - upgradeAugmentedSearch        # PAAS-2185
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -223,3 +224,19 @@ actions:
                 moduleGroupId: org.jahia.modules
                 moduleRepository: marketing-factory-releases
                 startModule: true
+
+  upgradeAugmentedSearch:
+    - isAugSearchEnabled
+    - if (${globals.isAugSearchEnabled}):
+        - getJahiaVersion
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.0.0.0
+            res: jahia8
+        - if (${globals.jahia8}):
+            installOrUpgradeModule:
+              moduleSymname: augmented-search
+              moduleVersion: 3.3.3
+              moduleGroupId: org.jahia.modules
+              moduleRepository: augmented-search-releases
+              startModule: true
