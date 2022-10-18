@@ -85,8 +85,6 @@ onInstall:
       - installBackupTools:
           target: cp
           logAction: ${globals.logAction}
-      # The following action will be removed once all JC/AG environments are migrated to elastic cloud
-      - restorePreECMigrationJCustomerEnv
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
@@ -788,14 +786,7 @@ actions:
         cd jelastic_backup
         python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f database.tar 2>>${globals.logsPath}
         ls database.tar || exit 0
-    - if ("${response.errOut}" == ""):
-        dbRestore
-    - else:
-        - log: "DB backup not found, trying legacy"
-        - dbLegacyRestore
 
-  dbRestore:
-    - cmd[sqldb]: |-
         sudo service mysql stop
         if (pgrep mysqld > /dev/null); then
           sudo pkill -e -9 mysqld
@@ -836,45 +827,6 @@ actions:
         mysql jahia < /tmp/triggers_dump.sql
         rm /tmp/triggers_dump.sql
 
-  dbLegacyRestore:
-    - log: "## TEMPORARY FIX FOR RESTORATION: GRANT ALL ON *.* TO JAHIA'S DB USER"
-    # Starting with mariadb 10.4, jahia's db user is no longer root on database
-    # resulting in the need to connect as 'mysql' user and temporaly grant
-    # jahia's db user in order to successfuly import the dump from processing node.
-    # see here for more details: https://mariadb.org/authentication-in-mariadb-10-4/
-    # next cmd tests if connexion is ok with 'mysql'@'localhost':
-    #   - if ok, so it's >10.4 and we need temporary grants
-    - cmd[${nodes.sqldb.master.id}]: |-
-          if (mysql -se 'select 1' > /dev/null 2>&1); then
-            mysql -e "GRANT ALL PRIVILEGES ON *.* TO '$DB_USER'@'%'"
-          fi
-      user: mysql
-    - cmd [proc]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
-        cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jahia.sql.gz 2>>${globals.logsPath} || exit 1
-        case ${DB_ENDPOINT} in "mysqldb") mysql_host="mysqldb" ;; "proxy") mysql_host=${PROXYSQL_MASTER_IP} ;; "galera") mysql_host="galera";; *) mysql_host="mysqldb"; esac
-        gunzip < jahia.sql.gz | mysql -u$DB_USER -p$DB_PASSWORD -h ${mysql_host} --max_allowed_packet=1024M 2>>${globals.logsPath} || exit 1
-        rm -f jahia.sql.gz
-        query="delete from JR_J_LOCAL_REVISIONS"
-        mysql -h ${mysql_host} -u $DB_USER -p$DB_PASSWORD -s jahia -e "$query" 2>>${globals.logsPath} || exit 1
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred during mysql dump. ${response.errOut}"
-
-    - log: "## TEMPORARY FIX FOR RESTORATION: REVOKE ALL ON *.* TO JAHIA'S DB USER"
-    - cmd[${nodes.sqldb.master.id}]: |-
-          if (mysql -se 'select 1' > /dev/null 2>&1); then
-            mysql -e "REVOKE ALL PRIVILEGES ON *.* FROM '$DB_USER'@'%'"
-          fi
-      user: mysql
-
   restoreJcustomer:
     - cmd [cp]: |-
         ## [${globals.logAction}] - 5/5
@@ -913,137 +865,6 @@ actions:
   checkIfReindexationIsNeeded:
     - install:
         jps: "${globals.repoRootUrl}/packages/jcustomer/reindexation.yml"
-
-########################################### LEGACY ACTIONS ###########################################
-############# TO BE REMOVED WHEN ALL ELASTICSEARCH ARE MIGRATED TO ELASTIC CLOUD #####################
-  restorePreECMigrationJCustomerEnv:
-    # Get env version
-    - script: |-
-        const currentVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
-            return object.name == "cp";
-        }).pop().envVersion;
-        return {'result': 0, 'preECMigration': (11 > currentVersion)}
-
-    - if (${response.preECMigration}):
-        - LEGACY_restoreElasticsearch
-        - LEGACY_restoreJcustomer
-        - checkJcustomerHealthWhenStarting: cp
-        - return:
-            type: success
-
-  LEGACY_restoreElasticsearch:
-    - script: |-
-        // Extract only bucketname in case of foreign restore
-        var account="${globals.bucketname}";
-        account=account.split(" ")[0];
-        return {'result': 0,'account': account}
-    - setGlobals:
-        account: ${response.account}
-        region: ${globals.regionRealName_source}
-
-    - cmd[${nodes.es.first.id}]: |-
-        curl -s "${nodes.es.first.intIP}:9200" | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])" 2>>${globals.logsPath} || exit 1
-    - setGlobals:
-        esVersion: ${response.out}
-
-    - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
-        - LEGACY_setAwsElasticsearchConfig:
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            logsPath: ${globals.logsPath}
-        - if ("${globals.cloudProvider_source}" == "aws"):
-            - set:
-                region: ${globals.region}
-        - else:
-            - set:
-                region: "eu-west-1"
-        - LEGACY_setAwsSnapshotRepository:
-            backupName: ${settings.backup_name}
-            region: ${this.region}
-            account: ${globals.account}
-            logsPath: ${globals.logsPath}
-    - else:
-        - LEGACY_setAzureElasticsearchConfig:
-            awsAccessKeyId: ${globals.backrestAwsAccessKeyId}
-            awsSecretAccessKey: ${globals.backrestAwsSecretAccessKey}
-            backupName: ${settings.backup_name}
-            operation: "restore"
-            account: ${globals.account}
-            logsPath: ${globals.logsPath}
-        - LEGACY_setAzureSnapshotRepository:
-            backupName: ${settings.backup_name}
-            logsPath: ${globals.logsPath}
-
-    - cmd[${nodes.es.first.id}]: |-
-        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
-        index=$(curl -s es:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype} | jq -r .snapshots[0].indices[0])
-        # If $index is null, it means that we can't get infos on the backup because it's done with an incompatible version
-        if [ "$index" = "null" ]; then
-          echo "failed to get snapshot indices" >> ${globals.logsPath}
-          echo false
-        else
-          echo "true"
-        fi
-
-    - if ( ! ${response.out}):
-        return:
-          type: error
-          message: "Incompatible backup"
-
-    - cmd[${nodes.es.first.id}]: |-
-        ## [${globals.logAction}] - 4/5
-        curl -o /dev/null -X DELETE "http://${nodes.es.first.intIP}:9200/*,-context-geonameentry"
-        timestamp=$(echo "${settings.timestamp}"| awk '{print tolower($0)}')
-        res=$(curl -so /tmp/restore-res  -XPOST "${nodes.es.first.intIP}:9200/_snapshot/backup_repository/${timestamp}_${settings.backtype}/_restore" \
-                -H 'Content-Type:application/json' \
-                -d'{"indices": "-context-geonameentry*","rename_pattern": "(.*)(__[a-z0-9]+)-(.*)","rename_replacement": "context-$3"}')
-        return_code=$?
-        error=$(grep error /tmp/restore-res)
-        res=$(wc -l<<<$error)
-        if [ $return_code -ne 00 ] || [ ! -z "$res" ];then echo "$error";fi
-        rm -f /tmp/restore-res
-
-    - if ("${response.out}" != ""):
-        - return:
-            type: error
-            message: "An error occurred during the backup restore process."
-
-    - LEGACY_calculateNumberOfReplicas
-    - LEGACY_updateReplica:
-        replica: ${globals.replica}
-        logsPath: ${globals.logsPath}
-
-
-  LEGACY_restoreJcustomer:
-    - cmd [cp]: |-
-        ## [${globals.logAction}] - 5/5
-        export AWS_ACCESS_KEY_ID="${globals.backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.backrestAwsSecretAccessKey}"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
-        cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jcustomer-env-vars.gz 2>>${globals.logsPath}
-        ls jcustomer-env-vars.gz || exit 0
-    - if ("${response.errOut}" == ""):
-        - cmd [cp]: |-
-            cd jelastic_backup
-            gunzip jcustomer-env-vars.gz
-            echo "Restoring jcustomer env vars" >> ${globals.logsPath}
-            grep -v '^UNOMI_ELASTICSEARCH' jcustomer-env-vars > /tmp/jcustomer-env-vars
-            rm -f jcustomer-env-vars
-            grep -vP '^UNOMI_(?!ELASTICSEARCH)' /.jelenv  >> /tmp/jcustomer-env-vars
-            cat /tmp/jcustomer-env-vars > /.jelenv
-            rm -f /tmp/jcustomer-env-vars
-          user: root
-        - if ("${response.errOut}" != ""):
-            - return:
-                type: error
-                message: "An error occurred while restoring jcustomer environment variables. ${response.errOut}"
-        - api: env.control.RestartNodes
-          envName: ${env.envName}
-          nodeGroup: cp
-    - else:
-        log: "No env var backup available"
 
 settings:
   fields:
