@@ -48,4 +48,6 @@ onInstall:
   - checkJahiaHealth: "cp, proc"
   - setPatInHaproxy:
       __secret__pat_token: ${globals.__secret__pat_token}
+  - cmd [bl]: systemctl restart haproxy
+    user: root
   - enableHaproxyHealthcheck
