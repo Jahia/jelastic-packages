@@ -349,10 +349,9 @@ actions:
 
         echo """
           org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
-            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
-            def tokenExists = service.verifyToken(\"$__secret__pat_token\", session)
-            if (! tokenExists) {
-               def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session)
+            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter);
+            def tokenDetails = service.verifyToken(\"$__secret__pat_token\", session);
+            if (! tokenDetails) {
                service.deleteToken(tokenDetails.key, session)
                service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
                       .setToken(\"$__secret__pat_token\")
