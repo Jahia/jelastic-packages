@@ -132,6 +132,7 @@ actions:
     #   - __secret__unomi_root_password_b64
     - updateHazelcast:
         __secret__unomi_root_password_b64: ${this.__secret__unomi_root_password_b64}
+    - setJcustomerApiKey
     - forEach (nodes.cp):
         - cmd [${@i.id}]: |-
             systemctl enable --now karaf
@@ -246,7 +247,6 @@ actions:
                   nodeGroup='cp',
                   vars={"UNOMI_THIRDPARTY_PROVIDER1_KEY": jCustomerApiKey}
         );
-    - cmd[cp]: systemctl restart karaf
 
   getJcustomerKey:
     - script: |

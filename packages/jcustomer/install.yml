@@ -148,10 +148,8 @@ onInstall:
       __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
   - setEnvVersion: ${globals.jcustomer_env_version}
   - configureDatadogAPM
-  - setJcustomerApiKey
   - install:
       jps: "${baseUrl}/update-events.yml"
-  - checkJcustomerHealthWhenStarting: cp
   - setJelEnvRoleInNodeGroupData
   - updateEnvStatusInPapi:
       status: running
