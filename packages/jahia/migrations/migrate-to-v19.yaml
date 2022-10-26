@@ -42,6 +42,7 @@ onInstall:
   - upgradeJexperience            # PAAS-2186
   - upgradeAugmentedSearch        # PAAS-2185
   - renameJahiaCloudToken         # PAAS-2187
+  - fixMavenCfgFile               # PAAS-2197
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -270,3 +271,25 @@ actions:
           })
         """ > ${groovy_file_path}
     - checkPatGroovyScriptExecution
+
+  fixMavenCfgFile:
+  - getJahiaVersion
+  - isVersionBetween:
+      lower: 8.0.0.0
+      lower_may_equal: true
+      version: ${globals.jahiaVersion}
+      higher: 8.1.3.0
+      higher_may_equal: false
+      res: jahia8Compatible
+  - if(globals.jahia8Compatible):
+    - cmd[cp, proc]: |-
+        karaf_etc=/data/digital-factory-data/karaf/etc
+        mvn_cfg_filename=org.ops4j.pax.url.mvn.cfg
+        mvn_cfg_file=$karaf_etc/{$mvn_cfg_filename}
+        if [[ $(md5sum $mvn_cfg_file | awk '{print $1}') != "9b967326fbc1de22faf7ee0fe4b9efd7" ]]; then
+          curl -fLSso $mvn_cfg_file ${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/$mvn_cfg_filename || exit 1
+          chown tomcat:tomcat $mvn_cfg_file
+        fi
+        sed -i -e 's/\(\s*config.excluded.properties\s*=.*\),\s*org.ops4j.pax.url.mvn.defaultRepositories\(.*\)/\1\2/' \
+            $karaf_etc/org.apache.karaf.cellar.node.cfg
+      user: root
