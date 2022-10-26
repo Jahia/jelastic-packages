@@ -346,19 +346,24 @@ actions:
         else
           jahia_7_parameter=""
         fi
-
         echo """
           org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
             def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
             def tokenDetails = service.verifyToken(\"$__secret__pat_token\", session)
             if (! tokenDetails) {
-               tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session)
-               service.deleteToken(tokenDetails.key, session)
-               service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
-                      .setToken(\"$__secret__pat_token\")
-                      .setActive(true)
-                      .create()
-                  session.save();
+              def tokens = service.getTokensDetails(\"/users/root\",  session).toList()
+              // Remove all tokens with a name starting with jahia-cloud-token_
+              // LEGACY (jahia environment V19): also remove token named "Jahia Cloud Token" in case of restauring an old backup
+              for (token in tokens) {
+                if (token.name.startsWith(\"jahia-cloud-token_\") || token.name == \"Jahia Cloud Token\" ) {
+                  service.deleteToken(token.key, session)
+                }
+              }
+              service.tokenBuilder(\"/users/root\", \"jahia-cloud-token_admin_${env.envName}\", session)
+                     .setToken(\"$__secret__pat_token\")
+                     .setActive(true)
+                     .create()
+              session.save();
             }
           })
         """ > ${groovy_file_path}
