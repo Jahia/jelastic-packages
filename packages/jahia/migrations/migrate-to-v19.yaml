@@ -41,6 +41,7 @@ onInstall:
   - fixHaproxyReload              # PAAS-2162
   - upgradeJexperience            # PAAS-2186
   - upgradeAugmentedSearch        # PAAS-2185
+  - renameJahiaCloudToken         # PAAS-2187
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -240,3 +241,32 @@ actions:
               moduleGroupId: org.jahia.modules
               moduleRepository: augmented-search-releases
               startModule: true
+
+  renameJahiaCloudToken:
+    - getPatTokenAndKey
+    - cmd [proc]: |-
+        __secret__pat_token="${globals.__secret__pat_token}"
+        groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
+
+        # Clean up any possible remainder of previous script execution
+        rm -f ${groovy_file_path}*
+
+        # Replace Pat Token if needed
+        jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
+        if [ $jahia_major_version -eq 7 ]; then
+          jahia_7_parameter=", null"
+        else
+          jahia_7_parameter=""
+        fi
+        echo """
+          org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
+            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
+            def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session)
+            if (tokenDetails) {
+               tokenDetails.name = \"jahia-cloud-token_admin_${env.envName}\"
+               service.updateToken(tokenDetails, session)
+               session.save()
+            }
+          })
+        """ > ${groovy_file_path}
+    - checkPatGroovyScriptExecution
