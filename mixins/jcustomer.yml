@@ -132,12 +132,11 @@ actions:
     #   - __secret__unomi_root_password_b64
     - updateHazelcast:
         __secret__unomi_root_password_b64: ${this.__secret__unomi_root_password_b64}
-    - cmd[${nodes.cp.master.id}]:
-        - systemctl enable --now karaf
-      user: root
-    - sleep: 20000
-    - cmd[cp]:
-        - systemctl enable --now karaf
+    - forEach (nodes.cp):
+        - cmd [${@i.id}]: |-
+            systemctl enable --now karaf
+          user: root
+        - checkJcustomerHealthWhenStarting: ${@i.id}
       user: root
 
   getLinkedJahiaEnvs:
