@@ -43,6 +43,7 @@ onInstall:
   - upgradeAugmentedSearch        # PAAS-2185
   - renameJahiaCloudToken         # PAAS-2187
   - fixMavenCfgFile               # PAAS-2197
+  - resetHaproxyLogFormat         # PAAS-2203
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -292,4 +293,17 @@ actions:
         fi
         sed -i -e 's/\(\s*config.excluded.properties\s*=.*\),\s*org.ops4j.pax.url.mvn.defaultRepositories\(.*\)/\1\2/' \
             $karaf_etc/org.apache.karaf.cellar.node.cfg
+      user: root
+
+  resetHaproxyLogFormat:
+  - cmd[bl]: |-
+      cfg_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      if ! grep -qE "^\s*option\s*http-log$" $cfg_file; then
+        http_log="\ \ \ \ option                  httplog"
+        sed "33i $http_log" $cfg_file
+      fi
+      sed '/^\s*log-format\s*".*"/d' $cfg_file
+    user: root
+  - foreach (nodes.bl):
+    - cmd [${@i.id}]: service haproxy reload
       user: root
