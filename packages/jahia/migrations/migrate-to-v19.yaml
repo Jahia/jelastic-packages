@@ -300,9 +300,9 @@ actions:
       cfg_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
       if ! grep -qE "^\s*option\s*http-log$" $cfg_file; then
         http_log="\ \ \ \ option                  httplog"
-        sed "33i $http_log" $cfg_file
+        sed -i "33i $http_log" $cfg_file
       fi
-      sed '/^\s*log-format\s*".*"/d' $cfg_file
+      sed -i '/^\s*log-format\s*".*"/d' $cfg_file
     user: root
   - foreach (nodes.bl):
     - cmd [${@i.id}]: service haproxy reload
