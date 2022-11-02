@@ -26,7 +26,10 @@ globals:
     -XX:MaxPermSize=512m
     -XX:+HeapDumpOnOutOfMemoryError
     -XX:+PrintConcurrentLocks
-    -XX:+UseParallelGC
+    -XX:+UseG1GC
+    -XX:+DisableExplicitGC
+    -XX:+UseStringDeduplication
+    -XX:MaxTenuringThreshold=7
     -XX:SurvivorRatio=8
     -Xmn1G
 
@@ -174,7 +177,6 @@ actions:
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
         # the follwing will update or add if not present the jvmRoute property
         sed -i -n -e '/^\s*jahia.session.jvmRoute\s*=/!p' -e "\$ajahia.session.jvmRoute = $short_name" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-        grep -q '^JMX_OPTS=\-XX:+UseParallelGC$' ${tomcat_env} || sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" ${tomcat_env}
         sed -i '/<!-- Access log processes all example./i \\t<!-- Remote IP Valve -->\n \t<Valve className="org.apache.catalina.valves.RemoteIpValve" protocolHeader="X-Forwarded-Proto" />\n' /opt/tomcat/conf/server.xml
         #Secure cookies from cross scripting
         indent="      " && printf "$indent<cookie-config>\n$indent$indent<secure>true</secure>\n$indent$indent<http-only>true</http-only>\n$indent</cookie-config>\n" > /tmp/cookies-config
