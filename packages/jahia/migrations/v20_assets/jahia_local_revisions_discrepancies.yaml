@@ -1,0 +1,10 @@
+init_config:
+instances:
+  - host: 127.0.0.1
+    port: 6033
+    username: datadog
+    password: __PASSWORD__
+    connect_timeout: 10
+    read_timeout: 15
+    min_collection_interval: 600
+    nodesListFile: /nodesList

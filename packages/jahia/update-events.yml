@@ -23,6 +23,7 @@ onBeforeScaleIn[cp]:
 
 onAfterScaleIn[cp]:
   - refreshProxysqlInstancesList
+  - generateNodesListFile
   - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
@@ -36,6 +37,7 @@ onAfterServiceScaleOut[cp]:
           newNode: ${@i.id}
   - resetHaproxyBackends
   - refreshProxysqlInstancesList
+  - generateNodesListFile
   - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
       envName: ${env.envName}

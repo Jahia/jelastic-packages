@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - UseG1GC                           # PAAS-2199
+  - addLocalRevisionsCustomCheck      # PAAS-2175
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -74,3 +75,29 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  addLocalRevisionsCustomCheck:
+    - generateNodesListFile
+    - createDataDogUser
+    - cmd[proc]: |-
+        if [[ $(${globals.proxysql_cli} -Nse "select count(*) from mysql_users where username='datadog'") == 0 ]]; then
+          ${globals.proxysql_cli} -e "INSERT INTO mysql_users (username,password,default_hostgroup,max_connections) VALUES ('datadog','${GALERA_DB_USER_DATADOG}',2,2)"
+          ${globals.proxysql_cli} -e "LOAD MYSQL USERS TO RUNTIME"
+          ${globals.proxysql_cli} -e "SAVE MYSQL USERS TO DISK"
+        fi
+        restart_dd=false
+        for f in /etc/datadog-agent/checks.d/jahia_local_revisions_discrepancies.py \
+                 /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml; do
+          if [ ! -f $f ]; then
+            curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
+            chown dd-agent:dd-agent $f
+            if (echo $f | grep -q 'yaml'); then
+              sed "s/__PASSWORD__/${GALERA_DB_USER_DATADOG}/" -i $f
+            fi
+            restart_dd=true
+          fi
+        done
+        if $restart_dd; then
+          systemctl restart datadog-agent
+        fi
+      user: root
