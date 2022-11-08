@@ -236,6 +236,7 @@ actions:
     - log: "## Finalize Datadog agent setup on ${this}"
     - setGlobalRepoRootUrl
     - isAugSearchEnabled
+    - generateNodesListFile
     - getPatTokenAndKey
     - cmd[${this}]: |-
         __secret__pat_token="${globals.__secret__pat_token}"
@@ -250,6 +251,10 @@ actions:
         sed -i "s/jahia_root_token_placeholder/$__secret__pat_token/g" /etc/datadog-agent/conf.d/augmented_search.yaml-disabled
         if [ "${globals.isAugSearchEnabled}" == "true" ]; then
           mv /etc/datadog-agent/conf.d/augmented_search.yaml-disabled /etc/datadog-agent/conf.d/augmented_search.yaml
+        fi
+        if [ "${_ROLE}" == "Processing" ]; then
+          mv /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml{-disabled,}
+          sed "s/__PASSWORD__/${GALERA_DB_USER_DATADOG}/" -i /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml
         fi
         /usr/local/bin/set_dd_tags.sh
         systemctl restart crond
@@ -1136,6 +1141,16 @@ actions:
                 echo "org.jahia.services.env.env_name=$env_name" >> $config_file
               fi
             fi
+
+  generateNodesListFile:
+    - set:
+        nodesList: "processing.${nodes.proc.first.id}"
+    - forEach(nodes.cp):
+        - set:
+            nodesList: browsing.${@i.id} ${this.nodesList}
+    - cmd[proc]: |-
+        echo "${this.nodesList}" > /nodesList
+      user: root
 
 
   ####################

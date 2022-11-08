@@ -55,18 +55,20 @@ actions:
   createDataDogUser:
     - log: "## Create Datadog database user"
     - cmd[${nodes.sqldb.master.id}]: |-
-        exists=$(mysql -sNe "select count(*) from  mysql.user where User='datadog' and Host='localhost';")
-        if [ $exists -lt 1 ]; then
-          mysql -e "CREATE USER 'datadog'@'localhost' IDENTIFIED BY '${DB_USER_DATADOG}';"
+        exists=$(mysql -sNe "select count(*) from  mysql.user where User='datadog';")
+        if [ $exists -lt 2 ]; then
+          mysql -e "CREATE OR REPLACE USER 'datadog'@'localhost' IDENTIFIED BY '${DB_USER_DATADOG}';"
+          mysql -e "CREATE OR REPLACE USER 'datadog'@'%' IDENTIFIED BY '${DB_USER_DATADOG}';"
           mysql -e "GRANT REPLICATION CLIENT ON *.* TO 'datadog'@'localhost' WITH MAX_USER_CONNECTIONS 5;"
           mysql -e "GRANT PROCESS ON *.* TO 'datadog'@'localhost';"
           mysql -e "GRANT SELECT ON performance_schema.* TO 'datadog'@'localhost';"
+          mysql -e "GRANT SELECT ON jahia.JR_J_LOCAL_REVISIONS TO 'datadog'@'%';"
         fi
       user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
-            message: "An error occurred when creating datadog database."
+            message: "An error occurred when creating datadog database user."
 
   setupDatadogAgentSql:
     - createDataDogUser
