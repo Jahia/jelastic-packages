@@ -55,7 +55,6 @@ onInstall:
   - procRedeploy:
       upgradeJahia: true
       targetDockerTag: ${this.targetDockerTag}
-      useExistingVolumes: false
   - browsingNodesBulkRedeploy:
       targetDockerTag: ${this.targetDockerTag}
 

@@ -1302,9 +1302,14 @@ actions:
 
   procRedeploy:
     # Parameters:
-    #   - upgradeJahia: true or false (false = rolling redeploy)
+    #   - upgradeJahia: true or false
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
-    #   - useExistingVolumes: true or false
+    - set:
+        useExistingVolumes: true
+    # Do not keep volumes in the case of an upgrade
+    - if (${this.upgradeJahia}):
+        - set:
+            useExistingVolumes: false
     - cmd [proc]:
         - echo 'export JAHIA_UPGRADE="${this.upgradeJahia}"' >> /etc/locale.conf
       user: root
@@ -1342,12 +1347,19 @@ actions:
 
   browsingNodesRollingRedeploy:
     # Parameters:
+    #   - upgradeJahia: true or false
     #   - targetDockerTag: jahia version string (eg: 8.0.2.0)
+    - set:
+        useExistingVolumes: true
+    # Do not keep volumes in the case of an upgrade
+    - if (${this.upgradeJahia}):
+        - set:
+            useExistingVolumes: false
     - forEach (nodes.cp):
         - api: environment.control.RedeployContainerById
           nodeId: ${@i.id}
           tag: ${this.targetDockerTag}
-          useExistingVolumes: true
+          useExistingVolumes: ${this.useExistingVolumes}
           skipReinstall: false
           envName: ${env.envName}
 
