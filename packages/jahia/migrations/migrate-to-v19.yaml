@@ -286,7 +286,7 @@ actions:
     - cmd[cp, proc]: |-
         karaf_etc=/data/digital-factory-data/karaf/etc
         mvn_cfg_filename=org.ops4j.pax.url.mvn.cfg
-        mvn_cfg_file=$karaf_etc/{$mvn_cfg_filename}
+        mvn_cfg_file=$karaf_etc/$mvn_cfg_filename
         if [[ $(md5sum $mvn_cfg_file | awk '{print $1}') != "9b967326fbc1de22faf7ee0fe4b9efd7" ]]; then
           curl -fLSso $mvn_cfg_file ${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/$mvn_cfg_filename || exit 1
           chown tomcat:tomcat $mvn_cfg_file
