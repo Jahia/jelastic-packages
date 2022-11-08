@@ -335,7 +335,6 @@ actions:
   installBackupTools:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
-        ## [${this.logAction}] - 1/5
         sudo python3 -m pip install --upgrade pip
         sudo python3 -m pip install --upgrade boto3 "azure==4.0.0" adal
         [ -d jelastic_backup ] || mkdir jelastic_backup

@@ -205,7 +205,6 @@ actions:
 
   restoreJahia:
     - cmd [proc,cp]: |-
-        ## [${globals.logAction}] - 2/5
         sudo service tomcat stop
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
@@ -265,7 +264,6 @@ actions:
             reinstall_jexperience: true
 
     - cmd [proc,cp]: |-
-        ## [${globals.logAction}] - 3/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -328,7 +326,6 @@ actions:
     - cleanJRLocalRevisionsTable
     - getPatTokenAndKey
     - cmd [proc]: |-
-        ## [${globals.logAction}] - 5/5
         __secret__pat_token="${globals.__secret__pat_token}"
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
 
@@ -569,7 +566,6 @@ actions:
         getPapiInfoAll
     - getCloudConf
     - cmd[${nodes.cp.first.id}]: |-
-        ## [${globals.logAction}] - 4/5
         source /metadata_from_HOST
         if [ -z $JEL_ENV_ROLE ]; then
           echo "JEL_ENV_ROLE variable is not defined in /metadata_from_HOST"
@@ -781,7 +777,6 @@ actions:
 
   restoreMariadb:
     - cmd[sqldb]: |-
-        ## [${globals.logAction}] - 4/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -834,7 +829,6 @@ actions:
 
   restoreJcustomer:
     - cmd [cp]: |-
-        ## [${globals.logAction}] - 5/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"

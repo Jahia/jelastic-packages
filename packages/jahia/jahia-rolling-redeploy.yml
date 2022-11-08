@@ -20,16 +20,10 @@ onInstall:
       currentDockerTag: ${nodes.proc.first.customitem.dockerTag}
 
   ## Redeploy Jahia nodes
-  - cmd [proc]: |-
-      ## [Rolling redeploy] - 1/2
-      exit 0
   - procRedeploy:
       upgradeJahia: false
       targetDockerTag: ${this.currentDockerTag}
       useExistingVolumes: true
-  - cmd [proc]: |-
-      ## [Rolling redeploy] - 2/2
-      exit 0
   - browsingNodesRollingRedeploy:
       targetDockerTag: ${this.currentDockerTag}
 
