@@ -1,0 +1,45 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Patch Shiro lib to v1.10
+id: jahia-patch-shiro-1-10
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  # Processing node
+  - removeProcNodeFromHaproxy:
+      reload: true
+  - installPatch: ${nodes.proc.first.id}
+  - addProcNodeToHaproxy:
+      reload: true
+  # Browsing nodes
+  - foreach (nodes.cp):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+      - installPatch: ${@i.id}
+      - addBrowsingNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+          reload: true
+
+actions:
+  installPatch:
+    - cmd[${this}]: |-
+        curr_shiro_ver=$(ls /opt/tomcat/webapps/ROOT/WEB-INF/lib/shiro-core* | sed -r 's/.+-([0-9]+.[0-9]+.[0-9]+).jar/\1/')
+        if [ "$curr_shiro_ver" == "1.10.0" ]; then
+          echo "[INFO] Shiro is already in v1.10. Nothing to do."
+          exit 0
+        fi
+        sudo service tomcat stop
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/shiro-*.jar
+        wget --no-check-certificate --progress=dot:giga https://downloads.jahia.com/downloads/jahia/security-patches/2022-11/shiro-1.10.0.zip -O /tmp/shiro.zip
+        unzip /tmp/shiro.zip -d /tmp
+        mv /tmp/shiro-1.10.0/*.jar /opt/tomcat/webapps/ROOT/WEB-INF/lib
+        rm -rf /tmp/shiro*
+        sudo service tomcat start
+    - startupJahiaHealthCheck: ${this}
