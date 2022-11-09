@@ -225,7 +225,7 @@ actions:
     # Content History purge job should only be enabled on the processing node
     - cmd [cp]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
-        [ -f $file ] && mv $file ${file}-disabled
+        if [ -f $file ]; then mv $file ${file}-disabled; fi
       user: tomcat
     - cmd [proc]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
