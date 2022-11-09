@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:util="http://www.springframework.org/schema/util"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+                        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd">
+
+    <bean parent="jobSchedulingBean">
+        <property name="jobDetail">
+            <bean class="org.springframework.scheduling.quartz.JobDetailBean" depends-on="settingsBean">
+                <property name="name" value="ContentHistoryPurgeCloudJob" />
+                <property name="jobClass" value="org.jahia.services.scheduler.JSR223ScriptJob" />
+                <property name="group" value="MaintenanceCloud" />
+                <property name="description" value="Content history purge" />
+                <property name="jobDataAsMap">
+                    <map>
+                        <entry key="userkey" value=" system " />
+                        <entry key="jobScriptAbsolutePath" value="#{settingsBean.jahiaVarDiskPath}/scripts/groovy/purgeContentHistory.groovy" />
+                    </map>
+                </property>
+            </bean>
+        </property>
+        <property name="trigger">
+            <bean class="org.quartz.CronTrigger">
+                <property name="name" value="ContentHistoryPurgeCloudTrigger"/>
+                <!-- run every last day of month at 3H UTC -->
+                <property name="cronExpression" value="0 0 3 L * ?"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean parent="jobSchedulingBean">
+        <property name="jobDetail">
+            <bean class="org.springframework.scheduling.quartz.JobDetailBean">
+                <property name="name" value="UnusedVersionHistoryCloudJob" />
+                <property name="jobClass" value="org.jahia.services.history.UnusedVersionHistoryJob" />
+                <property name="group" value="MaintenanceCloud" />
+                <property name="description" value="Purge unused JCR versions" />
+                <property name="jobDataAsMap">
+                    <map>
+                        <entry key="maxUnused" value="5000"/>
+                        <entry key="ageInDays" value="30"/>
+                    </map>
+                </property>
+            </bean>
+        </property>
+        <property name="trigger">
+            <bean class="org.quartz.CronTrigger">
+                <property name="name" value="UnusedVersionHistoryCloudJobTrigger"/>
+                <!-- run every monday at 3h UTC-->
+                <property name="cronExpression" value="0 0 3 ? * MON"/>
+            </bean>
+        </property>
+    </bean>
+</beans>

@@ -31,6 +31,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - configureJahiaPurgeCrons          # PAAS-1681
   - UseG1GC                           # PAAS-2199
   - addLocalRevisionsCustomCheck      # PAAS-2175
 
@@ -38,6 +39,10 @@ onInstall:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
       - install:
           jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+  - else:
+    - if ("${globals.procRestartNeeded}" == "true"):
+      - api: environment.control.RestartNodeById
+        nodeId: ${nodes.proc.first.id}
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
@@ -101,3 +106,22 @@ actions:
           systemctl restart datadog-agent
         fi
       user: root
+
+  configureJahiaPurgeCrons:
+  - cmd [cp, proc]: |-
+      file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml-disabled
+      url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
+      if [ ! -f $file ]; then
+        curl -fSsLo $file $url || exit 1
+      fi
+    user: tomcat
+  - cmd [proc]: |-
+      file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
+      if [ ! -f $file ]; then
+        mv $file-disabled $file
+        echo "restart"
+      fi
+    user: tomcat
+  - if ("${response.out}" == "restart"):
+    - setGlobals:
+        procRestartNeeded: true
