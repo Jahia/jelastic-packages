@@ -9,10 +9,6 @@ description:
 
 
 onInstall:
-  - cmd[${nodes.cp.first.id}]: |-
-      ## [Rolling redeploy] - 1/1
-      exit 0
-
   - forEach (nodes.cp):
       - api: environment.control.RedeployContainerById
         nodeId: ${@i.id}

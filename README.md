@@ -290,15 +290,6 @@ The script will check that the key currently used is the one you think before se
 | currentDataDogApikey | The key currently used |
 | newDataDogApikey     | The new API key yo use |
 
-#### common/reset-polling.yml
-
-Used by Jahia Cloud to reset polling when an action fails (especially during backup/restore). It generates a *finished* action on Jelastic Console so the frontend can be aware that there was an issue with previous JPS execution.
-
-| parameter | comment          |
-|-----------|------------------|
-| feature   | Feature involved |
-| datetime  | Date & Time      |
-
 #### common/restore.yml
 
 Restores a backup. Works both for jahia (files + database, Haproxy conf) and jCustomer (Elasticsearch indices).

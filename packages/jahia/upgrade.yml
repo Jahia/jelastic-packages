@@ -46,9 +46,6 @@ onInstall:
           targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
 
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
-  - cmd [proc]: |-
-      ## [Upgrade] - 1/2
-      exit 0
   - cmd [cp, proc]:
       - service tomcat stop
     user: root
@@ -59,9 +56,6 @@ onInstall:
       upgradeJahia: true
       targetDockerTag: ${this.targetDockerTag}
       useExistingVolumes: false
-  - cmd [proc]: |-
-      ## [Upgrade] - 2/2
-      exit 0
   - browsingNodesBulkRedeploy:
       targetDockerTag: ${this.targetDockerTag}
 

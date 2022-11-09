@@ -84,7 +84,6 @@ actions:
 
   backupJahia:
     - cmd [proc]: |-
-        ## [${globals.logAction}] - 3/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -137,7 +136,6 @@ actions:
 
   addMetadata:
     - cmd [${this}]: |-
-        ## [${globals.logAction}] - 4/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -153,7 +151,6 @@ actions:
 
   rotateBackups:
     - cmd [${this}]: |-
-        ## [${globals.logAction}] - 5/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -169,7 +166,6 @@ actions:
 
   backupElasticsearch:
     - cmd[${nodes.cp.first.id}]: |-
-        ## [${globals.logAction}] - 2/5
         cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
         env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g')
         echo jc${cluster_role}${env.uid}${env_region}
@@ -228,7 +224,6 @@ actions:
 
     # start backup
     - cmd[${nodes.cp.first.id}]: |-
-        ## [${globals.logAction}] - 3/5
         output_file=$(mktemp)
         __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         timestamp=$(echo "${globals.timestamp}"| awk '{print tolower($0)}')
@@ -259,7 +254,6 @@ actions:
   rotateElasticsearchBackup:
     - getECAdminCredentials
     - cmd[${nodes.cp.first.id}]: |-
-        ## [${globals.logAction}] - 5/5
         __secret__ec_admin_credentials=${globals.__secret__ecAdminCredentials}
         export AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}" AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         cd jelastic_backup
@@ -319,7 +313,6 @@ actions:
 
   backupMariadb:
     - cmd[${this}]: |-
-        ## [${globals.logAction}] - 2/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
@@ -366,7 +359,6 @@ actions:
 
   backupJcustomer:
     - cmd [${nodes.cp.first.id}]: |-
-        ## [${globals.logAction}] - 3/5
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
         export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
