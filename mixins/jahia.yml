@@ -142,6 +142,10 @@ actions:
         __secret__rootpwd="${this.__secret__rootpwd.toBase64()}"
         base64 -d <<< $__secret__rootpwd > $DATA_PATH/digital-factory-data/root.pwd
       user: tomcat
+    - cmd [proc]: |-
+        file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
+        mv ${file}-disabled $file
+      user: tomcat
     - defineToolsPwd:
         __secret__toolspwd: ${this.__secret__toolspwd}
     - setToolsPwd: proc, cp
