@@ -48,15 +48,10 @@ actions:
         log(){
           echo "$(date --iso-8601=seconds) $1" >> $output_file
         }
-        if [[ ${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS} =~ ^[0-9]+$  ]]; then
+        if [[ ${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS} =~ ^[0-9]+$ ]]; then
           shard_count=${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS}
-        else  # in the unlikely case the envvar isn't here or wrong: fallback with envmode value
-          if [ "$envmode" == "production" ]; then
-            shard_count=2
-          else
-            shard_count=1
-            log "${env.envName} envmode is \"${envmode}\", indices should have $shard_count shard$([[ $shard_count > 1 ]] && echo s)"
-          fi
+        else  # in the unlikely case the envvar isn't here or wrong: fallback to 1 value
+          shard_count=1
         fi
         log "UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS is \"${UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS}\", shard count target will be the same)"
         echo $shard_count
@@ -250,4 +245,4 @@ settings:
       max: 5
       increment: 1
       editable: true
-      tooltip: '"0" means goes to UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS value if exist, otherwise to envmode related value: "1" if dev env, "2" if production env'
+      tooltip: '"0" means goes to UNOMI_ELASTICSEARCH_DEFAULTINDEX_SHARDS value if exist, otherwise value "1" will be set'
