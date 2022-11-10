@@ -23,8 +23,8 @@ onInstall:
   - procRedeploy:
       upgradeJahia: false
       targetDockerTag: ${this.currentDockerTag}
-      useExistingVolumes: true
   - browsingNodesRollingRedeploy:
+      upgradeJahia: false
       targetDockerTag: ${this.currentDockerTag}
 
   - unmuteDatadogSynthetics
