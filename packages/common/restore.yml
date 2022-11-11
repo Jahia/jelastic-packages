@@ -222,19 +222,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
-    # Content History purge job should only be enabled on the processing node
-    - cmd [cp]: |-
-        file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
-        if [ -f $file ]; then mv $file ${file}-disabled; fi
-      user: tomcat
-    - cmd [proc]: |-
-        file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
-        if ! [ -f $file ]; then
-          url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
-          curl -fSsLo ${file} $url || exit 1
-        fi
-      user: tomcat
-        
+
     # restore screeb and kibana dashboard config
     - if (${globals.jahia8}):
         - log: "Initial Screeb and Kibana dashboard config has been restored"
@@ -301,6 +289,18 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia configuration. ${response.errOut}"
+    # Content History purge job should only be enabled on the processing node
+    - cmd [cp]: |-
+        file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
+        if [ -f $file ]; then mv $file ${file}-disabled; fi
+      user: tomcat
+    - cmd [proc]: |-
+        file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
+        if ! [ -f $file ]; then
+          url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
+          curl -fSsLo ${file} $url || exit 1
+        fi
+      user: tomcat
 
     - cmd [proc,cp]: |-
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"

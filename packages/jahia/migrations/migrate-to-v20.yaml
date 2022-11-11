@@ -110,8 +110,8 @@ actions:
   configureJahiaPurgeCrons:
   - cmd [cp, proc]: |-
       file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml-disabled
-      url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
       if [ ! -f $file ]; then
+        url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
         curl -fSsLo $file $url || exit 1
       fi
     user: tomcat
