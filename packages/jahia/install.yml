@@ -181,6 +181,7 @@ onBeforeInstall: |
         "XMS": "${globals.xms}",
         "XMX": procXmx,
         "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
+        "DB_USER_DATADOG": __secret__dbUserDatadog,
         "DATADOG_APM_ENABLED": "true",
         "DX_VERSION": "${settings.productVersion}",
         "_PROVIDE": "jahia",
