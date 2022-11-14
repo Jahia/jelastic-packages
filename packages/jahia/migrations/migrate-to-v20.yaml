@@ -84,9 +84,18 @@ actions:
   addLocalRevisionsCustomCheck:
     - generateNodesListFile
     - createDataDogUser
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+    - if ("${response.object.DB_USER_DATADOG.length}" != "20"):
+        - api: env.control.GetContainerEnvVarsByGroup
+          nodeGroup: sqldb
+        - api: env.control.AddContainerEnvVars
+          nodeGroup: proc
+          vars:
+            DB_USER_DATADOG: ${response.object.DB_USER_DATADOG}
     - cmd[proc]: |-
         if [[ $(${globals.proxysql_cli} -Nse "select count(*) from mysql_users where username='datadog'") == 0 ]]; then
-          ${globals.proxysql_cli} -e "INSERT INTO mysql_users (username,password,default_hostgroup,max_connections) VALUES ('datadog','${GALERA_DB_USER_DATADOG}',2,2)"
+          ${globals.proxysql_cli} -e "INSERT INTO mysql_users (username,password,default_hostgroup,max_connections) VALUES ('datadog','${DB_USER_DATADOG}',2,2)"
           ${globals.proxysql_cli} -e "LOAD MYSQL USERS TO RUNTIME"
           ${globals.proxysql_cli} -e "SAVE MYSQL USERS TO DISK"
         fi
@@ -97,7 +106,7 @@ actions:
             curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
             chown dd-agent:dd-agent $f
             if (echo $f | grep -q 'yaml'); then
-              sed "s/__PASSWORD__/${GALERA_DB_USER_DATADOG}/" -i $f
+              sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i $f
             fi
             restart_dd=true
           fi

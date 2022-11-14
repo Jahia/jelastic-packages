@@ -258,7 +258,7 @@ actions:
         fi
         if [ "${_ROLE}" == "Processing" ]; then
           mv /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml{-disabled,}
-          sed "s/__PASSWORD__/${GALERA_DB_USER_DATADOG}/" -i /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml
+          sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml
         fi
         /usr/local/bin/set_dd_tags.sh
         systemctl restart crond
