@@ -831,6 +831,14 @@ actions:
         mysql -e "set password for 'datadog'@'localhost' = PASSWORD('${DB_USER_DATADOG}')"
         mysql -e "flush privileges"
 
+        if (( $(mysql -Nse "select count(user) from mysql.user where user='datadog' and host='%'") == 0 )); then
+          mysql -e "CREATE USER 'datadog'@'%' IDENTIFIED BY '${DB_USER_DATADOG}'"
+          mysql -e "GRANT SELECT ON jahia.JR_J_LOCAL_REVISIONS TO 'datadog'@'%'"
+        else
+          mysql -e "set password for 'datadog'@'%' = PASSWORD('${DB_USER_DATADOG}')"
+          mysql -e "flush privileges"
+        fi
+
         # Now recreate trigger(s)
         # dump trigger(s):
         mysqldump --no-data --no-create-info --skip-routines --triggers --add-drop-trigger --compact jahia > /tmp/triggers_dump.sql
