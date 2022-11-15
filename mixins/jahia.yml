@@ -284,7 +284,12 @@ actions:
           exit 1
         fi
 
-        if [ ! -f /var/log/tomcat/jahia.log ]; then
+        timeout 60 bash -c '
+          until [ -f /var/log/tomcat/jahia.log ]; do
+            sleep 0.5
+          done
+        '
+        if (($?)); then
           echo "[ERROR] Jahia log file not found, it seems there is a problem with tomcat instance, please check." >&2
           exit 2
         fi
