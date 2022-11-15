@@ -6,7 +6,7 @@ id: jahia-add-apm-forms-exclusions
 
 
 mixins:
-  - "../../../mixins/common.yml"
+  - "../../mixins/common.yml"
 
 
 globals:
