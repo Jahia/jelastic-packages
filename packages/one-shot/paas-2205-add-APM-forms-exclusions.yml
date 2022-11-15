@@ -1,0 +1,36 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Add APM Forms Exclusions
+id: jahia-add-apm-forms-exclusions
+
+
+mixins:
+  - "../../../mixins/common.yml"
+
+
+globals:
+  jahiaRollingRestartNeeded: false
+
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - addAPMOptsForFormsIssue
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+
+actions:
+  addAPMOptsForFormsIssue:
+    - cmd[cp, proc]: |-
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+        if (grep -q '\-Ddd.trace.classes.exclude=*' $tomcat_env); then
+          echo "[INFO] APM options are up to date"
+          exit 0
+        fi
+        new_apm_opts='APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.*"'
+        sed -i "/^APM_OPTS=.*/c $new_apm_opts" $tomcat_env
+    - if ("${response.out}" == ""):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
