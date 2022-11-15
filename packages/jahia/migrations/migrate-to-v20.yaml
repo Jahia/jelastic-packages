@@ -89,32 +89,30 @@ actions:
     - if ("${response.object.DB_USER_DATADOG.length}" != "20"):
         - api: env.control.GetContainerEnvVarsByGroup
           nodeGroup: sqldb
-        - api: env.control.AddContainerEnvVars
-          nodeGroup: proc
+        - set:
+            dd_password: ${response.object.DB_USER_DATADOG}
+        - env.control.AddContainerEnvVars[proc, cp]:
           vars:
-            DB_USER_DATADOG: ${response.object.DB_USER_DATADOG}
-    - cmd[proc]: |-
-        if [[ $(${globals.proxysql_cli} -Nse "select count(*) from mysql_users where username='datadog'") == 0 ]]; then
-          ${globals.proxysql_cli} -e "INSERT INTO mysql_users (username,password,default_hostgroup,max_connections) VALUES ('datadog','${DB_USER_DATADOG}',2,2)"
-          ${globals.proxysql_cli} -e "LOAD MYSQL USERS TO RUNTIME"
-          ${globals.proxysql_cli} -e "SAVE MYSQL USERS TO DISK"
-        fi
-        restart_dd=false
-        for f in /etc/datadog-agent/checks.d/jahia_local_revisions_discrepancies.py \
-                 /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml; do
-          if [ ! -f $f ]; then
-            curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
-            chown dd-agent:dd-agent $f
-            if (echo $f | grep -q 'yaml'); then
-              sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i $f
-            fi
-            restart_dd=true
-          fi
-        done
-        if $restart_dd; then
-          systemctl restart datadog-agent
-        fi
-      user: root
+            DB_USER_DATADOG: ${this.dd_password}
+        - cmd[proc, cp]: |-
+            ${globals.proxysql_cli} -e "DELETE FROM mysql_users WHERE username='datadog'"
+            ${globals.proxysql_cli} -e "INSERT INTO mysql_users (username,password,default_hostgroup,max_connections) VALUES ('datadog','${DB_USER_DATADOG}',2,2)"
+            ${globals.proxysql_cli} -e "LOAD MYSQL USERS TO RUNTIME"
+            ${globals.proxysql_cli} -e "SAVE MYSQL USERS TO DISK"
+            for f in /etc/datadog-agent/checks.d/jahia_local_revisions_discrepancies.py \
+                     /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml; do
+              if [ ! -f $f ]; then
+                curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
+                chown dd-agent:dd-agent $f
+                if (echo $f | grep -q 'yaml'); then
+                  sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i $f
+                  [[ "$_ROLE" == "Browsing" ]] \
+                    && mv ${f}{,-disabled} \
+                    || systemctl restart datadog-agent
+                fi
+              fi
+            done
+          user: root
 
   configureJahiaPurgeCrons:
   - cmd [cp, proc]: |-
