@@ -31,9 +31,10 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - configureJahiaPurgeCrons          # PAAS-1681
-  - UseG1GC                           # PAAS-2199
-  - addLocalRevisionsCustomCheck      # PAAS-2175
+  - configureJahiaPurgeCrons                  # PAAS-1681
+  - UseG1GC                                   # PAAS-2199
+  - addLocalRevisionsCustomCheck              # PAAS-2175
+  - addHealthcheckMetricCustomCheck           # PAAS-2194
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -132,3 +133,28 @@ actions:
   - if ("${response.out}" == "restart"):
     - setGlobals:
         procRestartNeeded: true
+
+  addHealthcheckMetricCustomCheck:
+    - getPatTokenAndKey
+    - cmd [proc, cp]: |-
+        __secret_pat_token="${globals.__secret__pat_token}"
+        check_conf_path="/etc/datadog-agent/conf.d/healthcheck_metric.d"
+        check_conf_file="/etc/datadog-agent/conf.d/healthcheck_metric.d/healthcheck_metric.yaml"
+        check_path="/etc/datadog-agent/checks.d/healthcheck_metric.py"
+        
+        if [ ! -d $check_conf_path ]; then
+          mkdir -p $check_conf_path
+          chown dd-agent: -R $check_conf_path
+        fi
+        
+        for f in $check_conf_file $check_path; do
+          if [ ! -f $f ]; then
+            curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
+            chown dd-agent:dd-agent $f
+          fi
+        done
+
+        sed -i "s/jahia_root_token_placeholder/$__secret__pat_token/g" $check_conf_file
+
+        systemctl restart datadog-agent
+      user: root
