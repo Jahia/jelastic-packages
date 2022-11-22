@@ -35,6 +35,7 @@ onInstall:
   - UseG1GC                                   # PAAS-2199
   - addLocalRevisionsCustomCheck              # PAAS-2175
   - addHealthcheckMetricCustomCheck           # PAAS-2194
+  - upgradeSam                                # PAAS-2224
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -141,12 +142,12 @@ actions:
         check_conf_path="/etc/datadog-agent/conf.d/healthcheck_metric.d"
         check_conf_file="/etc/datadog-agent/conf.d/healthcheck_metric.d/healthcheck_metric.yaml"
         check_path="/etc/datadog-agent/checks.d/healthcheck_metric.py"
-        
+
         if [ ! -d $check_conf_path ]; then
           mkdir -p $check_conf_path
           chown dd-agent: -R $check_conf_path
         fi
-        
+
         for f in $check_conf_file $check_path; do
           if [ ! -f $f ]; then
             curl -fSsLo $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$(basename $f) || exit 1
@@ -158,3 +159,22 @@ actions:
 
         systemctl restart datadog-agent
       user: root
+
+  upgradeSam:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.2.0
+        res: isHigherOrEqualThan8120
+    - if (${globals.isHigherOrEqualThan8120}):
+        - checkModule:
+            moduleSymname: server-availability-manager
+        - if ("${globals.runningVersion}" != "2.3.0"):
+            - disableHaproxyHealthcheck
+            - installOrUpgradeModule:
+                moduleSymname: server-availability-manager
+                moduleVersion: 2.3.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-releases
+            - checkJahiaHealth
+            - enableHaproxyHealthcheck
