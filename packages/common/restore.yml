@@ -264,6 +264,19 @@ actions:
         - set:
             reinstall_jexperience: true
 
+    # if jexperience was intialy active, we restore the conf file before starting Jahia
+    - log: "jExperience was active before the restore: ${globals.jexperience_active}"
+    - if (${globals.jexperience_active}):
+        - log: "Initial jExperience conf needs to be restored"
+        - cmd[proc, cp]: |-
+            mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+          user: root
+
+    # If AugmentedSearch needs to be restored, then these actions need to be performed
+    # before starting Jahia so the module can start successfully when Jahia will start
+    - if (${globals.restoreAS}):
+        - prepareAugSearchRestore
+
     - cmd [proc,cp]: |-
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
@@ -381,6 +394,37 @@ actions:
         sudo service tomcat start
 
     - startupJahiaHealthCheck: proc
+
+    # if the env intialy doesn't have jexperience active,
+    # then we clean the conf and nodegroups data
+    - if (${this.remove_restored_jexperience}):
+        - log: Remove env link
+        - removeAndCleanJexperience
+    - else:
+        - log: Keep env link
+
+    # if the restored jexperience isn't the same as the intiale one,
+    # then we install the initial
+    - if (${this.reinstall_jexperience}):
+        - log: "jExperience has to be reinstalled: ${this.reinstall_jexperience}"
+        - cmd[proc]: |-
+            echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
+        - log: "Install jExperience v${globals.jexperience_active_version}"
+        - installOrUpgradeModule:
+            moduleSymname: jexperience
+            moduleVersion: ${globals.jexperience_active_version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: marketing-factory-releases
+    # if the env intialy don't have jexperience active,
+    # then we clean the conf and nodegroups data
+    - if (${this.remove_restored_jexperience}):
+        - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
+        - removeAndCleanJexperience
+
+    # We need Jahia to be up to finish restoring AugmentedSearch (if needed)
+    # because we are using the API to interact with modules and ES connector
+    - finishAugSearchRestore
+
     - cmd[proc]: |-
         # re-enable removeAbandoned in JDBC
         sed -E 's:(^\s+removeAbandoned=).*:\1"true":' \
@@ -403,47 +447,67 @@ actions:
         sudo service tomcat restart
     - startupJahiaHealthCheck: cp
 
-    # if the env intialy don't have jexperience active,
-    # then we clean the conf and nodegroups data
-    - if (${this.remove_restored_jexperience}):
-        - log: Remove env link
-        - removeAndCleanJexperience
-    - else:
-        - log: Keep env link
+  reconfigureAS:
+    # This action will drop groovy scripts in the "patch" folder to reconfigure AS
+    # while Jahia is stopped (mandatory for some depending modules)
+    - getECDeploymentEndpoints
+    - cmd [proc]: |-
+        patches_folder=/data/digital-factory-data/patches/groovy
+        groovy_file=as-recreate-es-connection.groovy
+        esc_recreate_groovy_file=$patches_folder/01-$groovy_file
+        graphql_file=as-update-es-connection.graphql
+        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
+        es_port=443
+        es_user=${env.envName}
+        __secret__es_password=${globals.__secret__elasticsearch_password}
 
-    # if jexperience was intialy active, we restore the conf file
-    - log: "jExperience was active before the restore: ${globals.jexperience_active}"
-    - if (${globals.jexperience_active}):
-        - log: "Initial jExperience conf needs to be restored"
-        - cmd[proc, cp]: |-
-            mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-          user: root
+        curl -fSsLo ${esc_recreate_groovy_file} ${globals.repoRootUrl}/assets/jahia/$groovy_file || exit 1
+        curl -fSsLo $patches_folder/02-$graphql_file ${globals.repoRootUrl}/assets/jahia/$graphql_file || exit 1
 
-    # if the restored jexperience isn't the same as the intiale one,
-    # then we install the initial
-    - log: "jExperience has to be reinstalled: ${this.reinstall_jexperience}"
-    - if (${this.reinstall_jexperience}):
-        - cmd[proc]: |-
-            echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
-        - log: "Install jExperience v${globals.jexperience_active_version}"
-        - installOrUpgradeModule:
-            moduleSymname: jexperience
-            moduleVersion: ${globals.jexperience_active_version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: marketing-factory-releases
-    # if the env intialy don't have jexperience active,
-    # then we clean the conf and nodegroups data
-    - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
-    - if (${this.remove_restored_jexperience}):
-        - removeAndCleanJexperience
+        sed -i \
+             -e "s;\(.*ES_HOSTNAME.*\)PLACEHOLDER\(.*\);\1${es_hostname}\2;" \
+             -e "s;\(.*ES_PORT.*\)PLACEHOLDER\(.*\);\1${es_port}\2;" \
+             -e "s;\(.*ES_USER.*\)PLACEHOLDER\(.*\);\1${es_user}\2;" \
+             -e "s;\(.*ES_PASSWORD.*\)PLACEHOLDER\(.*\);\1${__secret__es_password}\2;" \
+             $esc_recreate_groovy_file
 
-    - restoreAugSearch
+  prepareAugSearchRestore:
+    - setGlobals:
+        __secret__elasticsearch_password: ${fn.password(20)}
+    - createESAccount4AS
+    - reconfigureAS
+    - purgeEnvIndicesInES
 
-  restoreAugSearch:
+  checkESConnection:
+    # This action makes sure that the ES connection has been updated by the groovy script during Jahia startup
+    - cmd [proc]: |-
+        es_user=${env.envName}
+        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
+        es_conn_name=jahia-cloud_augmented-search
+        __secret__pat_token="${globals.__secret__pat_token}"
+
+        res=$(curl -fLSs -XGET localhost:8080/modules/dbconn/elasticsearch/status/$es_conn_name \
+              -H "Authorization: APIToken $__secret__API_TOKEN" \
+              -H 'Origin: http://localhost:8080' \
+              -H 'Content-Type: application/json' \
+              | jq -r ".success")
+        if [[ "$res" == "" ]]; then
+          echo "Error when trying to get the status" >&2
+          exit 1
+        fi
+
+        if [[ "$es_hostname" != "$(echo $res | jq -r .host)" ]] || [[ "$es_user" != "$(echo $res | jq -r .user)" ]]; then
+          echo "The ES connection has not been updated, please check why the as-recreate-es-connection.groovy script failed" >&2
+          exit 1
+        fi
+
+  finishAugSearchRestore:
     - checkModule:
         moduleSymname: augmented-search
-    # Get augmented search/ and db/es connector modules status before restore
     - if (${globals.restoreAS}):
+        # First we need to make sure that the ES connection has been updated
+        - checkESConnection
+        # Get augmented search/ and db/es connector modules status before restore
         - cmd[proc]: |-
             cat /tmp/as-state
         - script: |-
@@ -468,13 +532,6 @@ actions:
             moduleVersion: ${this.modulesState.as-version}
             moduleGroupId: org.jahia.modules
             moduleRepository: augmented-search-releases
-        - setGlobals:
-            __secret__elasticsearch_password: ${fn.password(20)}
-        - createESAccount4AS
-        - removeDefaultESConnection
-        - setDefaultESConnection
-        - setAugSearchESConnection
-        - purgeEnvIndicesInES
         - if ("${this.modulesState.as-status}" == "started"):
             triggerAugSearchFullReindex
         - else:

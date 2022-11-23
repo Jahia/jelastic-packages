@@ -1,0 +1,7 @@
+mutation {
+  admin {
+    search{
+      setDbConnection(connectionId:"jahia-cloud_augmented-search")
+    }
+  }
+}
