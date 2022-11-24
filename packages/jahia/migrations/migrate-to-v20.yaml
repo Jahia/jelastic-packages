@@ -36,6 +36,7 @@ onInstall:
   - addLocalRevisionsCustomCheck              # PAAS-2175
   - addHealthcheckMetricCustomCheck           # PAAS-2194
   - upgradeSam                                # PAAS-2224
+  - upgradeDS                                 # PAAS-2223
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -178,3 +179,19 @@ actions:
                 moduleRepository: jahia-releases
             - checkJahiaHealth
             - enableHaproxyHealthcheck
+
+  upgradeDS:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: isHigherOrEqualThan810
+    - if (${globals.isHigherOrEqualThan810}):
+        - checkModule:
+            moduleSymname: distributed-sessions
+        - if ("${globals.runningVersion}" != "3.4.0"):
+            - installOrUpgradeModule:
+                moduleSymname: distributed-sessions
+                moduleVersion: 3.4.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-enterprise-releases
