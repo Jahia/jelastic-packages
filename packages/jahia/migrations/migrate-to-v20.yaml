@@ -139,7 +139,7 @@ actions:
   addHealthcheckMetricCustomCheck:
     - getPatTokenAndKey
     - cmd [proc, cp]: |-
-        __secret_pat_token="${globals.__secret__pat_token}"
+        __secret__pat_token="${globals.__secret__pat_token}"
         check_conf_path="/etc/datadog-agent/conf.d/healthcheck_metric.d"
         check_conf_file="/etc/datadog-agent/conf.d/healthcheck_metric.d/healthcheck_metric.yaml"
         check_path="/etc/datadog-agent/checks.d/healthcheck_metric.py"
