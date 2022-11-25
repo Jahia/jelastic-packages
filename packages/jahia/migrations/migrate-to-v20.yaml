@@ -37,6 +37,7 @@ onInstall:
   - addHealthcheckMetricCustomCheck           # PAAS-2194
   - upgradeSam                                # PAAS-2224
   - upgradeDS                                 # PAAS-2223
+  - moveDumpsToDifferentFolder                # PAAS-2220
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -195,3 +196,27 @@ actions:
                 moduleVersion: 3.4.0
                 moduleGroupId: org.jahia.modules
                 moduleRepository: jahia-enterprise-releases
+
+  moveDumpsToDifferentFolder:
+    - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"DUMPS_PATH": "/var/tmp/cloud", "DUMPS_RETENTION": 30}
+    - cmd [cp, proc]: |-
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+        if ! grep -qE "^\s*JAVA_OPTS\s*=.*HeapDumpPath" $tomcat_env; then
+          sed -i "s/\s*\(JAVA_OPTS\s*=.*\)/\1 -XX:\+HeapDumpPath=${DUMPS_PATH}/heap_dumps/" $tomcat_env
+          echo restart
+        fi
+      user: root
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
+    - cmd [cp, proc]: |-
+        script_name=thread-dump.sh
+        script_path=/usr/local/bin/$script_name
+        script_url=${globals.repoRootUrl}/packages/jahia/migrations/v20_assets/$script_name
+        if grep -q "DUMPS_PATH" $script_path; then
+          echo "The $script_name script is already up-to-date. nothing to do"
+          exit 0
+        fi
+        curl -fSsLo $script_path $script_url || exit 1
+      user: root
