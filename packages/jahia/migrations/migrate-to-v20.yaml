@@ -157,7 +157,7 @@ actions:
           fi
         done
 
-        sed -i "s/jahia_root_token_placeholder/$__secret__pat_token/g" $check_conf_file
+        sed -i "s|jahia_root_token_placeholder|$__secret__pat_token|g" $check_conf_file
 
         systemctl restart datadog-agent
       user: root
