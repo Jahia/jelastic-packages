@@ -846,6 +846,7 @@ actions:
           resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST \
                   --form bundle=@$local_jar_file \
                   --form start=${this.startModule} \
+                  --form ignoreChecks=true \
                   localhost/modules/api/bundles)
           case "$(jq -r .bundleInfos <<< $resp)" in
             "null") # If install failed, there is no bundleInfos attribute in the JSON response
