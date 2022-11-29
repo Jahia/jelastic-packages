@@ -203,7 +203,7 @@ actions:
     - cmd [cp, proc]: |-
         tomcat_env=/opt/tomcat/conf/tomcat-env.sh
         if ! grep -qE "^\s*JAVA_OPTS\s*=.*HeapDumpPath" $tomcat_env; then
-          sed -i "s/\s*\(JAVA_OPTS\s*=.*\)/\1 -XX:\+HeapDumpPath=${DUMPS_PATH}/heap_dumps/" $tomcat_env
+          sed -i "s;\s*\(JAVA_OPTS\s*=.*\);\1 -XX:HeapDumpPath=\${DUMPS_PATH}/heap_dumps;" $tomcat_env
           echo restart
         fi
       user: root

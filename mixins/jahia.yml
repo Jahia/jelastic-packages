@@ -25,7 +25,7 @@ globals:
     -Dcom.sun.management.jmxremote.authenticate=false
     -XX:MaxPermSize=512m
     -XX:+HeapDumpOnOutOfMemoryError
-    -XX:+HeapDumpPath=${DUMPS_PATH}/heap_dumps
+    -XX:HeapDumpPath=${DUMPS_PATH}/heap_dumps
     -XX:+PrintConcurrentLocks
     -XX:+UseG1GC
     -XX:+DisableExplicitGC
