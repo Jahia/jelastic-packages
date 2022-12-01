@@ -1,0 +1,33 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Fix org.ops4j.pax.url.mvn.cfg
+id: jahia-fix-pax-url-mvn
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - getJahiaVersion
+  - isVersionBetween:
+      lower: 8.0.0.0
+      lower_may_equal: true
+      version: ${globals.jahiaVersion}
+      higher: 8.1.3.0
+      higher_may_equal: false
+      res: jahia8Compatible
+  - if(globals.jahia8Compatible):
+      - cmd[proc,cp]: |-
+          mvn_cfg_filename=org.ops4j.pax.url.mvn.cfg
+          mvn_cfg_file=/data/digital-factory-data/karaf/etc/$mvn_cfg_filename
+          # Fix file content if it is wrong
+          if [[ $(md5sum $mvn_cfg_file | awk '{print $1}') != "9b967326fbc1de22faf7ee0fe4b9efd7" ]]; then
+            curl -fLSso $mvn_cfg_file ${globals.repoRootUrl}/packages/jahia/migrations/v19_assets/$mvn_cfg_filename || exit 1
+            chown tomcat:tomcat $mvn_cfg_file
+            echo "Fixed wrong content"
+          fi
+          # Add a dummy comment at the end of the file, to trigger config update
+          echo "tata=toto  # PAAS-2237: dummy instruction to trigger config update" >> $mvn_cfg_file
+        user: root
