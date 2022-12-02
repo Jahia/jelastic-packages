@@ -19,7 +19,7 @@ onInstall:
   - set:
       linkedEnv: ${response.link}
 
-  - if ("${this.linkedEnv}" == ""):
+  - if ("${this.linkedEnv}" == "" || "${this.linkedEnv}" == "null"):
       return:
         type: success
         message: 'Jahia is not linked to any Jcustomer'
@@ -51,7 +51,7 @@ onInstall:
         type: success
         message: 'Keys are the same. Nothing to do'
 
-
+  - log: need to fix UNOMI_THIRDPARTY_PROVIDER1_KEY env var
   - api: env.control.AddContainerEnvVars
     envName: ${this.linkedEnv}
     nodeGroup: cp
