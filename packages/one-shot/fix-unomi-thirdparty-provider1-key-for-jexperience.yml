@@ -1,0 +1,62 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - fix UNOMI_THIRDPARTY_PROVIDER1_KEY env var on linked jcustomer env
+id: jahia-fix-unomi-thirdparty-provider1-key-env-var
+description:
+  short: 'Jahia: set UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES to the value set in jexperience config for linked jcustomer environment'
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - script: |-
+      const envName = "${env.envName}";
+      jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                      return object.name == "proc";}).pop().envLink;
+      return {"result": 0, "link": jCustomerLinked};
+
+  - set:
+      linkedEnv: ${response.link}
+
+  - if ("${this.linkedEnv}" == ""):
+      return:
+        type: success
+        message: 'Jahia is not linked to any Jcustomer'
+
+  - cmd[proc]: |-
+      jexperience_cfg=/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+      key=$(grep jexperience.jCustomerKey $jexperience_cfg | cut -d'=' -f2)
+      if [ "$key" == "" ]; then
+        echo "Key not found in jexperience configuration"
+        exit 1
+      fi
+      echo $key
+
+  - set:
+      jexperienceKey: ${response.out}
+
+  - script: |-
+      const env_vars = jelastic.env.control.GetContainerEnvVarsByGroup(
+                                   '${this.linkedEnv}',
+                                   session,
+                                   nodeGroup='cp'
+                                 );
+      return {"result":0, "key": env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_KEY};
+  - set:
+     jcustomerKey: ${response.key}
+
+  - if ( "${this.jcustomerKey}" == "${this.jexperienceKey}" ):
+      return:
+        type: success
+        message: 'Keys are the same. Nothing to do'
+
+
+  - api: env.control.AddContainerEnvVars
+    envName: ${this.linkedEnv}
+    nodeGroup: cp
+    vars: {"UNOMI_THIRDPARTY_PROVIDER1_KEY": "${this.jexperienceKey}"}
+
+  - setGlobalRepoRootUrl
+  - install:
+    jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
