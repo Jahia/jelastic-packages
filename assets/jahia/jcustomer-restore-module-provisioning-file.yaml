@@ -1,0 +1,6 @@
+# These modules are not available in public Maven repo, so we get them from the Jahia Store
+
+- karafCommand: |
+    shell:echo "Jahia Cloud: install (or upgrade) jexperience __JEXPERIENCE_VERSION__"
+- installOrUpgradeBundle:
+    - url: "https://store.jahia.com/cms/mavenproxy/private-app-store/org/jahia/modules/jexperience/__JEXPERIENCE_VERSION__/jexperience-__JEXPERIENCE_VERSION__.jar"
