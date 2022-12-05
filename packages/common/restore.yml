@@ -78,7 +78,7 @@ onInstall:
       - initialJexperienceStatus
       - initialAugSearchStatus
       - if (${globals.jahia8}):
-          - saveScreebAndKibanaDashboardConfig
+          - saveOtherModulesConfig
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -99,87 +99,64 @@ onInstall:
 
 
 actions:
-  getJexperienceStatus:
-  # Parameters:
-  #   - step: on wich step this action is launched
-    - cmd[proc]: |-
-        module="dx:org.jahia.modules/jexperience/"
-        # following will output:
-        #   - json-like with key "ACTIVE"=false if jexperience module isn't there or not in "ACTIVE" stat
-        #   - a json-like string if a jexperience module is in "ACTIVE" stat '{"version": "x.y.z", "ACTIVE": true}'
-        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
-        # Also feed globals.logPath with jexperience module found and their state
-        awk -v moduleName="$module" -v logfile="${globals.logsPath}" \
-          'NR=2 && $1 ~ moduleName { \
-              split($1,modinfo,"/"); \
-              getline; \
-              printf "Found module %s v%s with status %s\n",modinfo[2],modinfo[3],$1 >> logfile; \
-              if($1==32){ \
-                version=modinfo[3]; \
-                ACTIVE="true" \
-              } \
-            } \
-            END{ \
-              if(ACTIVE=="true"){ \
-                printf "{\"version\": \"%s\", \"ACTIVE\": %s }",version,ACTIVE \
-              } \
-              else{ \
-                printf "{\"ACTIVE\": false}" \
-              } \
-            }' \
-          /data/digital-factory-data/bundles-deployed/*/bundle.info
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred while fetching jExperience information ${this.step}: ${response.errOut}"
-    # the following script is only here to transform the response string to a real json object
-    - script: |-
-        const rep = ${response.out.toJSON()}
-        const result = {"result": 0}
-        return Object.assign({}, result, rep)
-
   initialJexperienceStatus:
-    - getJexperienceStatus:
-        step: "before restore"
-    - setGlobals:  # must be set for following conditionnal test, even if false
-        jexperience_active: ${response.ACTIVE}
-    - if (${globals.jexperience_active}):
+    - setGlobals:
+        jexperienceActiveBeforeRestore: false
+    - checkModule:
+        moduleSymname: jexperience
+    - if ("${globals.moduleState}" == "started"):
+        - cmd[proc]: |-
+            echo "jexperience/${globals.runningVersion} active before restore" >> ${globals.logsPath}
         - setGlobals:
-            jexperience_active_version: ${response.version}
+            jexperienceVersionBeforeRestore: ${globals.runningVersion}
+        - checkModule:
+            moduleSymname: kibana-dashboards-provider
+        - setGlobals:
+            kibanaDashboardsVersionBeforeRestore: ${globals.runningVersion}
+        - checkModule:
+            moduleSymname: jexperience-dashboards
+        - setGlobals:
+            jexperienceDashboardsVersionBeforeRestore: ${globals.runningVersion}
         # we keep the jexperience conf in a barely safe spot
         - cmd[proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
           user: root
 
   newJExperienceStatus:
-    # set default value for the management of jexperience
+    - set:
+        jexperienceActiveAfterRestore: false
     - setGlobals:
-        remove_restored_jexperience: false
-        reinstall_jexperience: false
-    # check is restored backup is also with jexperience active
-    - getJexperienceStatus:
-        step: "after digital-factory-data restore"
-    - set:  # must be set for following conditionnal test, even if false
-        restored_linked: ${response.ACTIVE}
-    - if (${this.restored_linked}):
+        removeRestoredJexperience: false
+        reinstallJexperience: false
+    # check is jExperience is started after restore
+    - checkModule:
+        moduleSymname: jexperience
+    - if ("${globals.moduleState}" == "started"):
+        - cmd[proc]: |-
+            echo "jexperience/${globals.runningVersion} active after restore" >> ${globals.logsPath}
         - set:
-            restored_active_version: ${response.version}
-    - if (${globals.jexperience_active} && ${this.restored_linked}):
-        # check is restored active jexperience module version is the same
-        - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
+            jexperienceActiveAfterRestore: true
+    - if (${this.jexperienceActiveAfterRestore}):
+        - set:
+            jexperienceVersionAfterRestore: ${response.version}
+    - if (${globals.jexperienceActiveBeforeRestore} && ${this.jexperienceActiveAfterRestore}):
+        # check if the version of jExperience after restore is the same
+        - if ("${globals.jexperienceVersionBeforeRestore}" != "${this.jexperienceVersionAfterRestore}"):
             - cmd[proc]: |-
-                echo "restored ACTIVE jexperience is v${this.restored_active_version} while v${globals.jexperience_active_version} was ACTIVE before the restore" >> ${globals.logsPath}
+                echo "jexperience/${globals.jexperienceVersionBeforeRestore} needs to be installed (the running version after restore is not the right one: jexperience/${this.jexperienceVersionAfterRestore}" >> ${globals.logsPath}
             - setGlobals:
-                reinstall_jexperience: true  # jexperience need to be reinstalled with the initial version
+                reinstallJexperience: true  # jexperience needs to be reinstalled with the version that was running prior to the restore
         - else:
             - cmd[proc]: |-
-                echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
-    - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
+                echo "The version of jExperience running after restore is the same one as before (jexperience/${globals.jexperienceVersionBeforeRestore}), nothing to do" >> ${globals.logsPath}
+    - elif (!${globals.jexperienceActiveBeforeRestore} && ${this.jexperienceActiveAfterRestore}):
+        # jExperience was not running before the restore, we should remove it
         - setGlobals:
-            remove_restored_jexperience: true
-    - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
+            removeRestoredJexperience: true
+    - elif (${globals.jexperienceActiveBeforeRestore} && !${this.jexperienceActiveAfterRestore}):
+        # jExperience was running before the restore but after restore it is not anymore, it should then be reinstalled
         - setGlobals:
-            reinstall_jexperience: true
+            reinstallJexperience: true
 
   initialAugSearchStatus:
     # Saves AS module version and status (installed/started) in /tmp/as-state if augsearch variable present and set to true in nodegroup data
@@ -234,24 +211,33 @@ actions:
             setGlobals:
               asShouldBeStarted: false
 
-  saveScreebAndKibanaDashboardConfig:
+  saveOtherModulesConfig:
+    # This action aims at saving various modules' config files in karaf/etc
+    # (and that don't need specific actions). Any config file can be added to the cfg_files list
+    #
+    # Screeb: /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
     - cmd[proc,cp]: |-
-        screeb_cfg="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
-        kibana_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg"
-        for file in $screeb_cfg $kibana_cfg; do
+        cfg_files=(
+          "/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
+        )
+        for file in ${cfg_files[@]}; do
           if [ -f $file ]; then
             cp -p $file /root
           fi
         done
       user: root
 
-  restoreScreebAndKibanaDashboardConfig:
-    # restore screeb and kibana dashboard config
+  restoreOtherModulesConfig:
+    # This action will restore config files from various modules saved in the saveOtherModulesConfig action
+    # to the karaf/etc folder. The cfg_files list should contain the same files as in saveOtherModulesConfig
+    #
+    # Screeb: /root/org.jahia.services.env.cfg
     - log: "Initial Screeb and Kibana dashboard config has been restored"
     - cmd[proc, cp]: |-
-        screeb_cfg="/root/org.jahia.services.env.cfg"
-        kibana_cfg="/root/org.jahia.modules.kibana_dashboards_provider.cfg"
-        for file in $screeb_cfg $kibana_cfg; do
+        cfg_files=(
+          "/root/org.jahia.services.env.cfg"
+        )
+        for file in ${cfg_files[@]}; do
           if [ -f $file ]; then
             mv $file /data/digital-factory-data/karaf/etc
           fi
@@ -262,9 +248,10 @@ actions:
     - log: "jExperience was active before the restore, the original conf needs to be restored"
     - cmd[proc, cp]: |-
         mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+        mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
       user: root
 
-  installOrUpgradeJExprienceModule:
+  installOrUpgradeJExprienceModules:
     - cmd [proc]: |-
         provisioning_folder=/data/digital-factory-data/patches/provisioning
         provisioning_filename=jcustomer-restore-module-provisioning-file.yaml
@@ -272,34 +259,48 @@ actions:
 
         curl -fSsLo $provisioning_file ${globals.repoRootUrl}/assets/jahia/$provisioning_filename || exit 1
 
-        sed -i -e "s;__JEXPERIENCE_VERSION__;${globals.jexperience_active_version};g" $provisioning_file
+        sed -i \
+            -e "s;__JEXPERIENCE_VERSION__;${globals.jexperienceVersionBeforeRestore};g" \
+            -e "s;__KIBANA_DASHBOARDS_VERSION__;${globals.kibanaDashboardsVersionBeforeRestore};g" \
+            -e "s;__JEXPERIENCE_DASHBOARDS_VERSION__;${globals.jexperienceDashboardsVersionBeforeRestore};g" \
+            $provisioning_file
 
   prepareJExperienceRestore:
     - reconfigureJExperience
     - newJExperienceStatus
     # If the version of jExperience restored from the backup is not the same as the original one,
     # then we need to install the right version (only for Jahia 8 since we are using provisioning)
-    - if (${globals.reinstall_jexperience} && ${globals.jahia8}):
-        - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperience_active_version}"
+    - if (${globals.reinstallJexperience} && ${globals.jahia8}):
+        - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperienceVersionBeforeRestore}"
         - cmd[proc]: |-
-            echo "Re-install jExperience module to the pre-restore version now: v${globals.jexperience_active_version}" >> ${globals.logsPath}
-        - log: "Install jExperience v${globals.jexperience_active_version}"
-        - installOrUpgradeJExprienceModule
+            echo "Re-install jExperience module to the pre-restore version: v${globals.jexperienceVersionBeforeRestore}" >> ${globals.logsPath}
+        - log: "Install jExperience v${globals.jexperienceVersionBeforeRestore}"
+        - installOrUpgradeJExprienceModules
 
   finishJExperienceRestore:
-    - checkModule:
-        moduleSymname: jexperience
     # For Jahia 7, since the provisioning doesn't work, we have to reinstall/upgrade
     # jExperience using the API (if needed)
     - if (!${globals.jahia8}):
-        - if (${globals.reinstall_jexperience}):
+        - if (${globals.reinstallJexperience}):
             - installOrUpgradeModule:
                 moduleSymname: jexperience
-                moduleVersion: ${globals.jexperience_active_version}
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+            - installOrUpgradeModule:
+                moduleSymname: kibana-dashboards-provider
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+            - installOrUpgradeModule:
+                moduleSymname: jexperience-dashboards
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
                 moduleGroupId: org.jahia.modules
                 moduleRepository: marketing-factory-releases
     - else:
         # For Jahia 8 we just make sure that jExperience is running
+        - checkModule:
+            moduleSymname: jexperience
         - if ("${globals.moduleState}" != "started"):
             - return:
                 type: error
@@ -461,11 +462,11 @@ actions:
             message: "An error occurred while restoring jahia data. ${response.errOut}"
 
     - if (${globals.jahia8}):
-        - restoreScreebAndKibanaDashboardConfig
+        - restoreOtherModulesConfig
 
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
     # before starting Jahia so the modules can start successfully when Jahia will start
-    - if (${globals.jexperience_active}):
+    - if (${globals.jexperienceActiveBeforeRestore}):
         - prepareJExperienceRestore
     - if (${globals.restoreAS}):
         - prepareAugSearchRestore
@@ -588,10 +589,10 @@ actions:
 
     - startupJahiaHealthCheck: proc
 
-    - if (${globals.jexperience_active}):
+    - if (${globals.jexperienceActiveBeforeRestore}):
         - finishJExperienceRestore
     # If the env didn't have jexperience active before restore, then we completely remove and clean jExperience
-    - elif (${globals.remove_restored_jexperience}):
+    - elif (${globals.removeRestoredJexperience}):
         - log: "jExperience was not running before restore so it has to be removed"
         - removeAndCleanJexperience
 
