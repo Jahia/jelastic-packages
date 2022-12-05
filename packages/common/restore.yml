@@ -70,9 +70,15 @@ onInstall:
           - installBackupTools:
               target: bl
               logAction: ${globals.logAction}
+      - getJahiaVersion
+      - isVersionHigherOrEqual:
+          a: ${globals.jahiaVersion}
+          b: 8.0.0.0
+          res: jahia8
       - initialJexperienceStatus
       - initialAugSearchStatus
-      - saveScreebAndKibanaDashboardConfig
+      - if (${globals.jahia8}):
+          - saveOtherModulesConfig
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -93,57 +99,64 @@ onInstall:
 
 
 actions:
-  getJexperienceStatus:
-  # Parameters:
-  #   - step: on wich step this action is launched
-    - cmd[proc]: |-
-        module="dx:org.jahia.modules/jexperience"
-        # following will output:
-        #   - json-like with key "ACTIVE"=false if jexperience module isn't there or not in "ACTIVE" stat
-        #   - a json-like string if a jexperience module is in "ACTIVE" stat '{"version": "x.y.z", "ACTIVE": true}'
-        #   (cf: https://docs.osgi.org/javadoc/r3/constant-values.html for status codes)
-        # Also feed globals.logPath with jexperience module found and their state
-        awk -v moduleName="$module" -v logfile="${globals.logsPath}" \
-          'NR=2 && $1 ~ moduleName { \
-              split($1,modinfo,"/"); \
-              getline; \
-              printf "Found module %s v%s with status %s\n",modinfo[2],modinfo[3],$1 >> logfile; \
-              if($1==32){ \
-                version=modinfo[3]; \
-                ACTIVE="true" \
-              } \
-            } \
-            END{ \
-              if(ACTIVE=="true"){ \
-                printf "{\"version\": \"%s\", \"ACTIVE\": %s }",version,ACTIVE \
-              } \
-              else{ \
-                printf "{\"ACTIVE\": false}" \
-              } \
-            }' \
-          /data/digital-factory-data/bundles-deployed/*/bundle.info
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred while fetching jExperience information ${this.step}: ${response.errOut}"
-    # the following script is only here to transform the response string to a real json object
-    - script: |-
-        const rep = ${response.out.toJSON()}
-        const result = {"result": 0}
-        return Object.assign({}, result, rep)
-
   initialJexperienceStatus:
-    - getJexperienceStatus:
-        step: "before restore"
-    - setGlobals:  # must be set for following conditionnal test, even if false
-        jexperience_active: ${response.ACTIVE}
-    - if (${globals.jexperience_active}):
+    - setGlobals:
+        jexperienceActiveBeforeRestore: false
+    - checkModule:
+        moduleSymname: jexperience
+    - if ("${globals.moduleState}" == "started"):
+        - cmd[proc]: |-
+            echo "jexperience/${globals.runningVersion} active before restore" >> ${globals.logsPath}
         - setGlobals:
-            jexperience_active_version: ${response.version}
+            jexperienceVersionBeforeRestore: ${globals.runningVersion}
+        - checkModule:
+            moduleSymname: kibana-dashboards-provider
+        - setGlobals:
+            kibanaDashboardsVersionBeforeRestore: ${globals.runningVersion}
+        - checkModule:
+            moduleSymname: jexperience-dashboards
+        - setGlobals:
+            jexperienceDashboardsVersionBeforeRestore: ${globals.runningVersion}
         # we keep the jexperience conf in a barely safe spot
         - cmd[proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
           user: root
+
+  newJExperienceStatus:
+    - set:
+        jexperienceActiveAfterRestore: false
+    - setGlobals:
+        removeRestoredJexperience: false
+        reinstallJexperience: false
+    # check is jExperience is started after restore
+    - checkModule:
+        moduleSymname: jexperience
+    - if ("${globals.moduleState}" == "started"):
+        - cmd[proc]: |-
+            echo "jexperience/${globals.runningVersion} active after restore" >> ${globals.logsPath}
+        - set:
+            jexperienceActiveAfterRestore: true
+    - if (${this.jexperienceActiveAfterRestore}):
+        - set:
+            jexperienceVersionAfterRestore: ${response.version}
+    - if (${globals.jexperienceActiveBeforeRestore} && ${this.jexperienceActiveAfterRestore}):
+        # check if the version of jExperience after restore is the same
+        - if ("${globals.jexperienceVersionBeforeRestore}" != "${this.jexperienceVersionAfterRestore}"):
+            - cmd[proc]: |-
+                echo "jexperience/${globals.jexperienceVersionBeforeRestore} needs to be installed (the running version after restore is not the right one: jexperience/${this.jexperienceVersionAfterRestore}" >> ${globals.logsPath}
+            - setGlobals:
+                reinstallJexperience: true  # jexperience needs to be reinstalled with the version that was running prior to the restore
+        - else:
+            - cmd[proc]: |-
+                echo "The version of jExperience running after restore is the same one as before (jexperience/${globals.jexperienceVersionBeforeRestore}), nothing to do" >> ${globals.logsPath}
+    - elif (!${globals.jexperienceActiveBeforeRestore} && ${this.jexperienceActiveAfterRestore}):
+        # jExperience was not running before the restore, we should remove it
+        - setGlobals:
+            removeRestoredJexperience: true
+    - elif (${globals.jexperienceActiveBeforeRestore} && !${this.jexperienceActiveAfterRestore}):
+        # jExperience was running before the restore but after restore it is not anymore, it should then be reinstalled
+        - setGlobals:
+            reinstallJexperience: true
 
   initialAugSearchStatus:
     # Saves AS module version and status (installed/started) in /tmp/as-state if augsearch variable present and set to true in nodegroup data
@@ -185,23 +198,248 @@ actions:
                 ''' > /tmp/as-state
             - setGlobals:
                 restoreAS: true
+    - if (${globals.restoreAS}):
+        # store augmented search/ and db/es connector modules status and versions in globals for future usage
+        - cmd[proc]: |-
+            cat /tmp/as-state
+        - script: |-
+            return {"result": 0, "onAfterReturn": {setGlobals: {modulesState: ${response.out.toJSON()} } } }
+        - if ("${globals.modulesState.as-status}" == "started"):
+            setGlobals:
+              asShouldBeStarted: true
+        - else:
+            setGlobals:
+              asShouldBeStarted: false
 
-  saveScreebAndKibanaDashboardConfig:
-    - getJahiaVersion
-    - isVersionHigherOrEqual:
-        a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: jahia8
+  saveOtherModulesConfig:
+    # This action aims at saving various modules' config files in karaf/etc
+    # (and that don't need specific actions). Any config file can be added to the cfg_files list
+    #
+    # Screeb: /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
+    - cmd[proc,cp]: |-
+        cfg_files=(
+          "/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
+        )
+        for file in ${cfg_files[@]}; do
+          if [ -f $file ]; then
+            cp -p $file /root
+          fi
+        done
+      user: root
+
+  restoreOtherModulesConfig:
+    # This action will restore config files from various modules saved in the saveOtherModulesConfig action
+    # to the karaf/etc folder. The cfg_files list should contain the same files as in saveOtherModulesConfig
+    #
+    # Screeb: /root/org.jahia.services.env.cfg
+    - log: "Initial Screeb and Kibana dashboard config has been restored"
+    - cmd[proc, cp]: |-
+        cfg_files=(
+          "/root/org.jahia.services.env.cfg"
+        )
+        for file in ${cfg_files[@]}; do
+          if [ -f $file ]; then
+            mv $file /data/digital-factory-data/karaf/etc
+          fi
+        done
+      user: root
+
+  reconfigureJExperience:
+    - log: "jExperience was active before the restore, the original conf needs to be restored"
+    - cmd[proc, cp]: |-
+        mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
+        mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
+      user: root
+
+  installOrUpgradeJExprienceModules:
+    - cmd [proc]: |-
+        provisioning_folder=/data/digital-factory-data/patches/provisioning
+        provisioning_filename=jcustomer-restore-module-provisioning-file.yaml
+        provisioning_file=$provisioning_folder/333.01-$provisioning_filename
+
+        curl -fSsLo $provisioning_file ${globals.repoRootUrl}/assets/jahia/$provisioning_filename || exit 1
+
+        sed -i \
+            -e "s;__JEXPERIENCE_VERSION__;${globals.jexperienceVersionBeforeRestore};g" \
+            -e "s;__KIBANA_DASHBOARDS_VERSION__;${globals.kibanaDashboardsVersionBeforeRestore};g" \
+            -e "s;__JEXPERIENCE_DASHBOARDS_VERSION__;${globals.jexperienceDashboardsVersionBeforeRestore};g" \
+            $provisioning_file
+
+  prepareJExperienceRestore:
+    - reconfigureJExperience
+    - newJExperienceStatus
+    # If the version of jExperience restored from the backup is not the same as the original one,
+    # then we need to install the right version (only for Jahia 8 since we are using provisioning)
+    - if (${globals.reinstallJexperience} && ${globals.jahia8}):
+        - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperienceVersionBeforeRestore}"
+        - cmd[proc]: |-
+            echo "Re-install jExperience module to the pre-restore version: v${globals.jexperienceVersionBeforeRestore}" >> ${globals.logsPath}
+        - log: "Install jExperience v${globals.jexperienceVersionBeforeRestore}"
+        - installOrUpgradeJExprienceModules
+
+  finishJExperienceRestore:
+    # For Jahia 7, since the provisioning doesn't work, we have to reinstall/upgrade
+    # jExperience using the API (if needed)
+    - if (!${globals.jahia8}):
+        - if (${globals.reinstallJexperience}):
+            - installOrUpgradeModule:
+                moduleSymname: jexperience
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+            - installOrUpgradeModule:
+                moduleSymname: kibana-dashboards-provider
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+            - installOrUpgradeModule:
+                moduleSymname: jexperience-dashboards
+                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+                moduleGroupId: org.jahia.modules
+                moduleRepository: marketing-factory-releases
+    - else:
+        # For Jahia 8 we just make sure that jExperience is running
+        - checkModule:
+            moduleSymname: jexperience
+        - if ("${globals.moduleState}" != "started"):
+            - return:
+                type: error
+                message: "jExperience is not running after restoring the backup, please check."
+
+  reconfigureAS:
+    # This action will drop groovy scripts in the "patch" folder to reconfigure AS
+    # while Jahia is stopped (mandatory for some depending modules)
+    - getECDeploymentEndpoints
+    - cmd [proc]: |-
+        patches_folder=/data/digital-factory-data/patches/groovy
+        groovy_file=as-recreate-es-connection.groovy
+        esc_recreate_groovy_file=$patches_folder/444.10-$groovy_file
+        graphql_file=as-update-es-connection.graphql
+        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
+        es_port=443
+        es_user=${env.envName}
+        __secret__es_password=${globals.__secret__elasticsearch_password}
+
+        curl -fSsLo ${esc_recreate_groovy_file} ${globals.repoRootUrl}/assets/jahia/$groovy_file || exit 1
+        curl -fSsLo $patches_folder/444.20-$graphql_file ${globals.repoRootUrl}/assets/jahia/$graphql_file || exit 1
+
+        sed -i \
+             -e "s;\(.*ES_HOSTNAME.*\)PLACEHOLDER\(.*\);\1${es_hostname}\2;" \
+             -e "s;\(.*ES_PORT.*\)PLACEHOLDER\(.*\);\1${es_port}\2;" \
+             -e "s;\(.*ES_USER.*\)PLACEHOLDER\(.*\);\1${es_user}\2;" \
+             -e "s;\(.*ES_PASSWORD.*\)PLACEHOLDER\(.*\);\1${__secret__es_password}\2;" \
+             $esc_recreate_groovy_file
+
+  installOrUpgradeASModules:
+    # This action will drop a provisioning file in the "provisioning" folder to install (or upgrade)
+    # the right versions of the modules required by AS
+    - cmd [proc]: |-
+        provisioning_folder=/data/digital-factory-data/patches/provisioning
+        provisioning_filename=as-restore-modules-provisioning-file.yaml
+        provisioning_file=$provisioning_folder/444.01-$provisioning_filename
+
+        curl -fSsLo $provisioning_file ${globals.repoRootUrl}/assets/jahia/$provisioning_filename || exit 1
+
+        sed -i \
+             -e "s;__DB_CONNECTOR_VERSION__;${globals.modulesState.database-connector-version};g" \
+             -e "s;__ES_CONNECTOR_VERSION__;${globals.modulesState.elasticsearch-connector-version};g" \
+             -e "s;__AS_VERSION__;${globals.modulesState.as-version};g" \
+             $provisioning_file
+
+  prepareAugSearchRestore:
+    - setGlobals:
+        __secret__elasticsearch_password: ${fn.password(20)}
+    - createESAccount4AS
+    - reconfigureAS
+    # We are using provisioning to install the right version of the modules so it only works
+    # with Jahia 8
     - if (${globals.jahia8}):
-        - cmd[proc,cp]: |-
-            screeb_cfg="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
-            kibana_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg"
-            for file in $screeb_cfg $kibana_cfg; do
-              if [ -f $file ]; then
-                cp -p $file /root
-              fi
-            done
-          user: root
+        - installOrUpgradeASModules
+    - purgeEnvIndicesInES
+
+  checkESConnection:
+    # This action makes sure that the ES connection has been updated by the groovy script during Jahia startup
+    - cmd [proc]: |-
+        es_user=${env.envName}
+        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
+        es_conn_name=jahia-cloud_augmented-search
+        __secret__pat_token="${globals.__secret__pat_token}"
+
+        res=$(curl -fLSs -XGET localhost:8080/modules/dbconn/elasticsearch/status/$es_conn_name \
+              -H "Authorization: APIToken $__secret__API_TOKEN" \
+              -H 'Origin: http://localhost:8080' \
+              -H 'Content-Type: application/json' \
+              | jq -r ".success")
+        if [[ "$res" == "" ]]; then
+          echo "Error when trying to get the status" >&2
+          exit 1
+        fi
+
+        if [[ "$es_hostname" != "$(echo $res | jq -r .host)" ]] || [[ "$es_user" != "$(echo $res | jq -r .user)" ]]; then
+          echo "The ES connection has not been updated, please check why the as-recreate-es-connection.groovy script failed" >&2
+          exit 1
+        fi
+
+  finishASRestore:
+    # We need Jahia to be running to make sure the ES connection has been restored
+    # and trigger a full reindex of sites for Augmented Search.
+    #
+    # Since the provisioning doesn't work for Jahia 7, we need to reinstall modules and restore
+    # ES connection/AS conf the old way, using the API, which is why we do it once Jahia is running
+    # Unlike Jahia 8, since we don't know if the modules were installed and running in the backup and they are
+    # not installed with the provisioning file, we can't fully trust the groovy scripts to make sure that
+    # the ES connector and AS connection have been updated, so we can rely on the modules' state, if they are running
+    # it means the groovy scripts could be run and we don't need to reconfigure ES/AS (I know it's super complex but
+    # Jahia 7 will soon be dropped so...)
+    - if (! ${globals.jahia8}):
+        - set:
+            reconfigureES: false
+            reconfigureAS: false
+        - checkModule:
+            moduleSymname: elasticsearch-connector
+        - if ("${globals.moduleState}" != "started"):
+            - set:
+                reconfigureES: true
+        - checkModule:
+            moduleSymname: augmented-search
+        - if ("${globals.moduleState}" != "started"):
+            - set:
+                reconfigureAS: true
+        # If AS versions before and after restore are different, AS needs to be stopped in order to upgrade all the related modules
+        - if ("${globals.modulesState.as-version}" != "${globals.runningVersion}"):
+            - stopModule:
+                moduleSymname: augmented-search
+        - installOrUpgradeModule:
+            moduleSymname: database-connector
+            moduleVersion: ${globals.modulesState.database-connector-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-connector-enterprise-releases
+        - installOrUpgradeModule:
+            moduleSymname: elasticsearch-connector
+            moduleVersion: ${globals.modulesState.elasticsearch-connector-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-connector-enterprise-releases
+        - installOrUpgradeModule:
+            moduleSymname: augmented-search
+            moduleVersion: ${globals.modulesState.as-version}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: augmented-search-releases
+        - if (${this.reconfigureES}):
+            - removeDefaultESConnection
+            - setDefaultESConnection
+        - if (${this.reconfigureAS}):
+            - setAugSearchESConnection
+    - else:
+        # We need to make sure that the ES connection has been restored to what it was before the restore
+        # before triggering a full reindex
+        - checkESConnection
+    - if (${globals.asShouldBeStarted}):
+        - triggerAugSearchFullReindex
+    - else:
+        # Stops AS module if it was not running on the env before the restore
+        - stopModule:
+            moduleSymname: augmented-search
+    - cmd[proc] : rm -f /tmp/as-state
 
   restoreJahia:
     - cmd [proc,cp]: |-
@@ -223,57 +461,13 @@ actions:
             type: error
             message: "An error occurred while restoring jahia data. ${response.errOut}"
 
-    # restore screeb and kibana dashboard config
     - if (${globals.jahia8}):
-        - log: "Initial Screeb and Kibana dashboard config has been restored"
-        - cmd[proc, cp]: |-
-            screeb_cfg="/root/org.jahia.services.env.cfg"
-            kibana_cfg="/root/org.jahia.modules.kibana_dashboards_provider.cfg"
-            for file in $screeb_cfg $kibana_cfg; do
-              if [ -f $file ]; then
-                mv $file /data/digital-factory-data/karaf/etc
-              fi
-            done
-          user: root
-    # set default value for the management of jexperience
-    - set:
-        remove_restored_jexperience: false
-        reinstall_jexperience: false
-    # check is restored backup is also with jexperience active
-    - getJexperienceStatus:
-        step: "after digital-factory-data restore"
-    - set:  # must be set for following conditionnal test, even if false
-        restored_linked: ${response.ACTIVE}
-    - if (${this.restored_linked}):
-        - set:
-            restored_active_version: ${response.version}
-    - if (${globals.jexperience_active} && ${this.restored_linked}):
-        # check is restored active jexperience module version is the same
-        - if ("${globals.jexperience_active_version}" != "${this.restored_active_version}"):
-            - cmd[proc]: |-
-                echo "restored ACTIVE jexperience is v${this.restored_active_version} while v${globals.jexperience_active_version} was ACTIVE before the restore" >> ${globals.logsPath}
-            - set:
-                reinstall_jexperience: true  # jexperience need to be reinstalled with the initial version
-        - else:
-            - cmd[proc]: |-
-                echo "restored ACTIVE jexperience is v${this.restored_active_version} as the ACTIVE module before the restore was" >> ${globals.logsPath}
-    - elif (!${globals.jexperience_active} && ${this.restored_linked}):  # we don't have to keep the restored jexperience
-        - set:
-            remove_restored_jexperience: true
-    - elif (${globals.jexperience_active} && !${this.restored_linked}):  # we have to reinstall jexperience module
-        - set:
-            reinstall_jexperience: true
+        - restoreOtherModulesConfig
 
-    # if jexperience was intialy active, we restore the conf file before starting Jahia
-    - log: "jExperience was active before the restore: ${globals.jexperience_active}"
-    - if (${globals.jexperience_active}):
-        - log: "Initial jExperience conf needs to be restored"
-        - cmd[proc, cp]: |-
-            mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg
-          user: root
-
-    # If AugmentedSearch needs to be restored, then these actions need to be performed
-    # before starting Jahia so the module can start successfully when Jahia will start
+    # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
+    # before starting Jahia so the modules can start successfully when Jahia will start
+    - if (${globals.jexperienceActiveBeforeRestore}):
+        - prepareJExperienceRestore
     - if (${globals.restoreAS}):
         - prepareAugSearchRestore
 
@@ -395,35 +589,22 @@ actions:
 
     - startupJahiaHealthCheck: proc
 
-    # if the env intialy doesn't have jexperience active,
-    # then we clean the conf and nodegroups data
-    - if (${this.remove_restored_jexperience}):
-        - log: Remove env link
+    - if (${globals.jexperienceActiveBeforeRestore}):
+        - finishJExperienceRestore
+    # If the env didn't have jexperience active before restore, then we completely remove and clean jExperience
+    - elif (${globals.removeRestoredJexperience}):
+        - log: "jExperience was not running before restore so it has to be removed"
         - removeAndCleanJexperience
+
+    - if (${globals.restoreAS}):
+        - finishASRestore
     - else:
-        - log: Keep env link
-
-    # if the restored jexperience isn't the same as the intiale one,
-    # then we install the initial
-    - if (${this.reinstall_jexperience}):
-        - log: "jExperience has to be reinstalled: ${this.reinstall_jexperience}"
-        - cmd[proc]: |-
-            echo "Upgrade jexperience module to initial v${globals.jexperience_active_version} now" >> ${globals.logsPath}
-        - log: "Install jExperience v${globals.jexperience_active_version}"
-        - installOrUpgradeModule:
-            moduleSymname: jexperience
-            moduleVersion: ${globals.jexperience_active_version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: marketing-factory-releases
-    # if the env intialy don't have jexperience active,
-    # then we clean the conf and nodegroups data
-    - if (${this.remove_restored_jexperience}):
-        - log: "Restored jExperience has to be removed: ${this.remove_restored_jexperience}"
-        - removeAndCleanJexperience
-
-    # We need Jahia to be up to finish restoring AugmentedSearch (if needed)
-    # because we are using the API to interact with modules and ES connector
-    - finishAugSearchRestore
+        - checkModule:
+            moduleSymname: augmented-search
+        - if ("${globals.moduleState}" != "uninstalled"):
+            - removeDefaultESConnection
+            - uninstallModule:
+                moduleSymname: augmented-search
 
     - cmd[proc]: |-
         # re-enable removeAbandoned in JDBC
@@ -446,104 +627,6 @@ actions:
         # restart tomcat
         sudo service tomcat restart
     - startupJahiaHealthCheck: cp
-
-  reconfigureAS:
-    # This action will drop groovy scripts in the "patch" folder to reconfigure AS
-    # while Jahia is stopped (mandatory for some depending modules)
-    - getECDeploymentEndpoints
-    - cmd [proc]: |-
-        patches_folder=/data/digital-factory-data/patches/groovy
-        groovy_file=as-recreate-es-connection.groovy
-        esc_recreate_groovy_file=$patches_folder/01-$groovy_file
-        graphql_file=as-update-es-connection.graphql
-        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
-        es_port=443
-        es_user=${env.envName}
-        __secret__es_password=${globals.__secret__elasticsearch_password}
-
-        curl -fSsLo ${esc_recreate_groovy_file} ${globals.repoRootUrl}/assets/jahia/$groovy_file || exit 1
-        curl -fSsLo $patches_folder/02-$graphql_file ${globals.repoRootUrl}/assets/jahia/$graphql_file || exit 1
-
-        sed -i \
-             -e "s;\(.*ES_HOSTNAME.*\)PLACEHOLDER\(.*\);\1${es_hostname}\2;" \
-             -e "s;\(.*ES_PORT.*\)PLACEHOLDER\(.*\);\1${es_port}\2;" \
-             -e "s;\(.*ES_USER.*\)PLACEHOLDER\(.*\);\1${es_user}\2;" \
-             -e "s;\(.*ES_PASSWORD.*\)PLACEHOLDER\(.*\);\1${__secret__es_password}\2;" \
-             $esc_recreate_groovy_file
-
-  prepareAugSearchRestore:
-    - setGlobals:
-        __secret__elasticsearch_password: ${fn.password(20)}
-    - createESAccount4AS
-    - reconfigureAS
-    - purgeEnvIndicesInES
-
-  checkESConnection:
-    # This action makes sure that the ES connection has been updated by the groovy script during Jahia startup
-    - cmd [proc]: |-
-        es_user=${env.envName}
-        es_hostname=$(echo ${globals.es_endpoint} | sed 's/https:\/\/\(.*\):.*/\1/g')
-        es_conn_name=jahia-cloud_augmented-search
-        __secret__pat_token="${globals.__secret__pat_token}"
-
-        res=$(curl -fLSs -XGET localhost:8080/modules/dbconn/elasticsearch/status/$es_conn_name \
-              -H "Authorization: APIToken $__secret__API_TOKEN" \
-              -H 'Origin: http://localhost:8080' \
-              -H 'Content-Type: application/json' \
-              | jq -r ".success")
-        if [[ "$res" == "" ]]; then
-          echo "Error when trying to get the status" >&2
-          exit 1
-        fi
-
-        if [[ "$es_hostname" != "$(echo $res | jq -r .host)" ]] || [[ "$es_user" != "$(echo $res | jq -r .user)" ]]; then
-          echo "The ES connection has not been updated, please check why the as-recreate-es-connection.groovy script failed" >&2
-          exit 1
-        fi
-
-  finishAugSearchRestore:
-    - checkModule:
-        moduleSymname: augmented-search
-    - if (${globals.restoreAS}):
-        # First we need to make sure that the ES connection has been updated
-        - checkESConnection
-        # Get augmented search/ and db/es connector modules status before restore
-        - cmd[proc]: |-
-            cat /tmp/as-state
-        - script: |-
-            return {"result": 0, "onAfterReturn": {set: {modulesState: ${response.out.toJSON()} } } }
-        # AS was present on the env before the backup. Need to restore its state
-        - if ("${globals.moduleState}" == "started")  && ("${this.modulesState.as-version}" != "${globals.runningVersion}"):
-            # Stop module if AS backup and environment version mismatch
-            stopModule:
-              moduleSymname: augmented-search
-        - installOrUpgradeModule:
-            moduleSymname: database-connector
-            moduleVersion: ${this.modulesState.database-connector-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-connector-enterprise-releases
-        - installOrUpgradeModule:
-            moduleSymname: elasticsearch-connector
-            moduleVersion: ${this.modulesState.elasticsearch-connector-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-connector-enterprise-releases
-        - installOrUpgradeModule:
-            moduleSymname: augmented-search
-            moduleVersion: ${this.modulesState.as-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: augmented-search-releases
-        - if ("${this.modulesState.as-status}" == "started"):
-            triggerAugSearchFullReindex
-        - else:
-            # Stops AS module if it was not running on the env before the restore
-            stopModule:
-              moduleSymname: augmented-search
-        - cmd[proc] : rm -f /tmp/as-state
-    - else:
-        if ("${globals.moduleState}" != "uninstalled"):
-          - removeDefaultESConnection
-          - uninstallModule:
-              moduleSymname: augmented-search
 
   envSource:
     - script: |
