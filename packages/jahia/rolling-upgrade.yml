@@ -12,9 +12,6 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
-  - muteDatadogSynthetics:
-      duration: 240  # 4h
-
   ## Redeploy Jahia nodes
   - procRedeploy:
       upgradeJahia: true
@@ -32,8 +29,6 @@ onInstall:
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
       product: "dx"
-
-  - unmuteDatadogSynthetics
 
 settings:
   fields:
