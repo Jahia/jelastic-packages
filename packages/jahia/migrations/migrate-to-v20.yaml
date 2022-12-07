@@ -190,7 +190,7 @@ actions:
     - if (${globals.isHigherOrEqualThan810}):
         - checkModule:
             moduleSymname: distributed-sessions
-        - if ("${globals.runningVersion}" != "3.4.0"):
+        - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "3.4.0"):
             - installOrUpgradeModule:
                 moduleSymname: distributed-sessions
                 moduleVersion: 3.4.0
