@@ -108,6 +108,7 @@ actions:
         - cmd[proc]: |-
             echo "jexperience/${globals.runningVersion} active before restore" >> ${globals.logsPath}
         - setGlobals:
+            jexperienceActiveBeforeRestore: true
             jexperienceVersionBeforeRestore: ${globals.runningVersion}
         - checkModule:
             moduleSymname: kibana-dashboards-provider
