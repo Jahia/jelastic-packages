@@ -122,6 +122,7 @@ actions:
             # We save Kibana dashboards provider configuration
             - cmd [proc,cp]: |-
                 cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /root
+              user: root
         # We save jexperience configuration
         - cmd [proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
@@ -218,6 +219,7 @@ actions:
     - if (${globals.jahia8}):
         - cmd [proc, cp]: |-
             mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc
+          user: root
     - cmd [proc, cp]: |-
         mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc
       user: root
