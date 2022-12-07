@@ -398,10 +398,15 @@ actions:
         - if (${this.reconfigureAS}):
             - setAugSearchESConnection
     - else:
-        # We need to make sure that the ES connection has been restored to what it was before the restore
-        # before triggering a full reindex
+        # We need to make sure that the ES connection has been successfully restored before triggering a full reindex
         - checkESConnection
     - if (${globals.asShouldBeStarted}):
+        - checkModule:
+            moduleSymname: augmented-search
+        - if ("${globals.moduleState}" != "started"):
+            - return:
+                type: error
+                message: "Augmented Search is not running after restoring the backup, please check."
         - triggerAugSearchFullReindex
     - else:
         # Stops AS module if it was not running on the env before the restore
