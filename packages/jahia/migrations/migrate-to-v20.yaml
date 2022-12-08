@@ -31,12 +31,12 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - upgradeSam                                # PAAS-2224
+  - upgradeDS                                 # PAAS-2223
   - configureJahiaPurgeCrons                  # PAAS-1681
   - UseG1GC                                   # PAAS-2199
   - addLocalRevisionsCustomCheck              # PAAS-2175
   - addHealthcheckMetricCustomCheck           # PAAS-2194
-  - upgradeSam                                # PAAS-2224
-  - upgradeDS                                 # PAAS-2223
   - moveDumpsToDifferentFolder                # PAAS-2220
 
   # Restart action:
