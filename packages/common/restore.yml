@@ -253,12 +253,11 @@ actions:
     # For Jahia 7, since the provisioning doesn't work, we have to reinstall/upgrade
     # jExperience using the API (if needed)
     - if (!${globals.jahia8}):
-        - if (${globals.reinstallJexperience}):
-            - installOrUpgradeModule:
-                moduleSymname: jexperience
-                moduleVersion: ${globals.jexperienceVersionBeforeRestore}
-                moduleGroupId: org.jahia.modules
-                moduleRepository: marketing-factory-releases
+        - installOrUpgradeModule:
+            moduleSymname: jexperience
+            moduleVersion: ${globals.jexperienceVersionBeforeRestore}
+            moduleGroupId: org.jahia.modules
+            moduleRepository: marketing-factory-releases
     - else:
         # For Jahia 8 we just make sure that jExperience modules are running
         - checkModule:
