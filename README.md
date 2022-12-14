@@ -179,7 +179,7 @@ The processing node won't receive any request from client as browsing nodes are 
 
 In case of a Galera cluster, queries are all executed on the same MariaDB master node, which is replicated to the other ones.
 
-#### JCustomer env
+#### jCustomer env
 
 A jCustomer environment contains:
 - One or several jCustomer nodes
