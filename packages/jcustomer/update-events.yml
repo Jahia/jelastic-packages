@@ -32,7 +32,7 @@ onAfterRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - onAfterRedeployJcustomerContainer: ${event.params.nodeGroup}
-      - forEach(event.params.nodeGroup):
+      - forEach(nodes.${event.params.nodeGroup}):
           - setupUnomi:
               nodeId: ${@i.id}
               __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
