@@ -120,7 +120,7 @@ actions:
         echo "UNOMI_ROOT_PASSWORD_B64=\"$__secret__unomi_root_password_b64\"" >> $envfile
         echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
         echo >> $envfile
-        systemctl is-active --quiet karaf && systemctl restart karaf || systemctl enable --now karaf
+        systemctl is-active --quiet karaf && systemctl restart karaf || systemctl enable --quiet --now karaf
       user: root
     - if ("${response.errOut}" != ""):
         - return:
