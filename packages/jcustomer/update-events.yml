@@ -14,41 +14,34 @@ mixins:
   - ../../mixins/elasticsearch.yml
   - ../../mixins/jahia.yml
 
-onBeforeScaleIn[cp]:
-  - saveUnomiRootPassword
-
-onAfterScaleIn[cp]:
-  - getUnomiRootPassword
-  - updateHazelcast:
-      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-
 onBeforeServiceScaleOut[cp]:
   - saveUnomiRootPassword
 
 onAfterServiceScaleOut[cp]:
   - getUnomiRootPassword
-  - updateHazelcast:
-      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-  - setupDatadogAgentUnomi: cp
+  - forEach(event.response.nodes):
+      - setupUnomi:
+          nodeId: ${@i.id}
+          __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+      - setupDatadogAgentUnomi: ${@i.id}
 
 onBeforeRedeployContainer[cp]:
   - saveUnomiRootPassword
 
 onAfterRedeployContainer[cp]:
-  - createJelasticPackagesLogDir
-  - installPapiScript: cp
-  - setESEndpointInJcustomerConfig
-  - configureDatadogAPM
-  - getUnomiRootPassword
-  - setupUnomi:
-      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-  - setupDatadogAgentUnomi:
-      target: cp
-      __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-  - if ('${event.params.nodeGroup.print()}' != ''):
-      checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
-  - elif ('${event.params.nodeId.print()}' != ''):
-      checkJcustomerHealthWhenStarting: ${event.params.nodeId}
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - onAfterRedeployJcustomerContainer: ${event.params.nodeGroup}
+      - forEach(event.params.nodeGroup):
+          - setupUnomi:
+              nodeId: ${@i.id}
+              __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - onAfterRedeployJcustomerContainer: ${event.params.nodeId}
+      - setupUnomi:
+          nodeId: ${event.params.nodeId}
+          __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
 
 onBeforeDelete:
   - logEvent:

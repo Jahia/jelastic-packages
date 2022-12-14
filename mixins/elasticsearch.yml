@@ -8,7 +8,7 @@ actions:
     - runESCircleCIPipeline:
         workflow: terraform_apply
     - createESAccountAndAliases
-    - setESEndpointInJcustomerConfig
+    - setESEndpointInJcustomerConfig: cp
 
   setupES4AS:
     - getVaultData
@@ -273,7 +273,7 @@ actions:
   setESEndpointInJcustomerConfig:
     - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
-    - cmd [cp]: |-
+    - cmd [${this}]: |-
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"

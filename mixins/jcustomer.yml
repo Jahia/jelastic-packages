@@ -104,41 +104,29 @@ actions:
           curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
           systemctl restart datadog-agent
 
-  updateHazelcast:
+  setupUnomi:
     # Parameters:
+    #   - nodeId
     #   - __secret__unomi_root_password_b64
-    - forEach(nodes.cp):
-        cmd[${@i.id}]: |-
-          envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-          sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
-              -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
-              -e '/UNOMI_ROOT_PASSWORD/d' \
-              -i $envfile
-          __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
-          echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
-          echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
-          echo "UNOMI_ROOT_PASSWORD_B64=\"$__secret__unomi_root_password_b64\"" >> $envfile
-          echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
-          echo >> $envfile
-          systemctl is-active --quiet karaf && systemctl restart karaf || exit 0
-        user: root
+    - cmd[${this.nodeId}]: |-
+        envfile=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+        sed -e '/UNOMI_CLUSTER_PUBLIC_ADDRESS/d' \
+            -e '/UNOMI_CLUSTER_INTERNAL_ADDRESS/d' \
+            -e '/UNOMI_ROOT_PASSWORD/d' \
+            -i $envfile
+        __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
+        echo "export UNOMI_CLUSTER_PUBLIC_ADDRESS=https://${env.domain}" >> $envfile
+        echo "export UNOMI_CLUSTER_INTERNAL_ADDRESS=https://${env.domain}:9443" >> $envfile
+        echo "UNOMI_ROOT_PASSWORD_B64=\"$__secret__unomi_root_password_b64\"" >> $envfile
+        echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
+        echo >> $envfile
+        systemctl is-active --quiet karaf && systemctl restart karaf || systemctl enable --now karaf
+      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
-            message: "An error occurred during hazelcast setup."
-
-  setupUnomi:
-    # Parameters:
-    #   - __secret__unomi_root_password_b64
-    - updateHazelcast:
-        __secret__unomi_root_password_b64: ${this.__secret__unomi_root_password_b64}
-    - setJcustomerApiKey
-    - forEach (nodes.cp):
-        - cmd [${@i.id}]: |-
-            systemctl enable --now karaf
-          user: root
-        - checkJcustomerHealthWhenStarting: ${@i.id}
-      user: root
+            message: "An error occurred during unomi setup."
+    - checkJcustomerHealthWhenStarting: ${this.nodeId}
 
   getLinkedJahiaEnvs:
     # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global
@@ -319,15 +307,25 @@ actions:
         log: "UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES unchanged, no update needed"
 
   createJelasticPackagesLogDir:
-    cmd[cp]: |-
+    cmd[${this}]: |-
       mkdir /var/log/jelastic-packages
       chown root:root /var/log/jelastic-packages
     user: root
 
   configureDatadogAPM:
-    - cmd [cp]: |-
+    - cmd [${this}]: |-
         setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
         sed -e '/APM_OPTS/d' -i $setenv
         echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
         # Because cloudscripting interprets the bash form ${<variable name>:<something>} as its own placeholder, we have to use a trick
         echo '${DATADOG_APM_ENABLED¤-true} && JAVA_OPTS+=" $APM_OPTS"' | sed 's/¤/:/' >> $setenv
+
+  onAfterRedeployJcustomerContainer:
+    - createJelasticPackagesLogDir: ${this}
+    - installPapiScript: ${this}
+    - setESEndpointInJcustomerConfig: ${this}
+    - configureDatadogAPM: ${this}
+    - getUnomiRootPassword
+    - setupDatadogAgentUnomi:
+        target: ${this}
+        __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}

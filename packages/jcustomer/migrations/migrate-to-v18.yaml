@@ -1,0 +1,40 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v18
+id: migrate-jcustomer-env-v18
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 18
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
