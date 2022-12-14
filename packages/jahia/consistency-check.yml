@@ -85,7 +85,7 @@ actions:
                     expectedVersion: 3.1.1
             - else:
                 - set:
-                    expectedVersion: 3.3.0
+                    expectedVersion: 3.4.0
         - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
             - addError:
                 message: "Running distributed-sessions version is ${globals.runningVersion} instead of ${this.expectedVersion}"
