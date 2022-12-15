@@ -33,6 +33,7 @@ onInstall:
 
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - upgradeAugmentedSearch              # PAAS-2267
+  - setupLogsToS3Bucket                 # PAAS-2193
 
   # Actions that require a restart
   - updateJDBCConfForLongConnections    # PAAS-2265
@@ -111,3 +112,48 @@ actions:
               moduleGroupId: org.jahia.modules
               moduleRepository: augmented-search-releases
               startModule: true
+
+  setupLogsToS3Bucket:
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
+        getPapiInfoAll
+
+    - cmd[${nodes.cp.first.id}]: |-
+        if [ -f /usr/local/bin/rclone-logs.sh ]; then
+          echo "Logs already setup"
+        fi
+    - if ( "${response.out}" != "Logs already setup" ):
+        - cmd[bl]: |-
+            curl -fLSso /etc/logrotate.d/haproxy ${globals.repoRootUrl}/assets/haproxy/logrotate_haproxy || exit 1
+            chmod 644 /etc/logrotate.d/haproxy
+          user: root
+        - cmd[cp,proc]: |-
+            logrotate_file=/etc/logrotate.hourly.d/jahia_logrotate
+            if $(! grep -q dateext $logrotate_file); then
+              sed -i '/^}/i\        dateext' $logrotate_file
+            fi
+          user: root
+        - cmd[*]: |-
+            yum install rclone
+          user: root
+        - cmd[${nodes.cp.first.id}]: |-
+            __secret__PAPI_TOKEN="${settings.papi_token}"
+            export PAPI_TOKEN=$__secret__PAPI_TOKEN
+            export PAPI_HOSTNAME=${settings.papi_hostname}
+            export PAPI_ENV_ID="${globals.papiEnvId}"
+            export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+            papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
+            papi.py -X PUT -d '{}' "papier/$papier_id/role/READ_PAAS_REGIONS"
+        - setupLogsShipping
+
+
+settings:
+  fields:
+    - name: papi_token
+      type: string
+      caption: papi token to perform operations
+      required: true
+    - name: papi_hostname
+      type: string
+      caption: papi dns
+      required: true
