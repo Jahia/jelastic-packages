@@ -24,15 +24,6 @@ onInstall:
   - else:
     - setGlobals:
         jCustomerEnv: ${settings.jCustomerEnv}
-  - getJahiaVersion
-  - isVersionHigherOrEqual:
-      a: ${globals.jahiaVersion}
-      b: 8.0.0.0
-      res: jahia8
-  - if (${globals.jahia8}):
-    - removeKibanaAndJexperienceDashboards
-    - removeKibanaDashboardAccountsAndSpace:
-        jCustomerEnv: ${globals.jCustomerEnv}
   - removeAndCleanJexperience
   - updateEnvLinkJahia
   - if (! ${globals.isUnomiEnvDeletion}):
