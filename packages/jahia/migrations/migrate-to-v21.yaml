@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - rollbackGC                                # PAAS-2259
+  - fixTomcatStop                             # PAAS-1885
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -71,6 +72,28 @@ actions:
               -i /opt/tomcat/conf/tomcat-env.sh
           echo "restart"
         fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
+
+  fixTomcatStop:
+    - cmd [cp, proc]: |-
+        script_name=tomcat-env.sh
+        script_path="/opt/tomcat/conf/$script_name"
+        sed -i 's/SHUTDOWN_WAIT.*=.*/SHUTDOWN_WAIT=30/' $script_path
+        if ! grep -q "resolver.use.loadclass=false" $script_path; then
+          sed -ie 's/\(APM_OPTS=".*\)"/\1 -Ddd.resolver.use.loadclass=false"/' $script_path
+        fi
+        script_name=tomcat
+        script_path="/etc/init.d/$script_name"
+        script_url=${globals.repoRootUrl}/packages/jahia/migrations/v21_assets/$script_name
+        if [ "$(md5sum $script_path | awk '{print $1}')" = "3a55273dd99d827b0ac6c23c5f4f7360" ]; then
+          echo "$script_path is already up-to-date. nothing to do"
+          exit 0
+        fi
+        curl -fSsLo $script_path $script_url || exit 1
+        echo "restart"
+      user: root
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
