@@ -62,6 +62,7 @@ onInstall:
       - backupElasticsearch
       - backupJcustomer
       - addMetadata: ${nodes.cp.first.id}
+      - rotateBackups: ${nodes.cp.first.id}
       - rotateElasticsearchBackup
 
 actions:
