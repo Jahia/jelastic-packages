@@ -1,0 +1,76 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v21
+id: migrate-jahia-env-v21
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 21
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth:
+      target: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  - rollbackGC                                # PAAS-2259
+
+  # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJahiaHealth: "cp, proc"
+  - checkJahiaDatadogCustomChecks: "cp, proc"
+  - checkHaproxyHealth: bl
+  - checkHaproxyDatadogCustomChecks: bl
+  - checkMariadbHealth:
+      target: sqldb
+  - checkGaleraClusterHealth: sqldb
+  - checkMariadbDatadogCustomChecks: sqldb
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  rollbackGC:
+    - cmd[proc, cp]: |-
+        if (grep -q UseG1GC /opt/*maven*/bin/mvn); then
+          sed -i '/^MAVEN_OPTS=-XX:+UseG1GC$/d' -i /opt/*maven*/bin/mvn
+        fi
+        if (pgrep -u tomcat -f UseG1GC > /dev/null); then
+          oldGCconf="-XX:+UseG1GC -XX:+DisableExplicitGC -XX:+UseStringDeduplication -XX:MaxTenuringThreshold=7"
+          sed -e '/^JMX_OPTS=/d' \
+              -e "s/$oldGCconf/-XX:+UseParallelGC/" \
+              -i /opt/tomcat/conf/tomcat-env.sh
+          echo "restart"
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
