@@ -1,0 +1,36 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Use ParallelGC instead of G1GC
+id: jahia-use-parallelgc-instead-of-g1gc
+description:
+  short: Jahia - Use ParallelGC instead of G1GC
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - useParallelGC
+
+  # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+actions:
+  useParallelGC:
+    - cmd[proc, cp]: |-
+        if (grep -q UseG1GC /opt/*maven*/bin/mvn); then
+          sed -i '/^MAVEN_OPTS=-XX:+UseG1GC$/d' -i /opt/*maven*/bin/mvn
+        fi
+        if (pgrep -u tomcat -f UseG1GC > /dev/null); then
+          oldGCconf="-XX:+UseG1GC -XX:+DisableExplicitGC -XX:+UseStringDeduplication -XX:MaxTenuringThreshold=7"
+          sed -e '/^JMX_OPTS=/d' \
+              -e "s/$oldGCconf/-XX:+UseParallelGC/" \
+              -i /opt/tomcat/conf/tomcat-env.sh
+          echo "restart"
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
