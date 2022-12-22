@@ -724,11 +724,11 @@ actions:
         ec_deployment_mutualized=$(echo $ec_deployment | jq -r .mutualized)
 
         dev_dedicated=50
-        dev_mutualized=70
+        dev_mutualized=100
         preprod_dedicated=50
-        preprod_mutualized=70
+        preprod_mutualized=100
         prod_dedicated=20
-        prod_mutualized=50
+        prod_mutualized=100
 
         if [ "$ec_deployment_mutualized" = true ]; then
           eval ratio=\$${JEL_ENV_ROLE}_mutualized
