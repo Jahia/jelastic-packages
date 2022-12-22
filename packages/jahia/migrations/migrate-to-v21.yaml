@@ -67,8 +67,8 @@ actions:
     - cmd [cp, proc]: |-
         script_name=thread-dump.sh
         curl -fSsLo /usr/local/bin/$script_name ${globals.repoRootUrl}/packages/jahia/migrations/v21_assets/$script_name || exit 1
-        # Clean up remaining folders that should have been delete
-        find /var/tmp/cloud/thread_dumps/ -type d -mtime +1 -prune -exec rm -rf {} \+
+        # Clean up remaining folders that should have been deleted
+        find /var/tmp/cloud/thread_dumps/* ! -path "*/$(date +'%m-%d-%Y')*" -type d -prune -exec rm -rf {} \+
       user: root
 
   rollbackGC:
