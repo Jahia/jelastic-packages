@@ -1913,8 +1913,10 @@ actions:
     - if (${globals.jahia8}):
         - cmd [proc]: |-
             cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
-            sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
-            sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
+            if [ -f $cfg_file ]; then
+              sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
+              sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
+            fi
         - uninstallModule:
             moduleSymname: kibana-dashboards-provider
         - uninstallModule:
