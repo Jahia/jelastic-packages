@@ -367,6 +367,9 @@ onBeforeScaleIn:
     - muteDatadogHost:
         target: ${@i.id}
         duration: 2880 # 48h
+    - cmd[${@i.id}]: |-
+        service tomcat stop
+      user: root
 
 onAfterServiceScaleOut:
   forEach(event.response.nodes):
