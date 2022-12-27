@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - fixThreadDumps                            # PAAS-2255
+  - updateIPSecScript                         # PAAS-2243
 
   # Actions that require a restart
   - rollbackGC                                # PAAS-2259
@@ -108,3 +109,31 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  updateIPSecScript:
+    - cmd[cp, proc]: |-
+        target=/usr/local/bin/ipsec_updown.sh
+        curl -fLSso $target ${baseUrl}/v21_assets/ipsec_updown.sh || exit 1
+        chmod 755 $target
+
+        ipsec_conf_file="/etc/strongswan/ipsec.d/conn-1.conf"
+        if [ -f $ipsec_conf_file ]; then
+          connections=$(grep "^conn" $ipsec_conf_file | cut -d' ' -f2 | sed 's/\//_/g')
+          for conn in $connections; do
+            dnsmasq_dir=/etc/dnsmasq.d
+            dnsmasq_conf=$dnsmasq_dir/$conn
+            if [ ! -f $dnsmasq_conf ]; then
+              internal_dns_list=($(awk -F'=' '/## *internal_domains *=/ {print gensub(/,/, " ", "g", $NF)}' $ipsec_conf_file))
+              dns_source=/etc/strongswan/resolv.conf
+              conn_dns_list=($(awk '{printf "%s ",$2}' $dns_source))
+              for vpn_dns in ${conn_dns_list[*]}; do
+                for internal_domain in ${internal_dns_list[*]}; do
+                  line="server=/$internal_domain/$vpn_dns"
+                  echo "$line" >> $dnsmasq_conf
+                done
+              done
+              systemctl reload-or-restart dnsmasq.service
+            fi
+          done
+        fi
+      user: root
