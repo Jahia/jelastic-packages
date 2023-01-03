@@ -41,10 +41,16 @@ onInstall:
       env: ${response.resp}
   - cmd[cp]: |-
       sed 's/__ENV__/${globals.env}/' -i /etc/datadog-agent/datadog.yaml
+      echo "hostname: ${HOSTNAME}" >> /etc/datadog-agent/datadog.yaml
       systemctl enable --now datadog-agent
   - env.control.AddContainerEnvVars[cp]:
     vars: {"BACKUP_BRANCH": "master"}
 
+onAfterRedeployContainer:
+  - cmd[*]: |-
+      echo "hostname: ${HOSTNAME}" >> /etc/datadog-agent/datadog.yaml
+      systemctl restart datadog-agent
+    user: root
 
 settings:
   fields:
