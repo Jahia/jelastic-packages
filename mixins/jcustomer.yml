@@ -157,13 +157,15 @@ actions:
         res = "";
         linkedJahiaEnvs.forEach(
           function(jahiaEnvname) {
+            jahiaEnvStatus = JSON.parse(jelastic.env.control.GetEnvInfo(jahiaEnvname, session))["env"]["status"];
             resp = api.marketplace.jps.Install(
                 {
                   jps: "${globals.repoRootUrl}/packages/jahia/unlink-jahia-jcustomer.yml",
                   envName: jahiaEnvname,
                   settings: {
                     'isUnomiEnvDeletion': true,
-                    'jCustomerEnv': '${env.shortdomain}'
+                    'jCustomerEnv': '${env.shortdomain}',
+                    'jahiaEnvStatus': jahiaEnvStatus
                   }
                 }
             )

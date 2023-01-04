@@ -24,7 +24,13 @@ onInstall:
   - else:
     - setGlobals:
         jCustomerEnv: ${settings.jCustomerEnv}
-  - removeAndCleanJexperience
+  - if ("${settings.jahiaEnvStatus.print()}" == ""):
+      - getJahiaEnvStatus
+  - else:
+      - setGlobals:
+          jahiaEnvStatus: ${settings.jahiaEnvStatus}
+  - if ("${globals.jahiaEnvStatus}" == "1"):
+      - removeAndCleanJexperience
   - updateEnvLinkJahia
   - if (! ${globals.isUnomiEnvDeletion}):
     - updateEnvLinkJcustomer
@@ -46,9 +52,16 @@ actions:
         jCustomerEnv: ${response.out}
 
   updateEnvLinkJahia:
-    - environment.nodegroup.ApplyData [proc, cp]:
-        data:
-          envLink: null
+    - script: |-
+        const envName = "${env.envName}";
+        jahiaNodeGroups = ['proc','cp'];
+        
+        jahiaNodeGroups.forEach(
+          function(nodeGroup) {
+            resp = jelastic.env.nodegroup.ApplyData(envName, session, nodeGroup=nodeGroup, data={'envLink': null});
+          }
+        );
+        return {"result": 0, "out": "EnvLink has been removed from Jahia env"};
 
   updateEnvLinkJcustomer:
     - script: |
@@ -71,6 +84,15 @@ actions:
         resp = jelastic.env.nodegroup.ApplyData(jCustomerEnv, session, nodeGroup='cp', data={'envLink': newEnvLink});
         return {"result": 0, "out": jahiaEnv + " removed from envLink of " + jCustomerEnv};
 
+  getJahiaEnvStatus:
+    - script: |-
+        const envName = "${env.envName}";
+
+        resp = jelastic.env.control.GetEnvInfo(envName, session);
+        return {"result": 0, "out": resp.env.status};
+    - setGlobals:
+        jahiaEnvStatus: ${response.out}
+
 settings:
   fields:
     - name: isUnomiEnvDeletion
@@ -83,3 +105,7 @@ settings:
       caption: Linked jCustomer env (OPTIONAL, if not set then the envname will be retrieved)
       required: false
       valueField: shortdomain
+    - name: jahiaEnvStatus
+      type: string
+      caption: Jahia Env Status (Eg- 1(running), 2(stopped))
+      required: false
