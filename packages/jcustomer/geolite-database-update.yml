@@ -1,0 +1,35 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Update the geolite database
+id: jcustomer-update-geolite-database
+logo: ../../assets/common/jahia-logo-70x70.png
+description:
+  short: jCustomer - Update the geolite database
+
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - ForEach(nodes.cp):
+      - checkDatadogAgentCheck:
+          target: ${@i.id}
+          checkName: jcustomer_status
+  - ForEach(nodes.cp):
+      - updateGeoliteDatabase: ${@i.id}
+
+actions:
+  updateGeoliteDatabase:
+    - cmd[${this}]: |-
+        curl -fLSso GeoLite2-City.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=$MAXMIND_KEY&suffix=tar.gz" || exit 1
+        tar xzf GeoLite2-City.tar.gz
+        cmp -s GeoLite2-City_*/GeoLite2-City.mmdb /opt/jcustomer/jcustomer/etc/GeoLite2-City.mmdb
+        if [[ $? -eq 1 ]]; then
+          mv GeoLite2-City_*/GeoLite2-City.mmdb /opt/jcustomer/jcustomer/etc
+          chown karaf: /opt/jcustomer/jcustomer/etc/GeoLite2-City.mmdb
+          echo "[INFO] Restart Required"
+        fi
+        rm -rf GeoLite2-City*
+    - if ("${response.out}" != ""):
+        - api: environment.control.RestartNodeById
+          nodeId: ${@i.id}
