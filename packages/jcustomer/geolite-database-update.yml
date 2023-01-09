@@ -32,4 +32,4 @@ actions:
         rm -rf GeoLite2-City*
     - if ("${response.out}" != ""):
         - api: environment.control.RestartNodeById
-          nodeId: ${@i.id}
+          nodeId: ${this}
