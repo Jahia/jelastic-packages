@@ -34,6 +34,7 @@ onInstall:
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
 
   # Actions that require a restart
+  - updateJDBCConfForLongConnections    # PAAS-2265
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -71,3 +72,18 @@ actions:
         - cmd[cp,proc]: |-
             sed -r 's|(\{%\.-)[0-9]+(m\})|\12000\2|' \
                 -i /opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml
+
+  updateJDBCConfForLongConnections:
+    - cmd[cp,proc]: |-
+        file=/opt/tomcat/webapps/ROOT/META-INF/context.xml
+        if (! grep abandonWhenPercentageFull $file); then
+          sed -i '/removeAbandoned="true"/a \    jdbcInterceptors="org.apache.tomcat.jdbc.pool.interceptor.ResetAbandonedTimer"' $file
+          sed -i '/removeAbandoned="true"/a \    abandonWhenPercentageFull="80"' $file
+          echo "restart"
+        else
+          echo "JDBC configuration alreay up to date"
+        fi
+      user: root
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
