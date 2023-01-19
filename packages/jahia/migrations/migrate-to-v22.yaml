@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
+  - upgradeAugmentedSearch              # PAAS-2267
 
   # Actions that require a restart
   - updateJDBCConfForLongConnections    # PAAS-2265
@@ -87,3 +88,26 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  upgradeAugmentedSearch:
+    - isAugSearchEnabled
+    - if (${globals.isAugSearchEnabled}):
+        - getJahiaVersion
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.0.0.0
+            res: jahia8
+        - if (${globals.jahia8}):
+            installOrUpgradeModule:
+              moduleSymname: augmented-search
+              moduleVersion: 3.4.0
+              moduleGroupId: org.jahia.modules
+              moduleRepository: augmented-search-releases
+              startModule: true
+        - else:
+            installOrUpgradeModule:
+              moduleSymname: augmented-search
+              moduleVersion: 1.7.0
+              moduleGroupId: org.jahia.modules
+              moduleRepository: augmented-search-releases
+              startModule: true
