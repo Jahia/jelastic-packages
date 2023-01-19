@@ -526,10 +526,6 @@ actions:
         # Clean up any possible remainder of previous script execution
         rm -f ${groovy_file_path}*
 
-        # Disable removeAbandoned in JDBC before the first start
-        sed -E 's:(^\s+removeAbandoned=).*:\1"false":' \
-            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
-
         # Replace Pat Token if needed and start tomcat
         jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
         if [ $jahia_major_version -eq 7 ]; then
@@ -583,26 +579,9 @@ actions:
             - uninstallModule:
                 moduleSymname: augmented-search
 
-    - cmd[proc]: |-
-        # re-enable removeAbandoned in JDBC
-        sed -E 's:(^\s+removeAbandoned=).*:\1"true":' \
-            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
-        # restart tomcat
-        sudo service tomcat restart
-    - startupJahiaHealthCheck: proc
-
     - cmd[cp]: |-
-        # Disable removeAbandoned in JDBC before the first start
-        sed -E 's:(^\s+removeAbandoned=).*:\1"false":' \
-            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
         sudo service tomcat start
-    - startupJahiaHealthCheck: cp
-    - cmd[cp]: |-
-        # re-enable removeAbandoned in JDBC
-        sed -E 's:(^\s+removeAbandoned=).*:\1"true":' \
-            -i /opt/tomcat/webapps/ROOT/META-INF/context.xml
-        # restart tomcat
-        sudo service tomcat restart
+
     - startupJahiaHealthCheck: cp
 
   envSource:
