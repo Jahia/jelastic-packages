@@ -231,8 +231,8 @@ actions:
                     message: "Running jexperience version is ${globals.runningVersion} instead of ${this.expectedVersion}"
 
   checkAugSearch:
-    # Jahia 7.x ==> Database connector 1.2.0 / Elastcsearch connector 2.1.0 / Augmented Search 1.6.2
-    # Jahia 8.x ==> Database connector 1.5.0 / Elastcsearch connector 3.2.0 / Augmented Search 3.3.3
+    # Jahia 7.x ==> Database connector 1.2.0 / Elastcsearch connector 2.1.0 / Augmented Search 1.7.0
+    # Jahia 8.x ==> Database connector 1.5.0 / Elastcsearch connector 3.2.0 / Augmented Search 3.4.0
     - isAugSearchEnabled
     - if( ${globals.isAugSearchEnabled} ):
         - getJahiaVersion
@@ -244,12 +244,12 @@ actions:
             - set:
                 expectedDbConnectorVersion: 1.2.0
                 expectedEsConnectorVersion: 2.1.0
-                expectedASVersion: 1.6.2
+                expectedASVersion: 1.7.0
         - else:
             - set:
                 expectedDbConnectorVersion: 1.5.0
                 expectedEsConnectorVersion: 3.2.0
-                expectedASVersion: 3.3.3
+                expectedASVersion: 3.4.0
         - basicModuleCheck:
             moduleSymname: database-connector
         - if( "${globals.moduleState}" == "started" && "${globals.runningVersion}" != "${this.expectedDbConnectorVersion}" ):
