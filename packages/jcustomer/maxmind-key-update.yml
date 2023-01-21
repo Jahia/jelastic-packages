@@ -1,0 +1,37 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Update maxmind key
+id: jcustomer-update-maxmind-key
+logo: ../../assets/common/jahia-logo-70x70.png
+description:
+  short: jCustomer - Update maxmind key
+
+onInstall:
+  - updateMaxmindKey
+
+actions:
+  updateMaxmindKey:
+    - script: |-
+        const envName = "${env.envName}";
+        __secret__newMaxmindKey = "${settings.newMaxmindKey}";
+
+        resp = jelastic.env.control.GetContainerEnvVarsByGroup(envName, session, nodeGroup='cp');
+        oldMaxmindKey = resp.object["MAXMIND_KEY"];
+        
+        if (__secret__newMaxmindKey == oldMaxmindKey)
+          return {"result": 0, "out": "Nothing to do. Maxmind key is already up-to date"};
+        
+        return jelastic.env.control.AddContainerEnvVars(
+          envName,
+          session,
+          nodeGroup='cp',
+          vars={"MAXMIND_KEY": __secret__newMaxmindKey}
+        );
+
+settings:
+  fields:
+    - name: newMaxmindKey
+      type: string
+      caption: New Maxmind key
+      required: true
