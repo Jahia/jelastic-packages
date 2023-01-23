@@ -819,7 +819,6 @@ actions:
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
 
         BACKUP_FILE=haproxy.tar.gz
-        AUTH_BASIC=auth_basic
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME=customer.errorpages.d
@@ -852,25 +851,6 @@ actions:
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         fi
 
-        # Basic auth
-        old_auth_basic_disabled=1
-        user=env-admin
-        password=XXXXXXX
-        if [ -s $AUTH_BASIC ]; then
-          old_auth_basic_disabled=0
-          user=$(awk '{print $1}' $AUTH_BASIC)
-          password=$(awk '{print $2}' $AUTH_BASIC)
-        fi
-        rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $AUTH_BASIC $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
-        # Basic auth
-        sed -i "s;^\(\s*user \).*\( password \).*$;\1$user\2$password;" $HAPROXY_CONF
-        auth_basic_disabled=$(grep -c  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_CONF)
-        [ $old_auth_basic_disabled -eq $auth_basic_disabled ] && exit 0
-        if [ $old_auth_basic_disabled -eq 1 ]; then
-          sed -i "s;^\(\s*\)\(.*#HTTP_AUTH_BASIC.*\)$;\1#\2;" $HAPROXY_CONF
-        else
-          sed -i "s;^\(\s*\)#\+\(.*#HTTP_AUTH_BASIC.*\)$;\1\2;" $HAPROXY_CONF
-        fi
         # Replace JSESSIONID and use HAProxy dedicated cookie
         if (grep -qw 'JSESSIONID' $HAPROXY_CONF); then
           cookie_line1="use_backend proc if { cook(SERVERID),lower -m beg s${nodes.proc.first.id} }"
