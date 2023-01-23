@@ -84,7 +84,7 @@ actions:
         else
           echo "JDBC configuration alreay up to date"
         fi
-        sed -i 's/max_connections =.*/max_connections = 100/g' /etc/proxysql.cnf
+        sed -i 's/max_connections = 50/max_connections = 100/' /etc/proxysql.cnf
       user: root
     - cmd[proc]: |-
         ${globals.proxysql_cli} -e "update mysql_servers set max_connections=100"
