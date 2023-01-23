@@ -300,11 +300,7 @@ actions:
         cp -a $HAPROXY_CUSTOMER_CONF_DIR .
         cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_CONF $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_DIR .
-        touch auth_basic
-        if ! grep -qe  "#acl tools.*#HTTP_AUTH_BASIC" $HAPROXY_JAHIA_CONF; then
-            awk '/user .* password .*/ {print $2" "$4}' $HAPROXY_JAHIA_CONF > auth_basic
-        fi
-        tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME auth_basic $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+        tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         python3 backrest.py -a upload --bucketname jc${cluster_role}${env.uid}${env_region} --backupname ${settings.backup_name} -f haproxy.tar.gz ${globals.argTimestamp} -m ${settings.backtype} 2>>${globals.logsPath} || exit 1
         rm -rf haproxy.tar.gz $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_CONF_DIR_NAME
     - if ("${response.errOut}" != ""):
