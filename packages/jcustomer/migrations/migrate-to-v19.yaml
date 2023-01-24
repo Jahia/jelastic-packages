@@ -24,6 +24,12 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - setupLogsToS3Bucket                 # PAAS-2193
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
   ### Post-actions
   - setEnvVersion: ${globals.version}
   - logEvent:
@@ -38,3 +44,39 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}/../update-events.yml"
+
+  setupLogsToS3Bucket:
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd[${nodes.cp.first.id}]: |-
+        if [ -f /usr/local/bin/rclone-logs.sh ]; then
+          echo "Logs already setup"
+        fi
+    - if ( "${response.out}" != "Logs already setup" ):
+        - cmd[*]: |-
+            yum install rclone
+            sed -i 's,^\(log4j2.appender.rolling.filePattern =\).*,\1 ${karaf.data}/log/karaf.log.%d{yyyy-MM-dd_HH:mm:ss}.gz,g' /opt/jcustomer/jcustomer/etc/org.ops4j.pax.logging.cfg
+          user: root
+        - cmd[${nodes.cp.first.id}]: |-
+            __secret__PAPI_TOKEN="${settings.papi_token}"
+            export PAPI_TOKEN=$__secret__PAPI_TOKEN
+            export PAPI_HOSTNAME=${settings.papi_hostname}
+            export PAPI_ENV_ID="${globals.papiEnvId}"
+            export PAPI_API_VERSION="${globals.papiApiVersion}"
+
+            papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
+            papi.py -X PUT -d '{}' "papier/$papier_id/role/READ_PAAS_REGIONS"
+        - setupLogsShipping
+        - setGlobals:
+           - jCustomerRollingRestartNeeded: true
+
+settings:
+  fields:
+    - name: papi_token
+      type: string
+      caption: papi token to perform operations
+      required: true
+    - name: papi_hostname
+      type: string
+      caption: papi dns
+      required: true

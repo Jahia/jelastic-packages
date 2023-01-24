@@ -981,3 +981,79 @@ actions:
         for monitor_id in "${monitors_id[@]}"; do
           curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute?scope=envname:$ENVNAME" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
         done
+
+
+  setupLogsShipping:
+    - setGlobalRepoRootUrl
+    - fetchS3LogsBucketInfos
+    - if (nodes.bl): # Jahia env
+        fetchS3LogsScripts:
+          target: cp,proc,bl
+    - else: # jCustomer env
+        fetchS3LogsScripts:
+          target: cp
+
+  fetchS3LogsScripts:
+    # Parameters
+    # target: the node/nodeGroup to setup
+    - cmd[${this.target}]: |-
+        __secret__access_key="${globals.__secret__access_key}"
+        __secret__secret_key="${globals.__secret__secret_key}"
+        region="${globals.s3_bucket_region}"
+        rclone_conf=/root/.config/rclone/rclone.conf
+        curl -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
+        mkdir -p /root/.config/rclone
+        curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
+        curl -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
+        chmod +x /usr/local/bin/rclone-logs.sh
+        sed -i "s/ACCESS_KEY_PLACEHOLDER/$__secret__access_key/" $rclone_conf
+        sed -i "s/SECRET_KEY_PLACEHOLDER/$__secret__secret_key/" $rclone_conf
+        sed -i "s/REGION_PLACEHOLDER/$region/" $rclone_conf
+      user: root
+
+  fetchS3LogsBucketInfos:
+    # Parameters:
+    #   - target
+    # Fetch s3 logs bucket info from papi and store them in nodes env vars
+    - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
+        getPapiInfoAll
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        organization_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r '.paas_organization_id')
+        organization=$(papi.py -X GET paas-organization/$organization_id)
+        bucket_name=$(echo $organization | jq -r '.logs_s3_bucket')
+        region_id=$(echo $organization | jq -r '.logs_s3_bucket_region_id')
+        region_code=$(papi.py -X GET paas-region/$region_id | jq -r .code)
+        credentials=$(papi.py -X GET paas-organization/$organization_id/aws-secrets)
+        secret_key=$(echo $credentials | jq -r '.secret_key')
+        access_key=$(echo $credentials | jq -r '.secret_access_key')
+
+        echo """
+        {
+          \"__secret__bucket_name\": \"$bucket_name\",
+          \"__secret__access_key\": \"$access_key\",
+          \"__secret__secret_key\": \"$secret_key\",
+          \"s3_bucket_region\": \"$region_code\"
+        }
+        """
+    - script: |-
+        valid_groups = ["cp", "proc", "bl"];
+        const __secret__data = ${response.out.toJSON()};
+        jelastic.environment.control.getnodegroups("${env.envName}", session)["object"].forEach((nodeGroup) => {
+          if ( valid_groups.includes(nodeGroup.name) ) {
+            jelastic.env.control.AddContainerEnvVars(
+              '${env.envName}',
+              session,
+              nodeGroup=nodeGroup.name,
+              vars={
+                "logs_s3_bucket_name": __secret__data["__secret__bucket_name"],
+              }
+            );
+          }
+        });
+
+        return {"result": 0, "onAfterReturn": {setGlobals: ${response.out.toJSON()} } }

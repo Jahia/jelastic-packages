@@ -147,6 +147,7 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - setJelEnvRoleInNodeGroupData
+  - setupLogsShipping
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId

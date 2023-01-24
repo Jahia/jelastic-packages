@@ -1,14 +1,14 @@
 /var/log/haproxy/*log {
     missingok
     notifempty
-    delaycompress
     copytruncate
     sharedscripts
     rotate 7
     daily
-    size 300M
+    maxsize 300M
     compress
     dateext
+    dateformat -%Y-%m-%d_%Hh-%s
     postrotate
         reload rsyslog >/dev/null 2>&1 || true
     endscript
