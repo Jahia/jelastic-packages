@@ -1193,18 +1193,18 @@ actions:
   configureProxysqlForSingleDBNode:
     cmd[cp, proc]: |-
       ${globals.proxysql_cli} -e "DELETE FROM mysql_servers WHERE hostgroup_id!=2;"
-      ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 50)"
+      ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 100)"
       ${globals.proxysql_cli} -e "UPDATE mysql_galera_hostgroups SET active=0;"
       ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
       ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK;"
 
   setupMysqlServers:
     - cmd[proc]: |-
-        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 50)"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_1',3306, 100)"
     - if (nodes.sqldb.length > 1):
         - cmd[proc]: |-
-            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_2',3306, 50)"
-            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 50, 1000)"
+            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections) VALUES (2,'galera_2',3306, 100)"
+            ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 100, 1000)"
     - cmd[proc]: |-
         ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME"
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
@@ -1258,9 +1258,9 @@ actions:
         fi
 
     - cmd[proc, cp]: |-
-        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_1',3306, 50, 1);"
-        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_2',3306, 50, 1);"
-        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 50, 1);"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_1',3306, 100, 1);"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_2',3306, 100, 1);"
+        ${globals.proxysql_cli} -e "REPLACE INTO mysql_servers(hostgroup_id,hostname,port, max_connections, weight) VALUES (2,'galera_3',3306, 100, 1);"
         ${globals.proxysql_cli} -e "update mysql_servers set weight=1000 where hostname='galera_${this.target}';"
         ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"

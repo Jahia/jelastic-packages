@@ -84,6 +84,12 @@ actions:
         else
           echo "JDBC configuration alreay up to date"
         fi
+        sed -i 's/max_connections = 50/max_connections = 100/' /etc/proxysql.cnf
+      user: root
+    - cmd[proc]: |-
+        ${globals.proxysql_cli} -e "update mysql_servers set max_connections=100"
+        ${globals.proxysql_cli} -e "LOAD MYSQL SERVERS TO RUNTIME;"
+        ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
       user: root
     - if("${response.out}" == "restart"):
         - setGlobals:
