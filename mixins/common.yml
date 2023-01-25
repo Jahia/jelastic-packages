@@ -645,6 +645,67 @@ actions:
           }
         };
 
+  getOvhBackupCredentials:
+    # Returns:
+    #   ${globals.__secret__backupAccessKeyId}: Access key ID of backup OVH user
+    #   ${globals.__secret__backupSecretAccessKey}: Access secret key of backup OVH user
+    - getVaultData
+    - vaultSecretReadAllKeysB64:
+        secretPath: "paas/envs-common/ovh-backup"
+    - script: |-
+        let __secret__vaultResponseBase64 = "${globals.__secret__vaultSecretData}";
+        let vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__vaultResponseBase64)))
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__backupAccessKeyId": vaultResponse.access_key_id,
+              "__secret__backupSecretAccessKey": vaultResponse.secret_access_key
+            }
+          }
+        };
+
+  setupBackupRCloneConfig:
+    # Parameters
+    # provider: the cloud provider hosting the s3 bucket
+    # region: the region of the s3 bucket
+    - cmd[*]: |-
+        provider=${this.provider}
+        region=${this.region}
+        if [ "$provider" = "ovh" ]; then
+          # OVH hns are on rbx or gra so we force gra region to backup in case the node is in Roubaix
+          region="gra"
+          provider="Other"
+          endpoint="https://s3.$region.io.cloud.ovh.net/"
+        else
+          endpoint=""
+          provider=AWS
+        fi
+
+        rclone_conf=/root/.config/rclone/rclone.conf
+        # Sed commands only changes patterns after the [backup] section
+        sed -i -r "/\[backup\]/,// s|endpoint =.*|endpoint = $endpoint|" $rclone_conf
+        sed -i -r "/\[backup\]/,// s|provider =.*|provider = $provider|" $rclone_conf
+        sed -i -r "/\[backup\]/,// s|region =.*|region = $region|" $rclone_conf
+        sed -i -r "/\[backup\]/,// s|location_constraint =.*|location_constraint = $location_constraint|" $rclone_conf
+      user: root
+
+  getBucketName:
+    # Parameters:
+    #  - region: the region hosting the env
+    #  - uid: the jelastic account uid
+    #  - clusterRole: the env  role
+    # Returns:
+    #  - ${globals.bucketName}: the name of the bucket
+    - cmd[${nodes.cp.first.id}]: |-
+        region=$(echo "${this.region}" | sed 's/[[:punct:]]//g')
+        bucket_name="jc${this.clusterRole}${this.uid}$region"
+        echo $bucket_name
+
+    - setGlobals:
+        bucketName: ${response.out}
+
+
   muteDatadogHost:
     # Parameters:
     #  - target: target node group or id
@@ -983,20 +1044,15 @@ actions:
         done
 
 
-  setupLogsShipping:
+  setupRclone:
     - setGlobalRepoRootUrl
     - fetchS3LogsBucketInfos
-    - if (nodes.bl): # Jahia env
-        fetchS3LogsScripts:
-          target: cp,proc,bl
-    - else: # jCustomer env
-        fetchS3LogsScripts:
-          target: cp
+    - fetchRcloneFiles
 
-  fetchS3LogsScripts:
+  fetchRcloneFiles:
     # Parameters
     # target: the node/nodeGroup to setup
-    - cmd[${this.target}]: |-
+    - cmd[*]: |-
         __secret__access_key="${globals.__secret__access_key}"
         __secret__secret_key="${globals.__secret__secret_key}"
         region="${globals.s3_bucket_region}"
@@ -1006,9 +1062,10 @@ actions:
         curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         curl -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
         chmod +x /usr/local/bin/rclone-logs.sh
-        sed -i "s/ACCESS_KEY_PLACEHOLDER/$__secret__access_key/" $rclone_conf
-        sed -i "s/SECRET_KEY_PLACEHOLDER/$__secret__secret_key/" $rclone_conf
-        sed -i "s/REGION_PLACEHOLDER/$region/" $rclone_conf
+
+        sed -i "s/LOGS_ACCESS_KEY_PLACEHOLDER/$__secret__access_key/" $rclone_conf
+        sed -i "s/LOGS_SECRET_KEY_PLACEHOLDER/$__secret__secret_key/" $rclone_conf
+        sed -i "s/LOGS_REGION_PLACEHOLDER/$region/" $rclone_conf
       user: root
 
   fetchS3LogsBucketInfos:
@@ -1057,3 +1114,19 @@ actions:
         });
 
         return {"result": 0, "onAfterReturn": {setGlobals: ${response.out.toJSON()} } }
+
+  getEnvCloudProvider:
+    # Returns
+    #  provider: the CloudProvider hosting the env
+    - cmd[${nodes.cp.first.id}]: |-
+        awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST
+    - setGlobals:
+       provider: ${response.out}
+
+  getEnvRegion:
+    # Returns
+    #  region: the region hosting the env
+    - cmd[${nodes.cp.first.id}]: |-
+        awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
+    - setGlobals:
+        region: ${response.out}

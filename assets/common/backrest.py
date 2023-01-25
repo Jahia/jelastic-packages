@@ -36,6 +36,9 @@ def argparser():
     parser.add_argument("--displayname",
                         help="the env displayname (for metadata)",
                         required=False)
+    parser.add_argument("--size",
+                        help="the backup size in bytes (for metadata)",
+                        required=False)
     parser.add_argument("-f", "--file",
                         help="the file you want to download or upload",
                         required=False)
@@ -126,7 +129,7 @@ def list_backup(bucket, **kwargs):
 
 
 def add_to_metadata_file(bucket, backupname, timestamp, mode,
-                         product, version, **kwargs):
+                         product, version, size=1, **kwargs):
     metadatakey = "{}_backup_metadata.json".format(kwargs['uid'])
     tmpfile = "/tmp/backrest_metadata.tmp"
 
@@ -145,11 +148,6 @@ def add_to_metadata_file(bucket, backupname, timestamp, mode,
         logging.info("No existing metadata file found in {}, start a new one"
                      .format(bucket))
         listbackups = {"backups": []}
-
-    if product == 'dx':
-        size = cp.folder_size(folder, bucket=kwargs['frombucket'])
-    else:
-        size = 1
 
     d = {"name": backupname,
          "timestamp": timestamp,
@@ -312,9 +310,10 @@ if __name__ == '__main__':
     elif args.action == 'addmeta':
         uid = getuid()
         metabucket = setmetabucketname()
+        size = args.size if args.size else 1
         res = add_to_metadata_file(metabucket, args.backupname,
                                    timestamp, args.mode,
-                                   product, version,
+                                   product, version, size,
                                    displayname=args.displayname,
                                    uid=uid, frombucket=args.bucketname)
         if not res:
