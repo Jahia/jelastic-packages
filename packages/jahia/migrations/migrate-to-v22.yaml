@@ -31,6 +31,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - updateGraphQL                       # PAAS-2268
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - upgradeAugmentedSearch              # PAAS-2267
   - setupLogsToS3Bucket                 # PAAS-2193
@@ -63,6 +64,24 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  updateGraphQL:
+    - getJahiaVersion
+    - isVersionBetween:
+        lower: 8.1.1.0
+        lower_may_equal: true
+        version: ${globals.jahiaVersion}
+        higher: 8.1.3.0
+        higher_may_equal: true
+        res: isBetween8110and8130
+    - if( ${globals.isBetween8110and8130} ):
+        - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
+        - installOrUpgradeModule:
+            moduleSymname: graphql-dxm-provider
+            moduleVersion: 2.16.0
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
+        - enableHaproxyHealthcheck
 
   increaseJahia8LogsMaxLineSize:
     - getJahiaVersion
