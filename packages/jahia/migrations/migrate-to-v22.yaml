@@ -35,7 +35,7 @@ onInstall:
   - upgradeSam                          # PAAS-2276
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - upgradeAugmentedSearch              # PAAS-2267
-  - setupLogsToS3Bucket                 # PAAS-2193
+  - setupLogsToS3Bucket                 # PAAS-2193 & PAAS-2266
 
   # Actions that require a restart
   - updateJDBCConfForLongConnections    # PAAS-2265
@@ -183,7 +183,7 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
-            
+
   upgradeSam:
     - getJahiaVersion
     - isVersionHigherOrEqual:
