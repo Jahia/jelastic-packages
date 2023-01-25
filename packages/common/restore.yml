@@ -851,6 +851,8 @@ actions:
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         fi
 
+        rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
+
         # Replace JSESSIONID and use HAProxy dedicated cookie
         if (grep -qw 'JSESSIONID' $HAPROXY_CONF); then
           cookie_line1="use_backend proc if { cook(SERVERID),lower -m beg s${nodes.proc.first.id} }"
