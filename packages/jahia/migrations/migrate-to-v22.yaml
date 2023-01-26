@@ -126,7 +126,7 @@ actions:
         - if (${globals.jahia8}):
             installOrUpgradeModule:
               moduleSymname: augmented-search
-              moduleVersion: 3.4.0
+              moduleVersion: 3.4.1
               moduleGroupId: org.jahia.modules
               moduleRepository: augmented-search-releases
               startModule: true
