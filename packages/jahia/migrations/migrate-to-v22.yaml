@@ -38,6 +38,7 @@ onInstall:
 
   # Actions that require a restart
   - updateJDBCConfForLongConnections    # PAAS-2265
+  - updateJavaOpts                      # PAAS-2279
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -171,6 +172,16 @@ actions:
             papi.py -X PUT -d '{}' "papier/$papier_id/role/READ_PAAS_REGIONS"
         - setupLogsShipping
 
+  updateJavaOpts:
+    - cmd[proc, cp]: |-
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+        if ! grep -qE "^\s*JAVA_OPTS\s*=.*security.egd" $tomcat_env; then
+          sed -i 's;^\s*\(JAVA_OPTS\s*=.*\)"$;\1 -Djava.security.egd=file:/dev/urandom";' $tomcat_env
+          echo restart
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
 
 settings:
   fields:
