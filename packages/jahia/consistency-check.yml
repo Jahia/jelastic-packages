@@ -135,7 +135,7 @@ actions:
     # Jahia 7.3 >= 7.3.9 ==> 1.2.0
     # Jahia 8.0 ==> 2.0.1
     # Jahia 8.1 < 8.1.2 ==> 2.1.0
-    # Jahia 8.1.2+ ==> 2.3.0
+    # Jahia 8.1.2+ ==> 2.4.0
     - basicModuleCheck:
         moduleSymname: server-availability-manager
     - if( "${globals.moduleState}" == "started" ):
@@ -173,7 +173,7 @@ actions:
                             expectedVersion: 2.1.0
                     - else:
                         - set:
-                            expectedVersion: 2.3.0
+                            expectedVersion: 2.4.0
         - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
             - addError:
                 message: "Running server-availability-manager version is ${globals.runningVersion} instead of ${this.expectedVersion}"

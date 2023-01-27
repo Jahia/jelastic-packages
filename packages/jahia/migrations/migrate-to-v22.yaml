@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - updateGraphQL                       # PAAS-2268
+  - upgradeSam                          # PAAS-2276
   - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - upgradeAugmentedSearch              # PAAS-2267
   - setupLogsToS3Bucket                 # PAAS-2193
@@ -182,6 +183,25 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+            
+  upgradeSam:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.2.0
+        res: isHigherOrEqualThan8120
+    - if (${globals.isHigherOrEqualThan8120}):
+        - checkModule:
+            moduleSymname: server-availability-manager
+        - if ("${globals.runningVersion}" != "2.4.0"):
+            - disableHaproxyHealthcheck
+            - installOrUpgradeModule:
+                moduleSymname: server-availability-manager
+                moduleVersion: 2.4.0
+                moduleGroupId: org.jahia.modules
+                moduleRepository: jahia-releases
+            - checkJahiaHealth
+            - enableHaproxyHealthcheck
 
 settings:
   fields:
