@@ -1,0 +1,54 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2287 - Apply 8.1.3.1 patch to 8.0.3 envs
+id: paas-2287-apply-8131-patch
+description:
+  short: Updates app-shell module to 2.7.1 and jahia-impl jar to 8.1.3.1 (implies a rolling-restart of jahia nodes)
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - getJahiaVersion
+  - if( "${globals.jahiaVersion}" == "8.1.3.0" ):
+      # Upgrade app-shell module to 2.7.1
+      - installOrUpgradeModule:
+          moduleSymname: app-shell
+          moduleVersion: 2.7.1
+          moduleGroupId: org.jahia.modules
+          moduleRepository: jahia-releases
+      # Patch jahia-impl on processing node
+      - removeProcNodeFromHaproxy:
+          reload: true
+      - installPatch: ${nodes.proc.first.id}
+      - addProcNodeToHaproxy:
+          reload: true
+      # Patch jahia-impl on browsing nodes
+      - foreach (nodes.cp):
+          - removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
+          - installPatch: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
+actions:
+  installPatch:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/jahia-impl-8.1.3.1.jar"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+          exit 0
+        fi
+        sudo service tomcat stop
+        patch_url="https://devtools.jahia.com/nexus/content/groups/public/org/jahia/server/jahia-impl/8.1.3.1/jahia-impl-8.1.3.1.jar"
+        rm /opt/tomcat/webapps/ROOT/WEB-INF/lib/jahia-impl-8.1.3.0.jar
+        curl -fLSso $patch_file $patch_url || exit 1
+        chmod 644 $patch_file
+        sudo service tomcat start
+    - startupJahiaHealthCheck: ${this}
