@@ -171,7 +171,7 @@ actions:
 
             papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
             papi.py -X PUT -d '{}' "papier/$papier_id/role/READ_PAAS_REGIONS"
-        - setupLogsShipping
+        - setupRclone
 
   updateJavaOpts:
     - cmd[proc, cp]: |-

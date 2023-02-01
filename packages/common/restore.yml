@@ -33,20 +33,40 @@ onInstall:
               wc_region_source: ${response.resp}
           - if(settings.envrole_source):
               - if(settings.uid_source):
-                  - setGlobals:
-                      bucketname: jc${settings.envrole_source}${settings.uid_source}${globals.wc_region_source} -F ${settings.cloud_source},${settings.region_source},${settings.envrole_source}
+                  getBucketName:
+                    region: ${settings.region_source}
+                    uid: ${settings.uid_source}
+                    clusterRole: ${settings.envrole_source}
               - setGlobals:
                   regionRealName_source: ${settings.region_source}
                   cloudProvider_source: ${settings.cloud_source}
+                  provider: ${settings.cloud_source}
+                  region: ${settings.region_source}
 
   - if(settings.source_env):
       - envSource
-      - setGlobals:
-          bucketname: jc${globals.envRole_source}${env.uid}${globals.region_source} -F ${globals.cloudProvider_source},${globals.regionRealName_source},${settings.envrole_source}
+      - getBucketName:
+          region: ${globals.region_source}
+          uid: ${env.uid}
+          clusterRole: ${globals.envRole_source}
   - if(!settings.source_env):
       - if(!settings.envrole_source):
-          - setGlobals:
-              bucketname: jc${cluster_role}${env.uid}${env_region}
+          getBucketName:
+            region: ${env.region}
+            uid: ${env.uid}
+            clusterRole: ${cluster_role}
+
+  - if ("${globals.provider}" == "ovh"):
+      getOvhBackupCredentials
+  - else: # aws
+      setGlobals:
+          __secret__backupAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+          __secret__backupSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
+  - setupBackupRCloneConfig:
+      provider: ${globals.provider}
+      region: ${globals.region}
+  - setGlobals:
+      backupName: ${settings.backup_name}_${settings.timestamp}_${settings.backtype}
 
   - if (nodes.proc):  # Jahia
       - muteDatadogSynthetics:
@@ -418,14 +438,18 @@ actions:
   restoreJahia:
     - cmd [proc,cp]: |-
         sudo service tomcat stop
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
+
+        cd /opt/tomcat/temp/jelastic_backup
+        rclone copy --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ . || exit 1
+        chown tomcat: digital-factory-data.tar.gz digital-factory-config.tar.gz jahia-env-vars.gz
+      user: root
+
+    - cmd [proc,cp]: |-
         cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f digital-factory-data.tar.gz 2>>${globals.logsPath} || exit 1
         sudo rm -rf /data/digital-factory-data
         sudo chown tomcat:tomcat /data
         tar xf digital-factory-data.tar.gz -C / 2>>${globals.logsPath} || exit 1
@@ -446,14 +470,7 @@ actions:
         - prepareAugSearchRestore
 
     - cmd [proc,cp]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f digital-factory-config.tar.gz 2>>${globals.logsPath} || exit 1
         rm -rf /opt/tomcat/conf/digital-factory-config
         tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
         chown tomcat:tomcat -R /opt/tomcat/conf
@@ -484,14 +501,7 @@ actions:
       user: tomcat
 
     - cmd [proc,cp]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
         cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jahia-env-vars.gz 2>>${globals.logsPath} || exit 1
         ls jahia-env-vars.gz || exit 0
     - if ("${response.errOut}" == ""):
         - cmd [proc,cp]: |-
@@ -815,9 +825,17 @@ actions:
 
   restoreHaproxy:
     - cmd [bl]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
 
+        cd /var/lib/haproxy/jelastic_backup
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
+        chown haproxy: haproxy.tar.gz
+      user: root
+
+    - cmd [bl]: |-
         BACKUP_FILE=haproxy.tar.gz
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
@@ -829,15 +847,11 @@ actions:
         HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
-        cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f haproxy.tar.gz 2>>${globals.logsPath}
-
         rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
+
+        cd /var/lib/haproxy/jelastic_backup
         tar -xzf $BACKUP_FILE
+
         # Rules
         mv $HAPROXY_CUSTOMER_CONF_DIR_NAME/* $HAPROXY_CUSTOMER_CONF_DIR 2>/dev/null
 
@@ -868,16 +882,19 @@ actions:
 
   restoreMariadb:
     - cmd[sqldb]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
-        cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f database.tar 2>>${globals.logsPath}
-        ls database.tar || exit 0
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
 
+        cd /home/jelastic/jelastic_backup
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
+        chown mysql: database.tar
+      user: root
+
+    - cmd[sqldb]: |-
+        cd /home/jelastic/jelastic_backup
+        ls database.tar || exit 0
         sudo service mysql stop
         if (pgrep mysqld > /dev/null); then
           sudo pkill -e -9 mysqld
@@ -928,15 +945,15 @@ actions:
 
   restoreJcustomer:
     - cmd [cp]: |-
-        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-        provider=$(awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST); if [ "$provider" != "aws" ]; then aws_region='eu-west-1'; else aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST); fi; export AWS_DEFAULT_REGION="$aws_region"
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST); export cluster_role
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g'); export env_region
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
+
         cd jelastic_backup
-        python3 backrest.py -a download --backupname ${settings.backup_name} --bucketname ${globals.bucketname} -m ${settings.backtype} -t ${settings.timestamp} -f jcustomer-env-vars.gz 2>>${globals.logsPath}
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/jcustomer-env-vars.gz .
         ls jcustomer-env-vars.gz || exit 0
+      user: root
     - if ("${response.errOut}" == ""):
         - cmd [cp]: |-
             cd jelastic_backup
@@ -990,6 +1007,7 @@ settings:
       caption: envrole_source ?
       values:
         dev: dev
+        preprod: preprod
         prod: prod
     - name: timestamp
       caption: timestamp in format %Y-%m-%dT%H:%M:00
