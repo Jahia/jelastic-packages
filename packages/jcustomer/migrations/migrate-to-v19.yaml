@@ -24,7 +24,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  - setupLogsToS3Bucket                 # PAAS-2193
+  - setupLogsToS3Bucket                 # PAAS-2193 & PAAS-2266
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -66,7 +66,7 @@ actions:
 
             papier_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r .papier_id)
             papi.py -X PUT -d '{}' "papier/$papier_id/role/READ_PAAS_REGIONS"
-        - setupLogsShipping
+        - setupRclone
         - setGlobals:
            - jCustomerRollingRestartNeeded: true
 
