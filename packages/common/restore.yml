@@ -65,6 +65,7 @@ onInstall:
       setGlobals:
         provider: aws
         region: eu-west-1
+        oldOvhRegion: true # Used in getBucketName, should be remove there too
 
   - if ("${globals.provider}" == "ovh"):
       getOvhBackupCredentials
