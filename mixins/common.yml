@@ -695,10 +695,16 @@ actions:
     #  - region: the region hosting the env
     #  - uid: the jelastic account uid
     #  - clusterRole: the env  role
+    #  - cloudProvider: the cloudprovider hosting the env
     # Returns:
     #  - ${globals.bucketName}: the name of the bucket
     - cmd[${nodes.cp.first.id}]: |-
-        region=$(echo "${this.region}" | sed 's/[[:punct:]]//g')
+        if [ "${this.cloudProvider}" == "ovh" ]; then
+          # Force the backup region for ovh
+          region="gra"
+        else
+          region=$(echo "${this.region}" | sed 's/[[:punct:]]//g')
+        fi
         bucket_name="jc${this.clusterRole}${this.uid}$region"
         echo $bucket_name
 
