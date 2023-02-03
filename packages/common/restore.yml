@@ -37,6 +37,7 @@ onInstall:
                     region: ${settings.region_source}
                     uid: ${settings.uid_source}
                     clusterRole: ${settings.envrole_source}
+                    cloudProvider: ${settings.cloud_source}
               - setGlobals:
                   regionRealName_source: ${settings.region_source}
                   cloudProvider_source: ${settings.cloud_source}
@@ -49,12 +50,21 @@ onInstall:
           region: ${globals.region_source}
           uid: ${env.uid}
           clusterRole: ${globals.envRole_source}
+          cloudProvider: ${globals.provider}
   - if(!settings.source_env):
       - if(!settings.envrole_source):
           getBucketName:
             region: ${env.region}
             uid: ${env.uid}
             clusterRole: ${cluster_role}
+            cloudProvider: ${globals.provider}
+
+  # TODO: Remove me, I'm ugly. Dirty hack to allow ovh internal backups older than v3.22.0 to be restore.
+  # Remove the following if block
+  - if (("${globals.provider}" == "ovh") && ("${settings.timestamp}" < "2023-02-08T07:00:00")):
+      setGlobals:
+        provider: aws
+        region: eu-west-1
 
   - if ("${globals.provider}" == "ovh"):
       getOvhBackupCredentials

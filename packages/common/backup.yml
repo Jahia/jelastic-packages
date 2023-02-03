@@ -41,6 +41,7 @@ onInstall:
       region: ${globals.region}
       uid: ${env.uid}
       clusterRole: ${globals.clusterRole}
+      cloudProvider: ${globals.provider}
   - createBucketIfNotExists:
       bucketName: ${globals.bucketName}
 
