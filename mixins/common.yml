@@ -1058,24 +1058,64 @@ actions:
     - setGlobalRepoRootUrl
     - fetchS3LogsBucketInfos
     - fetchRcloneFiles
+    - setupLogsRCloneConfig:
+        provider: ${globals.logs_bucket_provider}
+        region: ${globals.s3_bucket_region}
+        __secret__access_key: ${globals.__secret__access_key}
+        __secret__secret_key: ${globals.__secret__secret_key}
+        __secret__aes256_key: ${globals.__secret__aes256_key}
 
   fetchRcloneFiles:
     # Parameters
     # target: the node/nodeGroup to setup
     - cmd[*]: |-
-        __secret__access_key="${globals.__secret__access_key}"
-        __secret__secret_key="${globals.__secret__secret_key}"
-        region="${globals.s3_bucket_region}"
-        rclone_conf=/root/.config/rclone/rclone.conf
+        rclone_dir=/root/.config/rclone
+        rclone_conf=$rclone_dir/rclone.conf
         curl -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
-        mkdir -p /root/.config/rclone
+        mkdir -p $rclone_dir
         curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         curl -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
         chmod +x /usr/local/bin/rclone-logs.sh
+      user: root
 
-        sed -i "s/LOGS_ACCESS_KEY_PLACEHOLDER/$__secret__access_key/" $rclone_conf
-        sed -i "s/LOGS_SECRET_KEY_PLACEHOLDER/$__secret__secret_key/" $rclone_conf
-        sed -i "s/LOGS_REGION_PLACEHOLDER/$region/" $rclone_conf
+  setupLogsRCloneConfig:
+    # Parameters
+    #   - Mandatory:
+    #     - provider: the cloud provider hosting the s3 bucket
+    #     - region: the region of the s3 bucket
+    #     - __secret__access_key: the access key used by rclone
+    #     - __secret__secret_key: the secret key used by rclone
+    #   - Optional:
+    #     - __secret__aes256_key: the aes256 key used by rclone to encrypt/decrypt data when region is OVH
+    - cmd[*]: |-
+        rclone_conf=/root/.config/rclone/rclone.conf
+        provider="${this.provider}"
+        region="${this.region}"
+        __secret__access_key="${this.__secret__access_key}"
+        __secret__secret_key="${this.__secret__secret_key}"
+        __secret__aes256_key="${this.__secret__aes256_key.print()}"
+
+        set -e
+        sed -e "s/LOGS_REGION_PLACEHOLDER/$region/" \
+            -e "s/LOGS_ACCESS_KEY_PLACEHOLDER/$__secret__access_key/" \
+            -e "s#LOGS_SECRET_KEY_PLACEHOLDER#$__secret__secret_key#" \
+            -i $rclone_conf
+
+        if [ "$provider" = "ovh" ]; then
+          provider="Other"
+          endpoint="https://s3.$region.io.cloud.ovh.net/"
+          sed -e "s;LOGS_ENDPOINT_PLACEHOLDER;$endpoint;" \
+              -e "s#LOGS_AES256_KEY_PLACEHOLDER#$__secret__aes256_key#" \
+              -e "/#PROVIDER_AWS/d" \
+              -e "s/ #PROVIDER_OVH//" \
+              -i $rclone_conf
+        else
+          provider=AWS
+          sed -e "s/ #PROVIDER_AWS//" \
+              -e "/#PROVIDER_OVH/d" \
+              -i $rclone_conf
+        fi
+        sed -i "s/LOGS_PROVIDER_PLACEHOLDER/$provider/" $rclone_conf
       user: root
 
   fetchS3LogsBucketInfos:
@@ -1085,6 +1125,7 @@ actions:
     - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
         getPapiInfoAll
     - cmd[${nodes.cp.first.id}]: |-
+        set -e
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
@@ -1094,17 +1135,22 @@ actions:
         organization=$(papi.py -X GET paas-organization/$organization_id)
         bucket_name=$(echo $organization | jq -r '.logs_s3_bucket')
         region_id=$(echo $organization | jq -r '.logs_s3_bucket_region_id')
-        region_code=$(papi.py -X GET paas-region/$region_id | jq -r .code)
-        credentials=$(papi.py -X GET paas-organization/$organization_id/aws-secrets)
+        region=$(papi.py -X GET paas-region/$region_id)
+        region_code=$(echo $region | jq -r .code)
+        provider=$(echo $region | jq -r .provider)
+        credentials=$(papi.py -X GET paas-organization/$organization_id/secrets)
         secret_key=$(echo $credentials | jq -r '.secret_key')
         access_key=$(echo $credentials | jq -r '.secret_access_key')
+        aes256_key=$(echo $credentials | jq -r '.aes256_key')
 
         echo """
         {
           \"__secret__bucket_name\": \"$bucket_name\",
           \"__secret__access_key\": \"$access_key\",
           \"__secret__secret_key\": \"$secret_key\",
-          \"s3_bucket_region\": \"$region_code\"
+          \"__secret__aes256_key\": \"$aes256_key\",
+          \"s3_bucket_region\": \"$region_code\",
+          \"logs_bucket_provider\": \"$provider\"
         }
         """
     - script: |-
