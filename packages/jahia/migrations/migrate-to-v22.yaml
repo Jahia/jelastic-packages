@@ -33,8 +33,8 @@ onInstall:
 
   - updateGraphQL                       # PAAS-2268
   - upgradeSam                          # PAAS-2276
-  - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - upgradeAugmentedSearch              # PAAS-2267
+  - increaseJahia8LogsMaxLineSize       # PAAS-2200
   - setupLogsToS3Bucket                 # PAAS-2193 & PAAS-2266
 
   # Actions that require a restart
@@ -83,6 +83,7 @@ actions:
             moduleVersion: 2.16.0
             moduleGroupId: org.jahia.modules
             moduleRepository: jahia-releases
+        - checkJahiaHealth: "cp, proc"
         - enableHaproxyHealthcheck
 
   increaseJahia8LogsMaxLineSize:
