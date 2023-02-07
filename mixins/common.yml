@@ -1118,6 +1118,8 @@ actions:
         sed -i "s/LOGS_PROVIDER_PLACEHOLDER/$provider/" $rclone_conf
       user: root
 
+  # Similarly to what has been done for setupBackupRCloneConfig, we force the OVH
+  # region to be GRA
   fetchS3LogsBucketInfos:
     # Parameters:
     #   - target
@@ -1136,8 +1138,12 @@ actions:
         bucket_name=$(echo $organization | jq -r '.logs_s3_bucket')
         region_id=$(echo $organization | jq -r '.logs_s3_bucket_region_id')
         region=$(papi.py -X GET paas-region/$region_id)
-        region_code=$(echo $region | jq -r .code)
         provider=$(echo $region | jq -r .provider)
+        if [ "$provider" = "ovh" ]; then
+          region_code=gra
+        else
+          region_code=$(echo $region | jq -r .code)
+        fi
         credentials=$(papi.py -X GET paas-organization/$organization_id/secret)
         secret_key=$(echo $credentials | jq -r '.secret_key')
         access_key=$(echo $credentials | jq -r '.secret_access_key')
