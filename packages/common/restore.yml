@@ -25,48 +25,29 @@ onInstall:
   - setGlobalRepoRootUrl
   - getBackrestAwsAccessKey
 
+  - script: |
+        var region = '${settings.region_source}'
+        return {'result': 0, 'resp': region.replace(/(\W|_)+/g, '')}
+  - setGlobals:
+      wc_region_source: ${response.resp}
+      regionRealName_source: ${settings.region_source}
+      cloudProvider_source: ${settings.cloud_source}
+      provider: ${settings.cloud_source}
+      region: ${settings.region_source}
+
   # TODO: Remove me, I'm ugly. Dirty hack to allow ovh internal backups older than v3.22.0 to be restore.
   # Remove the following if block
-  - if (("${settings.cloud_source}" == "ovh") && ("${settings.timestamp}" < "2023-02-08T07:00:00")):
+  - if (("${globals.provider}" == "ovh") && ("${settings.timestamp}" < "2023-02-08T07:00:00")):
       setGlobals:
         provider: aws
         region: eu-west-1
         oldOvhRegion: true # Used in getBucketName, should be remove there too
 
-  - if(settings.cloud_source):
-      - if(settings.region_source):
-          - script: |
-                var region = '${settings.region_source}'
-                return {'result': 0, 'resp': region.replace(/(\W|_)+/g, '')}
-          - setGlobals:
-              wc_region_source: ${response.resp}
-          - if(settings.envrole_source):
-              - if(settings.uid_source):
-                  getBucketName:
-                    region: ${settings.region_source}
-                    uid: ${settings.uid_source}
-                    clusterRole: ${settings.envrole_source}
-                    cloudProvider: ${settings.cloud_source}
-              - setGlobals:
-                  regionRealName_source: ${settings.region_source}
-                  cloudProvider_source: ${settings.cloud_source}
-                  provider: ${settings.cloud_source}
-                  region: ${settings.region_source}
-
-  - if(settings.source_env):
-      - envSource
-      - getBucketName:
-          region: ${globals.region_source}
-          uid: ${env.uid}
-          clusterRole: ${globals.envRole_source}
-          cloudProvider: ${globals.provider}
-  - if(!settings.source_env):
-      - if(!settings.envrole_source):
-          getBucketName:
-            region: ${env.region}
-            uid: ${env.uid}
-            clusterRole: ${cluster_role}
-            cloudProvider: ${globals.provider}
+  - getBucketName:
+      region: ${globals.region}
+      uid: ${settings.uid_source}
+      clusterRole: ${settings.envrole_source}
+      cloudProvider: ${globals.provider}
 
   - if ("${globals.provider}" == "ovh"):
       getOvhBackupCredentials
@@ -606,43 +587,6 @@ actions:
 
     - startupJahiaHealthCheck: cp
 
-  envSource:
-    - script: |
-          var envInfo = jelastic.env.control.getenvinfo('${settings.source_env}', session)
-          for (var i = 0, n = envInfo.nodes; i < n.length; i++) {
-            if (n[i].nodeGroup == 'cp') {
-              var nodeID = n[i].id;
-              break;
-            }
-          }
-          var metadata = jelastic.env.file.read('${settings.source_env}', session, '/metadata_from_HOST', null, null, nodeID).body.toString()
-
-          var re = /(\S|\n|\r)*JEL_REGION=(\S+)(\S|\n|\r)*/
-          var regionRealName = metadata.replace(re, '$2')
-          var region = regionRealName.replace(/(\W|_)+/g, '')
-
-          var re = /(\S|\n|\r)*JEL_CLOUDPROVIDER=(\S+)(\S|\n|\r)*/
-          var cloudProvider = metadata.replace(re, '$2')
-
-          var re = /(\S|\n|\r)*JEL_AVAILABILITYZONE=(\S+)(\S|\n|\r)*/
-          var az = metadata.replace(re, '$2')
-
-          var re = /(\S|\n|\r)*JEL_ENV_ROLE=(\S+)(\S|\n|\r)*/
-          var envRole = metadata.replace(re, '$2')
-
-          return {'result': 0,
-            'region': region,
-            'regionRealName': regionRealName,
-            'cloudProvider': cloudProvider,
-            'az': az,
-            'envRole': envRole}
-    - setGlobals:
-        region_source: ${response.region}
-        regionRealName_source: ${response.regionRealName}
-        cloudProvider_source: ${response.cloudProvider}
-        az_source: ${response.az}
-        envRole_source: ${response.envRole}
-
   restoreElasticsearch:
     - script: |-
         // Extract only bucketname in case of foreign restore
@@ -1000,20 +944,18 @@ settings:
       caption: Backup Name
       vtype: text
       required: true
-    - name: source_env
-      type: envlist
-      caption: backup from ?
-      valueField: appid
-      editable: true
     - name: cloud_source
       type: string
       caption: cloud source ?
+      required: true
     - name: region_source
       type: string
       caption: region_source ?
+      required: true
     - name: uid_source
       type: string
       caption: uid_source ?
+      required: true
     - name: envrole_source
       type: list
       caption: envrole_source ?
@@ -1021,6 +963,7 @@ settings:
         dev: dev
         preprod: preprod
         prod: prod
+      required: true
     - name: timestamp
       caption: timestamp in format %Y-%m-%dT%H:%M:00
       required: true
@@ -1029,3 +972,4 @@ settings:
       caption: is this a manual or auto backup
       type: string
       default: manual
+      required: true
