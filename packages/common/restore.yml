@@ -24,6 +24,15 @@ onInstall:
       duration: 240 # 4h
   - setGlobalRepoRootUrl
   - getBackrestAwsAccessKey
+
+  # TODO: Remove me, I'm ugly. Dirty hack to allow ovh internal backups older than v3.22.0 to be restore.
+  # Remove the following if block
+  - if (("${settings.cloud_source}" == "ovh") && ("${settings.timestamp}" < "2023-02-08T07:00:00")):
+      setGlobals:
+        provider: aws
+        region: eu-west-1
+        oldOvhRegion: true # Used in getBucketName, should be remove there too
+
   - if(settings.cloud_source):
       - if(settings.region_source):
           - script: |
@@ -58,14 +67,6 @@ onInstall:
             uid: ${env.uid}
             clusterRole: ${cluster_role}
             cloudProvider: ${globals.provider}
-
-  # TODO: Remove me, I'm ugly. Dirty hack to allow ovh internal backups older than v3.22.0 to be restore.
-  # Remove the following if block
-  - if (("${globals.provider}" == "ovh") && ("${settings.timestamp}" < "2023-02-08T07:00:00")):
-      setGlobals:
-        provider: aws
-        region: eu-west-1
-        oldOvhRegion: true # Used in getBucketName, should be remove there too
 
   - if ("${globals.provider}" == "ovh"):
       getOvhBackupCredentials
