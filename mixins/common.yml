@@ -1138,7 +1138,7 @@ actions:
         region=$(papi.py -X GET paas-region/$region_id)
         region_code=$(echo $region | jq -r .code)
         provider=$(echo $region | jq -r .provider)
-        credentials=$(papi.py -X GET paas-organization/$organization_id/secrets)
+        credentials=$(papi.py -X GET paas-organization/$organization_id/secret)
         secret_key=$(echo $credentials | jq -r '.secret_key')
         access_key=$(echo $credentials | jq -r '.secret_access_key')
         aes256_key=$(echo $credentials | jq -r '.aes256_key')
