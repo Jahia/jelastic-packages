@@ -200,7 +200,7 @@ actions:
                 moduleVersion: 2.4.0
                 moduleGroupId: org.jahia.modules
                 moduleRepository: jahia-releases
-            - checkJahiaHealth
+            - checkJahiaHealth: "cp, proc"
             - enableHaproxyHealthcheck
 
 settings:
