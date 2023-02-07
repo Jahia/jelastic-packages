@@ -699,13 +699,12 @@ actions:
     # Returns:
     #  - ${globals.bucketName}: the name of the bucket
     - cmd[${nodes.cp.first.id}]: |-
-        if [ "${this.cloudProvider}" == "ovh" ]; then
+        if [ "${globals.oldOvhRegion:false}" == "true" ]; then
+          # legacy bucket name for ovh region
+          region="gra2"
+        elif [ "${this.cloudProvider}" == "ovh" ]; then
           # Force the backup region for ovh
           region="gra"
-          if [ "${globals.oldOvhRegion:false}" == "true" ]; then
-            # legacy bucket name for ovh region
-            region="gra2"
-          fi
         else
           region=$(echo "${this.region}" | sed 's/[[:punct:]]//g')
         fi
