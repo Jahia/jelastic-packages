@@ -24,7 +24,7 @@ class Papi():
         HTTPStatus.SERVICE_UNAVAILABLE: 53,
     }
     HTTP_METHODS= ['GET', 'PUT', 'POST', 'DELETE']
-    JELASTIC_LOG_FILE = '/var/log/jelastic-packages/papi.log'
+    JELASTIC_LOG_FILE = '/tmp/papi.log'
     PAPI_SCHEME = 'https'
 
 
