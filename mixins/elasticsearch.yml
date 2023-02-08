@@ -635,17 +635,7 @@ actions:
           -H 'Content-Type: application/json' \
           -u $__secret__ec_admin_credentials \
           -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${this.repositoryName}?verify=true&pretty" \
-          -d'{
-            "type": "s3",
-            "settings": {
-                "bucket": "'${this.account}'",
-                "region": "'${this.region}'",
-                "base_path" : "'${this.backupName}'/elasticsearch",
-                "access_key": "'$__secret__aws_access_key'",
-                "secret_key": "'$__secret__aws_secret_key'",
-                "readonly": "${this.readonly:false}"
-            }
-          }')
+          -d"{\"type\": \"s3\", \"settings\": { \"bucket\": \"${this.account}\", \"region\": \"${this.region}\", \"base_path\" : \"${this.backupName}/elasticsearch\", \"access_key\": \"$__secret__aws_access_key\", \"secret_key\": \"$__secret__aws_secret_key\", \"readonly\": \"${this.readonly:false}\"}}")
         exit=0
         if [ $return_code -ne 200 ]; then
           cat $output_file | tee -a ${this.logsPath}
