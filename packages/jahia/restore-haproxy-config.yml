@@ -1,0 +1,18 @@
+---
+type: update
+version: 1.5.2
+id: jahia-restore-haproxy-config
+name: Jahia restore HAProxy config
+description: Restores HAProxy config by making sure all backends are added and the healthcheck is enabled
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
+
+onInstall:
+  # Make sure all nodes are OK before restoring the config
+  - checkJahiaHealth: "cp, proc"
+  # Reset the config (backends list + healthcheck)
+  - resetHaproxyBackends
+  - enableHaproxyHealthcheck
