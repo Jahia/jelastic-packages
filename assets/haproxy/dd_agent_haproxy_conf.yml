@@ -19,3 +19,4 @@ instances:
     collect_status_metrics: true
     enable_service_check: true
     status_check: true
+    disable_legacy_service_tag: true
