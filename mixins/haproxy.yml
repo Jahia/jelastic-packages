@@ -121,8 +121,8 @@ actions:
   setupDatadogAgentHaproxy:
     - log: "## Finalize Datadog agent setup on ${this}"
     - setGlobalRepoRootUrl
+    - InstallLatestDatadogAgent: ${this}
     - cmd[${this}]: |-
-        DD_API_KEY=$(sed -n 's/DATADOGAPIKEY=\(.*\)/\1/p' < /.jelenv) bash -c "$(curl -sL https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
         sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
