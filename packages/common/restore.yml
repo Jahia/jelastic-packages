@@ -590,7 +590,7 @@ actions:
   restoreElasticsearch:
     - script: |-
         // Extract only bucketname in case of foreign restore
-        var account="${globals.bucketname}";
+        var account="${globals.bucketName}";
         account=account.split(" ")[0];
         return {'result': 0,'account': account}
     - setGlobals:
