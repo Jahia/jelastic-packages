@@ -26,8 +26,8 @@ class CheckNumberBrowsingRemaining(AgentCheck):
             # With this regexp, we only keep individual backend lines, not the global BACKEND one
             r_backend = re.compile('^' + self.BROWSING_BACKEND_NAME + ',(?!BACKEND).*')
             r_backend_up = re.compile('.*,UP,.*')
-            backend_stats = filter(r_backend.match, haproxy_stats)
-            backend_up_stats = filter(r_backend_up.match, backend_stats)
+            backend_stats = list(filter(r_backend.match, haproxy_stats))
+            backend_up_stats = list(filter(r_backend_up.match, backend_stats))
             if len(backend_up_stats) <= 1:
                 if len(backend_stats) != len(backend_up_stats):
                     self.service_check(
