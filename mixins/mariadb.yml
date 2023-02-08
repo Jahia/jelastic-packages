@@ -107,8 +107,8 @@ actions:
         echo "init_config:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "instances:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "  - server: 127.0.0.1" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "    user: datadog" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        echo "    pass: ${DB_USER_DATADOG}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    username: datadog" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
+        echo "    password: ${DB_USER_DATADOG}" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    sock: /var/lib/mysql/mysql.sock" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "    tags:" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "      - 'env:${env.envName}'" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
