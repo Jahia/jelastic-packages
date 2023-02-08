@@ -50,8 +50,6 @@ onInstall:
   - setGlobals:
       backupName: ${settings.backup_name}_${globals.timestamp}_${settings.backtype}
 
-
-
   - if (nodes.proc):  # Jahia
       - chooseTheBestDatabaseNodeToBackup
       - clearJelasticLogs:
@@ -230,22 +228,6 @@ actions:
 
   backupElasticsearch:
     - cmd[${nodes.cp.first.id}]: |-
-        cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
-        env_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST | sed 's/[[:punct:]]//g')
-        echo jc${cluster_role}${env.uid}${env_region}
-    - setGlobals:
-        account: ${response.out}
-    - cmd[${nodes.cp.first.id}]: |-
-        awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
-    - setGlobals:
-        region: ${response.out}
-
-    - cmd[${nodes.cp.first.id}]: |-
-        awk -F'=' '$1=="JEL_CLOUDPROVIDER" {print $2}' /metadata_from_HOST
-    - setGlobals:
-        provider: ${response.out}
-
-    - cmd[${nodes.cp.first.id}]: |-
         curl -s \
           -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
           https://$UNOMI_ELASTICSEARCH_ADDRESSES | python -c "import sys, json; print(json.load(sys.stdin)['version']['number'])"
@@ -261,7 +243,7 @@ actions:
             __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
             export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
             cd jelastic_backup
-            python3 elasticsearch.py --bucketname ${globals.account} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
+            python3 elasticsearch.py --bucketname ${globals.bucketName} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
         - if ("${globals.provider}" == "aws"):
             - set:
                 region: ${globals.region}
@@ -272,7 +254,7 @@ actions:
             repositoryName: ${env.shortdomain}
             backupName: ${settings.backup_name}
             region: ${this.region}
-            account: ${globals.account}
+            account: ${globals.bucketName}
             logsPath: ${globals.logsPath}
             __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
             __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
@@ -282,7 +264,7 @@ actions:
             __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
             __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
             operation: "backup"
-            account: ${globals.account}
+            account: ${globals.bucketName}
             backupName: ${settings.backup_name}
             logsPath: ${globals.logsPath}
 
@@ -334,7 +316,7 @@ actions:
         snapshots_to_delete=$(head -n $delete_count <<<"$snapshots")
         for snapshot in $snapshots_to_delete;  do
           timestamp=$(echo $snapshot |awk '{print toupper(substr($0,0,19))}')
-          python3 backrest.py -a delmeta --bucketname ${globals.account} --backupname ${settings.backup_name} -t $timestamp
+          python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp
           if [ $? -eq 0 ]; then
             curl \
               -u $__secret__ec_admin_credentials \
