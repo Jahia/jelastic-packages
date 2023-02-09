@@ -7,7 +7,7 @@ id: paas-2266-persist-rclone-conf-in-redeploy-conf
 mixins:
   - "../../mixins/common.yml"
 
-actions:
+onInstall:
   - setGlobalRepoRootUrl
   - if (nodes.proc):
       install:
