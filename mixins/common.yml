@@ -1073,7 +1073,7 @@ actions:
         chmod +x /usr/local/bin/rclone-logs.sh
         rclone_dir=/root/.config/rclone
         rclone_conf=$rclone_dir/rclone.conf
-        if [ !-f $rclone_conf ]; then
+        if [ ! -f $rclone_conf ]; then
           mkdir -p $rclone_dir
           curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         fi
