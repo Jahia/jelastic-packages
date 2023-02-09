@@ -1,0 +1,19 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2266 - persist rclone configuration in redeploy.conf
+id: paas-2266-persist-rclone-conf-in-redeploy-conf
+
+mixins:
+  - "../../mixins/common.yml"
+
+actions:
+  - setGlobalRepoRootUrl
+  - if (nodes.proc):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jahia/update-events.yml"
+  - else:
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/update-events.yml"
+  - cmd[*]: |-
+       echo "/root/.config/rclone/rclone.conf" >> /etc/jelastic/redeploy.conf
