@@ -144,6 +144,7 @@ onBeforeRedeployContainer:
 
 onAfterRedeployContainer:
   - if ('${event.params.nodeGroup.print()}' != ''):
+      - fetchRcloneFiles: ${event.params.nodeGroup}
       - getLogEventScript: ${event.params.nodeGroup}
       - logEvent:
           target: ${event.params.nodeGroup}
@@ -153,6 +154,7 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
       - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeid.print()}' != ''):
+      - fetchRcloneFiles: ${event.params.nodeId}
       - getLogEventScript: ${event.params.nodeid}
       - logEvent:
           target: ${event.params.nodeid}

@@ -144,7 +144,7 @@ onAfterRedeployContainer[bl]:
       - setSudoer: ${event.params.nodeGroup}
       - installRequiredPackages:
           target: ${event.params.nodeGroup}
-          packages: "jq"
+          packages: "jq rclone"
       - installPython:
           target: ${event.params.nodeGroup}
           python_major_version: 3
@@ -159,7 +159,7 @@ onAfterRedeployContainer[bl]:
       - setSudoer: ${event.params.nodeId}
       - installRequiredPackages:
           target: ${event.params.nodeId}
-          packages: "jq"
+          packages: "jq rclone"
       - installPython:
           target: ${event.params.nodeId}
           python_major_version: 3
@@ -180,7 +180,7 @@ onAfterScaleOut[bl]:
   - forEach(event.response.nodes):
       - installRequiredPackages:
           target: ${@i.id}
-          packages: "jq"
+          packages: "jq rclone"
       - installPython:
           target: ${@i.id}
           python_major_version: 3
@@ -207,7 +207,7 @@ onAfterRedeployContainer[sqldb]:
       - setSudoer: ${event.params.nodeGroup}
       - installRequiredPackages:
           target: ${event.params.nodeGroup}
-          packages: "jq"
+          packages: "jq rclone"
       - installPython:
           target: ${event.params.nodeGroup}
           python_major_version: 3
@@ -221,7 +221,7 @@ onAfterRedeployContainer[sqldb]:
       - setSudoer: ${event.params.nodeId}
       - installRequiredPackages:
           target: ${event.params.nodeId}
-          packages: "jq"
+          packages: "jq rclone"
       - installPython:
           target: ${event.params.nodeId}
           python_major_version: 3
@@ -235,7 +235,7 @@ onAfterScaleOut[sqldb]:
   - forEach(event.response.nodes):
     - installRequiredPackages:
         target: ${@i.id}
-        packages: "jq"
+        packages: "jq rclone"
     - installPython:
         target: ${@i.id}
         python_major_version: 3
@@ -338,6 +338,7 @@ onBeforeRedeployContainer:
 
 onAfterRedeployContainer:
   - if ('${event.params.nodeGroup:}'):
+      - fetchRcloneFiles: ${event.params.nodeGroup}
       # Handle RedeployContainersByGroup
       - getLogEventScript: ${event.params.nodeGroup}
       - logEvent:
@@ -348,6 +349,7 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
       - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
+      - fetchRcloneFiles: ${event.params.nodeId}
       # Handle RedeployContainerById
       - getLogEventScript: ${event.params.nodeId}
       - logEvent:

@@ -1068,13 +1068,15 @@ actions:
     # Parameters
     # target: the node/nodeGroup to setup
     - cmd[*]: |-
-        rclone_dir=/root/.config/rclone
-        rclone_conf=$rclone_dir/rclone.conf
         curl -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
-        mkdir -p $rclone_dir
-        curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         curl -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
         chmod +x /usr/local/bin/rclone-logs.sh
+        rclone_dir=/root/.config/rclone
+        rclone_conf=$rclone_dir/rclone.conf
+        if [ !-f $rclone_conf ]; then
+          mkdir -p $rclone_dir
+          curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
+        fi
       user: root
 
   setupLogsRCloneConfig:
@@ -1115,6 +1117,7 @@ actions:
               -i $rclone_conf
         fi
         sed -i "s/LOGS_PROVIDER_PLACEHOLDER/$provider/" $rclone_conf
+        echo $rclone_conf >> /etc/jelastic/redeploy.conf
       user: root
 
   # Similarly to what has been done for setupBackupRCloneConfig, we force the OVH
