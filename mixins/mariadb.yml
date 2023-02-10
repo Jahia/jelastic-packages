@@ -79,7 +79,7 @@ actions:
     - if (nodes.sqldb.length > 1):
         set:
           cluster: "true"
-    - InstallLatestDatadogAgent: ${this}
+    - installLatestDatadogAgent: ${this}
     - cmd [${this}]: |-
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml

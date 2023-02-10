@@ -83,7 +83,7 @@ actions:
           sed '$a\    disable_legacy_service_tag: true' -i $conf_file
         fi
       user: root
-    - InstallLatestDatadogAgent: "*"
+    - installLatestDatadogAgent: "*"
     - cmd[*]: |-
         rpm -q gpg-pubkey-4172a230-55dd14f6 || true
       user: root

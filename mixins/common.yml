@@ -363,7 +363,7 @@ actions:
         fi
       user: root
 
-  InstallLatestDatadogAgent:
+  installLatestDatadogAgent:
     - cmd[${this}]: |-
         source /etc/profile
         export DD_API_KEY=$DATADOGAPIKEY

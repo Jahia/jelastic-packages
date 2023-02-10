@@ -46,7 +46,7 @@ actions:
       jps: "${baseUrl}/../update-events.yml"
 
   updateDatadogAgent:
-    - InstallLatestDatadogAgent: "*"
+    - installLatestDatadogAgent: "*"
     - cmd[*]: |-
         rpm -q gpg-pubkey-4172a230-55dd14f6 || true
       user: root

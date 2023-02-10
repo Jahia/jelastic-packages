@@ -121,7 +121,7 @@ actions:
   setupDatadogAgentHaproxy:
     - log: "## Finalize Datadog agent setup on ${this}"
     - setGlobalRepoRootUrl
-    - InstallLatestDatadogAgent: ${this}
+    - installLatestDatadogAgent: ${this}
     - cmd[${this}]: |-
         NODE_NAME=${HOSTNAME/-*}
         echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
