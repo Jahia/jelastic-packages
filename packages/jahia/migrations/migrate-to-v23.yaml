@@ -63,20 +63,20 @@ actions:
 
   updateDatadogAgent:
     - cmd[sqldb]: |-
-        f=/etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
-        if ! (echo 2f116ff16890a9e9bb73109f2ec05e96 $f | md5sum --status -c); then
-          curl -fLSso $f ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
-          chown dd-agent: $f
+        check_galera_wsrep_file=/etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
+        if ! (echo 2f116ff16890a9e9bb73109f2ec05e96 $check_galera_wsrep_file | md5sum --status -c); then
+          curl -fLSso $check_galera_wsreap_file ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
+          chown dd-agent: $check_galera_wsrep_file
         fi
         sed -e 's/user:/username:/' \
             -e 's/pass:/password:/' \
             -i /etc/datadog-agent/conf.d/mysql.d/conf.yaml
       user: root
     - cmd[bl]: |-
-        f=/etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
-        if ! (echo 90f697fbbd4a7e937cd01022c156a4e7 $f | md5sum --status -c); then
-          curl -fLSso $f ${globals.repoRootUrl}/assets/haproxy/haproxy_one_remaining_browsing.py || exit 1
-          chown dd-agent: $f
+        haproxy_remaining_browsing_check_file=/etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
+        if ! (echo 90f697fbbd4a7e937cd01022c156a4e7 $haproxy_remaining_browsing_check_file | md5sum --status -c); then
+          curl -fLSso $haproxy_remaining_browsing_check_file ${globals.repoRootUrl}/assets/haproxy/haproxy_one_remaining_browsing.py || exit 1
+          chown dd-agent: $haproxy_remaining_browsing_check_file
         fi
         conf_file=/etc/datadog-agent/conf.d/haproxy.d/conf.yaml
         if (! grep -q "disable_legacy_service_tag: true" $conf_file); then
