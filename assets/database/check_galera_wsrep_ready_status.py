@@ -22,8 +22,8 @@ class CheckGaleraWsrepReadyStatus(AgentCheck):
         try:
             db = pymysql.connect(
                        host='localhost',
-                       user=instance["user"],
-                       password=instance["pass"],
+                       user=instance["username"],
+                       password=instance["password"],
                        unix_socket=instance["sock"]
                 )
             
