@@ -65,7 +65,7 @@ actions:
     - cmd[sqldb]: |-
         check_galera_wsrep_file=/etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
         if ! (echo 2f116ff16890a9e9bb73109f2ec05e96 $check_galera_wsrep_file | md5sum --status -c); then
-          curl -fLSso $check_galera_wsreap_file ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
+          curl -fLSso $check_galera_wsrep_file ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
           chown dd-agent: $check_galera_wsrep_file
         fi
         sed -e 's/user:/username:/' \
