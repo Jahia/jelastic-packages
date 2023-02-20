@@ -213,7 +213,8 @@ actions:
           echo "$backups_to_delete" > /tmp/backups_to_rotate
           while IFS= read -r backup_name; do
             if [ ! -z "$backup_name" ]; then # Just makes sure we are NEVER going to purge an entire bucket
-              python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
+              timestamp=$(echo "$backup_name"|sed 's/.*_\(.*\)_auto/\1/')
+              python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
               rclone purge backup:${globals.bucketName}/$backup_name
             fi
           done <<<"$(cat /tmp/backups_to_rotate)"
