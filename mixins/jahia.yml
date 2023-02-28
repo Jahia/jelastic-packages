@@ -1869,7 +1869,7 @@ actions:
               settings: {
                 'accountName': '${this.roleAndAccountName}',
                 'password': __secret__password,
-                'rolesList': '${this.roleAndAccountName},editor',
+                'rolesList': '${this.roleAndAccountName}',
               }
             }
           );

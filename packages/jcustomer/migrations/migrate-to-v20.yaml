@@ -25,6 +25,7 @@ onInstall:
   ### End Pre-checks
 
   - updateDatadogAgent                  # PAAS-2270
+  - removeEditorRoleFromDashboardUser   # PAAS-2198
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -50,3 +51,22 @@ actions:
     - cmd[*]: |-
         rpm -q gpg-pubkey-4172a230-55dd14f6 || true
       user: root
+
+  removeEditorRoleFromDashboardUser:
+    - getLinkedJahiaEnvs
+    - getECAdminCredentials
+    - getECDeploymentEndpoints
+    - cmd[${nodes.cp.first.id}]: |-
+        __secret__credentials="${globals.__secret__ecAdminCredentials}"
+        es_endpoint="${globals.es_endpoint}"
+        for envname in $(echo "${globals.linkedJahiaEnvs}" | sed 's/,/ /g'); do
+          user=${envname}-kibana-dashboard
+          dashboard_user=$(curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/$user") \
+            || (echo "curl to $es_endpoint/_security/user/$user failed."; exit 1)
+
+          if [[ $(echo $dashboard_user | jq '.[].roles | any(. == "editor")') == true ]]; then
+           curl -fLSsu "$__secret__credentials" "$es_endpoint/_security/user/$user" \
+                -H 'Content-Type:application/json' \
+                -XPUT -d "{\"roles\": [\"$user\"]}"
+          fi
+        done
