@@ -117,6 +117,7 @@ actions:
         sed -r \
           -e 's/^(org.jahia.modules.augmentedsearch.prefix\s*=\s*).*/\1as/' \
           -e 's/^(org.jahia.modules.augmentedsearch.numberOf(Shard|Replica)s\s*=\s*).*/\11/' \
+          -e 's/^(org.jahia.modules.augmentedsearch.minHeapPerShardInMb\s*=\s*).*/\110/' \
           -i $augsearch_cfg
 
   setupESConnector:
