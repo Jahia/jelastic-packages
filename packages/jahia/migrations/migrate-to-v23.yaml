@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - updateDatadogAgent                  # PAAS-2270
+  - updateASConfig                      # PAAS-2264
 
   # Actions that require a restart
 
@@ -87,3 +88,12 @@ actions:
     - cmd[*]: |-
         rpm -q gpg-pubkey-4172a230-55dd14f6 || true
       user: root
+
+  updateASConfig:
+    - cmd[proc]: |-
+        augsearch_cfg="/data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg"
+        if [ -f $augsearch_cfg ]; then
+          sed -r \
+            -e 's/^(org.jahia.modules.augmentedsearch.minHeapPerShardInMb\s*=\s*).*/\110/' \
+            -i $augsearch_cfg
+        fi
