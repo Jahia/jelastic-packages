@@ -245,7 +245,7 @@ actions:
 
   checkAugSearch:
     # Jahia 7.x ==> Database connector 1.2.0 / Elastcsearch connector 2.1.0 / Augmented Search 1.7.0
-    # Jahia 8.x ==> Database connector 1.5.0 / Elastcsearch connector 3.2.0 / Augmented Search 3.4.1
+    # Jahia 8.x ==> Database connector 1.5.0 / Elastcsearch connector 3.2.0 / Augmented Search 3.4.2
     - isAugSearchEnabled
     - if( ${globals.isAugSearchEnabled} ):
         - getJahiaVersion
@@ -262,7 +262,7 @@ actions:
             - set:
                 expectedDbConnectorVersion: 1.5.0
                 expectedEsConnectorVersion: 3.2.0
-                expectedASVersion: 3.4.1
+                expectedASVersion: 3.4.2
         - basicModuleCheck:
             moduleSymname: database-connector
         - if( "${globals.moduleState}" == "started" && "${globals.runningVersion}" != "${this.expectedDbConnectorVersion}" ):
