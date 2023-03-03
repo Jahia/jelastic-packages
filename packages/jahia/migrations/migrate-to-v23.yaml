@@ -33,6 +33,7 @@ onInstall:
 
   - updateDatadogAgent                  # PAAS-2270
   - updateASConfig                      # PAAS-2264
+  - upgradeAugmentedSearch              # PAAS-2302
 
   # Actions that require a restart
 
@@ -97,3 +98,19 @@ actions:
             -e 's/^(org.jahia.modules.augmentedsearch.minHeapPerShardInMb\s*=\s*).*/\110/' \
             -i $augsearch_cfg
         fi
+
+  upgradeAugmentedSearch:
+    - isAugSearchEnabled
+    - if (${globals.isAugSearchEnabled}):
+        - getJahiaVersion
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.0.0.0
+            res: jahia8
+        - if (${globals.jahia8}):
+            installOrUpgradeModule:
+              moduleSymname: augmented-search
+              moduleVersion: 3.4.2
+              moduleGroupId: org.jahia.modules
+              moduleRepository: augmented-search-releases
+              startModule: true
