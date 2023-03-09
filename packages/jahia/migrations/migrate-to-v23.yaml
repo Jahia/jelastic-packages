@@ -31,9 +31,9 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - upgradeAugmentedSearch              # PAAS-2302
   - updateDatadogAgent                  # PAAS-2270
   - updateASConfig                      # PAAS-2264
-  - upgradeAugmentedSearch              # PAAS-2302
 
   # Actions that require a restart
 
