@@ -92,12 +92,6 @@ onBeforeInstall: |
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       envmode: envmode,
-    },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
-        ]
     }
   }
 
