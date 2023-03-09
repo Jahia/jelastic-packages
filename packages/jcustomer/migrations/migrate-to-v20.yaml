@@ -26,6 +26,7 @@ onInstall:
 
   - updateDatadogAgent                  # PAAS-2270
   - removeEditorRoleFromDashboardUser   # PAAS-2198
+  - removeDistribution                  # PAAS-2285
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -70,3 +71,8 @@ actions:
                 -XPUT -d "{\"roles\": [\"$user\"]}"
           fi
         done
+
+  removeDistribution:
+    - environment.nodegroup.ApplyData [*]:
+        data:
+          distribution: null

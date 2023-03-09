@@ -58,14 +58,8 @@ onBeforeInstall: |
         "envmode": envmode,
         "haproxy_cfg_timeout_server": "5m"
       },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
-        ]
-      },
     "volumes": [
-      "/etc/haproxy"
+        "/etc/haproxy"
       ]
   }
   nodes.push(node_haproxy);
@@ -127,12 +121,6 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
-      },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
-        ]
       }
   }
   if (dockerImage == "undefined") {
@@ -196,12 +184,6 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
-      },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
-        ]
       }
   }
   if (dockerImage == "undefined") {
@@ -245,12 +227,6 @@ onBeforeInstall: |
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false,
-      },
-    "distribution": {
-        "mode": "STRICT",
-        "zones": [
-            {high_iops: false}
-        ]
       }
   }
   nodes.push(node_mariadb);

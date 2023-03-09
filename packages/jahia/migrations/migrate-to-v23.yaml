@@ -34,6 +34,7 @@ onInstall:
   - upgradeAugmentedSearch              # PAAS-2302
   - updateDatadogAgent                  # PAAS-2270
   - updateASConfig                      # PAAS-2264
+  - removeDistribution                  # PAAS-2285
 
   # Actions that require a restart
 
@@ -114,3 +115,8 @@ actions:
               moduleGroupId: org.jahia.modules
               moduleRepository: augmented-search-releases
               startModule: true
+
+  removeDistribution:
+    - environment.nodegroup.ApplyData [*]:
+        data:
+          distribution: null
