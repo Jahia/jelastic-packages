@@ -26,7 +26,7 @@ class CheckGaleraWsrepReadyStatus(AgentCheck):
                        password=instance["password"],
                        unix_socket=instance["sock"]
                 )
-            
+
             q = db.cursor()
             q.execute(self.query)
             resp = q.fetchall()
@@ -43,7 +43,7 @@ class CheckGaleraWsrepReadyStatus(AgentCheck):
                     AgentCheck.CRITICAL,
                     message='Galera Node wsrep_ready status is not ON'
                 )
-            
+
         except Exception:
             self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL)
             self.log.exception("Can't connect to database.")
