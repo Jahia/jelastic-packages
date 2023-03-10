@@ -204,10 +204,10 @@ settings:
     - name: nodesToStop
       type: string
       caption: |-
-        nodes id to stop with the folling format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
+        Nodes id to stop with the following format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
       required: true
     - name: dryRun
       type: checkbox
-      caption: Enable dry run. Actions list is returned at the end of the package
+      caption: Enables dry run. The actions list is returned at the end of the package
       default: false
       required: false

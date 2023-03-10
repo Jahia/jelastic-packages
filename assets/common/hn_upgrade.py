@@ -379,7 +379,7 @@ def argparser():
     args_list.add_argument("--skip-stop",
                            action="store_true",
                            dest="skip_stop",
-                           help="If this parameter is set, the script won't check the cluster state and stop nodes on the HN. It  can't be used if --recover-state is not set. It's meant to be used if the script was unintentially exited during the upgrade, of if starting some nodes failed")
+                           help="If this parameter is set, the script won't check the cluster state and stop nodes on the HN. It can't be used if --recover-state is not set. It's meant to be used if the script was unintentially exited during the upgrade, of if starting some nodes failed")
 
     args = parser.parse_args()
 
