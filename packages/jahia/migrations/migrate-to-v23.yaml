@@ -35,6 +35,8 @@ onInstall:
   - updateDatadogAgent                  # PAAS-2270
   - updateASConfig                      # PAAS-2264
   - removeDistribution                  # PAAS-2285
+  - updateIPSecScript                   # PAAS-2293
+  - removeAzurePythonPackages           # PAAS-2293
 
   # Actions that require a restart
 
@@ -120,3 +122,14 @@ actions:
     - environment.nodegroup.ApplyData [*]:
         data:
           distribution: null
+
+  updateIPSecScript:
+    - cmd[cp, proc]: |-
+        target=/usr/local/bin/ipsec_updown.sh
+        curl -fLSso $target ${baseUrl}/v23_assets/ipsec_updown.sh || exit 1
+        chmod 755 $target
+      user: root
+
+  removeAzurePythonPackages:
+    - cmd[cp, proc]: pip uninstall azure adal
+      user: root

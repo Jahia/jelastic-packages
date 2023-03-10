@@ -576,7 +576,7 @@ Can execute multiple tasks like :
 
 ##### common/elasticsearch.py
 
-Used to backup jCustomer environments. Retrieves azure secrets if necessary and create folders if not existing
+Used to backup jCustomer environments.
 
 | parameter            | comment                         |
 |----------------------|---------------------------------|
@@ -597,6 +597,6 @@ Creates revisionNode file
 | -r _--read_   | Reads the file instead of writing it |
 
 
-##### common/lib_aws.py & common/lib_azure.py
+##### common/lib_aws.py
 
-Python libs used to handle authentication and manipulate files on AWS S3 buckets and Azure Resource Groups.
+Python libs used to handle authentication and manipulate files on AWS S3 buckets.

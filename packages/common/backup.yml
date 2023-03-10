@@ -236,38 +236,27 @@ actions:
         esVersion: ${response.out}
     - getECAdminCredentials
 
-    # Configure backup depending on cloud provider
-    - if ("${globals.provider}" == "aws" || "${globals.provider}" == "ovh"):
-        - cmd[${nodes.cp.first.id}]: |-
-            # Create the bucket if doesn't exists
-            __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
-            __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
-            export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
-            cd jelastic_backup
-            python3 elasticsearch.py --bucketname ${globals.bucketName} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
-        - if ("${globals.provider}" == "aws"):
-            - set:
-                region: ${globals.region}
-        - else:
-            - set:
-                region: "eu-west-1"
-        - setAwsSnapshotRepository:
-            repositoryName: ${env.shortdomain}
-            backupName: ${settings.backup_name}
-            region: ${this.region}
-            account: ${globals.bucketName}
-            logsPath: ${globals.logsPath}
-            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
-            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
+    - cmd[${nodes.cp.first.id}]: |-
+        # Create the bucket if doesn't exists
+        __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
+        __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
+        export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
+        cd jelastic_backup
+        python3 elasticsearch.py --bucketname ${globals.bucketName} --backupname ${settings.backup_name} --cloudprovider=${globals.provider} --operation=backup 2>>${globals.logsPath} || exit 1
+    - if ("${globals.provider}" == "aws"):
+        - set:
+            region: ${globals.region}
     - else:
-        - setAzureSnapshotRepository:
-            repositoryName: ${env.shortdomain}
-            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
-            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
-            operation: "backup"
-            account: ${globals.bucketName}
-            backupName: ${settings.backup_name}
-            logsPath: ${globals.logsPath}
+        - set:
+            region: "eu-west-1"
+    - setAwsSnapshotRepository:
+        repositoryName: ${env.shortdomain}
+        backupName: ${settings.backup_name}
+        region: ${this.region}
+        account: ${globals.bucketName}
+        logsPath: ${globals.logsPath}
+        __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+        __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
 
     # start backup
     - cmd[${nodes.cp.first.id}]: |-

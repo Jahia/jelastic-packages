@@ -10,10 +10,6 @@ from datetime import datetime
 LOG_FORMAT = "%(asctime)s %(levelname)s: [%(funcName)s] %(message)s"
 logging.basicConfig(format=LOG_FORMAT, level=logging.INFO, stream=sys.stdout)
 
-AZ_RG = "paas_backup"
-# AZ_CRED = "{}/.azure/cred.json".format(os.environ['HOME'])
-AZ_CRED = "/tmp/azurecred.json"
-
 def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--accesskey",
@@ -231,7 +227,7 @@ if __name__ == '__main__':
             with open('/metadata_from_HOST', 'r') as f:
                 props = dict(line.strip().split('=', 1) for line in f)
                 cloudprovider = props['JEL_CLOUDPROVIDER']
-                if cloudprovider not in ['aws', 'azure', 'ovh']:
+                if cloudprovider not in ['aws', 'ovh']:
                     exit(1)
                 region = props['JEL_REGION']
                 role = props['JEL_ENV_ROLE']
@@ -279,16 +275,6 @@ if __name__ == '__main__':
     if cloudprovider == 'aws':
         import lib_aws as JC
         cp = JC.PlayWithIt(region_name=region, env=role, show_progress=show_progress)
-    elif cloudprovider == 'azure' and args.action != 'list':
-        import lib_azure as JC
-        cp = JC.PlayWithIt(region_name=region, sto_cont_name=args.backupname.lower(),
-                           rg=AZ_RG, sto_account=args.bucketname,
-                           authpath=AZ_CRED, env=role)
-        logging.info("I need to retreive Azure auth_file from Secret Manager")
-        secret = json.loads(aws_sm_md.get_secret('paas_azure_auth_file'))['value']
-        secret = json.loads(secret)
-        with open(AZ_CRED, 'w') as f:
-            f.write(json.dumps(secret, indent=4, sort_keys=True))
     elif cloudprovider == 'ovh':
         import lib_aws as JC
         cp = JC.PlayWithIt(region_name="eu-west-1", env=role, show_progress=show_progress)
@@ -337,5 +323,3 @@ if __name__ == '__main__':
         metabucket = setmetabucketname()
         retention(args.bucketname, args.backupname, args.keep,
                   metabucket=metabucket, uid=uid)
-    if os.path.exists(AZ_CRED):
-       os.remove(AZ_CRED)

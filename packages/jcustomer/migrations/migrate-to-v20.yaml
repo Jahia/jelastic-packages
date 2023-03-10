@@ -27,6 +27,7 @@ onInstall:
   - updateDatadogAgent                  # PAAS-2270
   - removeEditorRoleFromDashboardUser   # PAAS-2198
   - removeDistribution                  # PAAS-2285
+  - removeAzurePythonPackages           # PAAS-2293
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -76,3 +77,7 @@ actions:
     - environment.nodegroup.ApplyData [*]:
         data:
           distribution: null
+
+  removeAzurePythonPackages:
+    - cmd[cp, proc]: pip uninstall azure adal
+      user: root

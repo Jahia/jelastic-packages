@@ -336,10 +336,10 @@ actions:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
         sudo python3 -m pip install --upgrade pip
-        sudo python3 -m pip install --upgrade boto3 "azure==4.0.0" adal
+        sudo python3 -m pip install --upgrade boto3
         [ -d jelastic_backup ] || mkdir jelastic_backup
         cd jelastic_backup
-        for file in backrest.py lib_aws.py lib_azure.py revisionNode.py; do
+        for file in backrest.py lib_aws.py revisionNode.py; do
           curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file || exit 1
         done
         curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py || exit 1
