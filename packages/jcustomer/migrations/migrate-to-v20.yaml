@@ -79,5 +79,5 @@ actions:
           distribution: null
 
   removeAzurePythonPackages:
-    - cmd[cp, proc]: pip uninstall azure adal
+    - cmd[cp]: pip list | awk '$1~/^(adal|azure)/ {print $1}' | xargs pip uninstall -y || true
       user: root
