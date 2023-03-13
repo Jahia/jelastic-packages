@@ -208,7 +208,7 @@ actions:
         - if( "${this.expectedVersion}" != "" && ${fn.compare([this.versionsCheck])} < 0 ):
             - addError:
                 message: "Running graphql-dxm-provider version is ${globals.runningVersion}, which is lower than expected ${this.expectedVersion}"
-            
+
 
   checkJExperience:
     # Jahia 7.3.x ==> jExperience 1.11.9

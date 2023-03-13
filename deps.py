@@ -514,7 +514,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
                     parent_id = search_node(get="id", name=manifest_name)[0]
                 else:
                     parent_id = get_node_parents_id_by_name(matching_actions[0].from_file())[0]
-                    
+
 
                 try:
                     node_id = search_node(get="id", name=first_word, kind=kind,

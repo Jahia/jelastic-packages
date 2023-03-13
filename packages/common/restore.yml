@@ -605,32 +605,21 @@ actions:
         esVersion: ${response.out}
     - getECAdminCredentials
 
-    - if ("${globals.cloudProvider_source}" == "aws" || "${globals.cloudProvider_source}" == "ovh"):
-        - if ("${globals.cloudProvider_source}" == "aws"):
-            - set:
-                region: ${globals.region}
-        - else:
-            - set:
-                region: "eu-west-1"
-        - setAwsSnapshotRepository:
-            repositoryName: ${env.shortdomain}
-            backupName: ${settings.backup_name}
-            region: ${this.region}
-            account: ${globals.account}
-            logsPath: ${globals.logsPath}
-            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
-            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
-            readonly: "true"
+    - if ("${globals.cloudProvider_source}" == "aws"):
+        - set:
+            region: ${globals.region}
     - else:
-        - setAzureSnapshotRepository:
-            repositoryName: ${env.shortdomain}
-            __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
-            __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
-            operation: "restore"
-            account: ${globals.account}
-            backupName: ${settings.backup_name}
-            logsPath: ${globals.logsPath}
-            readonly: "true"
+        - set:
+            region: "eu-west-1"
+    - setAwsSnapshotRepository:
+        repositoryName: ${env.shortdomain}
+        backupName: ${settings.backup_name}
+        region: ${this.region}
+        account: ${globals.account}
+        logsPath: ${globals.logsPath}
+        __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+        __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
+        readonly: "true"
 
     - vaultSecretReadKeyB64:
         secretPath: paas/envs-common/cloud-ec-infra-circleci-api
