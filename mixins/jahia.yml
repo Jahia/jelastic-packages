@@ -706,7 +706,7 @@ actions:
         moduleVersion: ${this.moduleVersion}
 
   checkModule:
-    # Checks the state of a module.
+    # Checks the state of a module via the endpoint modules/api/bundles (or fallback to the digital-factory-data/bundles-deployed folder if the previous one failed).
     # First we check the state of the module, uninstalled, installed or started. Then, if installed or started,
     # we check the version: most recent version installed if module is not running, or running version otherwise.
     #
@@ -728,12 +728,76 @@ actions:
     - getPatTokenAndKey
     - cmd [proc]: |-
         __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+        resp=$(curl -fSsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
+        if [ $? -ne 0 ]; then  # if curl failed, we fallback to the FS method
+          modules_found=$(grep "/${this.moduleSymname}/" -l /data/digital-factory-data/bundles-deployed/*/bundle.info)
+          read -r -d '' awkScript <<- 'EOS'
+        	BEGIN {
+        	  FS=":"
+        	  printf "{"
+        	  file_count=ARGC-1
+        	}
+        	BEGINFILE {
+        	  file_number++
+        	  NR=0
+        	}
+        	{
+        	  switch(NR) {
+        	    case 2:
+        	      module_ver=$NF
+        	      break
+        	    case 3:
+        	      switch($1) {
+        	        case 1:
+        	          status="UNINSTALLED"
+        	          break
+        	        case 2:
+        	          status="INSTALLED"
+        	          break
+        	        case 4:
+        	          status="RESOLVED"
+        	          break
+        	        case 8:
+        	          status="STARTING"
+        	          break
+        	        case 16:
+        	          status="STOPPING"
+        	          break
+        	        case 32:
+        	          status="STARTED"
+        	          break
+        	        default:
+        	          status="go fuck yourself"
+        	          break
+        	      }
+        	      break
+        	  }
+        	}
+        	ENDFILE {
+        	  if(file_number<file_count) {
+        	    sep=","
+        	  }
+        	  else {
+        	    sep=""
+        	  }
+        	  printf "\"%s\": {\"moduleState\":\"%s\"}%s",module_ver,status,sep
+        	}
+        	END {
+        	  print "}"
+        	}
+        	EOS
+          if [ $(echo $modules_found | wc -w) -ne 0 ]; then
+            resp=$(awk "$awkScript" $modules_found)
+          else
+            resp="{}"
+          fi
+        fi
+        
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed
             module_state=uninstalled
             ;;
-          "") # if response is not JSON, for instance 401 unauthorized
+          "") # if response is not JSON
             echo $resp >&2
             exit 1
             ;;
