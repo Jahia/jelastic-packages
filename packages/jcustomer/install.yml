@@ -64,7 +64,7 @@ onBeforeInstall: |
   node_unomi = {
     nodeType: "jcustomer",
     tag: jCustomerDockerTag,
-    displayName: "Unomi v" + unomiVersion,
+    displayName: "jCustomer",
     count: ${settings.jCustomerNodeCount},
     cloudlets: jCustomerCloudlets,
     nodeGroup: 'cp',

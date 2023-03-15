@@ -28,6 +28,7 @@ onInstall:
   - removeEditorRoleFromDashboardUser   # PAAS-2198
   - removeDistribution                  # PAAS-2285
   - removeAzurePythonPackages           # PAAS-2293
+  - renameNodeGroupDisplayName          # PAAS-1403
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -81,3 +82,8 @@ actions:
   removeAzurePythonPackages:
     - cmd[cp]: pip list | awk '$1~/^(adal|azure)/ {print $1}' | xargs pip uninstall -y || true
       user: root
+  
+  renameNodeGroupDisplayName:
+    - environment.nodegroup.ApplyData [cp]:
+      data:
+        displayName: jCustomer
