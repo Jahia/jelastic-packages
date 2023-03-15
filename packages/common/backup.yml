@@ -184,7 +184,34 @@ actions:
           cd jelastic_backup
           size=1
         fi
+        lock_sec_max=300
+        meta_bucket_name="jc${globals.clusterRole}backupmetadata"
+        lockfile="$(echo ${globals.bucketName} | sed -r 's/^[[:alpha:]]+([[:digit:]]+).+$/\1/')_backup_metadata.json.lock"
+        getLock(){
+          if [ -z "$1" ]; then
+            locked_until=$(date -d "+${lock_sec_max}sec" +"%s")
+          else
+            locked_until=$1
+          fi
+          echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
+          if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
+            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+            if [ $? -ne 0 ]; then
+              read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+              echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
+              sleep 1
+              getLock ${locked_until}
+            else
+              echo "$(date) - the lock file is uploaded" >> ${globals.logsPath}
+            fi
+          else
+            echo "$(date) - we take control from now" >> ${globals.logsPath}
+            rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+          fi
+        }
+        getLock
         python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' --size $size 2>>${globals.logsPath} || exit 1
+        rclone delete backup:${meta_bucket_name}/${lockfile}
       user: root
     - if ("${response.errOut}" != ""):
         - return:
@@ -211,6 +238,32 @@ actions:
           backups_to_keep=$(( ${settings.retention}+1 ))
           backups_to_delete=$(rclone lsd backup:${globals.bucketName} | grep "${env.envName}-scheduled.*auto" | awk '{print $NF}' | sort -r | tail -n +$backups_to_keep)
           echo "$backups_to_delete" > /tmp/backups_to_rotate
+          lock_sec_max=300
+          meta_bucket_name="jc${globals.clusterRole}backupmetadata"
+          lockfile="$(echo ${globals.bucketName} | sed -r 's/^[[:alpha:]]+([[:digit:]]+).+$/\1/')_backup_metadata.json.lock"
+          getLock(){
+            if [ -z "$1" ]; then
+              locked_until=$(date -d "+${lock_sec_max}sec" +"%s")
+            else
+              locked_until=$1
+            fi
+            echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
+            if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
+              rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+              if [ $? -ne 0 ]; then
+                read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+                echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
+                sleep 1
+                getLock ${locked_until}
+              else
+                echo "$(date) - the lock file is uploaded" >> ${globals.logsPath}
+              fi
+            else
+              echo "$(date) - we take control from now" >> ${globals.logsPath}
+              rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+            fi
+          }
+          getLock
           while IFS= read -r backup_name; do
             if [ ! -z "$backup_name" ]; then # Just makes sure we are NEVER going to purge an entire bucket
               timestamp=$(echo "$backup_name"|sed 's/.*_\(.*\)_auto/\1/')
@@ -218,6 +271,7 @@ actions:
               rclone purge backup:${globals.bucketName}/$backup_name
             fi
           done <<<"$(cat /tmp/backups_to_rotate)"
+          rclone delete backup:${meta_bucket_name}/${lockfile}
           rm /tmp/backups_to_rotate
         user: root
 
@@ -303,6 +357,32 @@ actions:
         if [ $delete_count -lt 1 ]; then
           exit 0;
         fi
+        lock_sec_max=300
+        meta_bucket_name="jc${globals.clusterRole}backupmetadata"
+        lockfile="$(echo ${globals.bucketName} | sed -r 's/^[[:alpha:]]+([[:digit:]]+).+$/\1/')_backup_metadata.json.lock"
+        getLock(){
+          if [ -z "$1" ]; then
+            locked_until=$(date -d "+${lock_sec_max}sec" +"%s")
+          else
+            locked_until=$1
+          fi
+          echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
+          if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
+            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+            if [ $? -ne 0 ]; then
+              read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+              echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
+              sleep 1
+              getLock ${locked_until}
+            else
+              echo "$(date) - the lock file is uploaded" >> ${globals.logsPath}
+            fi
+          else
+            echo "$(date) - we take control from now" >> ${globals.logsPath}
+            rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+          fi
+        }
+        getLock
         snapshots_to_delete=$(head -n $delete_count <<<"$snapshots")
         for snapshot in $snapshots_to_delete;  do
           timestamp=$(echo $snapshot |awk '{print toupper(substr($0,0,19))}')
@@ -314,6 +394,7 @@ actions:
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
         done
+        rclone delete backup:${meta_bucket_name}/${lockfile}
 
   backupHaproxy:
     - cmd [${nodes.bl.first.id}]: |-
