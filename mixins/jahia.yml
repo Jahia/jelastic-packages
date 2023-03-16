@@ -1369,6 +1369,10 @@ actions:
         if systemctl -q is-active datadog-agent; then
           systemctl restart datadog-agent
         fi
+        # In case the agent is not started yet (after a redeploy for example)
+        # we don't want the script to fail since the agent will be configured and
+        # started later on anyway
+        exit 0
       user: root
 
   procRedeploy:
