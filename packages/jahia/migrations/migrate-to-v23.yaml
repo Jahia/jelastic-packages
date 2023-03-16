@@ -38,6 +38,7 @@ onInstall:
   - updateIPSecScript                   # PAAS-2293
   - removeAzurePythonPackages           # PAAS-2293
   - updateSAMWhitelist                  # PAAS-2312
+  - updateHaproxyConf                   # PAAS-2309
 
   # Actions that require a restart
 
@@ -154,3 +155,16 @@ actions:
           )
           echo "probes.ModuleState.whitelist=$(echo ${modules[@]} | tr " " ",")" >> $sam_conf_file
         fi
+        
+  updateHaproxyConf:
+    - cmd[bl]: |-
+        HAPROXY_DIR=/etc/haproxy
+        HAPROXY_CONF_DIR=$HAPROXY_DIR/haproxy.cfg.jahia
+        HAPROXY_JAHIA_CONF=$HAPROXY_CONF_DIR/jahia-cloud.cfg
+        if ( ! grep -q "$HAPROXY_DIR/robots_noindex.txt" $HAPROXY_JAHIA_CONF ); then
+          curl -fLSso $HAPROXY_JAHIA_CONF ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+          curl -fLSso $HAPROXY_DIR/robots_noindex.txt ${globals.repoRootUrl}/assets/haproxy/robots_noindex.txt || exit 1
+          echo "Reload"
+        fi
+    - if ("${response.out}" == "Reload"):
+        - resetHaproxyBackends
