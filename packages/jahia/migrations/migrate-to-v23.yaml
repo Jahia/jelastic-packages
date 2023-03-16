@@ -37,6 +37,7 @@ onInstall:
   - removeDistribution                  # PAAS-2285
   - updateIPSecScript                   # PAAS-2293
   - removeAzurePythonPackages           # PAAS-2293
+  - updateSAMWhitelist                  # PAAS-2312
 
   # Actions that require a restart
 
@@ -133,3 +134,23 @@ actions:
   removeAzurePythonPackages:
     - cmd[cp, proc]: pip list | awk '$1~/^(adal|azure)/ {print $1}' | xargs pip uninstall -y || true
       user: root
+
+  updateSAMWhitelist:
+    - cmd [cp, proc]: |-
+        sam_conf_file=$DATA_PATH/digital-factory-data/karaf/etc/org.jahia.modules.sam.healthcheck.ProbesRegistry.cfg
+        if ! grep -q "probes.ModuleState.whitelist" $sam_conf_file; then
+          modules=(
+            distributed-sessions
+            personal-api-tokens
+            server-availability-manager
+            graphql-dxm-provider
+            org.jahia.bundles.clustering
+            jexperience
+            jexperience-dashboards
+            kibana-dashboards-provider
+            augmented-search
+            database-connector
+            elasticsearch-connector
+          )
+          echo "probes.ModuleState.whitelist=$(echo ${modules[@]} | tr " " ",")" >> $sam_conf_file
+        fi
