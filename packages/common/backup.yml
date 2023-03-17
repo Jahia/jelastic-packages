@@ -42,8 +42,6 @@ onInstall:
       uid: ${env.uid}
       clusterRole: ${globals.clusterRole}
       cloudProvider: ${globals.provider}
-  - createBucketIfNotExists:
-      bucketName: ${globals.bucketName}
 
   - if ('${globals.timestamp}' == ''):
       - setTimestamp
@@ -112,25 +110,6 @@ actions:
         timestamp: ${response.timestamp}
         argTimestamp: '-t "${response.timestamp}"'
 
-  createBucketIfNotExists:
-    # Parameters:
-    #  - bucketName: the s3 bucket name
-    - cmd [${nodes.cp.first.id}]: |-
-        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
-        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
-        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
-        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
-        rclone mkdir backup:${this.bucketName} || exit 1
-      user: root
-
-    - if ("${response.errOut}" != ""):
-        return:
-          type: error
-          message: "An error occurred during bucket creation. ${response.errOut}"
-
-
-
   backupJahia:
     - cmd [proc]: |-
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
@@ -149,7 +128,7 @@ actions:
           echo "tar command return an error code greater than 1. Exiting" >>${globals.logsPath}
           exit 1
         fi
-        rclone copy . --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ || exit 1
+        rclone copy . --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -f jahia-env-vars.gz digital-factory-config.tar.gz digital-factory-data.tar.gz
       user: root
@@ -178,7 +157,7 @@ actions:
         export AWS_DEFAULT_REGION="$aws_region"
 
         if [ "${this}" == "proc" ]; then  # Jahia
-          size=$(rclone size --json backup:${globals.bucketName}/${globals.backupName} |jq '.bytes')
+          size=$(rclone size --json backup:${globals.bucketName}/${globals.backupName} | jq '.bytes')
           cd /opt/tomcat/temp/jelastic_backup
         else  #jCustomer
           cd jelastic_backup
@@ -195,7 +174,7 @@ actions:
           fi
           echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
           if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
-            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
             if [ $? -ne 0 ]; then
               read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
               echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
@@ -206,12 +185,12 @@ actions:
             fi
           else
             echo "$(date) - we take control from now" >> ${globals.logsPath}
-            rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+            rclone copy /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
           fi
         }
         getLock
         python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' --size $size 2>>${globals.logsPath} || exit 1
-        rclone delete backup:${meta_bucket_name}/${lockfile}
+        rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
       user: root
     - if ("${response.errOut}" != ""):
         - return:
@@ -249,7 +228,7 @@ actions:
             fi
             echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
             if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
-              rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+              rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
               if [ $? -ne 0 ]; then
                 read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
                 echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
@@ -260,7 +239,7 @@ actions:
               fi
             else
               echo "$(date) - we take control from now" >> ${globals.logsPath}
-              rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+              rclone copy /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
             fi
           }
           getLock
@@ -268,10 +247,10 @@ actions:
             if [ ! -z "$backup_name" ]; then # Just makes sure we are NEVER going to purge an entire bucket
               timestamp=$(echo "$backup_name"|sed 's/.*_\(.*\)_auto/\1/')
               python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
-              rclone purge backup:${globals.bucketName}/$backup_name
+              rclone purge backup:${globals.bucketName}/$backup_name 2>&1
             fi
           done <<<"$(cat /tmp/backups_to_rotate)"
-          rclone delete backup:${meta_bucket_name}/${lockfile}
+          rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
           rm /tmp/backups_to_rotate
         user: root
 
@@ -368,7 +347,7 @@ actions:
           fi
           echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
           if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
-            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name}
+            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
             if [ $? -ne 0 ]; then
               read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
               echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
@@ -379,7 +358,7 @@ actions:
             fi
           else
             echo "$(date) - we take control from now" >> ${globals.logsPath}
-            rclone copy /tmp/${lockfile} backup:${meta_bucket_name}
+            rclone copy /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
           fi
         }
         getLock
@@ -394,7 +373,7 @@ actions:
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
         done
-        rclone delete backup:${meta_bucket_name}/${lockfile}
+        rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
 
   backupHaproxy:
     - cmd [${nodes.bl.first.id}]: |-
@@ -418,7 +397,7 @@ actions:
         cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_DIR .
         tar -cz -H posix -f haproxy.tar.gz $HAPROXY_CUSTOMER_CONF_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
 
-        rclone copy haproxy.tar.gz backup:${globals.bucketName}/${globals.backupName}/ || exit 1
+        rclone copy haproxy.tar.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -rf haproxy.tar.gz $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_CONF_DIR_NAME
       user: root
@@ -448,7 +427,7 @@ actions:
         sudo -u mysql ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
         tar -H posix -C "$PWD/$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
 
-        rclone copy $BACKUP_NAME backup:${globals.bucketName}/${globals.backupName}/ || exit 1
+        rclone copy $BACKUP_NAME backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -rf $BACKUP_DIR $BACKUP_NAME
       user: root
@@ -489,7 +468,7 @@ actions:
         grep -P '^UNOMI_(?!ELASTICSEARCH)' /.jelenv | grep -v "^UNOMI_ELASTICSEARCH_" > jcustomer-env-vars 2>>${globals.logsPath}
         gzip jcustomer-env-vars 2>>${globals.logsPath} || exit 1
 
-        rclone copy jcustomer-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ || exit 1
+        rclone copy jcustomer-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -f jcustomer-env-vars.gz
       user: root
