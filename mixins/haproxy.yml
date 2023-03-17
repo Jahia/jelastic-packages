@@ -59,7 +59,14 @@ actions:
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
     - if ('${this.reload.print()}' == 'true'):
-        - cmd [bl]: sudo service haproxy reload
+        - cmd [bl]: |-
+            check_no_more_old_process(){
+              while (( $(pgrep -c -u haproxy haproxy) > 1 )); do
+              sleep 1
+            done
+            }
+            export -f check_no_more_old_process
+            sudo service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
 
   # Parameters:
   # - nodeId: the ID of the browsing node to add
@@ -100,7 +107,14 @@ actions:
     - cmd[bl]: |-
         sed -i "/${env.appid}-${nodes.proc.first.id}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
     - if ('${this.reload.print()}' == 'true'):
-        - cmd [bl]: sudo service haproxy reload
+        - cmd [bl]: |-
+            check_no_more_old_process(){
+              while (( $(pgrep -c -u haproxy haproxy) > 1 )); do
+              sleep 1
+            done
+            }
+            export -f check_no_more_old_process
+            sudo service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
 
   # Parameters:
   # - reload: "true" or "false", if haproxy service should be reloaded or not
