@@ -73,7 +73,7 @@ actions:
         check_filename=strongswan_connections_status.py
         check_file=/etc/datadog-agent/checks.d/$check_filename
         if ! (echo 88972f3df25145006bf5b05c5eb63cc8 $check_file | md5sum --status -c); then
-          curl -fLSso $check_file ${globals.repoRootUrl}/packages/jahia/migrations/v23_assets/$check_file || exit 1
+          curl -fLSso $check_file ${globals.repoRootUrl}/packages/jahia/migrations/v23_assets/$check_filename || exit 1
           chown dd-agent: $check_file
         fi
         pip install gnureadline
