@@ -52,6 +52,7 @@ actions:
   updateDatadogAgent:
     - installLatestDatadogAgent: "*"
     - cmd[*]: |-
+        pip install gnureadline
         rpm -q gpg-pubkey-4172a230-55dd14f6 || true
       user: root
 
