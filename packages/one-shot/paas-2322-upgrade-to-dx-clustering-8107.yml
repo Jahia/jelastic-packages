@@ -34,7 +34,7 @@ actions:
 
   addRepository:
     - cmd[proc]: |-
-        __secret__password=${globals.__secret__nexusPassword}
+        __secret__password="${globals.__secret__nexusPassword}"
         sed "/^org.ops4j.pax.url.mvn.repositories=/a\    https://${settings.nexusUsername}:${__secret__password}@devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise@snapshots, \\" \
           -i /data/digital-factory-data/karaf/etc/org.ops4j.pax.url.mvn.cfg
 
