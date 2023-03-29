@@ -29,8 +29,14 @@ onInstall:
   - else:
       - setGlobals:
           jahiaEnvStatus: ${settings.jahiaEnvStatus}
-  - if ("${globals.jahiaEnvStatus}" == "1"):
-      - removeAndCleanJexperience
+  - getJcustomerEnvStatus
+  - if ("${globals.jahiaEnvStatus}" != "1" ) || ("${globals.jCustomerEnvStatus}" != "1"):
+      - return:
+          type: error
+          message: "Impossible to unlink Jahia and jCustomer if either environment is not running. Make sure your environments are runnning and try again"
+  - removeAndCleanJexperience
+  - removeKibanaDashboardAccountsAndSpace:
+      jCustomerEnv: ${globals.jCustomerEnv}
   - updateEnvLinkJahia
   - if (! ${globals.isUnomiEnvDeletion}):
     - updateEnvLinkJcustomer
@@ -92,6 +98,15 @@ actions:
         return {"result": 0, "out": resp.env.status};
     - setGlobals:
         jahiaEnvStatus: ${response.out}
+
+  getJcustomerEnvStatus:
+    - script: |-
+        const envName = "${globals.jCustomerEnv}";
+
+        resp = jelastic.env.control.GetEnvInfo(envName, session);
+        return {"result": 0, "out": resp.env.status};
+    - setGlobals:
+        jCustomerEnvStatus: ${response.out}
 
 settings:
   fields:
