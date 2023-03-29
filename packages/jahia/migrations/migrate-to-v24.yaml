@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   # Actions that require a restart
+  - removeInfoFromErrorPage             # PAAS-2332
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -58,3 +59,15 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  removeInfoFromErrorPage:
+    - cmd[proc, cp]: |-
+        server_conf=/opt/tomcat/conf/server.xml
+        if ! grep -q "Remove stacktrace and tomcat version" $server_conf; then
+          sed -i '/<!-- Access log processes all example\./i\        <!-- Remove stacktrace and tomcat version from error pages -->' $server_conf
+          sed -i '/<!-- Access log processes all example\./i\        <Valve className="org.apache.catalina.valves.ErrorReportValve"  showReport="false"  showServerInfo="false" />\n' $server_conf
+          echo restart
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
