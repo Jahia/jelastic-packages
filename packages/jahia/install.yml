@@ -16,6 +16,9 @@ globals:
   db_user: jahia-db-${fn.random}
   __secret__db_pass: ${fn.password(20)}
   __secret__db_user_datadog: ${fn.password(20)}
+  __secret__proxysql_admin_password: ${fn.password(20)}
+  __secret__proxysql_monitoring_password: ${fn.password(20)}
+  __secret__proxysql_cluster_password: ${fn.password(20)}
   mngr_user: manager
   dbnodeType: mariadb-dockerized
   xms: 256M
@@ -40,6 +43,9 @@ onBeforeInstall: |
   var __secret__dbPass = "${globals.__secret__db_pass}";
   var __secret__dbUserDatadog = "${globals.__secret__db_user_datadog}";
   var __secret__DATADOGAPIKEY = "${settings.ddogApikey}";
+  var __secret__proxysql_admin_password = "${globals.__secret__proxysql_admin_password}";
+  var __secret__proxysql_monitoring_password = "${globals.__secret__proxysql_monitoring_password}";
+  var __secret__proxysql_cluster_password = "${globals.__secret__proxysql_cluster_password}";
 
   // HAProxy nodes
 
@@ -121,6 +127,9 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
+        "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
+        "PROXYSQL_MONITORING_PASSWORD": __secret__proxysql_monitoring_password,
+        "PROXYSQL_CLUSTER_PASSWORD": __secret__proxysql_cluster_password,
       }
   }
   if (dockerImage == "undefined") {
@@ -184,6 +193,9 @@ onBeforeInstall: |
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
+        "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
+        "PROXYSQL_MONITORING_PASSWORD": __secret__proxysql_monitoring_password,
+        "PROXYSQL_CLUSTER_PASSWORD": __secret__proxysql_cluster_password,
       }
   }
   if (dockerImage == "undefined") {
@@ -252,7 +264,8 @@ onInstall:
   - installDatabase:
       user: ${globals.db_user}
       __secret__password: ${globals.__secret__db_pass}
-  - finishProxysqlInstall
+  - finishProxysqlInstall:
+      __secret__monitor_password: ${globals.__secret__proxysql_monitoring_password}
   - addEnvMetadataToNodeGroup:
       __secret__vaultRoleId: ${settings.vaultRoleId}
       __secret__vaultSecretId: ${settings.vaultSecretId}

@@ -3,7 +3,7 @@
 #   - common.yml
 
 globals:
-  proxysql_cli: "mysql -h 127.0.0.1 -uadmin -padmin -P6032"
+  proxysql_cli: "mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032"
   org_jahia_ehcachemanager_maxBytesLocalHeap_dev: 700M
   org_jahia_ehcachemanager_big_maxBytesLocalHeap_dev: 700M
   org_jahia_ehcachemanager_maxBytesLocalHeap_prod: 800M
@@ -792,7 +792,7 @@ actions:
             resp="{}"
           fi
         fi
-        
+
         case "$(jq -r ". | length" <<< $resp)" in
           "0") # Means the module is not installed
             module_state=uninstalled
@@ -1275,8 +1275,11 @@ actions:
         ${globals.proxysql_cli} -e "SAVE MYSQL SERVERS TO DISK"
 
   setupMonitorUser:
+    # Parameters:
+    # __secret__password: proxysql monitor user password
     - cmd[sqldb]: |-
-        mysql -e "CREATE USER IF NOT EXISTS 'proxysql'@'%' IDENTIFIED BY 'monitorpassword'"
+        __secret__password="${this.__secret__password}"
+        mysql -e "CREATE USER IF NOT EXISTS 'proxysql'@'%' IDENTIFIED BY '$__secret__password'"
         mysql -e "GRANT SELECT on sys.* TO 'proxysql'@'%'"
         mysql -e "GRANT SELECT on performance_schema.* TO 'proxysql'@'%'"
         mysql -e "GRANT  PROCESS, REPLICATION CLIENT ON *.* TO 'proxysql'@'%'"
@@ -1288,13 +1291,31 @@ actions:
         ${globals.proxysql_cli} -e "SAVE MYSQL VARIABLES TO DISK"
 
   finishProxysqlInstall:
-    - setupMonitorUser
+    # Parameters:
+    # __secret__monitor_password: proxysql monitor user password
+    - setProxysqlCredsInConfig
+
+    - setupMonitorUser:
+        __secret__password: ${this.__secret__monitor_password}
+
     - enableBackendMonitor
     - if (nodes.sqldb.length > 1):
         - setupMysqlServers
     - else:
         - disableDatadogCustomChecks
     - setupProxysqlCluster
+
+  setProxysqlCredsInConfig:
+    cmd[proc, cp]: |-
+      source /.jelenv
+      admin_creds_query="set admin-admin_credentials='admin:$PROXYSQL_ADMIN_PASSWORD;cluster1:$PROXYSQL_CLUSTER_PASSWORD';"
+      cluster_creds_query="set admin-cluster_password='$PROXYSQL_CLUSTER_PASSWORD';"
+      monitor_creds_query="set mysql-monitor_password='$PROXYSQL_MONITORING_PASSWORD';"
+      persist_config_query="LOAD ADMIN VARIABLES TO RUNTIME;SAVE ADMIN VARIABLES FROM RUNTIME;LOAD MYSQL VARIABLES TO RUNTIME; SAVE MYSQL VARIABLES TO DISK;"
+      mysql -h 127.0.0.1 -uadmin -padmin -P6032 -e "$admin_creds_query $cluster_creds_query $monitor_creds_query $persist_config_query"
+      sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
+      sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+    user: root
 
   refreshProxysqlInstancesList:
     - setupProxysqlCluster

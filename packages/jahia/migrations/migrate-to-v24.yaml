@@ -32,6 +32,7 @@ onInstall:
   ### End Pre-checks
 
   - addIpDenyList                       # PAAS-2300
+  - randomizeProxysqlCredentials        # PAAS-2331
 
   # Actions that require a restart
   - removeInfoFromErrorPage             # PAAS-2332
@@ -88,3 +89,32 @@ actions:
           systemctl reload haproxy || exit 1
         fi
       user: root
+
+  randomizeProxysqlCredentials:
+    - cmd[proc]: |-
+        if ! (grep "password: admin" /etc/datadog-agent/conf.d/proxysql.d/custom_checks); then
+          echo "up to date"
+        fi
+
+    - if("${response.out}" != "up to date"):
+        - set:
+            - __secret__proxysql_admin_password: ${fn.password(20)}
+            - __secret__proxysql_monitoring_password: ${fn.password(20)}
+            - __secret__proxysql_cluster_password: ${fn.password(20)}
+        - env.control.AddContainerEnvVars[cp, proc]:
+            vars:
+              PROXYSQL_ADMIN_PASSWORD: "${this.__secret__proxysql_admin_password}"
+              PROXYSQL_MONITORING_PASSWORD: "${this.__secret__proxysql_monitoring_password}"
+              PROXYSQL_CLUSTER_PASSWORD: "${this.__secret__proxysql_cluster_password}"
+
+        - setProxysqlCredsInConfig
+
+        - cmd[${nodes.sqldb.first.id}]: |-
+            __secret__password="${this.__secret__proxysql_monitoring_password}"
+            mysql -e "ALTER USER 'proxysql'@'%' IDENTIFIED BY '$__secret__password'; FLUSH PRIVILEGES"
+        - cmd[cp, proc]: |-
+            source /.jelenv
+            sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+            sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
+            systemctl restart datadog-agent
+          user: root
