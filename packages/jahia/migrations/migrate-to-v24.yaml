@@ -31,6 +31,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - addIpDenyList                       # PAAS-2300
+
   # Actions that require a restart
   - removeInfoFromErrorPage             # PAAS-2332
 
@@ -71,3 +73,18 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  addIpDenyList:
+    - cmd[bl]: |-
+        touch /etc/haproxy/blacklisted_ips.txt
+        chown haproxy: /etc/haproxy/blacklisted_ips.txt
+        if ! (grep -q "Blocking blackisted IPs" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg); then
+          sed '67i\
+        \
+            #Blocking blackisted IPs\
+            acl jahia_cloud_spamlist hdr_ip(X-Forwarded-For) -f /etc/haproxy/blacklisted_ips.txt\
+            http-request tarpit if jahia_cloud_spamlist' \
+            -i /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+          systemctl reload haproxy || exit 1
+        fi
+      user: root

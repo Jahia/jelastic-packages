@@ -26,6 +26,7 @@ actions:
         HAPROXY_SERVICE_OVERRIDE=/etc/systemd/system/haproxy.service.d/override.conf
         HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
         mkdir $HAPROXY_CONF_DIR $HAPROXY_CONF_DIR/customer.configuration.d $HAPROXY_CONF_DIR/customer.errorpages.d
+        touch $HAPROXY_DIR/blacklisted_ips.txt
         curl -fLSso $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
         curl -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
