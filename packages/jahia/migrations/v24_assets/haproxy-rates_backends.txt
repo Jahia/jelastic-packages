@@ -1,0 +1,10 @@
+backend clients_rates
+    stick-table type string len 50 size 100k expire 1h store http_req_rate(1m),http_err_rate(1m)
+
+backend rated_paths
+    stick-table type string len 50 size 10k expire 5m store http_req_rate(1m),http_err_rate(1m)
+
+backend bk_error_429
+    timeout tarpit 5s
+    http-request tarpit deny_status 429
+

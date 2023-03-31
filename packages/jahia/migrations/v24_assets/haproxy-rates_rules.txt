@@ -1,0 +1,26 @@
+    # Here a global tracking of high request and error rates
+    # in order to not count request access to statics files, we will use an acl
+    acl static_file path_end .css .js .jpg .jpeg .gif .ico .png .bmp .woff .pdf
+    # for each client access (first field of x-forwarded-for) not related to a static file, we update the clients_rates stick table 
+    http-request track-sc2 req.hdr(x-forwarded-for,1) table clients_rates if !static_file
+    # then we test if the client's rates are above a threshold
+    #acl fast_client sc_http_req_rate(2) gt 666
+    #acl many_errors sc_http_err_rate(2) gt 66
+
+    # Here the part related to a "by url" rate limit
+    # test the request path to see if it's in a map file
+    acl is_rated_paths path_reg -M -f /etc/haproxy/haproxy.cfg.jahia/paths_rates.map if !static_file
+    # if it is, put the client ip in the rated_paths sticky table
+    http-request track-sc1 req.hdr(x-forwarded-for,1) table rated_paths if is_rated_paths
+    # check map file to get rate limit for path
+    http-request set-var(req.rate_limit) path,map_reg(/etc/haproxy/haproxy.cfg.jahia/paths_rates.map) if is_rated_paths
+    # client's request rate is tracked
+    http-request set-var(req.request_rate) req.hdr(x-forwarded-for,1),table_http_req_rate(rated_paths)
+    # subtract the current request rate from the limit
+    # if less than zero, set rate_abuse to true
+    acl rate_abuse var(req.rate_limit),sub(req.request_rate) lt 0
+
+    # then use a dedicated 429 backend if needed
+    #use_backend bk_error_429 if fast_client or many_errors or rate_abuse
+    use_backend bk_error_429 if rate_abuse
+

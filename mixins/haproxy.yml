@@ -29,6 +29,7 @@ actions:
         touch $HAPROXY_DIR/blacklisted_ips.txt
         curl -fLSso $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         curl -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        curl -fLSso $HAPROXY_CONF_DIR/paths_rates.map ${globals.repoRootUrl}/assets/haproxy/haproxy-paths_rates.map || exit 1
         curl -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         curl -fLSso $HAPROXY_DIR/robots_noindex.txt ${globals.repoRootUrl}/assets/haproxy/robots_noindex.txt || exit 1
         curl -fLSso $HAPROXY_PRESTART_SCRIPT ${globals.repoRootUrl}/assets/haproxy/haproxy_prestart.sh || exit 1

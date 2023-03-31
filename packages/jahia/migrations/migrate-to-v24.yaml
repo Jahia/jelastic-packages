@@ -33,6 +33,7 @@ onInstall:
 
   - addIpDenyList                       # PAAS-2300
   - randomizeProxysqlCredentials        # PAAS-2331
+  - addBlockLoginBruteForce             # PAAS-2336
 
   # Actions that require a restart
   - removeInfoFromErrorPage             # PAAS-2332
@@ -118,3 +119,19 @@ actions:
             sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
             systemctl restart datadog-agent
           user: root
+
+  addBlockLoginBruteForce:
+    - cmd[bl]: |-
+        if ! (grep -q "bk_error_429" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg); then
+          for f in backends rules; do
+            curl -fLSso /tmp/haproxy-rates_${f}.txt ${globals.repoRootUrl}/packages/jahia/migrations/v24_assets/haproxy-rates_${f}.txt || exit 1
+          done
+          echo "^/cms.*/login.*$        20" > /etc/haproxy/haproxy.cfg.jahia/paths_rates.map
+          chown haproxy: /etc/haproxy/haproxy.cfg.jahia/paths_rates.map
+          sed -i /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg \
+              -e '/^##CUSTOMER_RULES_START_HERE##/e cat /tmp/haproxy-rates_rules.txt' \
+              -e '/^backend default/e cat /tmp/haproxy-rates_backends.txt'
+          rm -f /tmp/haproxy-rates_*.txt
+          systemctl reload haproxy || exit 2
+        fi
+      user: root
