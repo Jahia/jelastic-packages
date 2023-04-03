@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 20
+  jcustomer_env_version: 21
   unomi_version: ${settings.productVersion}
   __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -129,6 +129,7 @@ onInstall:
   - setupES:
       papiEnvId: ${settings.papiEnvId}
   - setJcustomerApiKey
+  - configureDatadogAPM: cp
   - forEach(nodes.cp):
       - setupUnomi:
           nodeId: ${@i.id}
@@ -137,7 +138,6 @@ onInstall:
       target: cp
       __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
   - setEnvVersion: ${globals.jcustomer_env_version}
-  - configureDatadogAPM: cp
   - install:
       jps: "${baseUrl}/update-events.yml"
   - setJelEnvRoleInNodeGroupData
