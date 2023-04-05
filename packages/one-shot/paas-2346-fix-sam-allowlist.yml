@@ -1,0 +1,34 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Fix SAM allowlist
+id: jahia-fix-sam-allowlist
+description:
+  short: Jahia - Fix SAM allowlist to add important modules
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - updateSAMWhitelist
+
+actions:
+  updateSAMWhitelist:
+    - cmd [cp, proc]: |-
+        sam_conf_file=$DATA_PATH/digital-factory-data/karaf/etc/org.jahia.modules.sam.healthcheck.ProbesRegistry.cfg
+        modules=(
+          distributed-sessions
+          personal-api-tokens
+          server-availability-manager
+          graphql-dxm-provider
+          org.jahia.bundles.clustering
+          jexperience
+          jexperience-dashboards
+          kibana-dashboards-provider
+          augmented-search
+          database-connector
+          elasticsearch-connector
+        )
+        sed -i "/^probes.ModuleState.whitelist/d" $sam_conf_file
+        echo "probes.ModuleState.whitelist=$(echo ${modules[@]} | tr " " ",")" >> $sam_conf_file
