@@ -37,7 +37,6 @@ onInstall:
   - cmd[cp]: |-
       service datadog-agent stop
       service karaf stop
-    user: root
 
   - env.control.AddContainerEnvVars[*]:
     vars: {"UNOMI_VERSION": "${settings.targetVersion}"}

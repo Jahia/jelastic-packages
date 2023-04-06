@@ -31,6 +31,7 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
+  - removeSudoPermissions               # PAAS-2330
   - addIpDenyList                       # PAAS-2300
   - randomizeProxysqlCredentials        # PAAS-2331
   - addBlockLoginBruteForce             # PAAS-2336
@@ -64,6 +65,13 @@ actions:
     install:
       jps: "${baseUrl}../update-events.yml"
 
+  removeSudoPermissions:
+    - setJelasticUserAsRoot: "*"
+    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
+      user: root
+    - cmd [*]: rm -f /etc/sudoers.d/sudo
+      user: root
+
   removeInfoFromErrorPage:
     - cmd[proc, cp]: |-
         server_conf=/opt/tomcat/conf/server.xml
@@ -89,7 +97,6 @@ actions:
             -i /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
           systemctl reload haproxy || exit 1
         fi
-      user: root
 
   randomizeProxysqlCredentials:
     - cmd[proc]: |-
@@ -118,7 +125,6 @@ actions:
             sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
             sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
             systemctl restart datadog-agent
-          user: root
 
   addBlockLoginBruteForce:
     - cmd[bl]: |-
@@ -134,4 +140,3 @@ actions:
           rm -f /tmp/haproxy-rates_*.txt
           systemctl reload haproxy || exit 2
         fi
-      user: root

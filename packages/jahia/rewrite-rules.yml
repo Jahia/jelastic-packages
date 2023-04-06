@@ -74,7 +74,6 @@ actions:
     - cmd [bl]: |-
         /usr/local/sbin/haproxy_prestart.sh
         /usr/local/bin/haproxy-reload.sh || true
-      user: root
     - if ("${response.responses.errOut}" != ""):
         - set:
             error-out: "${response.responses.errOut}"
@@ -87,7 +86,6 @@ actions:
             rm -rf ${globals.backup_rules_dir} ${globals.temp_rules_dir}
             # in order to regenerate haproxy.cfg (no need to reload haproxy daemon)
             /usr/local/sbin/haproxy_prestart.sh
-          user: root
         - return:
             type: error
             message: "${this.error-out}"

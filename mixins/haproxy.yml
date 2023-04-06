@@ -7,7 +7,7 @@ globals:
 
 actions:
   installHaproxy:
-    - setSudoer: bl
+    - setJelasticUserAsRoot: bl
     - retrieveHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
@@ -41,7 +41,6 @@ actions:
         chown -R haproxy:haproxy $HAPROXY_DIR
         systemctl daemon-reload
         systemctl restart haproxy
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -62,6 +61,7 @@ actions:
     - cmd [bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
+      user: haproxy
     - if ('${this.reload.print()}' == 'true'):
         - cmd [bl]: |-
             check_no_more_old_process(){
@@ -70,7 +70,7 @@ actions:
             done
             }
             export -f check_no_more_old_process
-            sudo service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
+            service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
 
   # Parameters:
   # - nodeId: the ID of the browsing node to add
@@ -101,8 +101,7 @@ actions:
     - addProcNodeToHaproxy:
         reload: false
     # Reload haproxy conf
-    - cmd [bl]: sudo service haproxy reload
-      user: haproxy
+    - cmd [bl]: service haproxy reload
 
   # Parameters:
   # - reload: "true" or "false", if haproxy service should be reloaded or not
@@ -118,7 +117,7 @@ actions:
             done
             }
             export -f check_no_more_old_process
-            sudo service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
+            service haproxy reload && (timeout 120 bash -c check_no_more_old_process; exit 0)
 
   # Parameters:
   # - reload: "true" or "false", if haproxy service should be reloaded or not
@@ -130,7 +129,7 @@ actions:
           sed -i "/^backend proc$/a\ \ \ \ server ${env.appid}-${nodes.proc.first.id} ${nodes.proc.first.intIP}:80 check cookie s${nodes.proc.first.id}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         fi
     - if ('${this.reload.print()}' == 'true'):
-        - cmd [bl]: sudo service haproxy reload
+        - cmd [bl]: service haproxy reload
 
   configureProcessingDirectAccessHaproxy:
     - cmd[bl]: |-
@@ -169,7 +168,6 @@ actions:
         chmod 644 /etc/logrotate.d/haproxy
         chown root:dd-agent /var/log/haproxy/* && chmod 640 /var/log/haproxy/*
         systemctl restart rsyslog crond datadog-agent
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -182,7 +180,6 @@ actions:
         curl -fsI /dev/null -u "$adm_user" localhost:80/haproxy_adm_panel && exit 0
       fi
       echo "[ERROR] Haproxy is unavailable, exiting" 1>&2 && exit 1
-    user: root
 
   checkHaproxyDatadogCustomChecks:
     - checkDatadogAgentCheck:
@@ -209,7 +206,6 @@ actions:
         __secret__new_password="${this.__secret__new_password.toBase64()}"
         ${this.auth_basic_script} "${this.haproxy_frontend_file}" "${this.enable_auth_basic}" "${this.new_login}" $__secret__new_password
         service haproxy reload
-      user: root
     - environment.nodegroup.ApplyData [proc, cp]:
         # Formatting it like that is the only way I found to set a boolean and not a string (true and not "true")
         data: "{ basicAuthEnabled: ${this.enable_auth_basic} }"
@@ -222,7 +218,6 @@ actions:
         sed -i -e '/\(option httpchk\)/a http-check send meth GET uri "/ping.jsp" hdr User-Agent "HAProxy"' -e '/\(http-check expect rstring\)/a http-check expect rstring PONG' $haproxy_conf_file
         service haproxy reload
       fi
-    user: root
 
   enableHaproxyHealthcheck:
     cmd[bl]: |-
@@ -230,5 +225,4 @@ actions:
       sed -i -e 's/#\(http-check send.*\)/\1/g' -e 's/#\(http-check expect rstring\)/\1/g' $haproxy_conf_file
       sed -i -e '/.*ping.jsp.*/d' -e '/.*rstring PONG.*/d' $haproxy_conf_file
       service haproxy reload
-    user: root
 

@@ -36,7 +36,7 @@ actions:
   # jahia related #
   #################
   onAfterBrowsingScaleOut:
-    - setSudoer: ${this.newNode}
+    - setJelasticUserAsRoot: ${this.newNode}
     - copyApp: ${this.newNode}
     - setToolsPwd: ${this.newNode}
     - setupDatadogAgentJahia: ${this.newNode}
@@ -48,17 +48,15 @@ actions:
           echo "Now Launching Tomcat"
           service tomcat start
         fi
-      user: root
 
   onAfterRedeployJahiaContainer:
     - cmd[${this}]:
         - service tomcat stop
-      user: root
     - getMavenPath
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
         jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
-    - setSudoer: ${this}
+    - setJelasticUserAsRoot: ${this}
     - getLogEventScript: ${this}
     - if (nodes.sqldb.length == 1):
         - disableDatadogCustomChecks
@@ -69,17 +67,16 @@ actions:
           - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - setupDatadogAgentJahia: ${this}
     - cmd[${this}]: |-
-          touch "/data/digital-factory-data/[persisted-configurations].dorestore"
-          chown tomcat: "/data/digital-factory-data/[persisted-configurations].dorestore"
-          source /etc/locale.conf
-          echo "JAHIA_UPGRADE=$JAHIA_UPGRADE"
-          if [ "$JAHIA_UPGRADE" == "true" ]; then
-            echo "This is an upgrade, processing's tomcat will not be restarted now"
-          else
-            echo "This is a regular redeploy, restart tomcat now"
-            service tomcat start
-          fi
-      user: root
+        touch "/data/digital-factory-data/[persisted-configurations].dorestore"
+        source /etc/locale.conf
+        echo "JAHIA_UPGRADE=$JAHIA_UPGRADE"
+        if [ "$JAHIA_UPGRADE" == "true" ]; then
+          echo "This is an upgrade, processing's tomcat will not be restarted now"
+        else
+          echo "This is a regular redeploy, restart tomcat now"
+          sudo service tomcat start
+        fi
+      user: tomcat
 
     - script: |-
         ipsec_enabled = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
@@ -94,11 +91,9 @@ actions:
         - cmd[${this}]: |-
             systemctl enable strongswan.service
             systemctl start strongswan.service
-          user: root
 
   stopJahia:
     cmd[${this}]: "service tomcat stop"
-    user: root
 
   initJahiaDatabase:
     - log: "## Import DX schema in database"
@@ -114,7 +109,7 @@ actions:
     #   - jahiaVersion
     #   - __secret__rootpwd: Jahia root user password
     #   - __secret__toolspwd: Jahia Tools password
-    - setSudoer: proc, cp
+    - setJelasticUserAsRoot: proc, cp
     - getLogEventScript: proc, cp
 
     - environment.nodegroup.ApplyData [proc, cp]:
@@ -219,7 +214,6 @@ actions:
         fi
         __secret__toolspwd="${this.__secret__toolspwd.toBase64()}"
         /usr/local/bin/reset-jahia-tools-manager-password.py $__secret__toolspwd $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -265,7 +259,6 @@ actions:
         /usr/local/bin/set_dd_tags.sh
         systemctl restart crond
         systemctl enable datadog-agent
-      user: root
 
   startupJahiaHealthCheck:
     # Two arguments:
@@ -383,11 +376,13 @@ actions:
     cmd[${this}]: |-
       mkdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
       mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext*.xml /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/
+    user: tomcat
 
   restoreApplicationcontextFilesAfterRedeploy:
     cmd[${this}]: |-
       mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/* /opt/tomcat/conf/digital-factory-config/jahia/
       rmdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
+    user: tomcat
 
   deleteEnvLinkJahia:
     # Parameters:
@@ -518,6 +513,7 @@ actions:
               ((i++))
               sleep 1
             done
+          user: tomcat
         - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
@@ -550,6 +546,7 @@ actions:
             [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
             sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
             sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+          user: tomcat
         - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
@@ -1217,6 +1214,7 @@ actions:
                 echo "org.jahia.services.env.env_name=$env_name" >> $config_file
               fi
             fi
+          user: tomcat
 
   generateNodesListFile:
     - set:
@@ -1226,8 +1224,6 @@ actions:
             nodesList: browsing.${@i.id} ${this.nodesList}
     - cmd[proc]: |-
         echo "${this.nodesList}" > /nodesList
-      user: root
-
 
   ####################
   # proxysql related #
@@ -1315,7 +1311,6 @@ actions:
       mysql -h 127.0.0.1 -uadmin -padmin -P6032 -e "$admin_creds_query $cluster_creds_query $monitor_creds_query $persist_config_query"
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
-    user: root
 
   refreshProxysqlInstancesList:
     - setupProxysqlCluster
@@ -1394,7 +1389,6 @@ actions:
         # we don't want the script to fail since the agent will be configured and
         # started later on anyway
         exit 0
-      user: root
 
   procRedeploy:
     # Parameters:
@@ -1408,7 +1402,6 @@ actions:
             useExistingVolumes: false
     - cmd [proc]:
         - echo 'export JAHIA_UPGRADE="${this.upgradeJahia}"' >> /etc/locale.conf
-      user: root
     - api: environment.control.RedeployContainersByGroup
       nodeGroup: proc
       tag: ${this.targetDockerTag}
@@ -1419,16 +1412,15 @@ actions:
     - if (${this.upgradeJahia}):
         - cmd [proc]: |-
             rm -fr /data/digital-factory-data/bundles-deployed/*
-            sudo -u tomcat touch "/data/digital-factory-data/[persisted-bundles].dorestore"
+            touch "/data/digital-factory-data/[persisted-bundles].dorestore"
             echo "restore-module-state have been asked"
             ls -l /data/digital-factory-data/*.dorestore
             touch /data/digital-factory-data/modules/*
-            service tomcat start
-          user: root
+            sudo service tomcat start
+          user: tomcat
         - setJahiaUserFeedbacksConfig
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
-      user: root
     - startupJahiaHealthCheck: ${nodes.proc.first.id}
 
   browsingNodesBulkRedeploy:
@@ -1611,6 +1603,7 @@ actions:
           session.save();
         })
         """ >> $groovy_file_path
+      user: tomcat
 
   setPatInHaproxy:
     # Parameters:
