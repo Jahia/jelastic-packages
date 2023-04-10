@@ -433,14 +433,9 @@ actions:
 
         cd jelastic_backup
         rclone copy --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ . || exit 1
-        chown tomcat: digital-factory-data.tar.gz digital-factory-config.tar.gz jahia-env-vars.gz
-
-    - cmd [proc,cp]: |-
-        cd jelastic_backup
         rm -rf /data/digital-factory-data
         tar xf digital-factory-data.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        chown tomcat: /data
-        rm digital-factory-data.tar.gz
+        rm -f digital-factory-data.tar.gz
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -460,18 +455,15 @@ actions:
         cd jelastic_backup
         rm -rf /opt/tomcat/conf/digital-factory-config
         tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        chown tomcat:tomcat -R /opt/tomcat/conf
         rm -f digital-factory-config.tar.gz
         rm -f /data/digital-factory-data/repository/.lock
-    - cmd [proc,cp]: |-
         # Add reindex flag to trigger reindex on restart
-        touch /data/digital-factory-data/repository/reindex
-        touch /data/digital-factory-data/safe-env-clone
+        sudo -u tomcat touch /data/digital-factory-data/repository/reindex
+        sudo -u tomcat touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
             -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
             -i $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-      user: tomcat
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -772,7 +764,6 @@ actions:
 
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
-        chown haproxy: haproxy.tar.gz
 
     - cmd [bl]: |-
         BACKUP_FILE=haproxy.tar.gz
@@ -802,6 +793,7 @@ actions:
           mkdir -p $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
+          chown -R haproxy: $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
         fi
 
         rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
@@ -813,7 +805,6 @@ actions:
           sed -i "/use_backend proc.*/c \ \ \ \ $cookie_line1" $HAPROXY_CONF
           sed -i "/cookie JSESSIONID.*/c \ \ \ \ $cookie_line2" $HAPROXY_CONF
         fi
-        chown -R haproxy: /etc/haproxy
     - if ("${response.errOut}" != ""):
         - return:
             type: error
