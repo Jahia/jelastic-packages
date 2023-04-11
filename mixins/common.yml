@@ -16,26 +16,16 @@ actions:
     - else:
         log: "[INFO] global repoRootUrl is already defined with value '${globals.repoRootUrl}'"
 
-  setSudoer:
-    - log: "## Set sudoer on ${this}"
-    - cmd[${this}]: |-
-        touch /etc/sudoers.d/sudo
-        # Warning : it only works if jelastic user exists, which may be compromised
-        # if using a non-Jelastic docker image
-        USER=$(id -nu $(id -u jelastic))
-        echo "$USER ALL=NOPASSWD: ALL" >> /etc/sudoers.d/sudo
-        echo "jelastic ALL=NOPASSWD: ALL" >> /etc/sudoers.d/sudo
+  setJelasticUserAsRoot:
+    - log: "## Set Jelastic user as root on ${this}"
+    - cmd [${this}]: sed -i 's;^jelastic:.*;jelastic:x:0:0::/root:/bin/bash;' /etc/passwd
       user: root
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred during sudoers configuration."
+    - cmd [${this}]: curl -fLSso /etc/sudoers.d/jahia-rules ${globals.repoRootUrl}/assets/common/sudoers-file || exit 1
 
   setJournaldLimit:
     - cmd[*]: |-
         sed -i 's/.*SystemMaxUse=.*/SystemMaxUse=200M/g' /etc/systemd/journald.conf
         systemctl restart systemd-journald.service
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -80,14 +70,12 @@ actions:
     - cmd[${this}]: |-
         curl -fLSso /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh || exit 1
         chmod u+x /usr/local/bin/log_event.sh
-      user: root
 
   logEvent:
     # Check if env is running (status = 1)
     if (1 == ${env.status}):
       cmd[${this.target}]: |-
         /usr/local/bin/log_event.sh "${this.title}" "${this.text}"
-      user: root
 
   manageSystemdService:
     # Parameters:
@@ -95,7 +83,6 @@ actions:
     #   - unit
     #   - action
     - cmd[${this.target}]: systemctl ${this.action} ${this.unit}
-      user: root
 
   setCloudConf:
     # Grab dev/preprod/prod infrastructure conf file
@@ -335,8 +322,8 @@ actions:
   installBackupTools:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
-        sudo python3 -m pip install --upgrade pip
-        sudo python3 -m pip install --upgrade boto3
+        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade boto3
         [ -d jelastic_backup ] || mkdir jelastic_backup
         cd jelastic_backup
         for file in backrest.py lib_aws.py revisionNode.py; do
@@ -346,7 +333,6 @@ actions:
 
   clearJelasticLogs:
     - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
-      user: root
 
   checkDatadogAgentCheck:
     # Parameters :
@@ -361,14 +347,12 @@ actions:
           echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
           exit 1
         fi
-      user: root
 
   installLatestDatadogAgent:
     - cmd[${this}]: |-
         source /etc/profile
         export DD_API_KEY=$DATADOGAPIKEY
         bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
-      user: root
 
   installRequiredPackages:
     # Parameters :
@@ -384,7 +368,6 @@ actions:
           fi
         done
         [[ "${packages_to_install[@]}" == "" ]] || yum --setopt=tsflags=nodocs install -y ${packages_to_install[@]};
-      user: root
 
   installPython:
     # Parameters :
@@ -409,7 +392,6 @@ actions:
         ln -s pip${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} pip${PYTHON_MAJOR_VERSION}
         pip install --upgrade pip || exit 1
         rm -f /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm
-      user: root
 
   installPapiScript:
     - setGlobalRepoRootUrl
@@ -418,7 +400,6 @@ actions:
         python3 -m pip install requests
         curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
         chmod 755 /usr/local/bin/papi.py
-      user: root
 
   ###################
   # Vault actions   #
@@ -687,7 +668,6 @@ actions:
         sed -i -r "/\[backup\]/,// s|provider =.*|provider = $provider|" $rclone_conf
         sed -i -r "/\[backup\]/,// s|region =.*|region = $region|" $rclone_conf
         sed -i -r "/\[backup\]/,// s|location_constraint =.*|location_constraint = $location_constraint|" $rclone_conf
-      user: root
 
   getBucketName:
     # Parameters:
@@ -709,7 +689,6 @@ actions:
         fi
         bucket_name="jc${this.clusterRole}${this.uid}$region"
         echo $bucket_name
-
     - setGlobals:
         bucketName: ${response.out}
 
@@ -736,7 +715,6 @@ actions:
           -d "{\"end\": $MUTE_END, \"action\":\"Muted\", \"override\": \"true\"}"
         # always exit with 0 so that Jelastic does not stop there in case of problems with Datadog:
         exit 0
-      user: root
 
   unmuteDatadogHost:
     # Parameters:
@@ -753,8 +731,6 @@ actions:
           -XPOST \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"
-      user: root
-
 
   getPapiInfoAll:
     - getVaultData
@@ -1076,7 +1052,6 @@ actions:
           mkdir -p $rclone_dir
           curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         fi
-      user: root
 
   setupLogsRCloneConfig:
     # Parameters
@@ -1117,7 +1092,6 @@ actions:
         fi
         sed -i "s/LOGS_PROVIDER_PLACEHOLDER/$provider/" $rclone_conf
         echo $rclone_conf >> /etc/jelastic/redeploy.conf
-      user: root
 
   # Similarly to what has been done for setupBackupRCloneConfig, we force the OVH
   # region to be GRA

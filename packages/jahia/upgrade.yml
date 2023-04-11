@@ -48,7 +48,6 @@ onInstall:
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [cp, proc]:
       - service tomcat stop
-    user: root
   - setVersionPropertiesValue:
       initialJahiaVersion: ${globals.initialVersion}
       targetJahiaVersion: ${settings.targetVersion}

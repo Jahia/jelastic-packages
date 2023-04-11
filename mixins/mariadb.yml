@@ -11,7 +11,8 @@ actions:
     # Parameters:
       #   - user: DB username
       #   - __secret__password: DB user's password
-    - setSudoer: sqldb
+    - setJelasticUserAsRoot: sqldb
+    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
@@ -29,7 +30,6 @@ actions:
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
         curl -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -39,14 +39,12 @@ actions:
     - else:
         # Trigger mariabackup installation
         - cmd [sqldb]: service mysql restart
-          user: root
     - log: "## Create DX's Jahia database and user"
     - cmd[${nodes.sqldb.master.id}]: |-
         __secret__password="${this.__secret__password}"
         mysql -e "CREATE DATABASE IF NOT EXISTS jahia CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         mysql -e "grant all privileges on jahia.* to '${this.user}'@'%' identified by '$__secret__password';"
         mysql -e "flush privileges;"
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -64,7 +62,6 @@ actions:
           mysql -e "GRANT SELECT ON performance_schema.* TO 'datadog'@'localhost';"
           mysql -e "GRANT SELECT ON jahia.JR_J_LOCAL_REVISIONS TO 'datadog'@'%';"
         fi
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -135,7 +132,6 @@ actions:
         chmod 644 /var/log/mysql/mysqld.log
         chmod 644 /var/log/mysql/slow-queries.log  > /dev/null 2>&1
         systemctl restart crond datadog-agent
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -164,7 +160,6 @@ actions:
         if [ $MYSQL_IS_RUNNING -eq 0]; then
           exit 1
         fi
-      user: root
 
   getGaleraNodeNameIndex:
     - cmd [${this}]: |-
@@ -178,12 +173,10 @@ actions:
         - cmd [${this.target}]: |-
             sed -i '/^\/var\/lib\/jelastic\/overrides\/envinfo.lib/d' /etc/jelastic/redeploy.conf
             rm /var/lib/jelastic/overrides/envinfo.lib || exit 0
-          user: root
     - if ("${this.action}" == "disable"):
         - cmd [${this.target}]: |-
             echo "SERVICE=''" > /var/lib/jelastic/overrides/envinfo.lib
             echo "/var/lib/jelastic/overrides/envinfo.lib" >> /etc/jelastic/redeploy.conf
-          user: root
 
   ##################
   # galera related #
@@ -197,7 +190,6 @@ actions:
         setupInstance:
           id: "${@i.id}"
     - cmd[${nodes.sqldb.master.id}]: "/etc/init.d/mysql stop; sleep 5; galera_new_cluster;"
-      user: root
     - forEach(n:nodes.sqldb):
         if (!${@n.ismaster}):
           cmd[${@n.id}]: "jem service restart"
@@ -219,7 +211,6 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
         curl -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -231,7 +222,6 @@ actions:
       - cmd[${@i.id}]: |-
           service mysql stop || exit 1
           cat /var/lib/mysql/grastate.dat || true
-        user: root
 
   setupSeeds:
     script: |
@@ -252,7 +242,6 @@ actions:
         [ -f /var/lib/mysql/gvwstate.dat ] && rm -f /var/lib/mysql/gvwstate.dat
         [ -f /var/lib/mysql/galera.cache ] && rm -f /var/lib/mysql/galera.cache
         /etc/init.d/mysql stop; pkill -9 mysql; /etc/init.d/mysql start
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -265,7 +254,6 @@ actions:
             echo "[ERROR] Galera cluster not synced, exiting" 1>&2 && exit 1
           fi
         fi
-      user: root
 
   checkMariadbDatadogCustomChecks:
     - checkDatadogAgentCheck:
@@ -281,7 +269,6 @@ actions:
         echo "$HOSTNAME is not in a cluster"
       fi
       service mysql stop
-    user: root
 
   startGaleraNode:
     cmd[${this}]: |-
@@ -309,7 +296,6 @@ actions:
         fi
       done
       echo "Node $HOSTNAME is now Synced !"
-    user: root
 
   rollingRestartGaleraNodes:
     - if (nodes.sqldb.length > 1):

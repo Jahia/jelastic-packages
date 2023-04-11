@@ -164,7 +164,6 @@ actions:
     - if (! ${settings.dryRun}):
         cmd[${this}]: |-
           service tomcat start
-        user: root
 
   callCheckJcustomerHealthWhenStartingAction:
     - appendActionLog: "Checking jCustomer health on node ${this}"

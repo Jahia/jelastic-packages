@@ -81,7 +81,6 @@ onInstall:
   - else:  # Jcustomer
       - clearJelasticLogs:
           target: ${nodes.cp.first.id}
-          user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
           target: ${nodes.cp.first.id}
@@ -117,7 +116,7 @@ actions:
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
 
-        cd /opt/tomcat/temp/jelastic_backup
+        cd jelastic_backup
         grep -E "^(jahia|tomcat)_cfg_" /.jelenv | grep -v "jahia_cfg_mvnPath" > jahia-env-vars 2>>${globals.logsPath} || exit 1
         gzip jahia-env-vars 2>>${globals.logsPath} || exit 1
 
@@ -131,7 +130,6 @@ actions:
         rclone copy . --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -f jahia-env-vars.gz digital-factory-config.tar.gz digital-factory-data.tar.gz
-      user: root
 
     - if ("${response.errOut}" != ""):
         return:
@@ -156,11 +154,10 @@ actions:
         fi;
         export AWS_DEFAULT_REGION="$aws_region"
 
+        cd jelastic_backup
         if [ "${this}" == "proc" ]; then  # Jahia
           size=$(rclone size --json backup:${globals.bucketName}/${globals.backupName} | jq '.bytes')
-          cd /opt/tomcat/temp/jelastic_backup
         else  #jCustomer
-          cd jelastic_backup
           size=1
         fi
         lock_sec_max=300
@@ -191,7 +188,6 @@ actions:
         getLock
         python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' --size $size 2>>${globals.logsPath} || exit 1
         rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -209,11 +205,7 @@ actions:
           __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
           export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
 
-          if [ "${this}" == "proc" ]; then  # Jahia
-            cd /opt/tomcat/temp/jelastic_backup
-          else  #jCustomer
-            cd jelastic_backup
-          fi
+          cd jelastic_backup
           backups_to_keep=$(( ${settings.retention}+1 ))
           backups_to_delete=$(rclone lsd backup:${globals.bucketName} | awk '{print $NF}' | grep "^${env.envName}-scheduled.*auto" | sort -r | tail -n +$backups_to_keep)
           echo "$backups_to_delete" > /tmp/backups_to_rotate
@@ -252,9 +244,6 @@ actions:
           done <<<"$(cat /tmp/backups_to_rotate)"
           rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
           rm /tmp/backups_to_rotate
-        user: root
-
-
       - if ("${response.errOut}" != ""):
           - return:
               type: error
@@ -391,7 +380,7 @@ actions:
         HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
-        cd /var/lib/haproxy/jelastic_backup
+        cd jelastic_backup
         cp -a $HAPROXY_CUSTOMER_CONF_DIR .
         cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_CONF $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         cp -a $HAPROXY_CUSTOMER_ERROR_PAGES_DIR .
@@ -400,7 +389,6 @@ actions:
         rclone copy haproxy.tar.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -rf haproxy.tar.gz $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME $HAPROXY_CUSTOMER_CONF_DIR_NAME
-      user: root
 
     - if ("${response.errOut}" != ""):
         - return:
@@ -409,28 +397,27 @@ actions:
 
   backupMariadb:
     - cmd[${this}]: |-
-        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
-        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
-        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
-        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
-        BACKUP_DIR=database-backup
-        BACKUP_NAME=database.tar
-        cd /home/jelastic/jelastic_backup
+        BACKUP_DIR=/tmp/database-backup
         rm -rf $BACKUP_DIR
         mkdir $BACKUP_DIR
-        chown mysql: $BACKUP_DIR
         GALERA_INFOS=""
         if [ "$(mysql -sNe  "show global status like 'wsrep_ready'"|grep ON)" != "" ]; then
           GALERA_INFOS="--galera-info"
         fi
-        sudo -u mysql ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
-        tar -H posix -C "$PWD/$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
+        ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
+      user: mysql
+    - cmd[${this}]: |-
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
+        BACKUP_DIR=/tmp/database-backup
+        BACKUP_NAME=database.tar
 
+        cd jelastic_backup
+        tar -H posix -C "$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
         rclone copy $BACKUP_NAME backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
-
         rm -rf $BACKUP_DIR $BACKUP_NAME
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -471,7 +458,6 @@ actions:
         rclone copy jcustomer-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
 
         rm -f jcustomer-env-vars.gz
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error

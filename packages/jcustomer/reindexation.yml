@@ -66,7 +66,6 @@ actions:
     #   - daemon: unit name
     - cmd[${this.target}]: |-
         systemctl ${this.command} ${this.daemon}
-      user: root
 
   manageFRO:
     # parameters:

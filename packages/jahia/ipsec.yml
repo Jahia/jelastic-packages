@@ -39,7 +39,6 @@ actions:
           rm -v ${globals.ipsec_conf_dir}/*.conf
           sed -i '2,$d' ${globals.ipsec_secrets_file}
         fi
-      user: root
 
   setIPsecConf:
     - cmd [${this}]: |-
@@ -147,7 +146,6 @@ actions:
 
         # remove now useless _bak file(s)
         find /etc/strongswan/ -maxdepth 2 -type f -name "*_bak" -ls -exec rm {} \;
-      user: root
     - if ("${response.errOut}" != ""):
         - log: "Error while set up strongswan on ${this}"
         - return:

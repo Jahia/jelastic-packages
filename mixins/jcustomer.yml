@@ -52,7 +52,6 @@ actions:
         curl -fsI /dev/null -u "$karaf_credentials" http://localhost:80/cxs/privacy/info && exit 0
       fi
       echo "[ERROR] jCustomer is unavailable, exiting" 1>&2 && exit 1
-    user: root
 
   checkJcustomerDatadogCustomChecks:
     - checkDatadogAgentCheck:
@@ -120,7 +119,6 @@ actions:
         echo 'export UNOMI_ROOT_PASSWORD=$(echo $UNOMI_ROOT_PASSWORD_B64 | base64 -d)' >> $envfile
         echo >> $envfile
         systemctl is-active --quiet karaf && systemctl restart karaf || systemctl enable --quiet --now karaf
-      user: root
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -194,7 +192,6 @@ actions:
         done
         echo "600 seconds timeout exceeded, aborting" >> $log_file
         exit 1
-    user: root
 
   updateJahia:
     # Parameters:
@@ -311,7 +308,6 @@ actions:
     cmd[${this}]: |-
       mkdir /var/log/jelastic-packages
       chown root:root /var/log/jelastic-packages
-    user: root
 
   configureDatadogAPM:
     - cmd [${this}]: |-

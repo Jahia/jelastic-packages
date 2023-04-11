@@ -88,7 +88,8 @@ onInstall:
       moduleRepository: jahia-internal-snapshots
       startModule: "true"
   - cmd [cp,proc]:
-      - sudo yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && sudo yum install -y ffmpeg
+      - yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm  && yum install -y ffmpeg
+  - cmd [cp,proc]:
       - sed -i 's/#jahia.dm.thumbnails.video.enabled.*/jahia.dm.thumbnails.video.enabled = true/' ${globals.jahiaPropertiesPath}
       - sed -i 's/#jahia.dm.thumbnails.video.ffmpeg.*/jahia.dm.thumbnails.video.ffmpeg = ffmpeg/' ${globals.jahiaPropertiesPath}
       - sed -i 's/jahiaToolManagerUsername.*/jahiaToolManagerUsername = jahia/' ${globals.jahiaPropertiesPath}
@@ -107,8 +108,10 @@ onInstall:
       - sed -i '2i jahia.jackrabbit.bundleCacheSize.workspace.live=512' ${globals.jahiaPropertiesPath}
       - sed -i '2i jahia.jackrabbit.bundleCacheSize.versioning=128' ${globals.jahiaPropertiesPath}
   - cmd [cp, proc]:
-      - sudo service tomcat restart || exit 1
+      - service tomcat restart || exit 1
       - sleep 30
   - cmd [proc]:
-      - curl -fLSsO "${globals.repoRootUrl}/assets/jahia/DXPerformanceTestSite_staging_7231.zip" || exit 1
-      - mv DXPerformanceTestSite_staging_7231.zip /data/digital-factory-data/imports
+      - filename=DXPerformanceTestSite_staging_7231.zip
+      - file=/data/digital-factory-data/imports/$filename
+      - curl -fLSso $file "${globals.repoRootUrl}/assets/jahia/$filename" || exit 1
+      - chown tomcat:tomcat $file

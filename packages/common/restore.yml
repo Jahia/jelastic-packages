@@ -99,7 +99,6 @@ onInstall:
   - else:  # Jcustomer
       - clearJelasticLogs:
           target: cp
-          user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
           target: cp
@@ -135,11 +134,9 @@ actions:
             # We save Kibana dashboards provider configuration
             - cmd [proc,cp]: |-
                 cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /root
-              user: root
         # We save jexperience configuration
         - cmd [proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
-          user: root
 
   getInitialAugSearchStatus:
     # Saves AS module version and status (installed/started) in /tmp/as-state if augsearch variable present and set to true in nodegroup data
@@ -208,7 +205,6 @@ actions:
             cp -p $file /root
           fi
         done
-      user: root
 
   restoreOtherModulesConfig:
     # This action will restore config files from various modules saved in the saveOtherModulesConfig action
@@ -225,17 +221,14 @@ actions:
             mv $file /data/digital-factory-data/karaf/etc
           fi
         done
-      user: root
 
   reconfigureJExperience:
     - log: "jExperience was active before the restore, the original conf needs to be restored"
     - if (${globals.jahia8}):
         - cmd [proc, cp]: |-
             mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc
-          user: root
     - cmd [proc, cp]: |-
         mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc
-      user: root
 
   installOrUpgradeJExprienceModules:
     - cmd [proc]: |-
@@ -315,6 +308,7 @@ actions:
              -e "s;\(.*ES_USER.*\)PLACEHOLDER\(.*\);\1${es_user}\2;" \
              -e "s;\(.*ES_PASSWORD.*\)PLACEHOLDER\(.*\);\1${__secret__es_password}\2;" \
              $esc_recreate_groovy_file
+      user: tomcat
 
   installOrUpgradeASModules:
     # This action will drop a provisioning file in the "provisioning" folder to install (or upgrade)
@@ -331,6 +325,7 @@ actions:
              -e "s;__ES_CONNECTOR_VERSION__;${globals.modulesState.elasticsearch-connector-version};g" \
              -e "s;__AS_VERSION__;${globals.modulesState.as-version};g" \
              $provisioning_file
+      user: tomcat
 
   prepareAugSearchRestore:
     - setGlobals:
@@ -430,23 +425,17 @@ actions:
 
   restoreJahia:
     - cmd [proc,cp]: |-
-        sudo service tomcat stop
+        service tomcat stop
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
 
-        cd /opt/tomcat/temp/jelastic_backup
-        rclone copy --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ . || exit 1
-        chown tomcat: digital-factory-data.tar.gz digital-factory-config.tar.gz jahia-env-vars.gz
-      user: root
-
-    - cmd [proc,cp]: |-
         cd jelastic_backup
-        sudo rm -rf /data/digital-factory-data
-        sudo chown tomcat:tomcat /data
+        rclone copy --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ . || exit 1
+        rm -rf /data/digital-factory-data
         tar xf digital-factory-data.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        rm digital-factory-data.tar.gz
+        rm -f digital-factory-data.tar.gz
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -466,12 +455,11 @@ actions:
         cd jelastic_backup
         rm -rf /opt/tomcat/conf/digital-factory-config
         tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        chown tomcat:tomcat -R /opt/tomcat/conf
         rm -f digital-factory-config.tar.gz
         rm -f /data/digital-factory-data/repository/.lock
         # Add reindex flag to trigger reindex on restart
-        touch /data/digital-factory-data/repository/reindex
-        touch /data/digital-factory-data/safe-env-clone
+        sudo -u tomcat touch /data/digital-factory-data/repository/reindex
+        sudo -u tomcat touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
             -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
@@ -506,10 +494,8 @@ actions:
             grep "jahia_cfg_mvnPath" /.jelenv >> /tmp/jahia-env-vars
             grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> /tmp/jahia-env-vars
             grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
-        - cmd [proc,cp]: |-
             cat /tmp/jahia-env-vars > /.jelenv
             rm -f /tmp/jahia-env-vars
-          user: root
         - if ("${response.errOut}" != ""):
             - return:
                 type: error
@@ -557,8 +543,8 @@ actions:
             }
           })
         """ > ${groovy_file_path}
-
-        sudo service tomcat start
+        chown tomcat: $groovy_file_path
+        service tomcat start
 
     - startupJahiaHealthCheck: proc
 
@@ -582,8 +568,7 @@ actions:
             - uninstallModule:
                 moduleSymname: augmented-search
 
-    - cmd[cp]: |-
-        sudo service tomcat start
+    - cmd [cp]: service tomcat start
 
     - startupJahiaHealthCheck: cp
 
@@ -774,13 +759,6 @@ actions:
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
-        cd /var/lib/haproxy/jelastic_backup
-        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
-        chown haproxy: haproxy.tar.gz
-      user: root
-
-    - cmd [bl]: |-
         BACKUP_FILE=haproxy.tar.gz
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
@@ -792,9 +770,9 @@ actions:
         HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
+        cd jelastic_backup
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
         rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
-
-        cd /var/lib/haproxy/jelastic_backup
         tar -xzf $BACKUP_FILE
 
         # Rules
@@ -808,6 +786,7 @@ actions:
           mkdir -p $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
           curl -fLSso $HAPROXY_CUSTOMER_ERROR_PAGES_CONF ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
+          chown -R haproxy: $HAPROXY_CUSTOMER_ERROR_PAGES_DIR
         fi
 
         rm -rf $HAPROXY_CUSTOMER_CONF_DIR_NAME $BACKUP_FILE $HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME $HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
@@ -823,7 +802,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring haproxy configuration."
-    - cmd [bl]: sudo service haproxy restart
+    - cmd [bl]: service haproxy restart
 
   restoreMariadb:
     - cmd[sqldb]: |-
@@ -832,25 +811,20 @@ actions:
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
 
-        cd /home/jelastic/jelastic_backup
+        cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
-        chown mysql: database.tar
-      user: root
-
-    - cmd[sqldb]: |-
-        cd /home/jelastic/jelastic_backup
         ls database.tar || exit 0
-        sudo service mysql stop
+        service mysql stop
         if (pgrep mysqld > /dev/null); then
-          sudo pkill -e -9 mysqld
+          pkill -e -9 mysqld
         fi
         rm -rf /var/lib/mysql/*
+        mv database.tar /var/lib/mysql/
         cd /var/lib/mysql/
-        mv /home/jelastic/jelastic_backup/database.tar .
         tar -xf database.tar 2>>${globals.logsPath}
-        rm database.tar
-        mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
-        mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
+        rm -f database.tar
+        sudo -u mysql mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
+        sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
 
     - if (nodes.sqldb.length > 1):
         cmd[${nodes.sqldb.first.id}]: |-
@@ -858,6 +832,7 @@ actions:
           echo "version: 2.1" >> /var/lib/mysql/grastate.dat
           echo "seqno: -1" >> /var/lib/mysql/grastate.dat
           echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
+        user: mysql
 
     - forEach(i:nodes.sqldb):
         startGaleraNode: ${@i.id}
@@ -887,6 +862,7 @@ actions:
         # let's import this
         mysql jahia < /tmp/triggers_dump.sql
         rm /tmp/triggers_dump.sql
+      user: mysql
 
   restoreJcustomer:
     - cmd [cp]: |-
@@ -898,7 +874,6 @@ actions:
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/jcustomer-env-vars.gz .
         ls jcustomer-env-vars.gz || exit 0
-      user: root
     - if ("${response.errOut}" == ""):
         - cmd [cp]: |-
             cd jelastic_backup
@@ -910,7 +885,6 @@ actions:
             grep -vP '^UNOMI_(?!ELASTICSEARCH|THIRDPARTY_PROVIDER1)' /.jelenv  >> /tmp/jcustomer-env-vars
             cat /tmp/jcustomer-env-vars > /.jelenv
             rm -f /tmp/jcustomer-env-vars
-          user: root
         - if ("${response.errOut}" != ""):
             - return:
                 type: error

@@ -50,7 +50,6 @@ onAfterRedeployContainer:
   - cmd[*]: |-
       echo "hostname: ${HOSTNAME}" >> /etc/datadog-agent/datadog.yaml
       systemctl restart datadog-agent
-    user: root
 
 settings:
   fields:

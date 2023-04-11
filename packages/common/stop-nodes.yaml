@@ -142,7 +142,6 @@ actions:
     - appendActionLog: "Stopping haproxy on node ${this}"
     - if (! ${settings.dryRun}):
         cmd[${this}]: service haproxy stop
-        user: root
 
   callStopGaleraNodeAction:
     - appendActionLog: "Stopping mariadb on node ${this}"
@@ -179,7 +178,6 @@ actions:
     - appendActionLog: "Stopping karaf service on node ${this}"
     - if (! ${settings.dryRun}):
         cmd[${this}]: service karaf stop
-        user: root
 
   callLogEventAction:
     - appendActionLog: "Sending stop event to datadog for node ${this}"

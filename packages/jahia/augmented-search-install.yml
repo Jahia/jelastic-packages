@@ -249,4 +249,3 @@ actions:
           mv $check_conf_path $check_conf_path_enabled
           systemctl restart datadog-agent
         fi
-      user: root
