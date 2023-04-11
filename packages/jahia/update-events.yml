@@ -234,7 +234,7 @@ onAfterRedeployContainer[sqldb]:
 onAfterScaleOut[sqldb]:
   - forEach(event.response.nodes):
     - setJelasticUserAsRoot: ${@i.id}
-    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
+    - updateMysqlUser: sqldb
     - installRequiredPackages:
         target: ${@i.id}
         packages: "jq rclone"

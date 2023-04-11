@@ -397,16 +397,6 @@ actions:
 
   backupMariadb:
     - cmd[${this}]: |-
-        BACKUP_DIR=/tmp/database-backup
-        rm -rf $BACKUP_DIR
-        mkdir $BACKUP_DIR
-        GALERA_INFOS=""
-        if [ "$(mysql -sNe  "show global status like 'wsrep_ready'"|grep ON)" != "" ]; then
-          GALERA_INFOS="--galera-info"
-        fi
-        ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
-      user: mysql
-    - cmd[${this}]: |-
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
@@ -414,6 +404,13 @@ actions:
         BACKUP_DIR=/tmp/database-backup
         BACKUP_NAME=database.tar
 
+        rm -rf $BACKUP_DIR
+        sudo -u mysql mkdir $BACKUP_DIR
+        GALERA_INFOS=""
+        if [ "$(mysql -sNe  "show global status like 'wsrep_ready'"|grep ON)" != "" ]; then
+          GALERA_INFOS="--galera-info"
+        fi
+        sudo -u mysql ionice -n 5 mariabackup --backup --target-dir=$BACKUP_DIR $GALERA_INFOS --compress --compress-threads=2 --user mysql 2>> ${globals.logsPath} || exit 1
         cd jelastic_backup
         tar -H posix -C "$BACKUP_DIR" -cf $BACKUP_NAME . 2>> ${globals.logsPath}
         rclone copy $BACKUP_NAME backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1

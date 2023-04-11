@@ -17,6 +17,7 @@ actions:
         log: "[INFO] global repoRootUrl is already defined with value '${globals.repoRootUrl}'"
 
   setJelasticUserAsRoot:
+    - setGlobalRepoRootUrl
     - log: "## Set Jelastic user as root on ${this}"
     - cmd [${this}]: sed -i 's;^jelastic:.*;jelastic:x:0:0::/root:/bin/bash;' /etc/passwd
       user: root
