@@ -215,7 +215,7 @@ actions:
             cd jelastic_backup
           fi
           backups_to_keep=$(( ${settings.retention}+1 ))
-          backups_to_delete=$(rclone lsd backup:${globals.bucketName} | grep "${env.envName}-scheduled.*auto" | awk '{print $NF}' | sort -r | tail -n +$backups_to_keep)
+          backups_to_delete=$(rclone lsd backup:${globals.bucketName} | awk '{print $NF}' | grep "^${env.envName}-scheduled.*auto" | sort -r | tail -n +$backups_to_keep)
           echo "$backups_to_delete" > /tmp/backups_to_rotate
           lock_sec_max=300
           meta_bucket_name="jc${globals.clusterRole}backupmetadata"
