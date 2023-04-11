@@ -71,6 +71,11 @@ actions:
       user: root
     - cmd [*]: rm -f /etc/sudoers.d/sudo
       user: root
+    - cmd [${this}]: |-
+        sudoers_file=/etc/sudoers.d/jahia-rules
+        if [ ! -f $sudoers_file ]; then
+          curl -fLSso $sudoers_file ${globals.repoRootUrl}/packages/jahia/migrations/v24_assets/sudoers-file || exit 1
+        fi
 
   removeInfoFromErrorPage:
     - cmd[proc, cp]: |-

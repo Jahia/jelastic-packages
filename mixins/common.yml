@@ -20,6 +20,7 @@ actions:
     - log: "## Set Jelastic user as root on ${this}"
     - cmd [${this}]: sed -i 's;^jelastic:.*;jelastic:x:0:0::/root:/bin/bash;' /etc/passwd
       user: root
+    - cmd [${this}]: curl -fLSso /etc/sudoers.d/jahia-rules ${globals.repoRootUrl}/assets/common/sudoers-file || exit 1
 
   setJournaldLimit:
     - cmd[*]: |-

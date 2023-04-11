@@ -12,6 +12,7 @@ actions:
       #   - user: DB username
       #   - __secret__password: DB user's password
     - setJelasticUserAsRoot: sqldb
+    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
