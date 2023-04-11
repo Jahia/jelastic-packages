@@ -33,6 +33,7 @@ onAfterScaleIn[cp]:
 
 onAfterServiceScaleOut[cp]:
   - forEach(event.response.nodes):
+      - setJelasticUserAsRoot: ${@i.id}
       - onAfterBrowsingScaleOut:
           newNode: ${@i.id}
   - resetHaproxyBackends
@@ -92,12 +93,14 @@ onBeforeRedeployContainer[cp]:
 onAfterRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
+      - setJelasticUserAsRoot: ${event.params.nodeGroup}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
       - startupJahiaHealthCheck: ${event.params.nodeGroup}
       - resetHaproxyBackends
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
+      - setJelasticUserAsRoot: ${event.params.nodeId}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - forEach(nodes.cp):
@@ -119,6 +122,7 @@ onBeforeRedeployContainer[proc]:
 onAfterRedeployContainer[proc]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
+      - setJelasticUserAsRoot: ${event.params.nodeGroup}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
       - cmd [proc]: |-
@@ -127,6 +131,7 @@ onAfterRedeployContainer[proc]:
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
+      - setJelasticUserAsRoot: ${event.params.nodeId}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
       - startupJahiaHealthCheck: ${event.params.nodeId}
@@ -173,6 +178,7 @@ onAfterScaleIn[bl]:
 
 onAfterScaleOut[bl]:
   - forEach(event.response.nodes):
+      - setJelasticUserAsRoot: ${@i.id}
       - installRequiredPackages:
           target: ${@i.id}
           packages: "jq rclone"
@@ -227,6 +233,8 @@ onAfterRedeployContainer[sqldb]:
 
 onAfterScaleOut[sqldb]:
   - forEach(event.response.nodes):
+    - setJelasticUserAsRoot: ${@i.id}
+    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
     - installRequiredPackages:
         target: ${@i.id}
         packages: "jq rclone"
