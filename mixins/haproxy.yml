@@ -82,7 +82,7 @@ actions:
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         if [ $? -ne 0 ]; then sed -i "/^backend bk_jahia$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
     - if ('${this.reload.print()}' == 'true'):
-        - cmd [bl]: sudo service haproxy reload
+        - cmd [bl]: service haproxy reload
 
   resetHaproxyBackends:
     # Reset browsing nodes
