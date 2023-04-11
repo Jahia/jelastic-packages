@@ -543,9 +543,8 @@ actions:
             }
           })
         """ > ${groovy_file_path}
-
-        sudo service tomcat start
-      user: tomcat
+        chown tomcat: $groovy_file_path
+        service tomcat start
 
     - startupJahiaHealthCheck: proc
 
@@ -569,8 +568,7 @@ actions:
             - uninstallModule:
                 moduleSymname: augmented-search
 
-    - cmd[cp]: |-
-        sudo service tomcat start
+    - cmd [cp]: service tomcat start
 
     - startupJahiaHealthCheck: cp
 
@@ -761,11 +759,6 @@ actions:
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
-        cd jelastic_backup
-        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
-
-    - cmd [bl]: |-
         BACKUP_FILE=haproxy.tar.gz
         CUSTOMER_RULES_FILE=customer_rules.cfg
         HAPROXY_CONF_DIR=/etc/haproxy/haproxy.cfg.jahia
@@ -777,9 +770,9 @@ actions:
         HAPROXY_CUSTOMER_ERROR_PAGES_CONF=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_CONF_NAME
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
-        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
-
         cd jelastic_backup
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
+        rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
         tar -xzf $BACKUP_FILE
 
         # Rules
@@ -820,24 +813,18 @@ actions:
 
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
-        chown mysql: database.tar
-
-    - cmd[sqldb]: |-
-        cd jelastic_backup
         ls database.tar || exit 0
         service mysql stop
         if (pgrep mysqld > /dev/null); then
           pkill -e -9 mysqld
         fi
         rm -rf /var/lib/mysql/*
-        mv $HOME/jelastic_backup/database.tar /var/lib/mysql/
-    - cmd[sqldb]: |-
+        mv database.tar /var/lib/mysql/
         cd /var/lib/mysql/
         tar -xf database.tar 2>>${globals.logsPath}
         rm -f database.tar
-        mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
-        mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
-      user: mysql
+        sudo -u mysql mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
+        sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
 
     - if (nodes.sqldb.length > 1):
         cmd[${nodes.sqldb.first.id}]: |-
