@@ -7,7 +7,6 @@ globals:
 
 actions:
   installHaproxy:
-    - setJelasticUserAsRoot: bl
     - retrieveHaproxyConf: bl
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy

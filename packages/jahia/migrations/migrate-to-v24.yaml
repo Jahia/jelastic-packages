@@ -67,10 +67,8 @@ actions:
 
   removeSudoPermissions:
     - setJelasticUserAsRoot: "*"
-    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
-      user: root
+    - updateMysqlUser: sqldb
     - cmd [*]: rm -f /etc/sudoers.d/sudo
-      user: root
     - cmd [${this}]: |-
         sudoers_file=/etc/sudoers.d/jahia-rules
         if [ ! -f $sudoers_file ]; then

@@ -7,12 +7,15 @@ actions:
   ####################
   # database related #
   ####################
+  updateMysqlUser:
+    - cmd [${this}]: sed 's;\(^mysql.*\)/home/jelastic/.*;\1/var/lib/mysql/:/sbin/nologin;' /etc/passwd
+
   installDatabase:
     # Parameters:
       #   - user: DB username
       #   - __secret__password: DB user's password
     - setJelasticUserAsRoot: sqldb
-    - cmd [sqldb]: sed 's;\(^mysql.*\)/home/jelastic/\(.*\);\1/var/lib/mysql/\2;' /etc/passwd
+    - updateMysqlUser: sqldb
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-

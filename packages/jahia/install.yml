@@ -253,6 +253,7 @@ nodes: definedInOnBeforeInstall
 # --Events --
 onInstall:
   - log: "## Beginning installation of Jahia"
+  - setJelasticUserAsRoot: "*"
   - installRequiredPackages:
       target: "bl, sqldb"
       packages: "jq rclone"

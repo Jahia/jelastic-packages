@@ -36,7 +36,6 @@ actions:
   # jahia related #
   #################
   onAfterBrowsingScaleOut:
-    - setJelasticUserAsRoot: ${this.newNode}
     - copyApp: ${this.newNode}
     - setToolsPwd: ${this.newNode}
     - setupDatadogAgentJahia: ${this.newNode}
@@ -56,7 +55,6 @@ actions:
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
         jahia_cfg_mvnPath: ${globals.jahia_cfg_mvnPath}
-    - setJelasticUserAsRoot: ${this}
     - getLogEventScript: ${this}
     - if (nodes.sqldb.length == 1):
         - disableDatadogCustomChecks
@@ -109,7 +107,6 @@ actions:
     #   - jahiaVersion
     #   - __secret__rootpwd: Jahia root user password
     #   - __secret__toolspwd: Jahia Tools password
-    - setJelasticUserAsRoot: proc, cp
     - getLogEventScript: proc, cp
 
     - environment.nodegroup.ApplyData [proc, cp]:
