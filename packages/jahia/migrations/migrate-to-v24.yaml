@@ -65,6 +65,50 @@ actions:
     install:
       jps: "${baseUrl}../update-events.yml"
 
+  # Override of the original action so we can run it as root before we change the sudo permissions
+  # and root becomes the default user
+  checkDatadogAgentCheck:
+    # Parameters :
+    #  - target: target node group or id
+    #  - checkName: name of the Datadog agent check to check
+    - cmd[${this.target}]: |-
+        check_response=$(datadog-agent check ${this.checkName} --json)
+        total_errors=$(echo $check_response | jq '.[].runner.TotalErrors')
+        monitors_in_error=$(echo $check_response | jq '.[0].aggregator.service_checks[] | select (.status != 0) | .check')
+        # Make sure total errors is an integer and equals 0, and that the check is not in error
+        if ! [[ $(echo "$total_errors" | grep "^[0-9]*$") ]] || [ $total_errors -gt 0 ] || [ "$monitors_in_error" != "" ]; then
+          echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
+          exit 1
+        fi
+      user: root
+
+  # Override of the original action so we can run it as root before we change the sudo permissions
+  # and root becomes the default user
+  checkMariadbHealth:
+    # Parameters:
+    #   target: target node
+    #   maxDuration (optional): will retry every 5 sec until max duration value is reached. Default is 0 (single check). Max duration unit is seconds
+    - cmd [${this.target}]: |-
+        i=0
+        timeout=${this.maxDuration:0}
+        MYSQL_IS_RUNNING=0
+        while [ $MYSQL_IS_RUNNING -eq 0 ] || [ $i -lt $timeout ]; do
+          if service mysql status > /dev/null; then
+            if mysqladmin -s processlist 1>/dev/null; then
+              MYSQL_IS_RUNNING=1
+            else
+              echo "[ERROR] Can't connect to mysql instance, exiting" 1>&2
+            fi
+          else
+            echo "[ERROR] Mariadb service is not running, exiting" 1>&2
+          fi
+          i=$((i + 5))
+        done
+        if [ $MYSQL_IS_RUNNING -eq 0]; then
+          exit 1
+        fi
+      user: root
+
   removeSudoPermissions:
     - setJelasticUserAsRoot: "*"
     - updateMysqlUser: sqldb
