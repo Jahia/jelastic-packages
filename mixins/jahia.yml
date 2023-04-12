@@ -1286,7 +1286,8 @@ actions:
   finishProxysqlInstall:
     # Parameters:
     # __secret__monitor_password: proxysql monitor user password
-    - setProxysqlCredsInConfig
+    - setProxysqlCredsInConfig:
+        target: "proc, cp"
 
     - setupMonitorUser:
         __secret__password: ${this.__secret__monitor_password}
@@ -1299,7 +1300,9 @@ actions:
     - setupProxysqlCluster
 
   setProxysqlCredsInConfig:
-    cmd[proc, cp]: |-
+    # Parameters
+    # target: nodes/nodesGroup to run the script on
+    cmd[${this.target}]: |-
       source /.jelenv
       admin_creds_query="set admin-admin_credentials='admin:$PROXYSQL_ADMIN_PASSWORD;cluster1:$PROXYSQL_CLUSTER_PASSWORD';"
       cluster_creds_query="set admin-cluster_password='$PROXYSQL_CLUSTER_PASSWORD';"
