@@ -118,7 +118,8 @@ actions:
               PROXYSQL_MONITORING_PASSWORD: "${this.__secret__proxysql_monitoring_password}"
               PROXYSQL_CLUSTER_PASSWORD: "${this.__secret__proxysql_cluster_password}"
 
-        - setProxysqlCredsInConfig
+        - setProxysqlCredsInConfig:
+            target: "proc, cp"
 
         - cmd[${nodes.sqldb.first.id}]: |-
             __secret__password="${this.__secret__proxysql_monitoring_password}"
