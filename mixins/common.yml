@@ -71,6 +71,7 @@ actions:
     - cmd[${this}]: |-
         curl -fLSso /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh || exit 1
         chmod u+x /usr/local/bin/log_event.sh
+      user: root
 
   logEvent:
     # Check if env is running (status = 1)
