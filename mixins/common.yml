@@ -78,6 +78,7 @@ actions:
     if (1 == ${env.status}):
       cmd[${this.target}]: |-
         /usr/local/bin/log_event.sh "${this.title}" "${this.text}"
+      user: root
 
   manageSystemdService:
     # Parameters:
@@ -402,6 +403,7 @@ actions:
         python3 -m pip install requests
         curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
         chmod 755 /usr/local/bin/papi.py
+      user: root
 
   ###################
   # Vault actions   #
