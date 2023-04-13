@@ -1,1 +1,1 @@
-^/cms.*/login.*$        20
+^.*/cms.*/login        20
