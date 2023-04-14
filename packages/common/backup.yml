@@ -81,6 +81,7 @@ onInstall:
   - else:  # Jcustomer
       - clearJelasticLogs:
           target: ${nodes.cp.first.id}
+          user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
           target: ${nodes.cp.first.id}
