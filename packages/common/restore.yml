@@ -99,6 +99,7 @@ onInstall:
   - else:  # Jcustomer
       - clearJelasticLogs:
           target: cp
+          user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
           target: cp
