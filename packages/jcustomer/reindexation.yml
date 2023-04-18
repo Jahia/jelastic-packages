@@ -219,10 +219,23 @@ actions:
 
           # reindex the _clone index to the final one
           log "${index}" "reindex ${index}_clone to new ${index}..."
-          curl -su $ec_auth \
-               -H "content-type: application/json" \
-               https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex \
-               -XPOST -d '{"source":{"index": "'${index}_clone'"}, "dest":{"index": "'${index}'"}}'
+          task=$(curl -su $ec_auth \
+                      -H "content-type: application/json" \
+                      "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex?wait_for_completion=false" \
+                      -XPOST -d '{"source":{"index": "'${index}_clone'"}, "dest":{"index": "'${index}'"}}' \
+                  | jq -r .task)
+          log "${index}" "reindex task for ${index}_clone to new ${index} is $task"
+          get_reindex_state='curl -su $ec_auth -H "content-type: application/json" "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_tasks/$task"'
+          n=0
+          until [[ $(eval $get_reindex_state | jq -r .completed) == true ]]; do
+            ((n+=1))
+            if [[ $n == 100 ]]; then
+              log "${index}" "waiting for task $task to complete..."
+              n=0
+            fi
+            sleep 1
+          done
+          log "${index}" "reindex ${index}_clone to new ${index} is now over"
           log "${index}" "delete ${index}_clone..."
           curl -su $ec_auth \
                -H "content-type: application/json" \
