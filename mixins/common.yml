@@ -355,6 +355,7 @@ actions:
     - cmd[${this}]: |-
         source /etc/profile
         export DD_API_KEY=$DATADOGAPIKEY
+        export DD_INSTALL_ONLY=true
         bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
 
   installRequiredPackages:
