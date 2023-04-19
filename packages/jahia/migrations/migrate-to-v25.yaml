@@ -35,8 +35,8 @@ onInstall:
   # Actions that don't require a restart
 
   # Actions that may require a restart
-    - fixProxySqlCredentials                   # PAAS-2363
-    - patchFindUserVulnerability               # PAAS-2364
+  - fixProxySqlCredentials                   # PAAS-2363
+  - patchFindUserVulnerability               # PAAS-2364
 
   # Actions that require a restart
 
