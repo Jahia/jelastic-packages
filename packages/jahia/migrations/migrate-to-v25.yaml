@@ -31,10 +31,10 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End Pre-checks
 
-  
+  # Actions that don't require a restart
 
-  # Actions that require a restart
-  
+  # Actions that may require a restart
+  - patchFindUserVulnerability               # PAAS-2364
 
   # Restart action:
   - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
@@ -61,3 +61,25 @@ actions:
   eventsUpdate:
     install:
       jps: "${baseUrl}../update-events.yml"
+
+  patchFindUserVulnerability:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.0.0.0
+        res: jahia8
+    - if (${globals.jahia8}):
+        - cmd [cp, proc]: |-
+            filename=servlet-applicationcontext-renderer.xml
+            file=/opt/tomcat/conf/digital-factory-config/jahia/$filename
+            if [ -f $file ]; then
+              echo "The file $filename is already present, nothing to do"
+              exit 0
+            fi
+            curl -fLSso $file http://downloads.jahia.com/downloads/jahia/security-patches/2023-04/$filename || exit 1
+          user: tomcat
+        - if ("${response.out}" == ""):
+            setGlobals:
+              jahiaRollingRestartNeeded: true
+    - else:
+        log: Jahia 7, nothing to do
