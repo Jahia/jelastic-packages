@@ -1307,8 +1307,10 @@ actions:
       admin_creds_query="set admin-admin_credentials='admin:$PROXYSQL_ADMIN_PASSWORD;cluster1:$PROXYSQL_CLUSTER_PASSWORD';"
       cluster_creds_query="set admin-cluster_password='$PROXYSQL_CLUSTER_PASSWORD';"
       monitor_creds_query="set mysql-monitor_password='$PROXYSQL_MONITORING_PASSWORD';"
-      persist_config_query="LOAD ADMIN VARIABLES TO RUNTIME;SAVE ADMIN VARIABLES FROM RUNTIME;LOAD MYSQL VARIABLES TO RUNTIME; SAVE MYSQL VARIABLES TO DISK;"
+      persist_config_query="LOAD ADMIN VARIABLES TO RUNTIME; LOAD MYSQL VARIABLES TO RUNTIME;"
       mysql -h 127.0.0.1 -uadmin -padmin -P6032 -e "$admin_creds_query $cluster_creds_query $monitor_creds_query $persist_config_query"
+      ${globals.proxysql_cli} -e "SAVE ADMIN VARIABLES TO DISK"
+      ${globals.proxysql_cli} -e "SAVE MYSQL VARIABLES TO DISK"
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
 
