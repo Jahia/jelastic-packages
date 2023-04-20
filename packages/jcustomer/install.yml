@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 21
+  jcustomer_env_version: 22
   unomi_version: ${settings.productVersion}
   __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -88,6 +88,8 @@ onBeforeInstall: |
       UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1,
       UNOMI_PROFILE_PURGE_EXISTTIME: -1,
       UNOMI_PROFILE_PURGE_INACTIVETIME: -1,
+      XMX: 2G,
+      XMS: 1G,
       envName: "${settings.shortdomain}",
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
