@@ -828,23 +828,28 @@ actions:
         sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
 
     - if (nodes.sqldb.length > 1):
-        cmd[${nodes.sqldb.first.id}]: |-
-          echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
-          echo "version: 2.1" >> /var/lib/mysql/grastate.dat
-          echo "seqno: -1" >> /var/lib/mysql/grastate.dat
-          echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
-        user: mysql
+        - cmd[${nodes.sqldb.first.id}]: |-
+            echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
+            echo "version: 2.1" >> /var/lib/mysql/grastate.dat
+            echo "seqno: -1" >> /var/lib/mysql/grastate.dat
+            echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
+            chown mysql: /var/lib/mysql/grastate.dat
 
     - forEach(i:nodes.sqldb):
         startGaleraNode: ${@i.id}
 
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+
     - cmd[${nodes.sqldb.first.id}]: |-
+        __secret__PROXYSQL_MONITORING_PASSWORD="${response.object.PROXYSQL_MONITORING_PASSWORD}"
         # reset jahia user and datadog user password
         EXISTING_JAHIA_USER=$(mysql -sNe "select user from mysql.user where user like 'jahia-db-%'")
         mysql -e "DROP USER '${EXISTING_JAHIA_USER}'@'%'; flush privileges"
         mysql -e "CREATE USER '${DB_USER}'@'%' identified by '${DB_PASS}'"
         mysql -e "grant all privileges on jahia.* to '${DB_USER}'@'%'"
         mysql -e "set password for 'datadog'@'localhost' = PASSWORD('${DB_USER_DATADOG}')"
+        mysql -e "set password for 'proxysql'@'%' = PASSWORD('${__secret__PROXYSQL_MONITORING_PASSWORD}')"
         mysql -e "flush privileges"
 
         if (( $(mysql -Nse "select count(user) from mysql.user where user='datadog' and host='%'") == 0 )); then
