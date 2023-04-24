@@ -1,0 +1,33 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Fix ProxySQL credentials
+id: jahia-fix-proxysql-credentials
+description:
+  short: Jahia - Fix ProxySQL credentials
+
+onInstall:
+  - cmd[cp, proc]: |-
+      mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032 -e "select * from mysql_servers" > /dev/null
+      if [ $? -eq 0 ]; then
+        echo "Env up to date, just saving config"
+        mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032 -e "SAVE ADMIN VARIABLES TO DISK"
+        mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032  -e "SAVE MYSQL VARIABLES TO DISK"
+      else
+        echo "Env is broken after restart, resetting everything"
+        source /.jelenv
+        admin_creds_query="set admin-admin_credentials='admin:$PROXYSQL_ADMIN_PASSWORD;cluster1:$PROXYSQL_CLUSTER_PASSWORD';"
+        cluster_creds_query="set admin-cluster_password='$PROXYSQL_CLUSTER_PASSWORD';"
+        monitor_creds_query="set mysql-monitor_password='$PROXYSQL_MONITORING_PASSWORD';"
+        persist_config_query="LOAD ADMIN VARIABLES TO RUNTIME; LOAD MYSQL VARIABLES TO RUNTIME;"
+        mysql -h 127.0.0.1 -uadmin -padmin -P6032 -e "$admin_creds_query $cluster_creds_query $monitor_creds_query $persist_config_query"
+        mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032 -e "SAVE ADMIN VARIABLES TO DISK"
+        mysql -h 127.0.0.1 -uadmin -p$PROXYSQL_ADMIN_PASSWORD -P6032 -e "SAVE MYSQL VARIABLES TO DISK"
+      fi
+
+      if (grep -q "password: admin" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml); then
+        echo "Need to reconfigure proxysql check configuration in datadog"
+        sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
+        sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+        service datadog-agent restart
+      fi

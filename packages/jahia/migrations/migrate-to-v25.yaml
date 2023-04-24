@@ -122,3 +122,9 @@ actions:
           ${globals.proxysql_cli} -e "SAVE ADMIN VARIABLES TO DISK"
           ${globals.proxysql_cli} -e "SAVE MYSQL VARIABLES TO DISK"
         fi
+
+        if (grep -q "password: admin" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml); then
+          sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
+          sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
+          service datadog-agent restart
+        fi
