@@ -63,6 +63,8 @@ actions:
     - if ("${this}" == "cp"):
         cmd[${this}]:
           - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+    - setProxysqlCredsInConfig:
+        target: "proc, cp"
     - setupDatadogAgentJahia: ${this}
     - cmd[${this}]: |-
         touch "/data/digital-factory-data/[persisted-configurations].dorestore"
