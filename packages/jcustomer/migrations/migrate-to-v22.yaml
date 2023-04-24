@@ -1,0 +1,64 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v22
+id: migrate-jcustomer-env-v22
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 22
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-checks
+  - checkEnvVersion: ${globals.version}
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End Pre-checks
+
+  # Actions that require a restart:
+  - updateJVMParameters             # PAAS-2355
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-actions
+  - setEnvVersion: ${globals.version}
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  - checkJcustomerHealth: cp
+  - checkJcustomerDatadogCustomChecks: cp
+  ### End Post-actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  updateJVMParameters:
+    - env.control.AddContainerEnvVars[cp]:
+      vars:
+        XMX: 2G
+        XMS: 1G
+    - foreach (nodes.cp):
+        - cmd[${@i.id}]: |-
+            SETENV_FILE=/opt/jcustomer/jcustomer/bin/setenv
+            sum=$(md5sum $SETENV_FILE)
+            sed -ie 's/Xms1G.*JAVA_MAX_MEM/Xms$XMS -Xmx$XMX/' $SETENV_FILE
+            if [ "$sum" != "$(md5sum $SETENV_FILE)" ];  then
+              echo "restart"
+            fi
+        - if("${response.out}" == "restart"):
+            - setGlobals:
+                jCustomerRollingRestartNeeded: true
