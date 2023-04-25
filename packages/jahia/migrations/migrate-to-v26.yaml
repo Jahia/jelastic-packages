@@ -36,6 +36,7 @@ onInstall:
 
   - addBlockMaliciousXForwardedFor           # PAAS-2335
   - upgradeSam                               # PAAS-2318
+  - setNodeDistribution                      # PAAS-2291
 
   # Actions that require a restart
 
@@ -110,6 +111,33 @@ actions:
     - if ("${response.object.TOMCAT_VERSION}" != "9.0.71"):
         - setGlobals:
             jahiaRollingRedeployNeeded: true
+
+  setNodeDistribution:
+    script: |-
+      errors = [];
+      ["cp", "bl", "sqldb"].forEach( function(nodeGroup) {
+        var resp = jelastic.env.nodegroup.ApplyData('${env.envName}', session,
+          nodeGroup=nodeGroup,
+          data={
+            "distribution": {
+                "mode": "SOFT",
+                "zones": [{
+                    "az1": "zoneA",
+                    "az2": "zoneB",
+                    "az3": "zoneC"
+                }]
+              }
+          }
+        );
+        if (resp.result != 0)
+          errors.push(resp);
+      });
+      if (errors.length > 0)
+        return {'result': 1, 'errors': errors};
+      else
+        return {'result': 0};
+
+
 
 settings:
   fields:

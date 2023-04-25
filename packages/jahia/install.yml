@@ -66,7 +66,15 @@ onBeforeInstall: |
       },
     "volumes": [
         "/etc/haproxy"
-      ]
+      ],
+    "distribution": {
+        "mode": "SOFT",
+        "zones": [{
+            "az1": "zoneA",
+            "az2": "zoneB",
+            "az3": "zoneC"
+        }]
+      }
   }
   nodes.push(node_haproxy);
 
@@ -130,6 +138,14 @@ onBeforeInstall: |
         "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
         "PROXYSQL_MONITORING_PASSWORD": __secret__proxysql_monitoring_password,
         "PROXYSQL_CLUSTER_PASSWORD": __secret__proxysql_cluster_password,
+      },
+    "distribution": {
+        "mode": "SOFT",
+        "zones": [{
+            "az1": "zoneA",
+            "az2": "zoneB",
+            "az3": "zoneC"
+        }]
       }
   }
   if (dockerImage == "undefined") {
@@ -239,6 +255,14 @@ onBeforeInstall: |
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false,
+      },
+    "distribution": {
+        "mode": "SOFT",
+        "zones": [{
+            "az1": "zoneA",
+            "az2": "zoneB",
+            "az3": "zoneC"
+        }]
       }
   }
   nodes.push(node_mariadb);
