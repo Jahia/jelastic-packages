@@ -18,8 +18,11 @@ globals:
 onInstall:
   ### Pre-checks
   - checkEnvVersion: ${globals.version}
-  - checkJcustomerHealth: cp
-  - checkJcustomerDatadogCustomChecks: cp
+  - if(!${settings.disable_checks}):
+      - checkJcustomerHealth: cp
+      - checkJcustomerDatadogCustomChecks: cp
+  - else:
+      log: "pre migration checks are disabled"
   - eventsUpdate
   - setGlobalRepoRootUrl
   ### End Pre-checks
@@ -33,12 +36,15 @@ onInstall:
 
   ### Post-actions
   - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - checkJcustomerHealth: cp
+      - checkJcustomerDatadogCustomChecks: cp
+  - else:
+      log: "post migration checks are disabled"
   - logEvent:
       target: ${nodes.cp.first.id}
       title: "Environment $envName migrated"
       text: "Environment $envName migrated to v${globals.version}"
-  - checkJcustomerHealth: cp
-  - checkJcustomerDatadogCustomChecks: cp
   ### End Post-actions
 
 actions:
@@ -62,3 +68,8 @@ actions:
         - if("${response.out}" == "restart"):
             - setGlobals:
                 jCustomerRollingRestartNeeded: true
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
