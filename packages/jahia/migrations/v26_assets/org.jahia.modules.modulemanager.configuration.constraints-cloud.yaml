@@ -1,0 +1,17 @@
+moduleLifeCycleConstraints:
+  - moduleId: personal-api-tokens
+  - moduleId: server-availability-manager
+  - moduleId: distributed-sessions
+    disableOperations: [STOP]
+  - moduleId: jexperience
+    disableOperations: [STOP]
+  - moduleId: jexperience-dashboards
+    disableOperations: [STOP]
+  - moduleId: kibana-dashboards-provider
+    disableOperations: [STOP]
+  - moduleId: database-connector
+    disableOperations: [STOP]
+  - moduleId: elasticsearch-connector
+    disableOperations: [STOP]
+  - moduleId: augmented-search
+    disableOperations: [STOP]

@@ -36,6 +36,7 @@ onInstall:
 
   - addBlockMaliciousXForwardedFor           # PAAS-2335
   - upgradeSam                               # PAAS-2318
+  - disableCloudModules                      # PAAS-2321
 
   # Actions that require a restart
 
@@ -110,6 +111,15 @@ actions:
     - if ("${response.object.TOMCAT_VERSION}" != "9.0.71"):
         - setGlobals:
             jahiaRollingRedeployNeeded: true
+
+  disableCloudModules:
+    cmd[cp, proc]: |-
+      filename=org.jahia.modules.modulemanager.configuration.constraints-cloud.yaml
+      file=/data/digital-factory-data/karaf/etc/$filename
+      if [ ! -f $file ]; then
+        curl -fLSso $file ${globals.repoRootUrl}/packages/jahia/migrations/v26_assets/$filename || exit 1
+        chown tomcat:tomcat $file
+      fi
 
 settings:
   fields:
