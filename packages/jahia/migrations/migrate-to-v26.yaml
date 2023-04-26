@@ -78,7 +78,7 @@ actions:
   addBlockMaliciousXForwardedFor:
     - cmd[bl]: |-
         if ! (grep -q "malicious forged" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg); then
-          curl -fLSso /tmp/haproxy-good_ip_forwarding_for.txt ${globals.repoRootUrl}/packages/jahia/migrations/v25_assets/haproxy-good_ip_forwarding_for.txt || exit 1
+          curl -fLSso /tmp/haproxy-good_ip_forwarding_for.txt ${globals.repoRootUrl}/packages/jahia/migrations/v26_assets/haproxy-good_ip_forwarding_for.txt || exit 1
           sed -r -i /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg \
               -e '/^\s+http-response set-header X-Content-Type-Options "nosniff"/e cat /tmp/haproxy-good_ip_forwarding_for.txt'
           rm -f /tmp/haproxy-good_ip_forwarding_for.txt
