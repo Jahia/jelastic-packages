@@ -27,7 +27,7 @@ actions:
     - cmd[proc]: |-
         nexusLoginUriEncoded=$(echo -n "${globals.__secret__nexusLogin}" | jq -sRr @uri)
         __secret__nexusPasswordUriEncoded=$(echo -n "${globals.__secret__nexusPassword}" | jq -sRr @uri)
-        sed "/^org.ops4j.pax.url.mvn.repositories=/a\    https://${nexusLoginUriEncoded}:${__secret__nexusPasswordUriEncoded}@devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise@snapshots, \\" \
+        sed "/^org.ops4j.pax.url.mvn.repositories=/a\    https://${nexusLoginUriEncoded}:${__secret__nexusPasswordUriEncoded}@devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise@snapshots, \\\\" \
           -i /data/digital-factory-data/karaf/etc/org.ops4j.pax.url.mvn.cfg
 
   removeRepository:
