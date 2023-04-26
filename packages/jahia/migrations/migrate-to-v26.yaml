@@ -113,31 +113,14 @@ actions:
             jahiaRollingRedeployNeeded: true
 
   setNodeDistribution:
-    script: |-
-      errors = [];
-      ["cp", "bl", "sqldb"].forEach( function(nodeGroup) {
-        var resp = jelastic.env.nodegroup.ApplyData('${env.envName}', session,
-          nodeGroup=nodeGroup,
-          data={
-            "distribution": {
-                "mode": "SOFT",
-                "zones": [{
-                    "az1": "zoneA",
-                    "az2": "zoneB",
-                    "az3": "zoneC"
-                }]
-              }
-          }
-        );
-        if (resp.result != 0)
-          errors.push(resp);
-      });
-      if (errors.length > 0)
-        return {'result': 1, 'errors': errors};
-      else
-        return {'result': 0};
-
-
+    environment.nodegroup.ApplyData [cp, bl, sqldb]:
+        data:
+          distribution:
+            mode: SOFT
+            zones:
+              - az1: zoneA
+                az2: zoneB
+                az3: zoneC
 
 settings:
   fields:

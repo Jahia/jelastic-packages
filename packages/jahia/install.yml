@@ -46,6 +46,14 @@ onBeforeInstall: |
   var __secret__proxysql_admin_password = "${globals.__secret__proxysql_admin_password}";
   var __secret__proxysql_monitoring_password = "${globals.__secret__proxysql_monitoring_password}";
   var __secret__proxysql_cluster_password = "${globals.__secret__proxysql_cluster_password}";
+  nodes_distribution = {
+      "mode": "SOFT",
+      "zones": [{
+          "az1": "zoneA",
+          "az2": "zoneB",
+          "az3": "zoneC"
+      }]
+  }
 
   // HAProxy nodes
 
@@ -67,14 +75,7 @@ onBeforeInstall: |
     "volumes": [
         "/etc/haproxy"
       ],
-    "distribution": {
-        "mode": "SOFT",
-        "zones": [{
-            "az1": "zoneA",
-            "az2": "zoneB",
-            "az3": "zoneC"
-        }]
-      }
+    "distribution": nodes_distribution
   }
   nodes.push(node_haproxy);
 
@@ -139,14 +140,7 @@ onBeforeInstall: |
         "PROXYSQL_MONITORING_PASSWORD": __secret__proxysql_monitoring_password,
         "PROXYSQL_CLUSTER_PASSWORD": __secret__proxysql_cluster_password,
       },
-    "distribution": {
-        "mode": "SOFT",
-        "zones": [{
-            "az1": "zoneA",
-            "az2": "zoneB",
-            "az3": "zoneC"
-        }]
-      }
+    "distribution": nodes_distribution
   }
   if (dockerImage == "undefined") {
     node_cp['nodeType'] = "jahia";
@@ -256,14 +250,7 @@ onBeforeInstall: |
         "envmode": envmode,
         "JELASTIC_EXPOSE": false,
       },
-    "distribution": {
-        "mode": "SOFT",
-        "zones": [{
-            "az1": "zoneA",
-            "az2": "zoneB",
-            "az3": "zoneC"
-        }]
-      }
+      "distribution": nodes_distribution
   }
   nodes.push(node_mariadb);
   var resp = {
