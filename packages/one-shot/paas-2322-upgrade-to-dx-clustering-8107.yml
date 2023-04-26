@@ -11,7 +11,7 @@ mixins:
   - "../../mixins/jahia.yml"
 
 onInstall:
-  - encodePwd
+  - getNexusCredentials
   - addRepository
   - enableKarafLogin: proc
   - enableKarafLogin: cp
@@ -23,19 +23,11 @@ onInstall:
   - check
 
 actions:
-  encodePwd:
-    - cmd[proc]: |-
-        __secret__password=${settings.nexusPassword.toBase64()}
-        printf '{"HideThisOutput": true, "__secret__password": "%s"}' $(echo -n $__secret__password | base64 -d | jq -sRr @uri)
-    - script: |-
-        __secret__response = ${response.out}
-        __secret__password = __secret__response["__secret__password"]
-        return { "result": 0, "onAfterReturn": {setGlobals: {"__secret__nexusPassword": __secret__password}} }
-
   addRepository:
     - cmd[proc]: |-
-        __secret__password="${globals.__secret__nexusPassword}"
-        sed "/^org.ops4j.pax.url.mvn.repositories=/a\    https://${settings.nexusUsername}:${__secret__password}@devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise@snapshots, \\" \
+        nexusLoginUriEncoded=$(echo -n "${globals.__secret__nexusLogin}" | jq -sRr @uri)
+        __secret__nexusPasswordUriEncoded=$(echo -n "${globals.__secret__nexusPassword}" | jq -sRr @uri)
+        sed "/^org.ops4j.pax.url.mvn.repositories=/a\    https://${nexusLoginUriEncoded}:${__secret__nexusPasswordUriEncoded}@devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise@snapshots, \\" \
           -i /data/digital-factory-data/karaf/etc/org.ops4j.pax.url.mvn.cfg
 
   removeRepository:
@@ -67,15 +59,3 @@ actions:
     - cmd[proc]: |-
         exit $(datadog-agent check healthcheck_metric --json | jq '.[].aggregator.metrics | .[] | select(.metric=="jahia.healthcheck.ClusterConsistencyProbe") | .points[][1]')
       user: root
-
-settings:
-  fields:
-    - name: nexusUsername
-      caption: repository username
-      type: string
-      required: true
-    - name: nexusPassword
-      caption: repository password
-      inputType: password
-      type: string
-      required: true

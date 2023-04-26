@@ -883,29 +883,11 @@ actions:
       - if ('${this.startModule.print()}' == ''):
           set:
             startModule: "false"
-      - getVaultData
-      - vaultSecretReadAllKeysB64:
-          secretPath: "paas/envs-common/nexus"
-      - script: |-
-          import java.util.Base64;
-
-          __secret__vaultResponseBase64 = "${globals.__secret__vaultSecretData}";
-          vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__vaultResponseBase64)))
-          nexusCreds = vaultResponse.login + ":" + vaultResponse.password
-          credsBytes = (new java.lang.String(nexusCreds)).getBytes("UTF-8");
-          encodedNexusCreds = Base64.getEncoder().encodeToString(credsBytes);
-          return {
-            "result": 0,
-            "onAfterReturn": {
-              set: {
-                "__secret__nexusCreds": encodedNexusCreds
-              }
-            }
-          };
+      - getNexusCredentials
       - getPatTokenAndKey
       - log: Installing ${this.moduleSymname}/${this.moduleVersion}
       - cmd [proc]: |-
-          __secret__nexus_creds="${this.__secret__nexusCreds}"
+          __secret__nexus_creds=$(echo -n "${globals.__secret__nexusLogin}:${globals.__secret__nexusPassword}" | base64)
           __secret__pat_token="${globals.__secret__pat_token}"
 
           tmp_dir=$(mktemp -d)
@@ -2030,3 +2012,23 @@ actions:
         secretKey: secret
     - setGlobals:
         __secret__IPsecPSKB64: ${globals.__secret__vaultSecretData}
+
+  getNexusCredentials:
+    # Returns:
+    #   ${globals.__secret__nexusLogin}: Nexus login
+    #   ${globals.__secret__nexusPassword}: Nexus password
+    - getVaultData
+    - vaultSecretReadAllKeysB64:
+        secretPath: "paas/envs-common/nexus"
+    - script: |-
+        __secret__vaultResponseBase64 = "${globals.__secret__vaultSecretData}";
+        vaultResponse = JSON.parse(java.lang.String(java.util.Base64.getDecoder().decode(__secret__vaultResponseBase64)))
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "__secret__nexusLogin": vaultResponse.login,
+              "__secret__nexusPassword": vaultResponse.password
+            }
+          }
+        };
