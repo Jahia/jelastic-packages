@@ -31,6 +31,7 @@ onInstall:
   - upgradeSam                               # PAAS-2318
   - disableCloudModules                      # PAAS-2321
   - setNodeDistribution                      # PAAS-2291
+  - updateGraphQL                            # PAAS-2372
 
   # Actions that require a restart
 
@@ -137,6 +138,24 @@ actions:
               - az1: zoneA
                 az2: zoneB
                 az3: zoneC
+
+  updateGraphQL:
+    - getJahiaVersion
+    - isVersionBetween:
+        lower: 8.1.1.0
+        lower_may_equal: true
+        version: ${globals.jahiaVersion}
+        higher: 8.1.5.0
+        higher_may_equal: true
+        res: isBetween8110and8150
+    - if( ${globals.isBetween8110and8150} ):
+        - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
+        - installOrUpgradeModule:
+            moduleSymname: graphql-dxm-provider
+            moduleVersion: 2.18.0
+            moduleGroupId: org.jahia.modules
+            moduleRepository: jahia-releases
+        - enableHaproxyHealthcheck
 
 settings:
   fields:
