@@ -1,0 +1,80 @@
+---
+type: update
+version: 1.5.2
+name: Set up a Jahia Cloud instance
+id: setup-jahia-cloud-instance
+description:
+  short: The goal of this package is to simplify the set-up of a new Jahia Cloud instance.
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - setGlobals:
+      __secret__jelasticMasterPassword: ${settings.jelasticMasterPassword}
+      __secret__papiToken: ${settings.papiToken}
+      __secret__vaultRoleId: ${settings.vaultRoleId}
+      __secret__vaultSecretId: ${settings.vaultSecretId}
+  - setGlobalRepoRootUrl
+  - increaseHaproxyServerTimeout
+  - setTomcatConfigForLdap
+  - setJahiaCloudManagerConfig
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+actions:
+  increaseHaproxyServerTimeout:
+    # Set haproxy_cfg_timeout_server to 30 minutes and reload
+    - env.control.AddContainerEnvVars[bl]:
+        vars:
+          haproxy_cfg_timeout_server: 30m
+    - cmd[bl]: service haproxy reload
+  setTomcatConfigForLdap:
+    # Allow TLSv1.2, otherwise Jahia LDAP doesn't work
+    - cmd[proc,cp]: |-
+        echo "-Djdk.tls.client.protocols=TLSv1.2" >> /opt/tomcat/conf/variables.conf
+  setJahiaCloudManagerConfig:
+    # Add envvars used by the "manager" module
+    - script: |-
+        __secret__jelasticMasterPassword = "${globals.__secret__jelasticMasterPassword}";
+        __secret__papiToken = "${globals.__secret__papiToken}";
+        __secret__vaultRoleId = "${globals.__secret__vaultRoleId}";
+        __secret__vaultSecretId = "${globals.__secret__vaultSecretId}";
+        ["proc","cp"].forEach( function(nodeGroup) {
+          jelastic.env.control.AddContainerEnvVars(
+            '${env.envName}',
+            session,
+            nodeGroup=nodeGroup,
+            vars={
+              "JC_MANAGER_JELASTIC_MASTER_LOGIN": "${settings.jelasticMasterLogin}",
+              "JC_MANAGER_JELASTIC_MASTER_PWD": __secret__jelasticMasterPassword,
+              "JC_MANAGER_PAPI_TOKEN": __secret__papiToken,
+              "JC_MANAGER_VAULT_ROLE_ID": __secret__vaultRoleId,
+              "JC_MANAGER_VAULT_SECRET_ID": __secret__vaultSecretId
+            }
+          );
+        });
+        return {'result': 0};
+
+settings:
+  fields:
+    - name: jelasticMasterLogin
+      type: string
+      caption: Jelastic master login
+      required: true
+    - name: jelasticMasterPassword
+      type: string
+      caption: Jelastic master password
+      required: true
+    - name: papiToken
+      type: string
+      caption: PAPI token
+      required: true
+    - name: vaultRoleId
+      type: string
+      caption: Vault role ID
+      required: true
+    - name: vaultSecretId
+      type: string
+      caption: Vault secret ID
+      required: true
