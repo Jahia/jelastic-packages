@@ -155,7 +155,7 @@ actions:
 
   checkGraphQL:
     # Jahia 8.0.3 ==> 2.6.0 (or above)
-    # Jahia [8.1.1.0;8.1.3.0] ==> 2.16.0 (or above)
+    # Jahia [8.1.1.0;8.1.5.0] ==> 2.18.0 (or above)
     - basicModuleCheck:
         moduleSymname: graphql-dxm-provider
     - if( "${globals.moduleState}" == "started" ):
@@ -170,12 +170,12 @@ actions:
                 lower: 8.1.1.0
                 lower_may_equal: true
                 version: ${globals.jahiaVersion}
-                higher: 8.1.3.0
+                higher: 8.1.5.0
                 higher_may_equal: true
                 res: isBetween8110and8130
-            - if( ${globals.isBetween8110and8130} ):
+            - if( ${globals.isBetween8110and8150} ):
                 - set:
-                    expectedVersion: 2.16.0
+                    expectedVersion: 2.18.0
         # Ugly workaround because ${fn.compare([globals.runningVersion], [this.expectedVersion])} doesn't work
         # see https://paas-support.virtuozzo.com/hc/en-us/requests/400488
         - set:
