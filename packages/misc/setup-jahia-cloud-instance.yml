@@ -24,11 +24,11 @@ onInstall:
 
 actions:
   increaseHaproxyServerTimeout:
-    # Set haproxy_cfg_timeout_server to 30 minutes and reload
+    # Set haproxy_cfg_timeout_server to 30 minutes and restart
     - env.control.AddContainerEnvVars[bl]:
         vars:
           haproxy_cfg_timeout_server: 30m
-    - cmd[bl]: service haproxy reload
+    - cmd[bl]: service haproxy restart
   setTomcatConfigForLdap:
     # Allow TLSv1.2, otherwise Jahia LDAP doesn't work
     - cmd[proc,cp]: |-
