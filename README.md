@@ -31,10 +31,10 @@ Here are some rules that should be observed:
 ├── conf
 ├── mixins
 └── packages
-    ├── augsearch
     ├── common
     ├── jahia
     ├── jcustomer
+    ├── misc
     └── one-shot
 ```
 
