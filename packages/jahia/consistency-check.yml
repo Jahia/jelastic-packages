@@ -172,7 +172,7 @@ actions:
                 version: ${globals.jahiaVersion}
                 higher: 8.1.5.0
                 higher_may_equal: true
-                res: isBetween8110and8130
+                res: isBetween8110and8150
             - if( ${globals.isBetween8110and8150} ):
                 - set:
                     expectedVersion: 2.18.0
