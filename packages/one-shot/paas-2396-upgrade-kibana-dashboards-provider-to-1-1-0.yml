@@ -1,0 +1,21 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2396 - Upgrade kibana-dashboards-provider to 1.1.0
+id: paas-2396-upgrade-kibana-dashboards-provider-to-1-1-0
+description:
+  short: Upgrade kibana-dashboards-provider module to 1.1.0
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - getEnvLinkedJcustomer:
+      envName: ${env.shortdomain}
+  - if(${globals.unomi_env_linked}):
+      - installOrUpgradeModule:
+          moduleSymname: kibana-dashboards-provider
+          moduleVersion: 1.1.0
+          moduleGroupId: org.jahia.modules
+          moduleRepository: marketing-factory-releases
