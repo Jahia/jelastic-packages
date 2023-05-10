@@ -50,7 +50,6 @@ actions:
         # Various configuration changes
         __secret__stats_pwd="${globals.__secret__haproxy_admin_stats_pass}"
         sed -i "s/admin-stat-password/$__secret__stats_pwd/g" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-      user: haproxy
 
   # Parameters:
   # - nodeId: the ID of the browsing node to remove
@@ -60,7 +59,6 @@ actions:
     - cmd [bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         if [ $? ]; then sed -i "/${env.appid}-${this.nodeId}/d" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
-      user: haproxy
     - if ('${this.reload.print()}' == 'true'):
         - cmd [bl]: |-
             check_no_more_old_process(){
