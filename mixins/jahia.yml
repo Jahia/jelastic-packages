@@ -1898,7 +1898,7 @@ actions:
         kibana_permissions: '[{"base": ["all"], "feature": {}, "spaces": ["${this.roleAndAccountName}"]}]'
     - installOrUpgradeModule:
         moduleSymname: kibana-dashboards-provider
-        moduleVersion: 0.2.1
+        moduleVersion: 1.1.0
         moduleGroupId: org.jahia.modules
         moduleRepository: marketing-factory-releases
     - installOrUpgradeModule:
