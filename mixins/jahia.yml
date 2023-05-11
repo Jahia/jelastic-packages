@@ -67,7 +67,7 @@ actions:
         target: "proc, cp"
     - setupDatadogAgentJahia: ${this}
     - cmd[${this}]: |-
-        touch "/data/digital-factory-data/[persisted-configurations].dorestore"
+        sudo -u tomcat touch "/data/digital-factory-data/[persisted-configurations].dorestore"
         source /etc/locale.conf
         echo "JAHIA_UPGRADE=$JAHIA_UPGRADE"
         if [ "$JAHIA_UPGRADE" == "true" ]; then
@@ -76,7 +76,6 @@ actions:
           echo "This is a regular redeploy, restart tomcat now"
           sudo service tomcat start
         fi
-      user: tomcat
 
     - script: |-
         ipsec_enabled = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
@@ -133,11 +132,10 @@ actions:
     - cmd[proc]: |-
         __secret__rootpwd="${this.__secret__rootpwd.toBase64()}"
         base64 -d <<< $__secret__rootpwd > $DATA_PATH/digital-factory-data/root.pwd
-      user: tomcat
+        chown tomcat:tomcat $DATA_PATH/digital-factory-data/root.pwd
     - cmd [proc]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
         mv ${file}-disabled $file
-      user: tomcat
     - defineToolsPwd:
         __secret__toolspwd: ${this.__secret__toolspwd}
     - setToolsPwd: proc, cp
@@ -213,6 +211,7 @@ actions:
         fi
         __secret__toolspwd="${this.__secret__toolspwd.toBase64()}"
         /usr/local/bin/reset-jahia-tools-manager-password.py $__secret__toolspwd $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
+        chown tomcat:tomcat $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -375,13 +374,11 @@ actions:
     cmd[${this}]: |-
       mkdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
       mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext*.xml /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/
-    user: tomcat
 
   restoreApplicationcontextFilesAfterRedeploy:
     cmd[${this}]: |-
       mv /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp/* /opt/tomcat/conf/digital-factory-config/jahia/
       rmdir /opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-files.tmp
-    user: tomcat
 
   deleteEnvLinkJahia:
     # Parameters:
@@ -512,7 +509,6 @@ actions:
               ((i++))
               sleep 1
             done
-          user: tomcat
         - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
@@ -545,7 +541,6 @@ actions:
             [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
             sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
             sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
-          user: tomcat
         - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
@@ -1195,7 +1190,7 @@ actions:
                 echo "org.jahia.services.env.env_name=$env_name" >> $config_file
               fi
             fi
-          user: tomcat
+            chown tomcat:tomcat $config_file
 
   generateNodesListFile:
     - set:
@@ -1398,12 +1393,11 @@ actions:
     - if (${this.upgradeJahia}):
         - cmd [proc]: |-
             rm -fr /data/digital-factory-data/bundles-deployed/*
-            touch "/data/digital-factory-data/[persisted-bundles].dorestore"
+            sudo -u tomcat touch "/data/digital-factory-data/[persisted-bundles].dorestore"
             echo "restore-module-state have been asked"
             ls -l /data/digital-factory-data/*.dorestore
             touch /data/digital-factory-data/modules/*
-            sudo service tomcat start
-          user: tomcat
+            service tomcat start
         - setJahiaUserFeedbacksConfig
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
@@ -1459,8 +1453,8 @@ actions:
           if [ ! -f $INFO_DIR/version.properties ]; then
             mkdir -p $INFO_DIR
             echo "version=${this.initialJahiaVersion}" > $INFO_DIR/version.properties
+            chown -R tomcat:tomcat $INFO_DIR
           fi
-        user: tomcat
 
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-
@@ -1589,7 +1583,7 @@ actions:
           session.save();
         })
         """ >> $groovy_file_path
-      user: tomcat
+        chown tomcat:tomcat $groovy_file_path
 
   setPatInHaproxy:
     # Parameters:

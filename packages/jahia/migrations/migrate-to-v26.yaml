@@ -32,6 +32,7 @@ onInstall:
   - disableCloudModules                      # PAAS-2321
   - setNodeDistribution                      # PAAS-2291
   - updateGraphQL                            # PAAS-2372
+  - fixFilePermissions                       # PAAS-2380
 
   # Actions that require a restart
 
@@ -156,6 +157,12 @@ actions:
             moduleGroupId: org.jahia.modules
             moduleRepository: jahia-releases
         - enableHaproxyHealthcheck
+
+  fixFilePermissions:
+    cmd[cp, proc]: |-
+      chown tomcat:tomcat /opt/tomcat/conf/digital-factory-config/jahia/*
+      chown tomcat:tomcat /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
+      rm -f /data/digital-factory-data/*.dorestore
 
 settings:
   fields:

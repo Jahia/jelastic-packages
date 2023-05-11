@@ -309,7 +309,7 @@ actions:
              -e "s;\(.*ES_USER.*\)PLACEHOLDER\(.*\);\1${es_user}\2;" \
              -e "s;\(.*ES_PASSWORD.*\)PLACEHOLDER\(.*\);\1${__secret__es_password}\2;" \
              $esc_recreate_groovy_file
-      user: tomcat
+        chown -R tomcat:tomcat $patches_folder
 
   installOrUpgradeASModules:
     # This action will drop a provisioning file in the "provisioning" folder to install (or upgrade)
@@ -326,7 +326,7 @@ actions:
              -e "s;__ES_CONNECTOR_VERSION__;${globals.modulesState.elasticsearch-connector-version};g" \
              -e "s;__AS_VERSION__;${globals.modulesState.as-version};g" \
              $provisioning_file
-      user: tomcat
+        chown tomcat:tomcat $provisioning_file
 
   prepareAugSearchRestore:
     - setGlobals:
@@ -473,14 +473,13 @@ actions:
     - cmd [cp]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
         if [ -f $file ]; then mv $file ${file}-disabled; fi
-      user: tomcat
     - cmd [proc]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
         if ! [ -f $file ]; then
           url=${globals.repoRootUrl}/assets/jahia/applicationcontext-purge-jobs.xml-disabled
           curl -fSsLo ${file} $url || exit 1
+          chown tomcat:tomcat $file
         fi
-      user: tomcat
 
     - cmd [proc,cp]: |-
         cd jelastic_backup
@@ -868,7 +867,6 @@ actions:
         # let's import this
         mysql jahia < /tmp/triggers_dump.sql
         rm /tmp/triggers_dump.sql
-      user: mysql
 
   restoreJcustomer:
     - cmd [cp]: |-
