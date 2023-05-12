@@ -8,6 +8,7 @@ http_error_cfg=/etc/haproxy/haproxy.cfg.jahia/http-errors.cfg
 customer_rules_file=/etc/haproxy/haproxy.cfg.jahia/customer.cfg
 customer_rules_dir=/etc/haproxy/haproxy.cfg.jahia/customer.configuration.d
 
+[ ! -f $customer_rules_file ] && sudo -u haproxy touch $customer_rules_file
 echo "" > $customer_rules_file
 for f in $(ls $customer_rules_dir/*.cfg 2>/dev/null); do
     echo "## CUSTOMER_FILENAME $f" >> $customer_rules_file

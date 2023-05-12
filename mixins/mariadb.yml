@@ -160,7 +160,7 @@ actions:
           fi
           i=$((i + 5))
         done
-        if [ $MYSQL_IS_RUNNING -eq 0]; then
+        if [ $MYSQL_IS_RUNNING -eq 0 ]; then
           exit 1
         fi
 

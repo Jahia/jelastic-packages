@@ -159,10 +159,12 @@ actions:
         - enableHaproxyHealthcheck
 
   fixFilePermissions:
-    cmd[cp, proc]: |-
-      chown tomcat:tomcat /opt/tomcat/conf/digital-factory-config/jahia/*
-      chown tomcat:tomcat /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
-      rm -f /data/digital-factory-data/*.dorestore
+    - cmd[cp, proc]: |-
+        chown tomcat:tomcat /opt/tomcat/conf/digital-factory-config/jahia/*
+        chown tomcat:tomcat /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
+        rm -f /data/digital-factory-data/*.dorestore
+    - cmd[bl]:
+        chown haproxy:haproxy /etc/haproxy/haproxy.cfg.jahia/customer.cfg
 
 settings:
   fields:
