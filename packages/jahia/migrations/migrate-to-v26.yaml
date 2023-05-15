@@ -33,6 +33,7 @@ onInstall:
   - setNodeDistribution                      # PAAS-2291
   - updateGraphQL                            # PAAS-2372
   - fixFilePermissions                       # PAAS-2380
+  - updateScreeb                             # PAAS-2379
 
   # Actions that require a restart
 
@@ -163,6 +164,23 @@ actions:
       chown tomcat:tomcat /opt/tomcat/conf/digital-factory-config/jahia/*
       chown tomcat:tomcat /data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg
       rm -f /data/digital-factory-data/*.dorestore
+
+  updateScreeb:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.0.0
+        res: jahia81plus
+    - if (${globals.jahia81plus}):
+        - checkModule:
+            moduleSymname: jahia-user-feedbacks
+        - if ("${globals.moduleState}" != "uninstalled" && "${globals.runningVersion}" != "1.2.0"):
+            installOrUpgradeModule:
+              moduleSymname: jahia-user-feedbacks
+              moduleVersion: 1.2.0
+              moduleGroupId: org.jahia.modules
+              moduleRepository: jahia-releases
+              startModule: true
 
 settings:
   fields:
