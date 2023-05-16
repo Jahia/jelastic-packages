@@ -28,6 +28,7 @@ onInstall:
 
   # Actions that require a restart:
   - updateJVMParameters             # PAAS-2355
+  - fixClassNotFoundException       # PAAS-2343
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -74,6 +75,18 @@ actions:
         - if("${response.out}" == "restart"):
             - setGlobals:
                 jCustomerRollingRestartNeeded: true
+
+  fixClassNotFoundException:
+    - cmd[cp]: |-
+        file=/opt/jcustomer/jcustomer/etc/custom.properties
+        if ! grep -q "jdk.internal.reflect" $file; then
+          sed -i '/^org.osgi.framework.*/s/$/,jdk.internal.reflect,jdk.internal.reflect.*/' $file
+          echo "restart"
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jCustomerRollingRestartNeeded: true
+
 settings:
   fields:
     - type: toggle
