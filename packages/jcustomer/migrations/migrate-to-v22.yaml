@@ -26,6 +26,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End pre-migration actions
 
+  - addBundleCheck                  # PAAS-2384
+
   # Actions that require a restart:
   - updateJVMParameters             # PAAS-2355
   - fixClassNotFoundException       # PAAS-2343
@@ -86,6 +88,14 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jCustomerRollingRestartNeeded: true
+
+  addBundleCheck:
+    - cmd[cp]: |-
+        file=/etc/datadog-agent/checks.d/jcustomer_status.py
+        rm -f $file
+        curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v22_assets/jcustomer_status.py || exit 1
+        chown dd-agent:dd-agent $file
+        systemctl restart datadog-agent
 
 settings:
   fields:
