@@ -27,6 +27,7 @@ onInstall:
   ### End pre-migration actions
 
   - addBundleCheck                  # PAAS-2384
+  - addElasticsearchCheck           # PAAS-2383
 
   # Actions that require a restart:
   - updateJVMParameters             # PAAS-2355
@@ -95,6 +96,15 @@ actions:
         rm -f $file
         curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v22_assets/jcustomer_status.py || exit 1
         chown dd-agent:dd-agent $file
+        systemctl restart datadog-agent
+
+  addElasticsearchCheck:
+    - cmd[cp]: |-
+        file=/etc/datadog-agent/checks.d/elasticsearch_status.py
+        conf=/etc/datadog-agent/conf.d/elasticsearch_status.yaml
+        curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v22_assets/elasticsearch_status.py || exit 1
+        curl -fLSso $conf ${globals.repoRootUrl}/packages/jcustomer/migrations/v22_assets/elasticsearch_status.yaml || exit 1
+        chown dd-agent:dd-agent $file $conf
         systemctl restart datadog-agent
 
 settings:
