@@ -57,6 +57,9 @@ actions:
     - checkDatadogAgentCheck:
         target: ${this}
         checkName: jcustomer_status
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: elasticsearch_status
 
   saveUnomiRootPassword:
     - cmd [${nodes.cp.first.id}]: |-
