@@ -56,7 +56,12 @@ actions:
 
   preChecks:
     - checkJcustomerHealth: cp
-    - checkJcustomerDatadogCustomChecks: cp
+    # Can't use checkJcustomerDatadogCustomChecks because of the new check
+    # - checkJcustomerDatadogCustomChecks: cp
+    # Please delete next check and uncomment previous one on next migration package
+    - checkDatadogAgentCheck:
+        target: cp
+        checkName: jcustomer_status
 
   postChecks:
     - checkJcustomerHealth: cp
