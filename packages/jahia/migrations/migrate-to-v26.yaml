@@ -27,13 +27,15 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End pre-migration actions
 
-  - addBlockMaliciousXForwardedFor           # PAAS-2335
+  # Actions that update modules (need to be done first)
+  - updateGraphQL                            # PAAS-2372
   - upgradeSam                               # PAAS-2318
+  - updateScreeb                             # PAAS-2379
+
+  - addBlockMaliciousXForwardedFor           # PAAS-2335
   - disableCloudModules                      # PAAS-2321
   - setNodeDistribution                      # PAAS-2291
-  - updateGraphQL                            # PAAS-2372
   - fixFilePermissions                       # PAAS-2380
-  - updateScreeb                             # PAAS-2379
 
   # Actions that require a restart
 
