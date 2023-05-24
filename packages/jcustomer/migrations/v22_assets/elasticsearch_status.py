@@ -56,12 +56,13 @@ class CheckESstatus(AgentCheck):
             elif index['status'] != 'open':
                 self.__set_error("Index %s status is not open" % index['index'])
                 return
-            else:
-                self.service_check(
-                    self.SERVICE_CHECK_NAME,
-                    AgentCheck.OK,
-                    message='ElasticSearch is OK'
-                )
+
+        # If nothing returns, check is OK
+        self.service_check(
+            self.SERVICE_CHECK_NAME,
+            AgentCheck.OK,
+            message='ElasticSearch is OK'
+        )
 
     def __set_error(self, error):
         self.service_check(
