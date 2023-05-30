@@ -1759,7 +1759,7 @@ actions:
     # Get jExperience version to install according to Jahia env version:
     # - Jahia 7.3.x ==> jExperience 1.11.9
     # - Jahia 8.0.x ==> jExperience 2.2.0
-    # - Jahia 8.1.x ==> jExperience 2.2.2
+    # - Jahia 8.1.x ==> jExperience 2.6.0
     # Returns:
     #   ${globals.jexperienceVersion}: jExperience version to install according to current Jahia version
     - getJahiaVersion
@@ -1780,7 +1780,7 @@ actions:
               jexperienceVersion: 2.2.0
       - else:
           - setGlobals:
-              jexperienceVersion: 2.2.2
+              jexperienceVersion: 2.6.0
 
   getEnvLinkedJcustomer:
     # Parameters:
@@ -1897,7 +1897,7 @@ actions:
         moduleRepository: marketing-factory-releases
     - installOrUpgradeModule:
         moduleSymname: jexperience-dashboards
-        moduleVersion: 0.1.0
+        moduleVersion: 0.3.0
         moduleGroupId: org.jahia.modules
         moduleRepository: marketing-factory-releases
     - script: |-
