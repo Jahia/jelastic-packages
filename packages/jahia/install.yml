@@ -61,7 +61,7 @@ onBeforeInstall: |
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
-    "tag": "2.6.1",
+    "tag": "2.7.8",
     "count": ${settings.haproxyNodeCount},
     "cloudlets": 8,
     "env": {

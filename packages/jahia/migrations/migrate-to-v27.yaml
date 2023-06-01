@@ -14,6 +14,7 @@ mixins:
 
 globals:
   version: 27
+  haproxy_version: 2.7.8
 
 onInstall:
   ### Pre-migration actions
@@ -33,6 +34,7 @@ onInstall:
   # Actions that require a restart
 
   # Actions that require a redeploy
+  - upgradeHaproxy                            # PAAS-2360
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -85,6 +87,28 @@ actions:
         if ! rpm -q potrace; then
           yum install potrace -y
         fi
+
+  upgradeHaproxy:
+    - foreach (nodes.bl):
+      - cmd [${@i.id}]: |-
+          HAPROXY_SERVICE_OVERRIDE=/etc/systemd/system/haproxy.service.d/override.conf
+          FILE=/etc/jelastic/redeploy.conf
+          if ! grep -q $HAPROXY_SERVICE_OVERRIDE $FILE; then
+            echo $HAPROXY_SERVICE_OVERRIDE >> $FILE
+          fi
+          service haproxy stop
+      - if ("${nodes.bl.first.version}" != "${globals.haproxy_version}"):
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${globals.haproxy_version}
+          useExistingVolumes: true
+          skipReinstall: false
+          envName: ${env.envName}
+      - cmd [${@i.id}]: systemctl restart haproxy
+    - environment.nodegroup.ApplyData [bl]:
+      data:
+        productName: haproxy
+        productVersion: ${globals.haproxy_version}
 
 settings:
   fields:
