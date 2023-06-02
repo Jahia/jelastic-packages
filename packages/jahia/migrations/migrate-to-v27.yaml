@@ -92,9 +92,13 @@ actions:
     - foreach (nodes.bl):
       - cmd [${@i.id}]: |-
           HAPROXY_SERVICE_OVERRIDE=/etc/systemd/system/haproxy.service.d/override.conf
+          HAPROXY_RELOAD=/usr/local/bin/haproxy-reload.sh
           FILE=/etc/jelastic/redeploy.conf
           if ! grep -q $HAPROXY_SERVICE_OVERRIDE $FILE; then
             echo $HAPROXY_SERVICE_OVERRIDE >> $FILE
+          fi
+          if ! grep -q $HAPROXY_RELOAD $FILE; then
+            echo $HAPROXY_RELOAD >> $FILE
           fi
           service haproxy stop
       - if ("${nodes.bl.first.version}" != "${globals.haproxy_version}"):
