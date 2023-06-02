@@ -38,6 +38,7 @@ actions:
         chmod +x $HAPROXY_RELOAD
         echo $HAPROXY_PRESTART_SCRIPT >> /etc/jelastic/redeploy.conf
         echo $HAPROXY_SERVICE_OVERRIDE >> /etc/jelastic/redeploy.conf
+        echo $HAPROXY_RELOAD >> /etc/jelastic/redeploy.conf
         chown -R haproxy:haproxy $HAPROXY_DIR
         systemctl daemon-reload
         systemctl restart haproxy
