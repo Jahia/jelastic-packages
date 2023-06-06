@@ -1,0 +1,81 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v23
+id: migrate-jcustomer-env-v23
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 23
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  - preventJavaAutoRestart          # PAAS-2393
+
+  # Actions that require a restart:
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  preChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  postChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  preventJavaAutoRestart:
+    - cmd[cp]: |-
+        filename=karaf_override.lib
+        path=/var/lib/jelastic/customizations
+        if [ ! -r  $path/$filename ]; then
+          curl -fLSso $path/$filename ${globals.repoRootUrl}/packages/jcustomer/migrations/v23_assets/$filename || exit 1
+        fi
+
+        conf=/etc/systemd/system/karaf.service
+        new_line="ExecStartPre=/bin/bash -c \"free -m | awk 'NR==2 {print \$2}' > /tmp/mem_on_karaf_start\""
+        if ! grep -q "mem_on_karaf_start" $conf; then
+          sed -i "/CAP_NET_BIND_SERVICE/a $new_line" $conf
+          systemctl daemon-reload
+        fi
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
