@@ -64,11 +64,11 @@ actions:
         filename=karaf_override.lib
         path=/var/lib/jelastic/customizations
         if [ ! -r  $path/$filename ]; then
-          curl -fLSso $path/$filename ${globals.repoRootUrl}/packages/jcustomer/migrations/v23_assets/$filename || exit 1
+          curl --create-dirs -fLSso $path/$filename ${globals.repoRootUrl}/packages/jcustomer/migrations/v23_assets/$filename || exit 1
         fi
 
         conf=/etc/systemd/system/karaf.service
-        new_line="ExecStartPre=/bin/bash -c \"free -m | awk 'NR==2 {print \$2}' > /tmp/mem_on_karaf_start\""
+        new_line="ExecStartPre=/bin/bash -c \"free -m | awk 'NR==2 {print \$2}' > /opt/jcustomer/jcustomer/mem_on_karaf_start\""
         if ! grep -q "mem_on_karaf_start" $conf; then
           sed -i "/CAP_NET_BIND_SERVICE/a $new_line" $conf
           systemctl daemon-reload
