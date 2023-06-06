@@ -35,6 +35,7 @@ onInstall:
 
   # Actions that require a redeploy
   - upgradeHaproxy                            # PAAS-2360
+  - upgradeTomcat                             # PAAS-2219
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -113,6 +114,13 @@ actions:
       data:
         productName: haproxy
         productVersion: ${globals.haproxy_version}
+
+  upgradeTomcat:
+    - api: env.control.GetContainerEnvVars
+      nodeId: ${nodes.proc.first.id}
+    - if ("${response.object.TOMCAT_VERSION}" != "9.0.75"):
+        - setGlobals:
+            jahiaRollingRedeployNeeded: true
 
 settings:
   fields:
