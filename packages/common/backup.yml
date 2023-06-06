@@ -174,7 +174,7 @@ actions:
           if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
             rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
             if [ $? -ne 0 ]; then
-              read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+              read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile})
               echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
               sleep 1
               getLock ${locked_until}
@@ -223,7 +223,7 @@ actions:
             if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
               rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
               if [ $? -ne 0 ]; then
-                read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+                read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile})
                 echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
                 sleep 1
                 getLock ${locked_until}
@@ -339,7 +339,7 @@ actions:
           if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
             rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
             if [ $? -ne 0 ]; then
-              read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile})
+              read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile})
               echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
               sleep 1
               getLock ${locked_until}
