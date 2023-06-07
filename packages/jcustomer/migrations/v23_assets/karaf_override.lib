@@ -11,7 +11,7 @@ if [ "x$action" != "xservice" ] ; then return 0; fi
 function doRestart(){
     local result=0 message="Ok";
     serviceToRestart="karaf";
-    referenceFile=/tmp/mem_on_karaf_start
+    referenceFile=/opt/jcustomer/jcustomer/mem_on_karaf_start
     if [ -s ${referenceFile} ]; then
         TotalMem=$(free -m | awk 'NR==2 {print $2}')
         LastMem=$(cat ${referenceFile})
