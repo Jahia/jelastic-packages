@@ -1,0 +1,85 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Upgrade
+id: unomi-upgrade-to-2-0
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+
+  - install:
+      jps: "${globals.repoRootUrl}/packages/common/backup.yml"
+      settings:
+        backup_name: "${env.envName}-pre-upgrade-2-0"
+        backtype: manual
+
+  # Check if env version is 1.9.0
+  - isVersionEqual:
+      a: "1.9.0"
+      b: "${nodes.cp.first.customitem.nodeVersion}"
+      res: targetVersionIsConsistent
+  - if (!${globals.targetVersionIsConsistent}):
+      return:
+        type: error
+        message: "Current version must be 1.9.0"
+
+  - muteEnvWideMonitors
+
+  - env.control.AddContainerEnvVars[cp]:
+    vars:
+      UNOMI_MIGRATION_RECOVER_FROM_HISTORY: true
+      KARAF_OPTS: "-Dunomi.autoMigrate=1.9.0 -Dunomi.autoStart=true"
+
+  - cmd[cp]: |-
+      service datadog-agent stop
+      service karaf stop
+
+  - upgradeJcustomerOnNode: ${nodes.cp.first.id}
+
+  - env.control.RemoveContainerEnvVars[cp]:
+    vars: ["UNOMI_MIGRATION_RECOVER_FROM_HISTORY", "KARAF_OPTS"]
+
+  - forEach(nodes.cp):
+      if ("${@i.id}" != "${nodes.cp.first.id}"):
+        upgradeJcustomerOnNode: ${@i.id}
+
+  - env.control.AddContainerEnvVars[cp]:
+    vars: {"UNOMI_VERSION": "2.3.0"}
+
+
+  - environment.nodegroup.ApplyData[cp]:
+      data:
+        productVersion: "2.3.0"
+
+  - updateProductVersionInPapi:
+      version: "2.3.0"
+      product: "unomi"
+
+  - unmuteEnvWideMonitors
+
+  - script: |-
+      envsLinked = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().envLink;
+      if (! envsLinked) {
+        return {"result": 0, "envs": ""};
+      }
+      return {"result": 0, "envs": envsLinked.split(",")};
+
+  - forEach(response.envs):
+      install:
+        envName: ${@i}
+        jps: "${globals.repoRootUrl}/packages/one-shot/paas-2426-upgrade-jexperience-to-3-2-0.yaml"
+
+actions:
+  upgradeJcustomerOnNode:
+    api: environment.control.RedeployContainerById
+    nodeId: ${this}
+    tag: 2.3.0
+    useExistingVolumes: true
+    skipReinstall: false
+    isSequential: false
+    envName: ${env.envName}
