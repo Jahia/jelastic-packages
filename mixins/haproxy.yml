@@ -7,19 +7,56 @@ globals:
 
 actions:
   installHaproxy:
+    - if ("${nodes.cp.first.nodeType}" == "jcustomer"):
+      - createSslCert
+      # - allowJcustomerAdminPort
     - retrieveHaproxyConf: bl
     - addLetsEncryptConfig
     - updateHaproxyConf
-    - configureProcessingDirectAccessHaproxy
+    - if (nodes.proc):
+        - configureProcessingDirectAccessHaproxy
     - resetHaproxyBackends
     - environment.nodegroup.ApplyData [bl]:
         data:
           productName: haproxy
           productVersion: ${nodes.bl.first.version}
 
+  allowJcustomerAdminPort:
+  - script: |
+      return jelastic.environment.security.AddRule(
+        '${env.envName}',
+        session,
+        {
+          "action": "ALLOW",
+          "direction": "INPUT",
+          "isEnabled": true,
+          "name": "SSL for jCustomer",
+          "ports": 9443,
+          "priority": 1040,
+          "protocol": "ALL",
+          "src": "ALL"
+        },
+        "bl"
+      )
+
+  createSslCert:
+  - cmd [bl]: |-
+      envname=${env.shortdomain}
+      mkdir /etc/ssl/jahia && cd /etc/ssl/jahia
+      openssl genrsa -out ${envname}.key 2048
+      openssl req -new -key ${envname}.key -out ${envname}.csr -subj "/CN=*.${env.domain}/"
+      openssl x509 -req -days 444444 -in ${envname}.csr -signkey ${envname}.key -out ${envname}.crt
+      cat ${envname}.crt ${envname}.key > ${envname}.pem
+
   retrieveHaproxyConf:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
+        product=JAHIA
+        conf_to_delete=JCUSTOMER
+        if [ "${nodes.cp.first.nodeType}" = "jcustomer" ]; then
+          product=JCUSTOMER
+          conf_to_delete=JAHIA
+        fi
         HAPROXY_DIR=/etc/haproxy
         HAPROXY_CONF_DIR=$HAPROXY_DIR/haproxy.cfg.jahia
         HAPROXY_PRESTART_SCRIPT=/usr/local/sbin/haproxy_prestart.sh
@@ -29,6 +66,9 @@ actions:
         touch $HAPROXY_DIR/blacklisted_ips.txt
         curl --retry 6 -fLSso $HAPROXY_CONF_DIR/customer.errorpages.d/502.http ${globals.repoRootUrl}/assets/haproxy/502.http || exit 1
         curl --retry 6 -fLSso $HAPROXY_CONF_DIR/jahia-cloud.cfg ${globals.repoRootUrl}/assets/haproxy/haproxy-jahia-cloud.cfg || exit 1
+        sed -i -e "s/##${product}##//" \
+               -e "s/##PLACEHOLDER_CERT_NAME##/${env.shortdomain}.pem/" \
+               -e "/##${conf_to_delete}##/d" $HAPROXY_CONF_DIR/jahia-cloud.cfg
         curl --retry 6 -fLSso $HAPROXY_CONF_DIR/paths_rates.map ${globals.repoRootUrl}/assets/haproxy/haproxy-paths_rates.map || exit 1
         curl --retry 6 -fLSso $HAPROXY_CONF_DIR/http-errors.cfg ${globals.repoRootUrl}/assets/haproxy/http-errors.cfg || exit 1
         curl --retry 6 -fLSso $HAPROXY_DIR/robots_noindex.txt ${globals.repoRootUrl}/assets/haproxy/robots_noindex.txt || exit 1
@@ -85,7 +125,10 @@ actions:
     - log: "Adding node ${this.nodeId} to HAProxy"
     - cmd[bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-        if [ $? -ne 0 ]; then sed -i "/^backend bk_jahia$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp}:80 check cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; fi
+        if [ $? -ne 0 ]; then
+          sed -i "/^backend bk_${nodes.cp.first.nodeType}$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 80 cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
+          sed -i "/^backend bk_${nodes.cp.first.nodeType}\_https$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 80 cookie s${this.nodeId} ssl verify none" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
+        fi
     - if ('${this.reload.print()}' == 'true'):
         - cmd [bl]: service haproxy reload
 
@@ -100,11 +143,12 @@ actions:
             nodeId: ${@i.id}
             nodeIp: ${@i.intIP}
             reload: false
-    # Reset processing node
-    - removeProcNodeFromHaproxy:
-        reload: false
-    - addProcNodeToHaproxy:
-        reload: false
+    - if (nodes.proc):
+        # Reset processing node
+        - removeProcNodeFromHaproxy:
+            reload: false
+        - addProcNodeToHaproxy:
+            reload: false
     # Reload haproxy conf
     - cmd [bl]: service haproxy reload
 
@@ -149,13 +193,16 @@ actions:
         echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
         sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
         echo "tags:" >> /etc/datadog-agent/datadog.yaml
-        echo " - product:jahia" >> /etc/datadog-agent/datadog.yaml
+        echo " - product:${nodes.cp.first.nodeType}" >> /etc/datadog-agent/datadog.yaml
         echo " - version:${DX_VERSION}" >> /etc/datadog-agent/datadog.yaml
         echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
         echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
         echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
-        curl --retry 6 -fLSso /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py ${globals.repoRootUrl}/assets/haproxy/haproxy_one_remaining_browsing.py
-        chown dd-agent:dd-agent /etc/datadog-agent/checks.d/haproxy_one_remaining_browsing.py
+        one_remaining_node_script_name=haproxy_one_remaining_browsing.py
+        one_remaining_node_script=/etc/datadog-agent/checks.d/$one_remaining_node_script_name
+        curl --retry 6 -fLSso $one_remaining_node_script ${globals.repoRootUrl}/assets/haproxy/$one_remaining_node_script_name
+        sed -i "s/BK_NAME_PLACEHOLDER/bk_${nodes.cp.first.nodeType}/" $one_remaining_node_script
+        chown dd-agent:dd-agent $one_remaining_node_script
         ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_browsing.yaml
         curl --retry 6 -fLSso /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml || exit 1
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages

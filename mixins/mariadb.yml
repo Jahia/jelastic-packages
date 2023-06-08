@@ -14,7 +14,6 @@ actions:
     # Parameters:
       #   - user: DB username
       #   - __secret__password: DB user's password
-    - setJelasticUserAsRoot: sqldb
     - updateMysqlUser: sqldb
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
