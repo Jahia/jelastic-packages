@@ -16,7 +16,7 @@ __version__ = "1.0.0"
 class CheckNumberBrowsingRemaining(AgentCheck):
     __NAMESPACE__ = "haproxy"
     SERVICE_CHECK_NAME = "number_browsing_remaining"
-    BROWSING_BACKEND_NAME = 'bk_jahia'
+    BROWSING_BACKEND_NAME = 'BK_NAME_PLACEHOLDER'
 
     def check(self, instance):
         try:
