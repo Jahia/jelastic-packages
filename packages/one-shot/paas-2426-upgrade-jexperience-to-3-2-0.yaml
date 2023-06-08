@@ -1,0 +1,22 @@
+---
+type: update
+version: 1.5.2
+name: Jexperience - Upgrade
+id: jexperience-upgrade-to-3-2-0
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - installOrUpgradeModule:
+      moduleSymname: jexperience
+      moduleVersion: 3.2.0
+      moduleGroupId: org.jahia.modules
+      moduleRepository: marketing-factory-releases
+  - installOrUpgradeModule:
+      moduleSymname: jexperience-dashboards
+      moduleVersion: 1.0.0
+      moduleGroupId: org.jahia.modules
+      moduleRepository: marketing-factory-releases
+
