@@ -117,7 +117,7 @@ actions:
 
   upgradeTomcat:
     - api: env.control.GetContainerEnvVars
-      nodeId: ${nodes.proc.first.id}
+      nodeId: ${nodes.cp.last.id}
     - if ("${response.object.TOMCAT_VERSION}" != "9.0.75"):
         - setGlobals:
             jahiaRollingRedeployNeeded: true
