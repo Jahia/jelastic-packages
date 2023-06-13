@@ -11,11 +11,12 @@ mixins:
 onInstall:
   - setGlobalRepoRootUrl
 
-  - install:
-      jps: "${globals.repoRootUrl}/packages/common/backup.yml"
-      settings:
-        backup_name: "${env.envName}-pre-upgrade-2-0"
-        backtype: manual
+  - if(!${settings.skip_backup}):
+      install:
+        jps: "${globals.repoRootUrl}/packages/common/backup.yml"
+        settings:
+          backup_name: "${env.envName}-pre-upgrade-2-0"
+          backtype: manual
 
   # Check if env version is 1.9.0
   - isVersionEqual:
@@ -83,3 +84,10 @@ actions:
     skipReinstall: false
     isSequential: false
     envName: ${env.envName}
+
+settings:
+  fields:
+    - type: toggle
+      name: skip_backup
+      caption: Skip backup step
+      default: false
