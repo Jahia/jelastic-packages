@@ -270,6 +270,7 @@ actions:
     - else:
         set:
     - getPatTokenAndKey
+    - enableKarafLogin: ${this.target}
     - cmd [${this.target}]: |-
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
@@ -308,6 +309,12 @@ actions:
             echo "[ERROR] Tomcat process no more running, please check." >&2
             exit 3
           fi
+          if [ $jahia_running_timeout -eq 1 ]; then
+            ${globals.karafConsole} bundle:refresh graphql-dxm-provider
+            ${globals.karafConsole} bundle:restart graphql-dxm-provider
+            ${globals.karafConsole} bundle:refresh server-availability-manager
+            ${globals.karafConsole} bundle:restart server-availability-manager
+          fi
           # Then we check Jahia startup status, all
           tail -n +${startup_line} /opt/tomcat/logs/catalina.out | grep -q "Server startup in"
           if [ $? -eq 0 ]; then
@@ -323,6 +330,7 @@ actions:
 
         echo "[ERROR] Timeout, the Tomcat process is still running but Jahia is not started yet" >&2
         exit 5
+    - disableKarafLogin: ${this.target}
 
   checkJahiaHealth:
     - getPatTokenAndKey
