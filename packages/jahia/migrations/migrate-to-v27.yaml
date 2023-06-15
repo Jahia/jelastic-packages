@@ -46,6 +46,9 @@ onInstall:
           - install:
               jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
+  # Actions that required the redeploy first
+  - addNotAlwaysRestartOverride               # PAAS-2253
+
   ### Post-migration actions
   - setEnvVersion: ${globals.version}
   - if(!${settings.disable_checks}):
@@ -121,6 +124,24 @@ actions:
     - if ("${response.object.TOMCAT_VERSION}" != "9.0.75"):
         - setGlobals:
             jahiaRollingRedeployNeeded: true
+
+  addNotAlwaysRestartOverride:
+    - cmd[proc, cp]: |-
+        filename=jahia_override.lib
+        dest=/var/lib/jelastic/customizations
+        if [ ! -f ${dest}/${filename} ]; then
+            curl -fLSso ${dest}/${filename} ${globals.repoRootUrl}/packages/jahia/migrations/v27_assets/$filename || exit 1
+            chmod +x ${dest}/${filename}
+        fi
+        file=/etc/systemd/system/tomcat.service.d/override.conf
+        if (! grep -q mem_on_tomcat_start ${file}); then
+          sed -e '/^ExecStop=$/i ExecStartPre=/usr/bin/bash -c "free -m | awk '\''NR==2 {print $2}'\'' > /mem_on_tomcat_start"' \
+              -i ${file}
+          systemctl daemon-reload
+        fi
+        if [ ! -s /mem_on_tomcat_start ]; then
+          free -m | awk 'NR==2 {print $2}' > /mem_on_tomcat_start
+        fi
 
 settings:
   fields:
