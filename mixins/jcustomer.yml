@@ -16,6 +16,7 @@ actions:
             break
           }
         }
+        var version = resp['nodes'][0]['customitem']['nodeVersion'];
         var cmd = "find -H /opt/ -mindepth 4  -type f -name setenv -exec awk -F'\"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' {} \\;";
         var command = toJSON([{"command": cmd}]);
         var res = jelastic.env.control.ExecCmdById(unomi_env_name, session, unomi_nodeid, command)
@@ -23,10 +24,10 @@ actions:
 
 
         const container_env_vars = jelastic.env.control.GetContainerEnvVars(
-                                     unomi_env_name,
-                                     session,
-                                     unomi_nodeid
-                                   );
+                                    unomi_env_name,
+                                    session,
+                                    unomi_nodeid
+                                  );
         const allowed_ips = container_env_vars.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES;
 
         return {
@@ -35,13 +36,11 @@ actions:
             setGlobals: {
               "unomi_allowed_ips": allowed_ips,
               "unomidns": resp.env.domain,
-              "__secret__unomi_pwd_b64": unomi_pwd_b64
+              "__secret__unomi_pwd_b64": unomi_pwd_b64,
+              "unomi_version": version
             }
           }
         };
-
-    - setGlobals:
-        unomi_version: ${nodes.cp.first.customitem.nodeVersion}
 
   checkJcustomerHealth:
     cmd [${this}]: |-

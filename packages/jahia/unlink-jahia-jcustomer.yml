@@ -20,10 +20,11 @@ onInstall:
       setGlobals:
         isUnomiEnvDeletion: ${settings.isUnomiEnvDeletion}
   - if ("${settings.jCustomerEnv.print()}" == ""):
-    - getJcustomer
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
   - else:
     - setGlobals:
-        jCustomerEnv: ${settings.jCustomerEnv}
+        unomi_env_name: ${settings.jCustomerEnv}
   - if ("${settings.jahiaEnvStatus.print()}" == ""):
       - getJahiaEnvStatus
   - else:
@@ -36,32 +37,19 @@ onInstall:
           message: "Impossible to unlink Jahia and jCustomer if either environment is not running. Make sure your environments are runnning and try again"
   - removeAndCleanJexperience
   - removeKibanaDashboardAccountsAndSpace:
-      jCustomerEnv: ${globals.jCustomerEnv}
+      jCustomerEnv: ${globals.unomi_env_name}
   - updateEnvLinkJahia
   - if (! ${globals.isUnomiEnvDeletion}):
     - updateEnvLinkJcustomer
     - refreshUnomiAllowedIPs:
-        unomiEnvName: ${globals.jCustomerEnv}
+        unomiEnvName: ${globals.unomi_env_name}
 
 actions:
-  getJcustomer:
-    - script: |
-        const envName = "${env.envName}";
-        jCustomerLinked = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
-                                        return object.name == "proc";}).pop().envLink;
-        if (! jCustomerLinked) {
-          return {"result": 1, "errOut": "No jCustomer is linked with the Jahia env"}
-        } else {
-          return {"result": 0, "out": jCustomerLinked}
-        }
-    - setGlobals:
-        jCustomerEnv: ${response.out}
-
   updateEnvLinkJahia:
     - script: |-
         const envName = "${env.envName}";
         jahiaNodeGroups = ['proc','cp'];
-        
+
         jahiaNodeGroups.forEach(
           function(nodeGroup) {
             resp = jelastic.env.nodegroup.ApplyData(envName, session, nodeGroup=nodeGroup, data={'envLink': null});
@@ -72,7 +60,7 @@ actions:
   updateEnvLinkJcustomer:
     - script: |
         const jahiaEnv = "${env.envName}";
-        const jCustomerEnv = "${globals.jCustomerEnv}";
+        const jCustomerEnv = "${globals.unomi_env_name}";
         envsLinked = jelastic.env.control.GetNodeGroups(jCustomerEnv, session).object.filter(function (object) {
                                 return object.name == "cp";
                               }).pop().envLink;
@@ -101,7 +89,7 @@ actions:
 
   getJcustomerEnvStatus:
     - script: |-
-        const envName = "${globals.jCustomerEnv}";
+        const envName = "${globals.unomi_env_name}";
 
         resp = jelastic.env.control.GetEnvInfo(envName, session);
         return {"result": 0, "out": resp.env.status};

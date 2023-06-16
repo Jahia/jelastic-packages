@@ -24,7 +24,8 @@ onInstall:
   - checkJcustomerLink
   - getUnomiDnsAndPwd:
       unomi_env_name: ${settings.unomienv}
-  - getJexperienceVersion
+  - getJexperienceVersion:
+      unomi_env_name: ${settings.unomienv}
   - installOrUpgradeModule:
       moduleSymname: jexperience
       moduleVersion: ${globals.jexperienceVersion}
