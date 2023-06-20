@@ -59,7 +59,10 @@ onInstall:
 
   # Update jExperience if needed
   - if ("${globals.jexperienceStatus}" == "started"):
-    - getJexperienceVersion
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+    - getJexperienceVersion:
+        unomi_env_name: ${globals.unomi_env_name}
     - installOrUpgradeModule:
         moduleSymname: jexperience
         moduleVersion: ${globals.jexperienceVersion}
