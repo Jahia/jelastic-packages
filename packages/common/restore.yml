@@ -458,8 +458,12 @@ actions:
         tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
         rm -f digital-factory-config.tar.gz
         rm -f /data/digital-factory-data/repository/.lock
-        # Add reindex flag to trigger reindex on restart
-        sudo -u tomcat touch /data/digital-factory-data/repository/reindex
+        if [ -f /data/digital-factory-data/backup-with-JCR-index ]; then
+          rm /data/digital-factory-data/backup-with-JCR-index
+        else
+          # Legacy backup without JCR saved with FRO, add reindex flag to trigger reindex on restart
+          sudo -u tomcat touch /data/digital-factory-data/repository/reindex
+        fi
         sudo -u tomcat touch /data/digital-factory-data/safe-env-clone
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
