@@ -827,15 +827,27 @@ actions:
         sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
 
     - if (nodes.sqldb.length > 1):
-        - cmd[${nodes.sqldb.first.id}]: |-
+        - cmd[sqldb]: |-
+            seqno=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 2)
+            uuid=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 1)
             echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
             echo "version: 2.1" >> /var/lib/mysql/grastate.dat
-            echo "seqno: -1" >> /var/lib/mysql/grastate.dat
-            echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
+            echo "uuid:    $uuid" >> /var/lib/mysql/grastate.dat
+            echo "seqno:   $seqno" >> /var/lib/mysql/grastate.dat
             chown mysql: /var/lib/mysql/grastate.dat
 
-    - forEach(i:nodes.sqldb):
-        startGaleraNode: ${@i.id}
+        - cmd[${nodes.sqldb.first.id}]: |-
+            echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
+        - startGaleraNode: ${nodes.sqldb.first.id}
+
+        - forEach(i:nodes.sqldb):
+            if (${@i.id} != ${nodes.sqldb.first.id}):
+              - cmd[${@i.id}]: |-
+                  echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
+              - startGaleraNode: ${@i.id}
+    - else:
+        startGaleraNode: sqldb
+
 
     - api: env.control.GetContainerEnvVarsByGroup
       nodeGroup: proc
