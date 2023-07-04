@@ -27,11 +27,11 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End pre-migration actions
 
-  # Actions that update modules (need to be done first)
-
-  - installPotrace                            # PAAS-2399
+  # Actions that update modules (needs to be done first)
+  # (None)
 
   # Actions that require a restart
+  # (None)
 
   # Actions that require a redeploy
   - upgradeHaproxy                            # PAAS-2360
@@ -85,12 +85,6 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
-
-  installPotrace:
-    - cmd[cp, proc]: |-
-        if ! rpm -q potrace; then
-          yum install potrace -y
-        fi
 
   upgradeHaproxy:
     - foreach (nodes.bl):
