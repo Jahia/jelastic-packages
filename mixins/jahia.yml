@@ -185,7 +185,7 @@ actions:
           -u "Server/Service/Connector[@port='80']/@maxHttpHeaderSize" -v '65536' \
           -i "Server/Service/Connector[@port='80' and not(@maxHttpHeaderSize)]" -t attr -n "maxHttpHeaderSize" -v '65536' \
           /opt/tomcat/conf/server.xml
-        # jahia_cfg_cluster_tcp_bindAddress have to be exported in order to jahia's java process to see it since PAAS-2119 (jelastic/tomcat:9.0.75-openjdk-11.0.19 move init scripts to systemd)
+        # jahia_cfg_cluster_tcp_bindAddress has to be exported in order for jahia's java process to see it since PAAS-2119 (jelastic/tomcat:9.0.75-openjdk-11.0.19 moved init scripts to systemd)
         grep -q '^export jahia_cfg_cluster_tcp_bindAddress=' ${tomcat_env} || sed -i '/TOMCAT_USER=/ a export jahia_cfg_cluster_tcp_bindAddress=$(hostname -i)' ${tomcat_env}
         sed -i '/^jahia_cfg_cluster_tcp_bindAddress=/d' ${tomcat_env}  # remove old fashion line if needed
         grep -q '^JAVA_OPTS.*-DmaxPostSize=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s/(.)$/ -DmaxPostSize=${tomcat_cfg_maxpostsize}\1/g' ${tomcat_env}
