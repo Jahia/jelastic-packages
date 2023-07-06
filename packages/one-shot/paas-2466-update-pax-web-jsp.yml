@@ -1,0 +1,34 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Update org.ops4j.pax.web.pax-web-jsp
+id: jahia-update-org.ops4j.pax.web.pax-web-jsp
+description:
+  short: Jahia - Update org.ops4j.pax.web.pax-web-jsp
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - downloadNewVersion
+  - enableKarafLogin: proc
+  - enableKarafLogin: cp
+  - updateToNewVersion
+  - disableKarafLogin: proc
+  - disableKarafLogin: cp
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+
+actions:
+  downloadNewVersion:
+    - cmd[proc,cp]: |-
+        f_name=/tmp/pax-web-jsp-7.3.7-jahia2.jar
+        url=https://devtools.jahia.com/nexus/service/local/repositories/thirdparty-releases/content/org/ops4j/pax/web/pax-web-jsp/7.3.7-jahia2/pax-web-jsp-7.3.7-jahia2.jar
+        curl -fSsLo ${f_name} ${url} || exit 1
+
+  updateToNewVersion:
+    - cmd[proc,cp]: |-
+        ${globals.karafConsole} update org.ops4j.pax.web.pax-web-jsp file:/tmp/pax-web-jsp-7.3.7-jahia2.jar
