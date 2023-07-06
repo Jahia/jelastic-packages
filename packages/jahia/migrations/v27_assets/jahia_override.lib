@@ -6,7 +6,7 @@ $PROGRAM 'grep';
 
 if [ "x$action" != "xservice" ] ; then return 0; fi
 
-[ -f /.jelenv ] && . /.jelenv
+[ -f /.jelenv ] && . /etc/profile
 
 function doRestart(){
     local result=0 message="Ok";
