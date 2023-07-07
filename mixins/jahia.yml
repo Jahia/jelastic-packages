@@ -2061,3 +2061,28 @@ actions:
             }
           }
         };
+
+  queryShutdownEndpoint:
+    # Parameters:
+    # - target: target node id
+    - getPatTokenAndKey
+    - cmd[${this.target}]: |-
+        result=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
+            -X POST \
+            "http://localhost:8080/modules/graphql" \
+            -H 'Content-Type: application/json' \
+            -H "Origin: http://localhost:8080" \
+            -d '{"query":"mutation { admin { jahia { shutdown( dryRun: true timeout: 120 force: false ) } } }"}' \
+            | jq -r .data.admin.jahia.shutdown)
+        echo $result
+    - if ("${response.out}" != "true"):
+        - cmd[${this.target}]: |-
+            tasklist=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
+                  -X POST \
+                  "http://localhost:8080/modules/graphql" \
+                  -H 'Content-Type: application/json' \
+                  -H "Origin: http://localhost:8080" \
+                  -d '{"query":"query { admin { jahia { tasks { name, service, started } } } }"}' \
+                  | jq -r '.data.admin.jahia.tasks | map(.name) | join(", ")' )
+            echo $tasklist
+        - log: "The node was stopped while these tasks were running: ${response.out}"
