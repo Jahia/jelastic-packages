@@ -49,9 +49,11 @@ onAfterServiceScaleOut[cp]:
           unomiEnvName: ${globals.unomi_env_name}
 
 onBeforeRestartNode[cp]:
-  removeBrowsingNodeFromHaproxy:
-    nodeId: ${event.params.nodeId}
-    reload: true
+  - queryShutdownEndpoint:
+      target: ${event.params.nodeId}
+  - removeBrowsingNodeFromHaproxy:
+      nodeId: ${event.params.nodeId}
+      reload: true
 
 onAfterRestartNode[cp]:
   forEach(nodes.cp):
@@ -63,6 +65,8 @@ onAfterRestartNode[cp]:
           reload: true
 
 onBeforeRestartNode[proc]:
+  - queryShutdownEndpoint:
+      target: ${event.params.nodeId}
   - removeProcNodeFromHaproxy:
       reload: true
   - cleanJRJJournalTable:
@@ -77,7 +81,9 @@ onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - forEach(nodes.cp):
-          removeBrowsingNodeFromHaproxy:
+        - queryShutdownEndpoint:
+            target: ${@i.id}
+        - removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: true
       - cmd [cp]: |-
@@ -116,6 +122,8 @@ onAfterRedeployContainer[cp]:
 
 onBeforeRedeployContainer[proc]:
   - saveApplicationcontextFilesBeforeRedeploy: proc
+  - queryShutdownEndpoint:
+      target: ${event.params.nodeId}
   - removeProcNodeFromHaproxy:
       reload: true
   - cmd [proc]: |-
