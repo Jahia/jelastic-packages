@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 23
+  jcustomer_env_version: 24
   unomi_version: ${settings.productVersion}
   __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -52,13 +52,16 @@ onBeforeInstall: |
   switch ("${settings.jCustomerNodeSize}") {
     case 'large':
       var jCustomerCloudlets = 40;
+      var jCustomerXmx = "3G";
       break;
     case 'medium':
       var jCustomerCloudlets = 32;
+      var jCustomerXmx = "2458M";
       break;
     case 'small':
     default:
       var jCustomerCloudlets = 26;
+      var jCustomerXmx = "2G";
   }
 
   node_unomi = {
@@ -88,7 +91,7 @@ onBeforeInstall: |
       UNOMI_MONTHLY_INDEX_PURGE_EXISTTIME: -1,
       UNOMI_PROFILE_PURGE_EXISTTIME: -1,
       UNOMI_PROFILE_PURGE_INACTIVETIME: -1,
-      XMX: "2G",
+      XMX: jCustomerXmx,
       XMS: "1G",
       envName: "${settings.shortdomain}",
       _ROLE: 'unomi',
