@@ -30,6 +30,7 @@ onInstall:
   # (None)
 
   - obfuscateAPIToken                         # PAAS-2481
+  - captureContentTypeHeader                  # PAAS-2438
 
   # Actions that require a restart
   # (None)
@@ -46,7 +47,8 @@ onInstall:
           - install:
               jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
-  # Actions that required the redeploy first
+  # Actions that can only run when the redeploy is done
+  # (None)
 
   ### Post-migration actions
   - setEnvVersion: ${globals.version}
@@ -95,6 +97,19 @@ actions:
           curl -fSsLo ${file_path} ${file_url} || exit 1
           chmod +x ${file_path}
         fi
+
+  captureContentTypeHeader:
+  - cmd [bl]: |-
+      conf_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      if ! grep -qE "^\s*log-format \".*\"$" $conf_file; then
+        line1="capture response header content-type len 50"
+        line2='log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r - %[capture.res.hdr(0)]"'
+        sed -i "/stats admin if TRUE/a \\\n    $line1\n    $line2" $conf_file || exit 1
+      fi
+      # I keep the following line for **all** environments in case
+      # the file has been updated but Haproxy has not been reloaded for some reason
+      # (or maybe the reload failed)
+      systemctl reload haproxy
 
 settings:
   fields:
