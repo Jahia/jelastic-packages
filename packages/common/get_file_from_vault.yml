@@ -1,0 +1,55 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Get file from Vault
+id: jahia-get-file-from-vault
+description:
+  short: Jahia - Create a file from a Vault's secret key value
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - createFileFromVaultSecretKey:
+      target: ${settings.target}
+      secretPath: ${settings.secretPath}
+      destFullPath: ${settings.destFullPath}
+      owner: ${settings.owner}
+      group: ${settings.group}
+      mode: ${settings.mode}
+
+settings:
+  fields:
+    - name: target
+      caption: target node or nodegroup
+      type: string
+      tooltip: node id or nodegroup name to put the file on
+      required: true
+    - name: secretPath
+      caption: secret path on Vault 
+      type: string
+      tooltip: path (and key name) of the secret value to fetch
+      required: true
+    - name: destFullPath
+      caption: file fullpath to create
+      type: string
+      tooltip: full path of the file to create on the node (path have to exist)
+      required: true
+    - name: owner
+      caption: owner
+      type: string
+      tooltip: owner of the file on the node (default to root)
+      required: false
+      default: root
+    - name: group
+      caption: group owner
+      type: string
+      tooltip: owner group of the file on the node (default to root)
+      required: false
+      default: root
+    - name: mode
+      caption: permissions
+      type: string
+      tooltip: permissions the file on the node (default to 0640)
+      required: false
+      default: 640
