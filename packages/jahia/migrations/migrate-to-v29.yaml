@@ -33,6 +33,7 @@ onInstall:
   - captureContentTypeHeader                  # PAAS-2438
   - fixSqldbOverride                          # PAAS-2478
   - imageMagickMemoryShrink                   # PAAS-2475
+  - increasePathRate                          # PAAS-2451
 
   # Actions that require a restart
   # (None)
@@ -125,6 +126,14 @@ actions:
       # the file has been updated but Haproxy has not been reloaded for some reason
       # (or maybe the reload failed)
       systemctl reload haproxy
+
+    increasePathRate:
+    - cmd[bl]: |-
+        file=/etc/haproxy/haproxy.cfg.jahia/paths_rates.map
+        if ! grep -q "50" $file; then
+          sed -i 's/20/50/g' $file
+          systemctl reload haproxy
+        fi
 
 settings:
   fields:
