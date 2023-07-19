@@ -26,7 +26,7 @@ settings:
       tooltip: node id or nodegroup name to put the file on
       required: true
     - name: secretPath
-      caption: secret path on Vault 
+      caption: secret path on Vault
       type: string
       tooltip: path (and key name) of the secret value to fetch
       required: true

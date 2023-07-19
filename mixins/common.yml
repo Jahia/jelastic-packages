@@ -635,7 +635,7 @@ actions:
         secret_path="$(dirname ${this.secretPath})"
         key_name="$(basename ${this.secretPath})"
 
-        # check if rules exist
+        # check if secret exist
         response=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" ${globals.vaultClusterUrl}/v1/kv/data/${secret_path})
         if [ $? -ne 0 ]; then
           echo "Failed to fetch secret" >&2
