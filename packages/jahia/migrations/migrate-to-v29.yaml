@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate Jahia env to v28
-id: migrate-jahia-env-v28
+name: Migrate Jahia env to v29
+id: migrate-jahia-env-v29
 
 # Required for healthchecks
 mixins:
@@ -13,7 +13,7 @@ mixins:
   - "../../../mixins/elasticsearch.yml"
 
 globals:
-  version: 28
+  version: 29
 
 onInstall:
   ### Pre-migration actions
@@ -29,8 +29,11 @@ onInstall:
   # Actions that update modules (needs to be done first)
   # (None)
 
+  - obfuscateAPIToken                         # PAAS-2481
+  - captureContentTypeHeader                  # PAAS-2438
+
   # Actions that require a restart
-  - setTomcatWorkingDirectory               # PAAS-2495
+  # (None)
 
   # Actions that require a redeploy
   # (None)
@@ -44,7 +47,8 @@ onInstall:
           - install:
               jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
 
-  # Actions that required the redeploy first
+  # Actions that can only run when the redeploy is done
+  # (None)
 
   ### Post-migration actions
   - setEnvVersion: ${globals.version}
@@ -83,20 +87,29 @@ actions:
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
 
-  setTomcatWorkingDirectory:
-    - forEach(env.nodes):
-        - if ("${@i.name}" == "Jahia"):
-            - cmd[${@i.id}]: |-
-                md5="08553c084564ac5f7f62eb30c095711b"
-                f="/etc/systemd/system/tomcat.service.d/override.conf"
-                if ! (echo "$md5 $f" | md5sum --status -c); then
-                  echo 'WorkingDirectory=/opt/tomcat/temp' >> $f
-                  systemctl daemon-reload
-                  echo "restart"
-                fi
-            - if ("${response.out}" != ""):
-                - setGlobals:
-                    jahiaRollingRestartNeeded: true
+  obfuscateAPIToken:
+    - cmd[*]: |-
+        file_name=set_dd_tags.sh
+        file_path=/usr/local/bin/${file_name}
+        file_url=${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/${file_name}
+        file_md5=eb12bf2e0ccb74ed1f8aba94e3ed725b
+        if ! (echo "${file_md5} ${file_path}" | md5sum --status -c); then
+          curl -fSsLo ${file_path} ${file_url} || exit 1
+          chmod +x ${file_path}
+        fi
+
+  captureContentTypeHeader:
+  - cmd [bl]: |-
+      conf_file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      if ! grep -qE "^\s*log-format \".*\"$" $conf_file; then
+        line1="capture response header content-type len 50"
+        line2='log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r - %[capture.res.hdr(0)]"'
+        sed -i "/stats admin if TRUE/a \\\n    $line1\n    $line2" $conf_file || exit 1
+      fi
+      # I keep the following line for **all** environments in case
+      # the file has been updated but Haproxy has not been reloaded for some reason
+      # (or maybe the reload failed)
+      systemctl reload haproxy
 
 settings:
   fields:
