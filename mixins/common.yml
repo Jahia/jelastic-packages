@@ -610,6 +610,62 @@ actions:
         vaultSecretDelete:
           secretPath: "paas/customers/${globals.organizationName}/paas_${env.shortdomain}/${@i}"
 
+  createFileFromVaultSecretKey:
+    # Parameters:
+    #   - target: node id or nodegroup name to put the file on
+    #   - secretPath: path (and name) of the secret to fetch
+    #   - destFullPath: full path of the file to create on the node (path have to exist)
+    #   - (optional) owner: owner of the file on the node (default to root)
+    #   - (optional) group: owner group of the file on the node (default to root)
+    #   - (optional) mode: permissions the file on the node (default to 0640)
+    #
+    # We are not using other Jelastic actions to fetch the content from Vault because it doesn't work when
+    # the secret data is too big (Jelastic cannot create the global variable and therefore it fails)
+    #####################
+    - getVaultData
+    - cmd [${this.target}]: |-
+        __secret__vaultRoleId="${globals.__secret__vaultRoleId}"
+        __secret__vaultSecretId="${globals.__secret__vaultSecretId}"
+        VAULT_TOKEN=$(curl -s -XPOST ${globals.vaultClusterUrl}/v1/auth/approle/login --data '{"role_id": "'"$__secret__vaultRoleId"'", "secret_id": "'"$__secret__vaultSecretId"'"}' | jq -er .auth.client_token)
+        if [ $? -ne 0 ]; then
+          echo "Vault authentication failed" >&2
+          exit 0
+        fi
+
+        secret_path="$(dirname ${this.secretPath})"
+        key_name="$(basename ${this.secretPath})"
+
+        # check if secret exist
+        response=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" ${globals.vaultClusterUrl}/v1/kv/data/${secret_path})
+        if [ $? -ne 0 ]; then
+          echo "Failed to fetch secret" >&2
+          exit 0
+        fi
+        # check if the file's key exist in the response
+        content="$(jq -e .data.data <<< "$response")"
+        if ! (jq 'keys[]' <<< "$content" | grep -q "$key_name"); then
+          echo "There is no '$key_name' key in $(dirname $secret_path) secret" >&2
+          exit 0
+        fi
+
+        # create the temp file
+        temp_file=$(mktemp)
+        jq -r '."'${key_name}'"' <<< "$content" > $temp_file
+
+        # set owner/group
+        chown ${this.owner:root}:${this.group:root} $temp_file
+
+        # change permissions if needed
+        chmod ${this.mode:0640} $temp_file
+
+        # move file to final destination
+        mv $temp_file ${this.destFullPath}
+
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "Failed to create a file from a Vault's secret key, error: ${response.errOut}"
+
   getBackrestAwsAccessKey:
     # Returns:
     #   ${globals.__secret__backrestAwsAccessKeyId}: Access key ID of backrest AWS user
