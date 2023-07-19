@@ -127,7 +127,7 @@ actions:
       # (or maybe the reload failed)
       systemctl reload haproxy
 
-    increasePathRate:
+  increasePathRate:
     - cmd[bl]: |-
         file=/etc/haproxy/haproxy.cfg.jahia/paths_rates.map
         if ! grep -q "50" $file; then
