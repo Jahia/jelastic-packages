@@ -6,7 +6,7 @@ $PROGRAM 'grep';
 
 if [ "x$action" != "xservice" ] ; then return 0; fi
 
-[ -f /.jelenv ] && . /.jelenv
+[ -f /.jelenv ] && . /etc/profile
 
 RamMin=200
 MY_CNF_CONFIG="/etc/my.cnf"
