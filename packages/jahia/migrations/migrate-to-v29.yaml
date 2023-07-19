@@ -31,6 +31,7 @@ onInstall:
 
   - obfuscateAPIToken                         # PAAS-2481
   - captureContentTypeHeader                  # PAAS-2438
+  - fixSqldbOverride                          # PAAS-2478
 
   # Actions that require a restart
   # (None)
@@ -86,6 +87,15 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+
+  fixSqldbOverride:
+    - cmd[sqldb]: |-
+        md5="8021590660b718bbe5e5b0239848937d"
+        f="/var/lib/jelastic/customizations/jahia_override.lib"
+        if ! (echo "$md5 $f" | md5sum --status -c); then
+          curl -fLSso $f ${globals.repoRootUrl}/assets/database/$(basename $f) || exit 1
+          chown mysql:mysql $f
+        fi
 
   obfuscateAPIToken:
     - cmd[*]: |-
