@@ -32,6 +32,7 @@ onInstall:
   - obfuscateAPIToken                         # PAAS-2481
   - captureContentTypeHeader                  # PAAS-2438
   - fixSqldbOverride                          # PAAS-2478
+  - imageMagickMemoryShrink                   # PAAS-2475
 
   # Actions that require a restart
   # (None)
@@ -96,6 +97,10 @@ actions:
           curl -fLSso $f ${globals.repoRootUrl}/assets/database/$(basename $f) || exit 1
           chown mysql:mysql $f
         fi
+
+  imageMagickMemoryShrink:
+    - cmd[proc, cp]: |-
+        sed -r '/name="memory"/s/value=".+"/value="256MiB"/' -i /etc/ImageMagick-7/policy.xml
 
   obfuscateAPIToken:
     - cmd[*]: |-
