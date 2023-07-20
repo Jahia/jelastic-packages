@@ -489,8 +489,9 @@ actions:
             [[ $try == $max_try ]] && exit 1
             ((try++))
           done
-          true  # it's not elegant, but it seems that the "until" loop can have an "exit status" of 1 if the second try is successful
-                # so we force an "0" exit status if the loop end before max_try is reached
+          # it's not elegant, but it seems that the "until" loop can have an "exit status" of 1 if the second try is successful
+          # so we force an "0" exit status if the loop ended before max_try is reached
+          true
 
   switchReadonly:
     - log: "switch read-only mode to ${this.readmode} on nodegroup ${this.group}"
