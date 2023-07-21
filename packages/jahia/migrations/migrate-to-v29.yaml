@@ -36,7 +36,7 @@ onInstall:
   - increasePathRate                          # PAAS-2451
 
   # Actions that require a restart
-  # (None)
+  - patchOps4j                                # PAAS-2471
 
   # Actions that require a redeploy
   # (None)
@@ -134,6 +134,27 @@ actions:
           sed -i 's/20/50/g' $file
           systemctl reload haproxy
         fi
+
+  patchOps4j:
+    - enableKarafLogin: proc
+    - cmd[proc]: |-
+        version=$(${globals.karafConsole} bundle:headers org.ops4j.pax.web.pax-web-jsp | grep Bundle-Version | awk -F' = ' '{print $2}')
+        if [ $version != "7.3.7.jahia2" ]; then
+          echo "needs_upgrade"
+        fi
+    - if ("${response.out}" == "needs_upgrade"):
+        - enableKarafLogin: cp
+        - cmd[proc,cp]: |-
+            # Download new version
+            f_name=/tmp/pax-web-jsp-7.3.7-jahia2.jar
+            url=https://devtools.jahia.com/nexus/service/local/repositories/thirdparty-releases/content/org/ops4j/pax/web/pax-web-jsp/7.3.7-jahia2/pax-web-jsp-7.3.7-jahia2.jar
+            curl -fSsLo ${f_name} ${url} || exit 1
+            # Install it
+            ${globals.karafConsole} update org.ops4j.pax.web.pax-web-jsp file:/tmp/pax-web-jsp-7.3.7-jahia2.jar
+        - disableKarafLogin: cp
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
+    - disableKarafLogin: proc
 
 settings:
   fields:
