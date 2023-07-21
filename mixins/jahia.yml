@@ -1781,7 +1781,7 @@ actions:
     # Get jExperience version to install according to Jahia / jCustomer env version:
     # - Jahia 7.3.x   ==> jExperience 1.11.9
     # - Jahia 8.0.x   ==> jExperience 2.2.0 & jExperienceDashboards 0.3.0
-    # - Jahia 8.1.x   ==> jExperience 2.7.1 & jExperienceDashboards 0.3.0
+    # - Jahia 8.1.x   ==> jExperience 2.7.2 & jExperienceDashboards 0.3.0
     # - jCustomer 2.x ==> jExperience 3.2.0 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of unomi environment
@@ -1808,7 +1808,7 @@ actions:
               jexperienceVersion: 2.2.0
       - else:
           - setGlobals:
-              jexperienceVersion: 2.7.1
+              jexperienceVersion: 2.7.2
     - api: env.control.GetContainerEnvVarsByGroup
       envName: ${this.unomi_env_name}
       nodeGroup: cp
