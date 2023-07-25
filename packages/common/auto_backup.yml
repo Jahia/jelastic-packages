@@ -33,6 +33,8 @@ onInstall:
         var splitdomain = '${env.domain}'.split('.')
         if (splitdomain[splitdomain.length - 4] == 'dev') {
           var env = 'dev'
+        } else if (splitdomain[splitdomain.length - 4] == 'preprod') {
+          var env = 'preprod'
         } else {
           var env = 'prod'
         }
@@ -48,7 +50,13 @@ onInstall:
 
 onAfterRedeployContainer:
   - cmd[*]: |-
-      echo "hostname: ${HOSTNAME}" >> /etc/datadog-agent/datadog.yaml
+      envtype=$(echo $HOSTNAME | awk -F'.' '{if ($(NF-3) ~ /^(dev|preprod)$/) {print $(NF-3)} else {print "prod"}}')
+      sed "s/__ENV__/${envtype}/" -i /etc/datadog-agent/datadog.yaml
+      if (grep -q "^hostname:" /etc/datadog-agent/datadog.yaml); then
+        sed -r "s/(^hostname:\s*).*/\1${HOSTNAME}/" -i /etc/datadog-agent/datadog.yaml
+      else
+        echo "hostname: ${HOSTNAME}" >> /etc/datadog-agent/datadog.yaml
+      fi
       systemctl restart datadog-agent
 
 settings:
