@@ -158,7 +158,7 @@ actions:
     - disableKarafLogin: proc
 
   fixProxySQLStartup:
-    - cmd[sqldb]: |-
+    - cmd [cp, proc]: |-
         md5="a4d93ddfc665fda6027af1553d2f3eeb"
         f="/etc/systemd/system/proxysql.service.d/override.conf"
         if ! (echo "$md5 $f" | md5sum --status -c); then
