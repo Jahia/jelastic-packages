@@ -1,0 +1,95 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v24
+id: migrate-jcustomer-env-v24
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 24
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # Actions that require a restart
+  - adjustXmx       # PAAS-2368
+
+  # Actions that require a redeploy
+  # (None)
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  preChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  postChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  adjustXmx:
+    - script: |
+        resp = api.env.control.getenvinfo("${env.envName}", session);
+        cloudlets = resp.nodes[0]["flexibleCloudlets"];
+        xmx = "2G"
+        if (cloudlets > 26 && cloudlets < 33) {
+          xmx = "2458M";
+        } else if (cloudlets > 33) {
+          xmx = "3G";
+        }
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            "setGlobals": {
+              "XMX": xmx
+            }
+          }
+        }
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: cp
+    - if ("${response.object.XMX}" != "${globals.XMX}"):
+        - api: env.control.AddContainerEnvVars
+          nodeGroup: cp
+          vars: {"XMX": "${globals.XMX}"}
+        - setGlobals:
+            jCustomerRollingRestartNeeded: true
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
