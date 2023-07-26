@@ -34,6 +34,7 @@ onInstall:
   - fixSqldbOverride                          # PAAS-2478
   - imageMagickMemoryShrink                   # PAAS-2475
   - increasePathRate                          # PAAS-2451
+  - fixProxySQLStartup                        # PAAS-2451
 
   # Actions that require a restart
   - patchOps4j                                # PAAS-2471
@@ -155,6 +156,15 @@ actions:
         - setGlobals:
             jahiaRollingRestartNeeded: true
     - disableKarafLogin: proc
+
+  fixProxySQLStartup:
+    - cmd[sqldb]: |-
+        md5="a4d93ddfc665fda6027af1553d2f3eeb"
+        f="/etc/systemd/system/proxysql.service.d/override.conf"
+        if ! (echo "$md5 $f" | md5sum --status -c); then
+          curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v29_assets/proxysql_service_override || exit 1
+          systemctl daemon-reload
+        fi
 
 settings:
   fields:

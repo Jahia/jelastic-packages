@@ -1,0 +1,8 @@
+[Unit]
+Before=tomcat.service
+Requires=proxysql_pre_conf.service
+After=proxysql_pre_conf.service
+
+[Service]
+ExecStartPost=touch /var/lib/proxysql/proxysql.log
+ExecStartPost=/usr/bin/chmod 644 /var/lib/proxysql/proxysql.log
