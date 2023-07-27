@@ -164,6 +164,7 @@ actions:
         if ! (echo "$md5 $f" | md5sum --status -c); then
           curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v29_assets/proxysql_service_override || exit 1
           systemctl daemon-reload
+        fi
 
   saveIndexingConfigurationFileUponRedeploy:
     - cmd [cp, proc]: |-

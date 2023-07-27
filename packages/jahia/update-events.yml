@@ -34,7 +34,7 @@ onAfterScaleIn[cp]:
 onAfterServiceScaleOut[cp]:
   - forEach(event.response.nodes):
       - setJelasticUserAsRoot: ${@i.id}
-      - setProxysqlCredsInConfig:
+      - setProxysqlCredsInDatadogConfig:
           target: ${@i.id}
       - onAfterBrowsingScaleOut:
           newNode: ${@i.id}
