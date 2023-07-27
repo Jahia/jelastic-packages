@@ -164,6 +164,13 @@ actions:
         if ! (echo "$md5 $f" | md5sum --status -c); then
           curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v29_assets/proxysql_service_override || exit 1
           systemctl daemon-reload
+
+  saveIndexingConfigurationFileUponRedeploy:
+    - cmd [cp, proc]: |-
+        file=/etc/jelastic/redeploy.conf
+        line=/data/digital-factory-data/repository/indexing_configuration.xml
+        if ! grep -q $line $file; then
+          sed "/workspaces/a $line" $file
         fi
 
 settings:

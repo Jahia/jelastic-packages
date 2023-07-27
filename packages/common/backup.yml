@@ -11,6 +11,8 @@ globals:
   logAction: "${settings.backtype} Backup"
   logsPath: "/var/log/jelastic-packages/backup.log"
   lowerDBConnection: 100000
+  jahiaCustomConfFiles:
+    /data/digital-factory-data/repository/indexing_configuration.xml
 
 mixins:
   - ../../mixins/common.yml
@@ -119,45 +121,73 @@ actions:
     - cmd[proc]: |-
         python3 -c 'with open("/data/digital-factory-data/repository/revisionNode", "wb") as file: file.write((${response.out}).to_bytes(8, byteorder="big", signed=False))'
         touch /data/digital-factory-data/backup-with-JCR-index
-
+        tarfile=digital-factory-data.tar.gz
         cd jelastic_backup
-        rm -f digital-factory-data.tar.gz # In case file already exists
-        tar -cz -H posix -f digital-factory-data.tar.gz -C / data/digital-factory-data/ 2>>${globals.logsPath}
-        if [ "$?" -gt 1 ]; then
-          echo "tar command return an error code greater than 1. Exiting" >>${globals.logsPath}
-          echo "ERROR"
-        fi
-
+        rm -f $tarfile
+        tar -cz -H posix -f $tarfile -C / data/digital-factory-data/ 2>>${globals.logsPath} || echo "ERROR"
     - set:
         tarCmdRes: "${response.out}"
-
     - disableFullReadOnlyOnCluster
-
     - if ("${tarCmdRes}" == "ERROR"):
         return:
           type: error
-          message: "An error occurred during digital-factory-data backup"
-
+          message: "An error occurred during Jahia backup (data)"
+    - cmd [proc]: |-
+        tarfile=jahia-custom-conf-files.tar
+        cd jelastic_backup
+        rm -f $tarfile
+        tar -cf $tarfile --files-from /dev/null
+        echo ${globals.jahiaCustomConfFiles} | tr " " "\n" | while read file; do
+          if [ -f $file ]; then
+            tar -uPf $tarfile $file 2>>${globals.logsPath} || echo "ERROR" >&2
+          fi
+        done
+        if [[ "$(tar -tf $tarfile)" = "" ]]; then
+          rm -f $tarfile
+        else
+          gzip $tarfile 2>>${globals.logsPath} || echo "ERROR" >&2
+        fi
+    - if ("${response.errOut}" != ""):
+        return:
+          type: error
+          message: "An error occurred during jahia backup (custom configuration files)"
+    - cmd [proc]: |-
+        file=jahia-env-vars
+        cd jelastic_backup
+        rm -f $file $file.gz
+        grep -E "^(jahia|tomcat)_cfg_" /.jelenv | grep -v "jahia_cfg_mvnPath" > $file 2>>${globals.logsPath} || echo "ERROR" >&2
+        gzip $file 2>>${globals.logsPath} || echo "ERROR" >&2
+    - if ("${response.errOut}" != ""):
+        return:
+          type: error
+          message: "An error occurred during jahia backup (environment variables)"
+    - cmd [proc]: |-
+        tarfile=digital-factory-config.tar.gz
+        cd jelastic_backup
+        rm -f $tarfile
+        tar -cz -H posix -f digital-factory-config.tar.gz -C / opt/tomcat/conf/digital-factory-config/ 2>>${globals.logsPath} || echo "ERROR" >&2
+    - if ("${response.errOut}" != ""):
+        return:
+          type: error
+          message: "An error occurred during jahia backup (config)"
     - cmd [proc]: |-
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
+        archives=(
+          digital-factory-data.tar.gz
+          digital-factory-config.tar.gz
+          jahia-env-vars.gz
+          jahia-custom-conf-files.tar.gz
+        )
         cd jelastic_backup
-        grep -E "^(jahia|tomcat)_cfg_" /.jelenv | grep -v "jahia_cfg_mvnPath" > jahia-env-vars 2>>${globals.logsPath} || exit 1
-        gzip jahia-env-vars 2>>${globals.logsPath} || exit 1
-
-        tar -cz -H posix -f digital-factory-config.tar.gz -C / opt/tomcat/conf/digital-factory-config/ 2>>${globals.logsPath} || exit 1
-
-        rclone copy . --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ 2>&1 || exit 1
-
-        rm -f jahia-env-vars.gz digital-factory-config.tar.gz digital-factory-data.tar.gz
-
+        rclone copy . $(for file in ${archives[@]}; do echo -n "--include=$file "; done) backup:${globals.bucketName}/${globals.backupName}/ 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
+        rm -f ${archives[@]}
     - if ("${response.errOut}" != ""):
         return:
           type: error
-          message: "An error occurred during jahia backup. ${response.errOut}"
+          message: "An error occurred during jahia backup (archives upload)"
 
   addMetadata:
     - cmd [${this}]: |-

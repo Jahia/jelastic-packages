@@ -426,40 +426,61 @@ actions:
 
   restoreJahia:
     - cmd [proc,cp]: |-
-        service tomcat stop
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
-
+        archives=(
+          digital-factory-data.tar.gz
+          digital-factory-config.tar.gz
+          jahia-env-vars.gz
+          jahia-custom-conf-files.tar.gz
+        )
         cd jelastic_backup
-        rclone copy --include=digital-factory-data.tar.gz --include=digital-factory-config.tar.gz --include=jahia-env-vars.gz backup:${globals.bucketName}/${globals.backupName}/ . || exit 1
-        rm -rf /data/digital-factory-data
-        tar xf digital-factory-data.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        rm -f digital-factory-data.tar.gz
+        rclone copy $(for file in ${archives[@]}; do echo "--include=$file "; done) backup:${globals.bucketName}/${globals.backupName}/ . 2>>${globals.logsPath} || echo "ERROR" >&2
     - if ("${response.errOut}" != ""):
         - return:
             type: error
-            message: "An error occurred while restoring jahia data. ${response.errOut}"
-
+            message: "An error occurred while restoring jahia (archives download)"
+    - cmd [proc,cp]: service tomcat stop
+    - cmd [proc,cp]: |-
+        tarfile=digital-factory-data.tar.gz
+        cd jelastic_backup
+        rm -rf /data/digital-factory-data
+        tar xf $tarfile -C / 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
+        rm -f $tarfile
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while restoring Jahia (data)"
+    - cmd [proc,cp]: |-
+        tarfile=jahia-custom-conf-files.tar.gz
+        cd jelastic_backup
+        if [ -f $tarfile ]; then
+          tar -xPf $tarfile -C / 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
+          rm -f $tarfile
+        fi
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while restoring Jahia (custom configuration files)"
     - if (${globals.jahia8}):
         - restoreOtherModulesConfig
-
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
     # before starting Jahia so the modules can start successfully when Jahia will start
     - if (${globals.jexperienceActiveBeforeRestore}):
         - prepareJExperienceRestore
     - if (${globals.augSearchActiveBeforeRestore}):
         - prepareAugSearchRestore
-
     - cmd [proc,cp]: |-
+        tarfile=digital-factory-config.tar.gz
         cd jelastic_backup
         rm -rf /opt/tomcat/conf/digital-factory-config
-        tar xf digital-factory-config.tar.gz -C / 2>>${globals.logsPath} || exit 1
-        rm -f digital-factory-config.tar.gz
+        tar xf $tarfile -C / 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
+        rm -f $tarfile
         rm -f /data/digital-factory-data/repository/.lock
         if [ -f /data/digital-factory-data/backup-with-JCR-index ]; then
-          rm /data/digital-factory-data/backup-with-JCR-index
+          rm -f /data/digital-factory-data/backup-with-JCR-index
         else
           # Legacy backup without JCR saved with FRO, add reindex flag to trigger reindex on restart
           sudo -u tomcat touch /data/digital-factory-data/repository/reindex
@@ -468,11 +489,12 @@ actions:
         short_name=$(echo ${_ROLE}.$HOSTNAME | sed -r 's/^([a-Z]+)\.[a-Z]+([0-9]+)-.+$/\1.\2/' | tr 'A-Z' 'a-z')
         sed -e "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" \
             -e "s|^jahia.session.jvmRoute.*|jahia.session.jvmRoute = $short_name|" \
-            -i $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
+            -i $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties \
+            2>>${globals.logsPath} || echo "ERROR" >&2
     - if ("${response.errOut}" != ""):
         - return:
             type: error
-            message: "An error occurred while restoring jahia configuration. ${response.errOut}"
+            message: "An error occurred while restoring Jahia (configuration)"
     # Content History purge job should only be enabled on the processing node
     - cmd [cp]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
@@ -484,29 +506,23 @@ actions:
           curl -fSsLo ${file} $url || exit 1
           chown tomcat:tomcat $file
         fi
-
     - cmd [proc,cp]: |-
+        file=jahia-env-vars
+        tmpfile=/tmp/$file
         cd jelastic_backup
-        ls jahia-env-vars.gz || exit 0
-    - if ("${response.errOut}" == ""):
-        - cmd [proc,cp]: |-
-            cd jelastic_backup
-            gunzip jahia-env-vars.gz
-            mv jahia-env-vars /tmp/
-            sed -i "/^jahia_cfg_mvnPath/d" /tmp/jahia-env-vars
-            sed -i "/^jahia_cfg_elasticsearch_prefix/d" /tmp/jahia-env-vars
-            grep "jahia_cfg_mvnPath" /.jelenv >> /tmp/jahia-env-vars
-            grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> /tmp/jahia-env-vars
-            grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> /tmp/jahia-env-vars
-            cat /tmp/jahia-env-vars > /.jelenv
-            rm -f /tmp/jahia-env-vars
-        - if ("${response.errOut}" != ""):
-            - return:
-                type: error
-                message: "An error occurred while restoring jahia environment variables. ${response.errOut}"
-    - else:
-        log: "No env var backup available"
-
+        gunzip $file.gz 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
+        cp $file $tmpfile
+        sed -i "/^jahia_cfg_mvnPath/d" $tmpfile
+        sed -i "/^jahia_cfg_elasticsearch_prefix/d" $tmpfile
+        grep "jahia_cfg_mvnPath" /.jelenv >> $tmpfile
+        grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> $tmpfile
+        grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> $tmpfile
+        cat $tmpfile > /.jelenv
+        rm -f $file $tmpfile
+    - if ("${response.errOut}" != ""):
+        - return:
+            type: error
+            message: "An error occurred while restoring Jahia (environment variables)"
     - cmd [cp]: |-
         sed -i "s|^processingServer.*|processingServer = false|g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
     - restoreMariadb
