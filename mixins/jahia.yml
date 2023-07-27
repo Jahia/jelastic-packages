@@ -63,7 +63,7 @@ actions:
     - if ("${this}" == "cp"):
         cmd[${this}]:
           - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-    - setProxysqlCredsInConfig:
+    - setProxysqlCredsInDatadogConfig:
         target: "proc, cp"
     - setupDatadogAgentJahia: ${this}
     - cmd[${this}]: |-
@@ -1287,7 +1287,9 @@ actions:
   finishProxysqlInstall:
     # Parameters:
     # __secret__monitor_password: proxysql monitor user password
-    - setProxysqlCredsInConfig:
+    - updateProxySQLAdminPassword:
+        target: "proc, cp"
+    - setProxysqlCredsInDatadogConfig:
         target: "proc, cp"
 
     - setupMonitorUser:
@@ -1300,11 +1302,10 @@ actions:
         - disableDatadogCustomChecks
     - setupProxysqlCluster
 
-  setProxysqlCredsInConfig:
+  updateProxySQLAdminPassword:
     # Parameters
     # target: nodes/nodesGroup to run the script on
     cmd[${this.target}]: |-
-      source /.jelenv
       admin_creds_query="set admin-admin_credentials='admin:$PROXYSQL_ADMIN_PASSWORD;cluster1:$PROXYSQL_CLUSTER_PASSWORD';"
       cluster_creds_query="set admin-cluster_password='$PROXYSQL_CLUSTER_PASSWORD';"
       monitor_creds_query="set mysql-monitor_password='$PROXYSQL_MONITORING_PASSWORD';"
@@ -1312,6 +1313,11 @@ actions:
       mysql -h 127.0.0.1 -uadmin -padmin -P6032 -e "$admin_creds_query $cluster_creds_query $monitor_creds_query $persist_config_query" || exit 1
       ${globals.proxysql_cli} -e "SAVE ADMIN VARIABLES TO DISK" || exit 1
       ${globals.proxysql_cli} -e "SAVE MYSQL VARIABLES TO DISK" || exit 1
+
+  setProxysqlCredsInDatadogConfig:
+    # Parameters
+    # target: nodes/nodesGroup to run the script on
+    cmd[${this.target}]: |-
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/custom_checks
       sed -i "s/password: admin/password: $PROXYSQL_ADMIN_PASSWORD/" /etc/datadog-agent/conf.d/proxysql.d/conf.yaml
 
