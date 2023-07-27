@@ -137,14 +137,14 @@ actions:
         cd jelastic_backup
         rm -f $tarfile
         tar -cf $tarfile --files-from /dev/null
-        echo ${globals.jahiaCustomConfFiles} | tr " " "\n" | while read file; do
-          if [ -f $file ]; then
-            tar -uPf $tarfile $file 2>>${globals.logsPath} || echo "ERROR" >&2
-          fi
-        done
-        if [[ "$(tar -tf $tarfile)" = "" ]]; then
+        files_to_save=()
+        while IFS= read file; do
+          [ -f $file ] && files_to_save+=("$file")
+        done < <(echo ${globals.jahiaCustomConfFiles} | tr " " "\n")
+        if [ ${#files_to_save[@]} -eq 0 ]; then
           rm -f $tarfile
         else
+          tar -uPf $tarfile ${files_to_save[@]} 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
           gzip $tarfile 2>>${globals.logsPath} || echo "ERROR" >&2
         fi
     - if ("${response.errOut}" != ""):
