@@ -35,6 +35,7 @@ onInstall:
   - imageMagickMemoryShrink                   # PAAS-2475
   - increasePathRate                          # PAAS-2451
   - fixProxySQLStartup                        # PAAS-2451
+  - saveIndexingConfigurationFileUponRedeploy # PAAS-2390
 
   # Actions that require a restart
   - patchOps4j                                # PAAS-2471
@@ -170,7 +171,7 @@ actions:
         file=/etc/jelastic/redeploy.conf
         line=/data/digital-factory-data/repository/indexing_configuration.xml
         if ! grep -q $line $file; then
-          sed "/workspaces/a $line" $file
+          sed -i "/workspaces/a $line" $file
         fi
 
 settings:
