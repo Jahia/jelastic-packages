@@ -434,7 +434,6 @@ actions:
           digital-factory-data.tar.gz
           digital-factory-config.tar.gz
           jahia-env-vars.gz
-          jahia-custom-conf-files.tar.gz
         )
         cd jelastic_backup
         rclone copy $(for file in ${archives[@]}; do echo "--include=$file "; done) backup:${globals.bucketName}/${globals.backupName}/ . 2>>${globals.logsPath} || echo "ERROR" >&2
@@ -453,17 +452,6 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring Jahia (data)"
-    - cmd [proc,cp]: |-
-        tarfile=jahia-custom-conf-files.tar.gz
-        cd jelastic_backup
-        if [ -f $tarfile ]; then
-          tar -xPf $tarfile -C / 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
-          rm -f $tarfile
-        fi
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred while restoring Jahia (custom configuration files)"
     - if (${globals.jahia8}):
         - restoreOtherModulesConfig
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed

@@ -133,23 +133,6 @@ actions:
           type: error
           message: "An error occurred during Jahia backup (data)"
     - cmd [proc]: |-
-        tarfile=jahia-custom-conf-files.tar
-        cd jelastic_backup
-        rm -f $tarfile
-        tar -cf $tarfile --files-from /dev/null
-        # keep existing file only
-        files_to_save=($(for f in ${globals.jahiaCustomConfFiles}; do [ -f $f ] && echo -n "$f "; done))
-        if [ ${#files_to_save[@]} -eq 0 ]; then
-          rm -f $tarfile
-        else
-          tar -uPf $tarfile ${files_to_save[@]} 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
-          gzip $tarfile 2>>${globals.logsPath} || echo "ERROR" >&2
-        fi
-    - if ("${response.errOut}" != ""):
-        return:
-          type: error
-          message: "An error occurred during jahia backup (custom configuration files)"
-    - cmd [proc]: |-
         file=jahia-env-vars
         cd jelastic_backup
         rm -f $file $file.gz
@@ -177,7 +160,6 @@ actions:
           digital-factory-data.tar.gz
           digital-factory-config.tar.gz
           jahia-env-vars.gz
-          jahia-custom-conf-files.tar.gz
         )
         cd jelastic_backup
         rclone copy . $(for file in ${archives[@]}; do echo -n "--include=$file "; done) backup:${globals.bucketName}/${globals.backupName}/ 2>>${globals.logsPath} || { echo "ERROR" >&2; exit 0; }
