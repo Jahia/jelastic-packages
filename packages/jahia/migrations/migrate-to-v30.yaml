@@ -1,0 +1,102 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v30
+id: migrate-jahia-env-v30
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 30
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # Actions that update modules (needs to be done first)
+  # (None)
+
+  - updateHaproxyReloadScript                 # PAAS-2514
+
+  # Actions that require a restart
+  # (None)
+
+  # Actions that require a redeploy
+  # (None)
+
+  # Redeploy and restart actions:
+  - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-redeploy.yml"
+  - else:
+      - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+          - install:
+              jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  # Actions that can only run when the redeploy is done
+  # (None)
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  preChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+  postChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+  updateHaproxyReloadScript:
+    cmd[bl]: |-
+      file_md5=d896d160f25d14125281844fdc2ec238
+      file_path=/usr/local/bin/haproxy-reload.sh
+      if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+        curl -fLSso $file_path ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
+        chmod +x $file_path
+      fi
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
