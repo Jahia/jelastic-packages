@@ -21,7 +21,7 @@ eval "$(awk '/^## CUSTOMER_FILENAME/ \
 
 while read -r error; do                                            # For each "parsing" error on haproxy reload:
   l=$(echo "$error" | sed -E 's/^.+\[.+:([[:digit:]]+)\].+$/\1/')  # we extract the linue number in HAPROXY_CFG,
-  errormsg+=("$(echo $error | cut -d':' -f5-)")                    # and we create/populate a errormsg array.
+  add_error_msg=0
   for f in ${!lines[@]}; do                                        # Then for each mapped customer's conf files:
     bottom=${lines[$f]}                                            # we get the range a customer's file with the start line
     upper=${lines[$f+1]}                                           # and the start of the next file (if any).
@@ -29,15 +29,20 @@ while read -r error; do                                            # For each "p
       if (( $bottom < $l && $l < $upper )); then                   # if yes, then we test if the $l is in the file range:
         line+=($(echo "$l - $bottom" | bc))                        # if yes we create/populate a line array with the customer's file relative line,
         file+=(${files[$f]})                                       # a file array with the name of the file,
+        add_error_msg=1
         break                                                      # then we break the for loop and go to the next error if any.
       fi
     else                                                           # If there is no following customer's file after the current one:
       if (( $bottom < $l )); then                                  # we test if the $l is beyond the file start line number:
         line+=($(echo "$l - $bottom" | bc))                        # if yes we create/populate a line array with the customer's file relative line,
         file+=(${files[$f]})                                       # and a a file array with the name of the file.
+        add_error_msg=1
       fi
     fi
   done
+  if [ $add_error_msg -eq 1 ]; then
+      errormsg+=("$(echo $error | cut -d':' -f5-)")  # create/populate a errormsg array.
+  fi
 done < <(echo "$output" | grep " parsing ")
 
 
@@ -63,11 +68,11 @@ done
 # by sending each item to jq in order
 # to construct a json
 for ((i=0; i<${#hihi[@]}; i++)); do
-  echo ${hihi[$i]} 
+  echo ${hihi[$i]}
 done | jq -cMRrn 'reduce inputs as $line
                   ( {}
                   ; ($line | split(" → ")) as $elements
-                  | . [$elements[0]] += 
+                  | . [$elements[0]] +=
                     [ $elements[1]
                     ]
                   )' | sed -r "s/'([^']+)'/«\1»/g" 1>&2
