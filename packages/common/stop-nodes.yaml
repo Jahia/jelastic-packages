@@ -68,7 +68,7 @@ actions:
     script: |-
       nodesToStop = ${settings.nodesToStop}
 
-      // Check that there is not multiple es/sqldb/bl nodes
+      // Check that there is not multiple es/sqldb/bl/storage nodes
       error = "";
       if ("es" in nodesToStop && nodesToStop["es"].length > 1)
         error += "Invalid count of es nodes ";
@@ -76,6 +76,8 @@ actions:
         error += "Invalid count of sqldb nodes ";
       else if ("bl" in nodesToStop && nodesToStop["bl"].length > 1)
         error += "Invalid count of bl nodes";
+      else if ("storage" in nodesToStop && nodesToStop["storage"].length > 1)
+        error += "Invalid count of storage nodes";
 
       if (error != "")
         return {"result": 1, "error": error};
