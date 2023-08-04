@@ -22,7 +22,8 @@ node_group_translation = {
         "bl": "HAProxy",
         "cp": "Browsing",
         "proc": "Processing",
-        "sqldb": "MariaDB"
+        "sqldb": "MariaDB",
+        "storage": "GlusterFS/NFS"
     },
     "jcustomer": {
         "cp": "jCustomer",

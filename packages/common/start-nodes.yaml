@@ -40,6 +40,10 @@ onInstall:
     - if (globals.nodesDict.bl): # Haproxy
         startHaproxyNode: ${globals.nodesDict.bl[0]}
 
+    - if (globals.nodesDict.storage): # Storage node(s)
+        forEach (globals.nodesDict.storage):
+          - startNode: ${@i}
+
     - if (globals.nodesDict.proc): # Processing
         - startNode: ${globals.nodesDict.proc[0]}
         - callAddProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}

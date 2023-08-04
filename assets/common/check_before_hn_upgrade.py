@@ -118,7 +118,7 @@ def is_count_valid(node_group, count, environment):
        environment[node_group] > 1 and \
        count > (environment[node_group] / 2):
         return False
-    elif (node_group == "sqldb" or node_group == "es") and count > 1:
+    elif (node_group == "sqldb" or node_group == "es" or node_group == "storage") and count > 1:
         return False
     return True
 
@@ -190,7 +190,7 @@ def get_jahia_cloud_envnames_from_papi(papi_hostname, papi_token):
 
 
 # We don't care about processing node since there is always only one
-VALID_NODEGROUP = ["cp", "sqldb", "bl", "es"]
+VALID_NODEGROUP = ["cp", "sqldb", "bl", "es", "storage"]
 
 # SHELL colors
 RED_COLOR = "\033[0;31m"
