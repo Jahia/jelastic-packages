@@ -132,6 +132,46 @@ actions:
         return:
           type: error
           message: "An error occurred during Jahia backup (data)"
+    - cmd[proc]: |-
+        if [[ -z "$jahia_cfg_jahia_jackrabbit_datastore_path" ]]; then
+            echo "no datastore in filesystem here" >> ${globals.logsPath}
+            exit 0
+        fi
+
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
+        DS_folder=/share/datastore
+        mirror_folder=~/share_mirror
+
+        # mirroring the datastore from the share to a local directory
+        rsync -a --delete $DS_folder $mirror_folder --log-file=${globals.logsPath} 2>>${globals.logsPath}
+        if (($?)); then
+          echo "Something went wrong with rsync" >> ${globals.logsPath}
+          echo "ERROR" >&2
+        fi
+
+        # tar the local directory mirror and push it to the backup bucket on the fly
+        # note that the --s3-chunk-size can be adjust, with "48M" it allow upload for a 468GiB file
+        set -o pipefail
+        tar cf - --checkpoint=5000 --totals -C $mirror_folder datastore 2>>${globals.logsPath} \
+          | rclone rcat backup:${globals.bucketName}/${globals.backupName}/datastore.tar \
+                   --s3-chunk-size 48M \
+                   --log-file=${globals.logsPath} \
+                   --log-level DEBUG
+
+        if (($?)); then
+          echo "Something went wrong with tar or rclone, we clean the bucket" >> ${globals.logsPath}
+          rclone purge backup:${globals.bucketName}/${globals.backupName} \
+                 --log-file=${globals.logsPath}
+          echo "ERROR" >&2
+        fi
+    - if ("${response.errOut}" != ""):
+        return:
+          type: error
+          message: "An error occurred during jahia backup (datastore)"
+
     - cmd [proc]: |-
         file=jahia-env-vars
         cd jelastic_backup

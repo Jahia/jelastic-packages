@@ -8,6 +8,7 @@ id: jahia-restore-from-bucket
 globals:
   logAction: "Restore"
   logsPath: "/var/log/jelastic-packages/restore.log"
+  DS_in_DB: false
 
 mixins:
   - ../../mixins/common.yml
@@ -441,6 +442,48 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring jahia (archives download)"
+    - cmd[proc]: |-
+        __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
+        __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__ACCESS_KEY_ID"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__SECRET_ACCESS_KEY"
+        share_folder=/share
+        mirror_folder=~/share_mirror/datastore
+
+        # in case of backup with datastore on DB,
+        # check that we really have a datastore archive to download
+        if [[ -z "$(rclone lsf backup:${globals.bucketName}/${globals.backupName}/datastore.tar)" ]]; then
+          echo "no datastore archive found on bucket" >> ${globals.logsPath}
+          echo "DS_in_DB"
+          exit 0
+        fi
+
+        # reset the local mirror folder
+        rm -fr $mirror_folder
+        mkdir $mirror_folder
+
+        # download the datastore archive and extract it on the fly
+        set -o pipefail
+        rclone cat backup:${globals.bucketName}/${globals.backupName}/datastore.tar \
+               --log-file=${globals.logsPath} \
+          | tar xf - -C $mirror_folder 2>> ${globals.logsPath}
+
+        if (($?)); then
+          echo "Something went wrong with tar or rclone" >> ${globals.logsPath}
+          echo "ERROR" >&2
+          exit 0
+        fi
+
+        # now refreshing the shared datastore
+        rsync -a --delete $mirror_folder $share_folder --log-file=${globals.logsPath} 2>>${globals.logsPath}
+    - if ("${response.errOut}" != ""):
+        return:
+          type: error
+          message: "An error occurred while restoring jahia (datastore)"
+    - else:
+        - if ("${response.out}" == "DS_in_DB"):
+            setGlobals:
+              DS_in_DB: true
     - cmd [proc,cp]: service tomcat stop
     - cmd [proc,cp]: |-
         tarfile=digital-factory-data.tar.gz
@@ -552,6 +595,86 @@ actions:
           })
         """ > ${groovy_file_path}
         chown tomcat: $groovy_file_path
+
+    - if (globals.DS_in_DB):
+        - cmd[proc]: |-
+            echo "Have to migrate Datastore from database to filesystem" >> ${globals.logsPath}
+
+            # download and build the datastore migration script
+            echo "download jackrabbit-datastore-migration's source from github" >> ${globals.logsPath}
+            curl -fLSso /tmp/jackrabbit-datastore-migration-0.1.5.zip https://github.com/woonsan/jackrabbit-datastore-migration/archive/refs/tags/0.1.5.zip || exit 1
+            cd /tmp
+            echo "extract jackrabbit-datastore-migration source" >> ${globals.logsPath}
+            unzip jackrabbit-datastore-migration-0.1.5.zip 2>> ${globals.logsPath}
+            echo "build jackrabbit-datastore-migration" >> ${globals.logsPath}
+            cd /tmp/jackrabbit-datastore-migration-0.1.5
+            $(find /opt/apache-maven-*/bin -type f -name mvn) clean install -DskipTests >> ${globals.logsPath} 2>&1
+
+            echo "delete and recreate /share/datastore" >> ${globals.logsPath}
+            rm -fr /share/datastore
+            sudo -u tomcat mkdir /share/datastore
+
+            # migration conf file setup
+            echo "create jackrabbit-datastore-migration's config file" >> ${globals.logsPath}
+            cat > /tmp/ds_migration_config.yaml <<- EOF
+            logging:
+                level:
+                    root: 'WARN'
+                    com.github.woonsan.jackrabbit.migration.datastore: 'DEBUG'
+
+            batch:
+                minWorkers: '10'
+                maxWorkers: '10'
+
+            target:
+                dataStore:
+                    directBackendAccess: true
+                    homeDir: 'tmp/target'
+                    className: 'org.apache.jackrabbit.vfs.ext.ds.VFSDataStore'
+                    params:
+                        baseFolderUri: 'file:///share/datastore'
+                        minRecordLength: '1024'
+
+            source:
+                dataStore:
+                    homeDir: 'tmp/source'
+                    className: 'org.apache.jackrabbit.core.data.db.DbDataStore'
+                    params:
+                        url: 'jdbc:mysql://${nodes.sqldb.first.intIP}:3306/jahia?useUnicode=true&characterEncoding=UTF-8&useSSL=false'
+                        user: '${DB_USER}'
+                        password: '${DB_PASSWORD}'
+                        driver: 'com.mysql.jdbc.Driver'
+                        databaseType: 'mysql'
+                        minRecordLength: '1024'
+                        maxConnections: '10'
+                        copyWhenReading: 'false'
+                        tablePrefix: ''
+                        schemaObjectPrefix: 'JR_'
+                        schemaCheckEnabled: 'true'
+            EOF
+
+            # start the migration
+            cd /tmp
+            set -o pipefail
+            sudo -u tomcat java -Dloader.path=/opt/tomcat/lib/ \
+                                -jar /tmp/jackrabbit-datastore-migration-0.1.5/target/jackrabbit-datastore-migration-0.1.5.jar \
+                                --spring.config.location=/tmp/ds_migration_config.yaml \
+              >> ${globals.logsPath} 2>&1
+
+            if (($?)); then
+              echo "something went wrong on datastore migration" >> ${globals.logsPath}
+              echo "ERROR" >&2
+            fi
+
+            # truncate datastore table in database
+            mysql -h ${nodes.sqldb.first.intIP} -u ${DB_USER} -p${DB_PASSWORD} jahia -e "TRUNCATE TABLE JR_DATASTORE"
+        - if ("${response.errOut}" != ""):
+            - return:
+                type: error
+                message: "An error occurred while restoring Jahia (datastore migration)"
+
+
+    - cmd[proc]: |-
         service tomcat start
 
     - startupJahiaHealthCheck: proc
