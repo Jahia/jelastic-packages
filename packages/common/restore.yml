@@ -466,7 +466,7 @@ actions:
         set -o pipefail
         rclone cat backup:${globals.bucketName}/${globals.backupName}/datastore.tar \
                --log-file=${globals.logsPath} \
-          | tar xf - -C $mirror_folder 2>> ${globals.logsPath}
+          | tar xf - -C ~/share_mirror 2>> ${globals.logsPath}
 
         if (($?)); then
           echo "Something went wrong with tar or rclone" >> ${globals.logsPath}
@@ -545,8 +545,10 @@ actions:
         cp $file $tmpfile
         sed -i "/^jahia_cfg_mvnPath/d" $tmpfile
         sed -i "/^jahia_cfg_elasticsearch_prefix/d" $tmpfile
+        sed -i "/^jahia_cfg_jahia_jackrabbit_datastore_path/d" $tmpfile
         grep "jahia_cfg_mvnPath" /.jelenv >> $tmpfile
         grep "jahia_cfg_elasticsearch_prefix" /.jelenv >> $tmpfile
+        grep "jahia_cfg_jahia_jackrabbit_datastore_path" /.jelenv >> $tmpfile
         grep -vE "^(jahia|tomcat)_cfg_" /.jelenv >> $tmpfile
         cat $tmpfile > /.jelenv
         rm -f $file $tmpfile
@@ -598,7 +600,13 @@ actions:
 
     - if (globals.DS_in_DB):
         - cmd[proc]: |-
-            echo "Have to migrate Datastore from database to filesystem" >> ${globals.logsPath}
+            echo "This backup contains the datastore in the database" >> ${globals.logsPath}
+            if [[ -d $jahia_cfg_jahia_jackrabbit_datastore_path ]]; then
+              echo "This env is configured for datastore in filesystem, have to migrate it from database to filesystem" >> ${globals.logsPath}
+            else
+              echo "This env is configured for datastore in database, no migration to filesystem needed" >> ${globals.logsPath}
+              exit 0
+            fi
 
             # download and build the datastore migration script
             echo "download jackrabbit-datastore-migration's source from github" >> ${globals.logsPath}
