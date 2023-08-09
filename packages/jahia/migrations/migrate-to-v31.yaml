@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate Jahia env to v30
-id: migrate-jahia-env-v30
+name: Migrate Jahia env to v31
+id: migrate-jahia-env-v31
 
 # Required for healthchecks
 mixins:
@@ -13,7 +13,7 @@ mixins:
   - "../../../mixins/elasticsearch.yml"
 
 globals:
-  version: 30
+  version: 31
 
 onInstall:
   ### Pre-migration actions
@@ -30,6 +30,7 @@ onInstall:
   # (None)
 
   - updateHaproxyReloadScript                 # PAAS-2514
+  - setupStorageMonitoring                    # PAAS-2449
 
   # Actions that require a restart
   # (None)
@@ -94,6 +95,38 @@ actions:
         curl -fLSso $file_path ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $file_path
       fi
+
+  setupStorageMonitoring:
+  - cmd [storage]: |-
+      file=/etc/datadog-agent/datadog.yaml
+      if [ ! -f $file ]; then
+        echo "need_install"
+      fi
+  - if ("${response.out}" == "need_install"):
+    - setupDatadogAgentStorage: storage
+  - if (nodes.sqldb.length == 1):
+      cmd[cp, proc]: |-
+        file=/etc/datadog-agent/conf.d/nfsstat.d/conf.yaml
+        if [ ! -f $file ]; then
+          setfacl -m u:dd-agent:rx /var/log/messages
+          sed -i '/\/bin\/kill/a \        setfacl -m u:dd-agent:rx /var/log/messages' /etc/logrotate.d/syslog
+          cat > $file << EOF
+        init_config:
+        instances:
+          -
+            min_collection_interval: 60
+        logs:
+          - type: file
+            path: /var/log/messages
+            source: nfsstat
+            service: nfs
+            log_processing_rules:
+            - type: include_at_match
+              name: include_nfsstat_only
+              pattern: "nfsstat"
+        EOF
+          systemctl restart rsyslog crond datadog-agent
+        fi
 
 settings:
   fields:
