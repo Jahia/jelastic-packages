@@ -1,0 +1,151 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v30
+id: migrate-jahia-env-v30
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 30
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  - fixRMI # PAAS-2536
+
+  # Redeploy and restart actions:
+  - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-redeploy.yml"
+  - else:
+      - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+          - install:
+              jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  - checkPorts # PAAS-2536
+  # Actions that can only run when the redeploy is done
+  # (None)
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  preChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+  postChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+
+  fixRMI:
+    - disableRMIInCFG: ${nodes.proc.first.id}
+    - foreach (nodes.cp):
+        disableRMIInCFG: ${@i.id}
+
+
+    - cmd[proc]: |-
+        features=/data/digital-factory-data/karaf/etc/org.apache.karaf.features.cfg
+        if grep -q "(minimal," $features; then
+          start=$(awk '/\(minimal,/ { print NR }' $features);
+          end=$(awk '/wrap),/ { print NR }' $features)
+          sed -i "$start,${end}d" $features
+          sed -i '/featuresBoot =/a\    (jaas, \\\n    shell, \\\n    feature, \\\n    ssh, \\\n    bundle, \\\n    config, \\\n    deployer, \\\n    diagnostic, \\\n    instance, \\\n    kar, \\\n    log, \\\n    package, \\\n    service, \\\n    system, \\\n    eventadmin, \\\n    scr, \\\n    aries-proxy, \\\n    wrap), \\' $features
+          sleep 10 # wait for file to be sync
+        fi
+    - cmd[cp]: |-
+        if grep -q "(minimal," /data/digital-factory-data/karaf/etc/org.apache.karaf.features.cfg; then
+          echo "Error, /data/digital-factory-data/karaf/etc/org.apache.karaf.features.cfg content not replicated"
+          exit 1
+        fi
+
+    - enableKarafLogin: "proc, cp"
+    - cmd[proc, cp]: |-
+        ${globals.karafConsole} bundle:uninstall org.apache.aries.util org.apache.karaf.management.server org.apache.aries.jmx.api org.apache.aries.jmx.core org.apache.aries.jmx.whiteboard org.apache.karaf.scr.management || exit 0
+    - disableKarafLogin: "proc, cp"
+
+    - cmd[proc, cp]: |-
+        if [ "$(netstat -lnt | grep -Ew '(1099|44444)')" != "" ]; then
+          echo "Ports are still open, restart needed"
+        fi
+    - if ("${response.out}" != ""):
+        setGlobals:
+          jahiaRollingRestartNeeded: true
+
+  checkPorts:
+    - cmd[proc, cp]: |-
+        if [ "$(netstat -lnt | grep -Ew '(1099|44444)')" != "" ]; then
+          echo "Ports are still open after restart !"
+          exit 1
+        fi
+
+  disableRMIInCFG:
+    - cmd[${this}]: |-
+        webxml=/opt/tomcat/webapps/ROOT/WEB-INF/web.xml
+        if grep -q "name>RMI" $webxml; then
+          echo "RESTART"
+        fi
+    - if ("${response.out}" == "RESTART"):
+        - queryShutdownEndpoint:
+            target: ${this}
+        - if ("${this}" == "${nodes.proc.first.id}"):
+            removeProcNodeFromHaproxy:
+              reload: true
+        - else:
+            removeBrowsingNodeFromHaproxy:
+              nodeId: ${this}
+              reload: true
+
+        - cmd[${this}]: |-
+            webxml=/opt/tomcat/webapps/ROOT/WEB-INF/web.xml
+            pattern=$(echo $(awk '/name>RMI/ {print NR}' $webxml) |awk '{print $1-1","$1+2"d;"$2-1","$2+2"d"}')
+            sed -ie "$pattern" $webxml
+        - api: environment.control.RestartNodeById
+          nodeId: ${this}
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
