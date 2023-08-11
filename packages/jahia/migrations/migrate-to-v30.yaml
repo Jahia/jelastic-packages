@@ -106,7 +106,7 @@ actions:
     - disableKarafLogin: "proc, cp"
 
     - cmd[proc, cp]: |-
-      if [ "$(netstat -aon | grep -e ":1099 " -e :44444)" != "" ]; then
+        if [ "$(netstat -lnt | grep -Ew '(1099|44444)')" != "" ]; then
           echo "Ports are still open, restart needed"
         fi
     - if ("${response.out}" != ""):
@@ -115,7 +115,7 @@ actions:
 
   checkPorts:
     - cmd[proc, cp]: |-
-      if [ "$(netstat -aon | grep -e ":1099 " -e :44444)" != "" ]; then
+        if [ "$(netstat -lnt | grep -Ew '(1099|44444)')" != "" ]; then
           echo "Ports are still open after restart !"
           exit 1
         fi
