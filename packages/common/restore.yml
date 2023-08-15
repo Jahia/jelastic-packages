@@ -460,7 +460,7 @@ actions:
 
         # reset the local mirror folder
         rm -fr $mirror_folder
-        mkdir $mirror_folder
+        mkdir -p $mirror_folder
 
         # download the datastore archive and extract it on the fly
         set -o pipefail
