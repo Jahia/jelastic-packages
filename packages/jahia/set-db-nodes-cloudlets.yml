@@ -54,7 +54,11 @@ actions:
           ${settings.cloudlets},
           0
         )
-    - startGaleraNode: ${this}
+    - checkMariadbHealth:
+        target: ${this}
+        maxDuration: 300
+    - if (nodes.sqldb.length > 1):
+        checkGaleraClusterHealth: ${this}
 
 settings:
   fields:
