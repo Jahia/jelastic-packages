@@ -54,6 +54,14 @@ actions:
     - else:
         - log: "The parameter '${this}' is not an integer, nothing to do"
 
+  getEnvVersion:
+    - script: |-
+        const envVersion = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+            return object.name == "cp";
+        }).pop().envVersion;
+        return {'result': 0, 'envVersion': envVersion}
+    - setGlobals:
+        envVersion: ${response.envVersion}
 
   checkEnvVersion:
     - script: |-
