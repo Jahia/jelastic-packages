@@ -127,6 +127,21 @@ actions:
         EOF
           systemctl restart rsyslog crond datadog-agent
         fi
+  - else:
+      cmd[cp, proc]: |-
+        file=/etc/datadog-agent/conf.d/glusterfs.d/conf.yaml
+        if [ ! -f $file ]; then
+          setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+          sed -i '/killall.*glusterd/a \  /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+          cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+        logs:
+          - type: file
+            path: /var/log/glusterfs/share.log
+            source: glusterfs
+            service: glusterfs
+        EOF
+          systemctl restart rsyslog crond datadog-agent
+        fi
 
 settings:
   fields:
