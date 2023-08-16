@@ -12,7 +12,7 @@ description:
     needs for sustainable growth.
 
 globals:
-  jahia_env_version: 30
+  jahia_env_version: 31
   db_user: jahia-db-${fn.random}
   __secret__db_pass: ${fn.password(20)}
   __secret__db_user_datadog: ${fn.password(20)}
@@ -358,6 +358,7 @@ onInstall:
   - installPapiScript: bl, proc, cp, sqldb, storage
   - setupDatadogAgentSql: sqldb
   - setupDatadogAgentJahia: cp, proc
+  - setupDatadogAgentStorage: storage
   - setupDatadogAgentHaproxy: bl
   - setupRclone
   - setEnvVersion: ${globals.jahia_env_version}
