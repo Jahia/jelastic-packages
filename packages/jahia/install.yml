@@ -291,10 +291,8 @@ onBeforeInstall: |
   nodes.push(node_mariadb);
 
   var is_glusterfs = false
-  var storage_role = "nfs"
   if (${settings.sqldbNodeCount} == 3) {
     is_glusterfs = true
-    storage_role = "glusterfs"
   }
 
   node_storage = {
@@ -307,7 +305,7 @@ onBeforeInstall: |
     "env": {
         "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
         "_PROVIDE": "Storage",
-        "_ROLE": storage_role,
+        "_ROLE": "storage",
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false
