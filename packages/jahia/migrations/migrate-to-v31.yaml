@@ -30,6 +30,7 @@ onInstall:
   # (None)
 
   - updateHaproxyReloadScript                 # PAAS-2514
+  - updateHaproxyXforwadedForHeader           # PAAS-2552
   - setupStorageMonitoring                    # PAAS-2449
 
   # Actions that require a restart
@@ -94,6 +95,15 @@ actions:
       if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
         curl -fLSso $file_path ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
         chmod +x $file_path
+      fi
+
+  updateHaproxyXforwadedForHeader:
+    cmd[bl]: |-
+      file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      if ! (grep -q "http-request set-header X-Forwarded-For" $file); then
+        new_line="http-request set-header X-Forwarded-For %[req.fhdr(X-Forwarded-For),regsub(' ','',g)]"
+        sed -i "/Ssl-Offloaded/a\    $new_line" $file
+        service haproxy reload
       fi
 
   setupStorageMonitoring:
