@@ -404,7 +404,6 @@ Takes as parameters:
 | ------------------ | ---------------------------------------------------------------------------------------- |
 | productVersion     | Jahia version (eg: `8.0.2.0`)                                                            |
 | rootpwd            | Jahia root password                                                                      |
-| toolspwd           | Jahia tools password                                                                     |
 | haproxyNodeCount   | Number of HAProxy nodes                                                                  |
 | browsingNodeCount  | Number of Jahia browsing nodes                                                           |
 | browsingNodeSize   | Size of Jahia browsing nodes (`small`, `medium` or `large`)                              |

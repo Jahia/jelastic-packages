@@ -350,7 +350,6 @@ onInstall:
   - installJahia:
       jahiaVersion: ${settings.productVersion}
       __secret__rootpwd: ${settings.rootpwd}
-      __secret__toolspwd: ${settings.toolspwd}
   - installHaproxy
   - getLogEventScript: bl, proc, cp, sqldb, storage
   - installPapiScript: bl, proc, cp, sqldb, storage
@@ -379,11 +378,6 @@ settings:
     - name: rootpwd
       type: string
       caption: Jahia root password
-      vtype: string
-      required: true
-    - name: toolspwd
-      type: string
-      caption: Jahia tools password
       vtype: string
       required: true
     - name: haproxyNodeCount

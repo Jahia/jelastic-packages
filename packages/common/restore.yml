@@ -85,14 +85,9 @@ onInstall:
               target: bl
               logAction: ${globals.logAction}
       - getJahiaVersion
-      - isVersionHigherOrEqual:
-          a: ${globals.jahiaVersion}
-          b: 8.0.0.0
-          res: jahia8
       - getInitialJexperienceStatus
       - getInitialAugSearchStatus
-      - if (${globals.jahia8}):
-          - saveOtherModulesConfig
+      - saveOtherModulesConfig
       - restoreJahia
       - if (nodes.bl):
           - restoreHaproxy
@@ -124,18 +119,17 @@ actions:
         - setGlobals:
             jexperienceActiveBeforeRestore: true
             jexperienceVersionBeforeRestore: ${globals.runningVersion}
-        - if (${globals.jahia8}):
-            - checkModule:
-                moduleSymname: kibana-dashboards-provider
-            - setGlobals:
-                kibanaDashboardsVersionBeforeRestore: ${globals.runningVersion}
-            - checkModule:
-                moduleSymname: jexperience-dashboards
-            - setGlobals:
-                jexperienceDashboardsVersionBeforeRestore: ${globals.runningVersion}
-            # We save Kibana dashboards provider configuration
-            - cmd [proc,cp]: |-
-                cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /root
+        - checkModule:
+            moduleSymname: kibana-dashboards-provider
+        - setGlobals:
+            kibanaDashboardsVersionBeforeRestore: ${globals.runningVersion}
+        - checkModule:
+            moduleSymname: jexperience-dashboards
+        - setGlobals:
+            jexperienceDashboardsVersionBeforeRestore: ${globals.runningVersion}
+        # We save Kibana dashboards provider configuration
+        - cmd [proc,cp]: |-
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /root
         # We save jexperience configuration
         - cmd [proc,cp]: |-
             cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
@@ -226,9 +220,8 @@ actions:
 
   reconfigureJExperience:
     - log: "jExperience was active before the restore, the original conf needs to be restored"
-    - if (${globals.jahia8}):
-        - cmd [proc, cp]: |-
-            mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc
+    - cmd [proc, cp]: |-
+        mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc
     - cmd [proc, cp]: |-
         mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc
 
@@ -249,43 +242,33 @@ actions:
   prepareJExperienceRestore:
     - reconfigureJExperience
     # If the version of jExperience restored from the backup is not the same as the original one,
-    # then we need to install the right version (only for Jahia 8 since we are using provisioning)
-    - if (${globals.jahia8}):
-        - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperienceVersionBeforeRestore}"
-        - cmd[proc]: |-
-            echo "Re-install jExperience module to the pre-restore version: v${globals.jexperienceVersionBeforeRestore}" >> ${globals.logsPath}
-        - log: "Install jExperience v${globals.jexperienceVersionBeforeRestore}"
-        - installOrUpgradeJExprienceModules
+    # then we need to install the right version
+    - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperienceVersionBeforeRestore}"
+    - cmd[proc]: |-
+        echo "Re-install jExperience module to the pre-restore version: v${globals.jexperienceVersionBeforeRestore}" >> ${globals.logsPath}
+    - log: "Install jExperience v${globals.jexperienceVersionBeforeRestore}"
+    - installOrUpgradeJExprienceModules
 
   finishJExperienceRestore:
-    # For Jahia 7, since the provisioning doesn't work, we have to reinstall/upgrade
-    # jExperience using the API (if needed)
-    - if (!${globals.jahia8}):
-        - installOrUpgradeModule:
-            moduleSymname: jexperience
-            moduleVersion: ${globals.jexperienceVersionBeforeRestore}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: marketing-factory-releases
-    - else:
-        # For Jahia 8 we just make sure that jExperience modules are running
-        - checkModule:
-            moduleSymname: jexperience
-        - if ("${globals.moduleState}" != "started"):
-            - return:
-                type: error
-                message: "jExperience is not running after restoring the backup, please check."
-        - checkModule:
-            moduleSymname: kibana-dashboards-provider
-        - if ("${globals.moduleState}" != "started"):
-            - return:
-                type: error
-                message: "Kibana Dashboards Provider is not running after restoring the backup, please check."
-        - checkModule:
-            moduleSymname: jexperience-dashboards
-        - if ("${globals.moduleState}" != "started"):
-            - return:
-                type: error
-                message: "jExperience Dashboards is not running after restoring the backup, please check."
+    # We make sure that jExperience modules are running
+    - checkModule:
+        moduleSymname: jexperience
+    - if ("${globals.moduleState}" != "started"):
+        - return:
+            type: error
+            message: "jExperience is not running after restoring the backup, please check."
+    - checkModule:
+        moduleSymname: kibana-dashboards-provider
+    - if ("${globals.moduleState}" != "started"):
+        - return:
+            type: error
+            message: "Kibana Dashboards Provider is not running after restoring the backup, please check."
+    - checkModule:
+        moduleSymname: jexperience-dashboards
+    - if ("${globals.moduleState}" != "started"):
+        - return:
+            type: error
+            message: "jExperience Dashboards is not running after restoring the backup, please check."
 
   reconfigureAS:
     # This action will drop groovy scripts in the "patch" folder to reconfigure AS
@@ -334,10 +317,7 @@ actions:
         __secret__elasticsearch_password: ${fn.password(20)}
     - createESAccount4AS
     - reconfigureAS
-    # We are using provisioning to install the right version of the modules so it only works
-    # with Jahia 8
-    - if (${globals.jahia8}):
-        - installOrUpgradeASModules
+    - installOrUpgradeASModules
     - purgeEnvIndicesInES
 
   checkESConnection:
@@ -366,51 +346,7 @@ actions:
   finishASRestore:
     # We need Jahia to be running to make sure the ES connection has been restored
     # and trigger a full reindex of sites for Augmented Search.
-    #
-    # Since the provisioning doesn't work for Jahia 7, we need to reinstall modules and restore
-    # ES connection/AS conf the old way, using the API, which is why we do it once Jahia is running
-    # Unlike Jahia 8, since we don't know if the modules were installed and running in the backup and they are
-    # not installed with the provisioning file, we can't fully trust the groovy scripts to make sure that
-    # the ES connector and AS connection have been updated, so we can rely on the modules' state, if they are running
-    # it means the groovy scripts could be run and we don't need to reconfigure ES/AS (I know it's super complex but
-    # Jahia 7 will soon be dropped so...)
-    - if (! ${globals.jahia8}):
-        - set:
-            reconfigureES: false
-            reconfigureAS: false
-        - checkModule:
-            moduleSymname: elasticsearch-connector
-        - if ("${globals.moduleState}" != "started"):
-            - set:
-                reconfigureES: true
-        - checkModule:
-            moduleSymname: augmented-search
-        - if ("${globals.moduleState}" != "started"):
-            - set:
-                reconfigureAS: true
-        - installOrUpgradeModule:
-            moduleSymname: database-connector
-            moduleVersion: ${globals.modulesState.database-connector-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-connector-enterprise-releases
-        - installOrUpgradeModule:
-            moduleSymname: elasticsearch-connector
-            moduleVersion: ${globals.modulesState.elasticsearch-connector-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-connector-enterprise-releases
-        - installOrUpgradeModule:
-            moduleSymname: augmented-search
-            moduleVersion: ${globals.modulesState.as-version}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: augmented-search-releases
-        - if (${this.reconfigureES}):
-            - removeDefaultESConnection
-            - setDefaultESConnection
-        - if (${this.reconfigureAS}):
-            - setAugSearchESConnection
-    - else:
-        # We need to make sure that the ES connection has been successfully restored before triggering a full reindex
-        - checkESConnection
+    - checkESConnection
     - if (${globals.asShouldBeStarted}):
         - checkModule:
             moduleSymname: augmented-search
@@ -495,8 +431,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring Jahia (data)"
-    - if (${globals.jahia8}):
-        - restoreOtherModulesConfig
+    - restoreOtherModulesConfig
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
     # before starting Jahia so the modules can start successfully when Jahia will start
     - if (${globals.jexperienceActiveBeforeRestore}):
@@ -569,15 +504,9 @@ actions:
         rm -f ${groovy_file_path}*
 
         # Replace Pat Token if needed and start tomcat
-        jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
-        if [ $jahia_major_version -eq 7 ]; then
-          jahia_7_parameter=", null"
-        else
-          jahia_7_parameter=""
-        fi
         echo """
           org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
-            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
+            def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\")
             def tokenDetails = service.verifyToken(\"$__secret__pat_token\", session)
             if (! tokenDetails) {
               def tokens = service.getTokensDetails(\"/users/root\",  session).toList()
