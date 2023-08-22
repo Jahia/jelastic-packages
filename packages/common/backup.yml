@@ -210,6 +210,7 @@ actions:
           message: "An error occurred during jahia backup (archives upload)"
 
   addMetadata:
+    - getEnvVersion
     - cmd [${this}]: |-
         __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
         __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
@@ -230,8 +231,10 @@ actions:
         cd jelastic_backup
         if [ "${this}" == "proc" ]; then  # Jahia
           size=$(rclone size --json backup:${globals.bucketName}/${globals.backupName} | jq '.bytes')
+          esversionParameter=""
         else  #jCustomer
           size=1
+          esversionParameter="--esversion $(curl -sSlu $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD https://$UNOMI_ELASTICSEARCH_ADDRESSES| jq -r '.version.number')"
         fi
         lock_sec_max=300
         meta_bucket_name="jc${globals.clusterRole}backupmetadata"
@@ -259,7 +262,7 @@ actions:
           fi
         }
         getLock
-        python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --displayname '${env.displayName}' --size $size 2>>${globals.logsPath} || exit 1
+        python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --envversion '${globals.envVersion}' --displayname '${env.displayName}' --size $size $esversionParameter 2>>${globals.logsPath} || exit 1
         rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
     - if ("${response.errOut}" != ""):
         - return:
