@@ -23,16 +23,9 @@ onInstall:
       rm -f ${groovy_file_path}*
 
       # Replace Pat Token if needed and start tomcat
-      jahia_major_version=$(echo "$DX_VERSION" | cut -d'.' -f1)
-      if [ $jahia_major_version -eq 7 ]; then
-        jahia_7_parameter=", null"
-      else
-        jahia_7_parameter=""
-      fi
-
       echo """
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
-          def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter);
+          def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\");
           def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session);
           if (tokenDetails) {
             service.deleteToken(tokenDetails.key, session);

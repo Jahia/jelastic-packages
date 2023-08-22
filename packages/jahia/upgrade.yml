@@ -48,9 +48,6 @@ onInstall:
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [cp, proc]:
       - service tomcat stop
-  - setVersionPropertiesValue:
-      initialJahiaVersion: ${globals.initialVersion}
-      targetJahiaVersion: ${settings.targetVersion}
   - procRedeploy:
       upgradeJahia: true
       targetDockerTag: ${this.targetDockerTag}
@@ -68,17 +65,6 @@ onInstall:
         moduleVersion: ${globals.jexperienceVersion}
         moduleGroupId: org.jahia.modules
         moduleRepository: marketing-factory-releases
-
-  # If we're upgrading from Jahia 7 to Jahia 8, then we need to install and configure kibana-dashboard-provider.
-  # The setupKibanaDashboardAndCreateCustomerAccount action will make sure that the new version is >= 8.0.0.0 and that the env is linked to a
-  # jCustomer prior to doing anything
-  - isVersionStrictlyLower:
-      a: ${globals.initialVersion}
-      b: 8.0.0.0
-      res: jahia7
-  - if (${globals.jahia7}):
-      setupKibanaDashboardAndCreateCustomerAccount:
-        envVersion: ${settings.targetVersion}
 
   # Update Jahia version in node group data, envvar, and PAPI:
   - env.nodegroup.ApplyData[cp, proc]:
