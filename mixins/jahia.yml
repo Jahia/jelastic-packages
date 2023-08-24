@@ -187,7 +187,7 @@ actions:
         grep -q '^JAVA_OPTS.*-Djava.security.egd=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s|(.)$| -Djava.security.egd=file:/dev/urandom\1|g' ${tomcat_env}
         sed -i 's/SHUTDOWN_WAIT.*=.*/SHUTDOWN_WAIT=30/' ${tomcat_env}
         # Datadog APM
-        grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false"' >>  ${tomcat_env}
+        grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false -Ddd.profiling.disabled.events=jdk.OldObjectSample"' >>  ${tomcat_env}
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
 
     - if ("${response.errOut}" != ""):
