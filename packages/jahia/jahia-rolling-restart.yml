@@ -5,12 +5,19 @@ id: jahia-rolling-restart
 name: Jahia nodes rolling restart
 description: Rolling restart all Jahia nodes (cp & proc)
 
+mixins:
+  - ../../mixins/jahia.yml
 
 onInstall:
+  - dumpModules:
+      operation: restart
+      checkVersion: true
   - restart: ${nodes.proc.first.id}
   - foreach (nodes.cp):
       - restart: ${@i.id}
-
+  - checkModulesAfterOperation:
+      operation: restart
+      checkVersion: true
 
 actions:
   restart:

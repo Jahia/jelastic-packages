@@ -79,6 +79,9 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - dumpModules:
+        operation: migration
+        checkVersion: true
 
   postChecks:
     - checkJahiaHealth: "cp, proc"
@@ -89,6 +92,10 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - checkModulesAfterOperation:
+        operation: migration
+        ignoredModules: ${settings.ignoredModules}
+        checkVersion: true
 
   updateHaproxyReloadScript:
     cmd[bl]: |-
@@ -464,3 +471,7 @@ settings:
       name: runDatastoreMigrationScript
       caption: Run the datastore migration script once storage nodes are added
       value: true # This is the default value so it should be set to false for non-prod environments
+    - name: ignoredModules
+      type: string
+      caption: Modules to ignore during check ("module1,module2"). Leave empty if none.
+      required: false
