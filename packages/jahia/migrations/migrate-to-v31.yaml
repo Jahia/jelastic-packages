@@ -161,7 +161,7 @@ actions:
           echo "RESTART"
         fi
         # The following line is useful to remove what was added for Virbac and Arkema's environments
-        sed -ir "/^APM_OPTS\+=\".*OldObjectSample\"/d" $f
+        sed -i -r "/^APM_OPTS\+=\".*OldObjectSample\"/d" $f
     - if ("${response.out}" == "RESTART"):
         setGlobals:
           jahiaRollingRestartNeeded: true
