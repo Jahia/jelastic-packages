@@ -8,6 +8,7 @@ globals:
 actions:
   installHaproxy:
     - retrieveHaproxyConf: bl
+    - addLetsEncryptConfig
     - updateHaproxyConf
     - configureProcessingDirectAccessHaproxy
     - resetHaproxyBackends
@@ -46,6 +47,11 @@ actions:
         - return:
             type: error
             message: "An error occurred while configuring haproxy."
+
+  addLetsEncryptConfig:
+    - cmd[bl]: |-
+        mkdir -p /var/lib/jelastic/keys/letsencrypt
+        echo "withExtIp=false" > /var/lib/jelastic/keys/letsencrypt/settings-custom
 
   updateHaproxyConf:
     - cmd[bl]: |-

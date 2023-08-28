@@ -32,6 +32,7 @@ onInstall:
   - updateHaproxyReloadScript                 # PAAS-2514
   - updateHaproxyXforwadedForHeader           # PAAS-2552
   - setupStorageMonitoring                    # PAAS-2449
+  - addHaproxyLetsEncryptConfig               # PAAS-2412
 
   # Actions that require a restart
   - fixAPMMemoryLeak                          # PAAS-2449
@@ -165,6 +166,14 @@ actions:
     - if ("${response.out}" == "RESTART"):
         setGlobals:
           jahiaRollingRestartNeeded: true
+
+  addHaproxyLetsEncryptConfig:
+    - cmd[bl]: |-
+        file=/var/lib/jelastic/keys/letsencrypt/settings-custom
+        if [ ! -f $file ]; then
+          mkdir -p /var/lib/jelastic/keys/letsencrypt
+          echo "withExtIp=false" > $file
+        fi
 
 settings:
   fields:
