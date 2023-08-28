@@ -123,7 +123,7 @@ onAfterRedeployContainer[cp]:
 onBeforeRedeployContainer[proc]:
   - saveApplicationcontextFilesBeforeRedeploy: proc
   - queryShutdownEndpoint:
-      target: ${event.params.nodeId}
+      target: proc
   - removeProcNodeFromHaproxy:
       reload: true
   - cmd [proc]: |-

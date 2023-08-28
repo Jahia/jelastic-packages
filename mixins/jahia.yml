@@ -1968,7 +1968,9 @@ actions:
             -d '{"query":"mutation { admin { jahia { shutdown( dryRun: true timeout: 120 force: false ) } } }"}' \
             | jq -r .data.admin.jahia.shutdown)
         echo $result
-    - if ("${response.out}" != "true"):
+    - if ("${response.errOut}" != ""):
+        - log: "Unable to query SAM shutdown endpoint before stopping the node."
+    - elif ("${response.out}" != "true"):
         - cmd[${this.target}]: |-
             tasklist=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
                   -X POST \
@@ -1978,7 +1980,10 @@ actions:
                   -d '{"query":"query { admin { jahia { tasks { name, service, started } } } }"}' \
                   | jq -r '.data.admin.jahia.tasks | map(.name) | join(", ")' )
             echo $tasklist
-        - log: "The node was stopped while these tasks were running: ${response.out}"
+        - if ("${response.errOut}" != ""):
+            - log: "Unable to list running tasks before stopping."
+        - else:
+            - log: "The node was stopped while these tasks were running: ${response.out}"
 
   setupDatadogAgentStorage:
     - log: "## Finalize Datadog agent setup on ${this}"
