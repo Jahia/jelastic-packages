@@ -404,7 +404,6 @@ Takes as parameters:
 | ------------------ | ---------------------------------------------------------------------------------------- |
 | productVersion     | Jahia version (eg: `8.0.2.0`)                                                            |
 | rootpwd            | Jahia root password                                                                      |
-| toolspwd           | Jahia tools password                                                                     |
 | haproxyNodeCount   | Number of HAProxy nodes                                                                  |
 | browsingNodeCount  | Number of Jahia browsing nodes                                                           |
 | browsingNodeSize   | Size of Jahia browsing nodes (`small`, `medium` or `large`)                              |
@@ -467,33 +466,6 @@ Enables or disables Basic Authentication at Haproxy level.
 | enable    | Boolean.<br>Enable or disable the Auth Basic. |
 | login     | User name to use.                             |
 | pwd       | Password to use.                              |
-
-#### jahia/perf-test-step1.yml
-
-First step to install the performance tests site on Jahia.
-
-It will:
-
-- Install required modules (calendar, event, ldap, news, publication, remotepublish, sitemap, templates-web-blue-qa-2.0.2-SNAPSHOT)
-- Install required Linux packages (ImageMagick-devel, libreoffice, ffmpeg)
-- Update jahia.properties conf
-- Add LDAP provider (org.jahia.services.usermanager.ldap-cloud-perf.cfg)
-- Retrieve performance tests site archive and import it in Jahia
-  - https://github.com/Jahia/paas-jelastic-dx-perf-test/raw/master/assets/DXPerformanceTestSite_staging_7231.zip
-
-#### jahia/perf-test-step2.yml
-
-Second step to install the performance tests site on Jahia.
-
-It will:
-
-- Pre-compile all servlets
-- Update Spell-Checker index
-- Restart Tomcat
-
-| parameter     | comment                                                                           |
-| ------------- | --------------------------------------------------------------------------------- |
-| toolsPassword | The environment's tools credentials seperated by a colon, e.g. "manager:password" |
 
 #### jahia/redeploy-galera-nodes.yml
 

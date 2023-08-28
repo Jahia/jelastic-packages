@@ -35,35 +35,28 @@ onInstall:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc
   - confJexperience: cp
-  - getJahiaVersion
-  - isVersionHigherOrEqual:
-      a: ${globals.jahiaVersion}
-      b: 8.0.0.0
-      res: jahia8
-  - if (${globals.jahia8}):
-    - setupKibanaDashboard:
-        roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
-        __secret__password: ${globals.__secret__kibanaDashboardpassword}
-        jcustomerEnv: ${settings.unomienv}
-    - createKibanaCustomerUserAccount:
-        accountName: ${globals.kibanaCustomerUserRoleAndAccountName}
-        rolesList: ${globals.kibanaDashboardRoleAndAccountName}
-        __secret__password: ${globals.__secret__kibanaCustomerUserPassword}
-        jcustomerEnv: ${settings.unomienv}
+  - setupKibanaDashboard:
+      roleAndAccountName: ${globals.kibanaDashboardRoleAndAccountName}
+      __secret__password: ${globals.__secret__kibanaDashboardpassword}
+      jcustomerEnv: ${settings.unomienv}
+  - createKibanaCustomerUserAccount:
+      accountName: ${globals.kibanaCustomerUserRoleAndAccountName}
+      rolesList: ${globals.kibanaDashboardRoleAndAccountName}
+      __secret__password: ${globals.__secret__kibanaCustomerUserPassword}
+      jcustomerEnv: ${settings.unomienv}
   - setNGData
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${settings.unomienv}
-  - if (${globals.jahia8}):
-    - getKibanaEndpointOfJcustomer:
-        jcustomerEnv: ${settings.unomienv}
-    - set:
-        __secret__returnMessage: '{"kibana_endpoint": "${globals.kibanaEndpoint}", "kibana_customer_user_account_name": "${globals.kibanaCustomerUserRoleAndAccountName}", "kibana_customer_user_password": "${globals.__secret__kibanaCustomerUserPassword}"}'
-    - return:
-        type: success
-        message: '${this.__secret__returnMessage.toBase64()}'
+  - getKibanaEndpointOfJcustomer:
+      jcustomerEnv: ${settings.unomienv}
+  - set:
+      __secret__returnMessage: '{"kibana_endpoint": "${globals.kibanaEndpoint}", "kibana_customer_user_account_name": "${globals.kibanaCustomerUserRoleAndAccountName}", "kibana_customer_user_password": "${globals.__secret__kibanaCustomerUserPassword}"}'
+  - return:
+      type: success
+      message: '${this.__secret__returnMessage.toBase64()}'
 
 
 actions:

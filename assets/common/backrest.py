@@ -50,6 +50,10 @@ def argparser():
     parser.add_argument("-m", "--mode",
                         help="this is a manual launch or auto launch ?",
                         choices=['auto', 'manual'])
+    parser.add_argument("--envversion",
+                        help="the environment version")
+    parser.add_argument("--esversion",
+                        help="Elasticsearch version")
     parser.add_argument("-p", "--progress",
                         help="show transfert progression",
                         action="store_true")
@@ -153,8 +157,11 @@ def add_to_metadata_file(bucket, backupname, timestamp, mode,
          "version": version,
          "cloudprovider": cloudprovider,
          "region": region,
-         "envrole": role
+         "envrole": role,
+         "envversion": kwargs["envversion"]
          }
+    if kwargs["esversion"]:
+        d["esversion"] = kwargs["esversion"]
 
     try:
         d['envname'] = os.environ['envName']
@@ -297,11 +304,13 @@ if __name__ == '__main__':
         uid = getuid()
         metabucket = setmetabucketname()
         size = args.size if args.size else 1
+        esversion = args.esversion if args.esversion else None
         res = add_to_metadata_file(metabucket, args.backupname,
                                    timestamp, args.mode,
                                    product, version, size,
                                    displayname=args.displayname,
-                                   uid=uid, frombucket=args.bucketname)
+                                   uid=uid, frombucket=args.bucketname,
+                                   envversion=args.envversion, esversion=esversion)
         if not res:
             logging.error("Fail to add metadata")
             exit(1)
