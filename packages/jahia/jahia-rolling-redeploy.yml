@@ -13,6 +13,9 @@ mixins:
   - ../../mixins/haproxy.yml
 
 onInstall:
+  - dumpModules:
+      operation: redeploy
+      checkVersion: true
   - muteDatadogSynthetics:
       duration: 240 # 4h
 
@@ -27,4 +30,7 @@ onInstall:
       upgradeJahia: false
       targetDockerTag: ${this.currentDockerTag}
 
+  - checkModulesAfterOperation:
+      operation: redeploy
+      checkVersion: true
   - unmuteDatadogSynthetics

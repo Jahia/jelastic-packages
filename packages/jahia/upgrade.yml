@@ -26,6 +26,11 @@ onInstall:
           type: error
           message: "Target version must be higher than current version."
 
+  # Dump modules state
+  - dumpModules:
+      operation: upgrade
+      checkVersion: false
+
   # Mute monitors
   - muteDatadogSynthetics:
       duration: 240 # 4h
@@ -76,6 +81,12 @@ onInstall:
       version: "${settings.targetVersion}"
       product: "dx"
 
+  # Check modules state
+  - checkModulesAfterOperation:
+      operation: upgrade
+      ignoredModules: ${settings.ignoredModules}
+      checkVersion: false
+
   # Unmute monitors
   - unmuteEnvWideMonitors
   - unmuteDatadogSynthetics
@@ -92,3 +103,8 @@ settings:
       caption: Docker tag suffix
       required: false
       tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
+    - name: ignoredModules
+      type: string
+      caption: Modules to ignore during check ("module1,module2"). Leave empty if none.
+      required: false
+      vtype: text
