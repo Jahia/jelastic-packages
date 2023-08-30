@@ -75,6 +75,9 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - dumpModules:
+        operation: migration
+        checkVersion: true
 
   postChecks:
     - checkJahiaHealth: "cp, proc"
@@ -85,6 +88,10 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - checkModulesAfterOperation:
+        operation: migration
+        ignoredModules: ${settings.ignoredModules}
+        checkVersion: true
 
   clearDatastoreTable:
     cmd[${nodes.sqldb.first.id}]: |-
