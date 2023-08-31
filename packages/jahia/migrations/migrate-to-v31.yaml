@@ -1,0 +1,201 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v31
+id: migrate-jahia-env-v31
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 31
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  - applyPatches      # PAAS-2565
+
+  # Redeploy and restart actions:
+  - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-redeploy.yml"
+  - else:
+      - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+          - install:
+              jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  # Actions that can only run when the redeploy is done
+  # (None)
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  preChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+  postChecks:
+    - checkJahiaHealth: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+
+  applyPatches:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.2.0
+        res: isHigherEqualThan8120
+    - if(${globals.isHigherEqualThan8120}):
+        - if ("${globals.jahiaVersion}" == "8.1.2.3"):
+            setGlobals:
+              implVersion: 8.1.2.4
+        - elif ("${globals.jahiaVersion}" == "8.1.3.0"):
+            setGlobals:
+              implVersion: 8.1.3.2
+        - elif ("${globals.jahiaVersion}" == "8.1.5.0"):
+            setGlobals:
+              implVersion: 8.1.5.2
+        - elif ("${globals.jahiaVersion}" == "8.1.6.0"):
+            setGlobals:
+              implVersion: 8.1.6.1
+        - else:
+            return:
+              type: error
+              messsage: "Unknown version"
+
+        - removeProcNodeFromHaproxy:
+            nodeId: ${nodes.proc.first.id}
+            reload: true
+        - patchJahiaImpl:
+            target: ${nodes.proc.first.id}
+        - addProcNodeToHaproxy:
+            reload: true
+
+        - forEach(nodes.cp):
+          - removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
+          - patchJahiaImpl:
+              target: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
+        - patchCSRF: ${nodes.proc.first.id}
+        - forEach(nodes.cp):
+            patchCSRF: ${@i.id}
+        - checkGroovyScriptExecution
+
+  patchJahiaImpl:
+    - cmd[${this.target}]: |-
+        patch_dir=/tmp/patch
+        mkdir -p $patch_dir
+        cd $patch_dir
+        curl -fLSso shiro-1.12.0.zip https://downloads.jahia.com/downloads/jahia/security-patches/2023-08/shiro-1.12.0.zip || exit 1
+        unzip shiro-1.12.0.zip
+        rm shiro-1.12.0.zip
+
+        curl -fLSso jahia-impl-${globals.implVersion}.jar https://downloads.jahia.com/downloads/jahia/security-patches/2023-08/jahia-impl-${globals.implVersion}.jar || exit 1
+
+        echo """
+        import org.apache.commons.io.FileUtils
+        import org.jahia.settings.SettingsBean
+
+        log.info(\"*** Cleaning all previous bundles and instructing for modules reinstallation ***\")
+        def file = new File(SettingsBean.getInstance().getJahiaVarDiskPath() + \"/bundles-deployed\")
+        FileUtils.deleteQuietly(file)
+        FileUtils.touch(new File(SettingsBean.getInstance().getJahiaVarDiskPath(), \"[persisted-bundles].dorestore\"))
+        FileUtils.touch(new File(SettingsBean.getInstance().getJahiaVarDiskPath(), \"[persisted-configurations].dorestore\"))
+        """ > 1.modules.beforeContextInitializing.groovy
+
+        chown tomcat:tomcat -R ./*
+        chmod 644 ./*
+
+    - queryShutdownEndpoint:
+       target: ${this.target}
+
+    - cmd[${this.target}]: |-
+        service tomcat stop
+        cd /tmp/patch
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/jahia-impl-*.jar
+        mv jahia-impl-${globals.implVersion}.jar /opt/tomcat/webapps/ROOT/WEB-INF/lib/
+
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/shiro-*.jar
+        mv shiro* /opt/tomcat/webapps/ROOT/WEB-INF/lib/
+        sed -i 's/\(org.apache.shiro.*\)1.10.0/\11.12.0/' /data/digital-factory-data/karaf/etc/custom.properties
+        mv 1.modules.beforeContextInitializing.groovy /data/digital-factory-data/patches/groovy/
+
+        rm -rf /tmp/patch
+    - api: env.control.ExecDockerRunCmd
+      nodeId: ${this.target}
+    - startupJahiaHealthCheck: ${this.target}
+
+  patchCSRF:
+    - enableKarafLogin: ${this}
+    - cmd[${this}]: |-
+        provisionning_current_version=$(${globals.karafConsole} cluster:bundle-list default |grep Provisioning | awk '{print $10 }')
+        if [ "$provisionning_current_version" != ${globals.implVersion} ]; then
+          ${globals.karafConsole} bundle:install -l 30 mvn:org.jahia.bundles/org.jahia.bundles.provisioning/${globals.implVersion}
+          ${globals.karafConsole} bundle:uninstall org.jahia.bundles.provisioning/$provisionning_current_version
+          ${globals.karafConsole} bundle:start org.jahia.bundles.provisioning/${globals.implVersion}
+        fi
+
+        jcrcommands_current_version=$(${globals.karafConsole} cluster:bundle-list default |grep Provisioning | awk '{print $10 }')
+        if [ "$jcrcommands_current_version" != ${globals.implVersion} ]; then
+          ${globals.karafConsole} bundle:install -l 30 mvn:org.jahia.bundles/org.jahia.bundles.jcrcommands/${globals.implVersion}
+          ${globals.karafConsole} bundle:uninstall org.jahia.bundles.jcrcommands/$jcrcommands_current_version
+          ${globals.karafConsole} bundle:start org.jahia.bundles.jcrcommands/${globals.implVersion}
+        fi
+    - disableKarafLogin: ${this}
+
+  checkGroovyScriptExecution:
+    cmd[proc, cp]: |-
+      if [ -f /data/digital-factory-data/patches/groovy/1.modules.beforeContextInitializing.groovy ]; then
+        echo "Groovy scrit not executed after restart"
+        exit 1
+      fi
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
