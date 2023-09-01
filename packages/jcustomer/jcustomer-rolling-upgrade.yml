@@ -42,6 +42,10 @@ onInstall:
       useExistingVolumes: true
       skipReinstall: false
       envName: ${env.envName}
+
+  - updateProductVersionInPapi:
+      version: "${settings.targetVersion}"
+      product: "unomi"
   - unmuteEnvWideMonitors
 
 settings:
