@@ -35,6 +35,13 @@ onInstall:
       - set:
           targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
   - muteEnvWideMonitors
+
+  - env.control.AddContainerEnvVars[*]:
+    vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
+  - environment.nodegroup.ApplyData[cp]:
+      data:
+        productVersion: ${settings.targetVersion}
+
   - forEach (nodes.cp):
       api: environment.control.RedeployContainerById
       nodeId: ${@i.id}
