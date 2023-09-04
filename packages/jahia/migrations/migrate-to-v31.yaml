@@ -161,7 +161,7 @@ actions:
 
         rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/shiro-*.jar
         mv shiro* /opt/tomcat/webapps/ROOT/WEB-INF/lib/
-        sed -i 's/\(org.apache.shiro.*\)1.10.0/\11.12.0/' /data/digital-factory-data/karaf/etc/custom.properties
+        sed -i 's/\(org.apache.shiro.*"\)1.*.0/\11.12.0/' /data/digital-factory-data/karaf/etc/custom.properties
         mv 1.modules.beforeContextInitializing.groovy /data/digital-factory-data/patches/groovy/
 
         rm -rf /tmp/patch
