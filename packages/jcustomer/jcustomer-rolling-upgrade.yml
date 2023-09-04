@@ -34,7 +34,6 @@ onInstall:
   - else:
       - set:
           targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
-  - muteEnvWideMonitors
 
   - env.control.AddContainerEnvVars[*]:
     vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
@@ -53,7 +52,6 @@ onInstall:
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
       product: "unomi"
-  - unmuteEnvWideMonitors
 
 settings:
   fields:
