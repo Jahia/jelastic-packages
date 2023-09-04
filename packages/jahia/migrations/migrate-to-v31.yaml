@@ -179,7 +179,7 @@ actions:
           ${globals.karafConsole} bundle:start org.jahia.bundles.provisioning/${globals.implVersion}
         fi
 
-        jcrcommands_current_version=$(${globals.karafConsole} cluster:bundle-list default |grep Provisioning | awk '{print $10 }')
+        jcrcommands_current_version=$(${globals.karafConsole} cluster:bundle-list default |grep "JCR Commands" | awk '{print $10 }')
         if [ "$jcrcommands_current_version" != ${globals.implVersion} ]; then
           ${globals.karafConsole} bundle:install -l 30 mvn:org.jahia.bundles/org.jahia.bundles.jcrcommands/${globals.implVersion}
           ${globals.karafConsole} bundle:uninstall org.jahia.bundles.jcrcommands/$jcrcommands_current_version
