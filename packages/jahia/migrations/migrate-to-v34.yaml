@@ -14,6 +14,7 @@ mixins:
 
 globals:
   version: 34
+  ignoredModules: ""
 
 onInstall:
   ### Pre-migration actions
@@ -90,7 +91,7 @@ actions:
     - checkMariadbDatadogCustomChecks: sqldb
     - checkModulesAfterOperation:
         operation: migration
-        ignoredModules: ${settings.ignoredModules}
+        ignoredModules: ${globals.ignoredModules}
         checkVersion: true
 
   clearDatastoreTable:
