@@ -2038,12 +2038,12 @@ actions:
     - enableKarafLogin: "proc, cp"
     - if (${this.checkVersion}):
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
-          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
     - else:
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
-          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
     - disableKarafLogin: "proc, cp"
 
   checkModulesAfterOperation:
@@ -2051,74 +2051,37 @@ actions:
     # - operation: type of operation performed
     # - checkVersion: if true, add versions to validation
     # - (optional) ignoredModules: list of ignored modules (ex: "module1,module2,module3")
-    - enableKarafLogin: "proc, cp"
+    # Dump modules after operation
+    - dumpModules:
+        operation: ${this.operation}
+        checkVersion: ${this.checkVersion}
+
+    # Clean the dumps of ignored modules if any
     - if ("${this.ignoredModules:}" != ""):
         - cmd[cp, proc]: |-
-            # Create workable ignored modules list
-            ignoredlist=/opt/tomcat/temp/ignoredmodules
-            echo ${this.ignoredModules} > $ignoredlist
-            sed -i 's/,/\n/g' $ignoredlist
+            # Clean the dumps
+            clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '2 p')
+            clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '1 p')
+            localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '2 p')
+            localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
+            dumps=($clusterdump_before $clusterdump_after $localdump_before $localdump_after)
+            for dump in ${dumps[@]}; do
+              sed -i -E "/\s+($(echo "${this.ignoredModules}" | tr ',' '|'))$/d" "$dump"
+            done
 
+    # Validate before vs after and log any errors
     - cmd[cp, proc]: |-
-        ignoredlist=/opt/tomcat/temp/ignoredmodules
-        clusterdump=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | head -n 1)
-        # Create new dump
-        clusterdump_after=$(mktemp)
-        if [ ${this.checkVersion} == "true" ]; then
-          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > $clusterdump_after
-        else
-          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $7 }' > $clusterdump_after
-        fi
+        clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '2 p')
+        clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '1 p')
+        localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '2 p')
+        localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
 
-        # If ignored list exists, clean up the dumps
-        if [ -f "$ignoredlist" ]; then
-          tmpfile1=$(mktemp)
-          tmpfile2=$(mktemp)
-          grep -vF -f $ignoredlist $clusterdump > $tmpfile1 && mv $tmpfile1 $clusterdump
-          grep -vF -f $ignoredlist $clusterdump_after > $tmpfile2 && mv $tmpfile2 $clusterdump_after
-        fi
+        result_file=$(mktemp)
+        diff --changed-group-format='%<' --unchanged-group-format='' $clusterdump_before $clusterdump_after | awk '{ print $3 }' >> $result_file
+        diff --changed-group-format='%<' --unchanged-group-format='' $localdump_before $localdump_after | awk '{ print $3 }' >> $result_file
 
-        sumbefore=$(cat $clusterdump | md5sum)
-        sumafter=$(cat $clusterdump_after | md5sum)
-
-        # Log list of problematic modules in jelastic-packages
-        if [[ "$sumbefore" != "$sumafter" ]]; then
+        # Log error if any
+        if [ -s "$result_file" ]; then
           logfile=/var/log/jelastic-packages/modulescheck.log
-          errors=$(comm -3 <(sort $clusterdump_after) <(sort $clusterdump))
-          echo "Errors in cluster modules validation. Some modules are not in the original state after ${this.operation}:" >> $logfile
-          echo $errors >> $logfile
+          echo "Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(paste -s -d, $result_file)" >> $logfile
         fi
-
-    - cmd[cp, proc]: |-
-        ignoredlist=/opt/tomcat/temp/ignoredmodules
-        localdump=$(ls -t /opt/tomcat/temp/modulesdump-local* | head -n 1)
-        localdump_after=$(mktemp)
-        if [ ${this.checkVersion} == "true" ]; then
-          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > $localdump_after
-        else
-          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $5 }' > $localdump_after
-        fi
-
-        # If ignored list exists, clean up the dumps
-        if [ -f "$ignoredlist" ]; then
-          tmpfile1=$(mktemp)
-          tmpfile2=$(mktemp)
-          grep -vF -f $ignoredlist $localdump > $tmpfile1 && mv -f $tmpfile1 $localdump
-          grep -vF -f $ignoredlist $localdump_after > $tmpfile2 && mv -f $tmpfile2 $localdump_after
-        fi
-
-        sumbefore=$(cat $localdump | md5sum)
-        sumafter=$(cat $localdump_after | md5sum)
-
-        # Log list of problematic modules in jelastic-packages
-        if [[ "$sumbefore" != "$sumafter" ]]; then
-          logfile=/var/log/jelastic-packages/modulescheck.log
-          errors=$(comm -3 <(sort $localdump_after) <(sort $localdump))
-          echo "Errors in local modules validation. Some modules are not in the original state after ${this.operation}:" >> $logfile
-          echo $errors >> $logfile
-        fi
-
-        # Remove ignored list
-        rm -f $ignoredlist
-
-    - disableKarafLogin: "proc, cp"

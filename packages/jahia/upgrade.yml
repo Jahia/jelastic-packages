@@ -84,7 +84,6 @@ onInstall:
   # Check modules state
   - checkModulesAfterOperation:
       operation: upgrade
-      ignoredModules: ${settings.ignoredModules}
       checkVersion: false
 
   # Unmute monitors
@@ -103,8 +102,3 @@ settings:
       caption: Docker tag suffix
       required: false
       tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".
-    - name: ignoredModules
-      type: string
-      caption: Modules to ignore during check ("module1,module2"). Leave empty if none.
-      required: false
-      vtype: text
