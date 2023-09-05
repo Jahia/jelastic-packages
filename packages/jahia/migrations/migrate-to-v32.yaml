@@ -14,7 +14,6 @@ mixins:
 
 globals:
   version: 32
-  ignoredModules: ""
 
 onInstall:
   ### Pre-migration actions
@@ -30,11 +29,14 @@ onInstall:
   # Actions that update modules (needs to be done first)
   # (None)
 
-  # Regular actions
-  # (None)
+  - updateHaproxyReloadScript                 # PAAS-2514
+  - updateHaproxyXforwadedForHeader           # PAAS-2552
+  - addHaproxyLetsEncryptConfig               # PAAS-2412
+  - prepareDatastoreMigrationToGluster        # PAAS-2433
+  - setupStorageMonitoring                    # PAAS-2449
 
   # Actions that require a restart
-  - migrateDatastoreToGluster          # PAAS-2433
+  - fixAPMMemoryLeak                          # PAAS-2449
 
   # Actions that require a redeploy
   # (None)
@@ -92,38 +94,329 @@ actions:
     - checkMariadbDatadogCustomChecks: sqldb
     - checkModulesAfterOperation:
         operation: migration
-        ignoredModules: ${globals.ignoredModules}
+        ignoredModules: ${settings.ignoredModules}
         checkVersion: true
 
-  migrateDatastoreToGluster:
-  - cmd [proc]: |-
-      if ! grep "jahia.jackrabbit.datastore.path" /opt/tomcat/webapps/ROOT/WEB-INF/etc/repository/jackrabbit/repository.xml; then
-        echo "MIGRATE"
-      elif ! strings /proc/$(pgrep -u tomcat)/environ | grep -q datastore; then
-        echo "RESTART"
+  updateHaproxyReloadScript:
+    cmd[bl]: |-
+      file_md5=d896d160f25d14125281844fdc2ec238
+      file_path=/usr/local/bin/haproxy-reload.sh
+      if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+        curl -fLSso $file_path ${globals.repoRootUrl}/assets/haproxy/haproxy-reload.sh || exit 1
+        chmod +x $file_path
       fi
-      exit 0
-  - if ("${response.out}" == "MIGRATE"):
-    - if (${settings.runDatastoreMigrationScript}):
-        runMigrationScript
-    - enableFullReadOnlyOnCluster
-    - finishDatastoreMigration
-  - elif ("${response.out}" == "RESTART"):
-    - log: The datastore has already been migrated to the shared FS but Tomcat needs to be restarted
-    - setGlobals:
-        jahiaRollingRestartNeeded: true
+
+  updateHaproxyXforwadedForHeader:
+    cmd[bl]: |-
+      file=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+      if ! (grep -q "http-request set-header X-Forwarded-For" $file); then
+        new_line="http-request set-header X-Forwarded-For %[req.fhdr(X-Forwarded-For),regsub(' ','',g)]"
+        sed -i "/Ssl-Offloaded/a\    $new_line" $file
+        service haproxy reload
+      fi
+
+  setupStorageMonitoring:
+  - cmd [storage]: |-
+      file=/etc/datadog-agent/datadog.yaml
+      if [ ! -f $file ]; then
+        echo "need_install"
+      fi
+  - if ("${response.out}" == "need_install"):
+    - setupDatadogAgentStorage: storage
+  - if (nodes.sqldb.length == 1):
+      cmd[cp, proc]: |-
+        file=/etc/datadog-agent/conf.d/nfsstat.d/conf.yaml
+        if [ ! -f $file ]; then
+          setfacl -m u:dd-agent:rx /var/log/messages
+          sed -i '/\/bin\/kill/a \        setfacl -m u:dd-agent:rx /var/log/messages' /etc/logrotate.d/syslog
+          cat > $file << EOF
+        init_config:
+        instances:
+          -
+            min_collection_interval: 60
+        logs:
+          - type: file
+            path: /var/log/messages
+            source: nfsstat
+            service: nfs
+            log_processing_rules:
+            - type: include_at_match
+              name: include_nfsstat_only
+              pattern: "nfsstat"
+        EOF
+          systemctl restart rsyslog crond datadog-agent
+        fi
   - else:
-    - The datastore has already been migrated to the shared FS and it seems like Tomcat is already using it, nothing to do
+      cmd[cp, proc]: |-
+        file=/etc/datadog-agent/conf.d/glusterfs.d/conf.yaml
+        if [ ! -f $file ]; then
+          setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+          sed -i '/killall.*glusterd/a \  /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+          cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+        logs:
+          - type: file
+            path: /var/log/glusterfs/share.log
+            source: glusterfs
+            service: glusterfs
+        EOF
+          systemctl restart rsyslog crond datadog-agent
+        fi
+
+  fixAPMMemoryLeak:
+    - cmd [cp, proc]: |-
+        f=/opt/tomcat/conf/tomcat-env.sh
+        if ! grep -qE "^APM_OPTS=\".*OldObjectSample" $f; then
+          sed -i "s;^\(APM_OPTS=\".*\)\"$;\1 -Ddd.profiling.disabled.events=jdk.OldObjectSample\";" $f || exit 1
+          echo "RESTART"
+        fi
+        # The following line is useful to remove what was added for Virbac and Arkema's environments
+        sed -i -r "/^APM_OPTS\+=\".*OldObjectSample\"/d" $f
+    - if ("${response.out}" == "RESTART"):
+        setGlobals:
+          jahiaRollingRestartNeeded: true
+
+  addHaproxyLetsEncryptConfig:
+    - cmd[bl]: |-
+        file=/var/lib/jelastic/keys/letsencrypt/settings-custom
+        if [ ! -f $file ]; then
+          mkdir -p /var/lib/jelastic/keys/letsencrypt
+          echo "withExtIp=false" > $file
+        fi
+
+  prepareDatastoreMigrationToGluster:
+  - getCloudlets
+  - addStorageNodes
+  - if (${settings.runDatastoreMigrationScript}):
+      runMigrationScript
 
   getCloudlets:
   - setGlobals:
-      sqldbNewFlexibleCloudlets: 64
+      storageFlexibleCloudlets: 10
   - if (${nodes.sqldb.first.flexibleCloudlets} <= 40):
       setGlobals:
-        sqldbNewFlexibleCloudlets: 20
+        storageFlexibleCloudlets: 6
   - elif (${nodes.sqldb.first.flexibleCloudlets} <= 64):
       setGlobals:
-        sqldbNewFlexibleCloudlets: 48
+        storageFlexibleCloudlets: 8
+
+  addStorageNodes:
+  - log: Preparing the migration of the datastore to Gluster/NFS
+  - log: Adding the storage nodes to the environment and mount the shared filesystem on all Tomcat nodes
+  - script: |
+      var storageCluster = true;
+      if ("${nodes.sqldb.length}" == "1") {
+        storageCluster = false;
+      }
+      var nodeGroupsPayload = [
+        {
+          "count": ${nodes.bl.length},
+          "fixedCloudlets": ${nodes.bl.first.fixedCloudlets},
+          "flexibleCloudlets": ${nodes.bl.first.flexibleCloudlets},
+          "nodeGroup": "bl",
+          "nodeType": "haproxy",
+          "restartDelay": 0,
+          "tag": "${nodes.bl.first.version}"
+        },
+        {
+          "count": ${nodes.cp.length},
+          "fixedCloudlets": ${nodes.cp.first.fixedCloudlets},
+          "flexibleCloudlets": ${nodes.cp.first.flexibleCloudlets},
+          "nodeGroup": "cp",
+          "nodeType": "jahia",
+          "restartDelay": 0,
+          "tag": "${nodes.cp.first.version}",
+          "volumes": [
+            "/data",
+            "/opt/tomcat/webapps",
+            "/share"
+          ],
+          "volumeMounts": {
+            "/share": {
+              "readOnly":false,
+              "sourcePath": "data",
+              "sourceNodeGroup": "storage",
+              "sourceAddressType":"NODE_GROUP"
+            }
+          }
+        },
+        {
+          "count": ${nodes.sqldb.length},
+          "fixedCloudlets": ${nodes.sqldb.first.fixedCloudlets},
+          "flexibleCloudlets": ${nodes.sqldb.first.flexibleCloudlets},
+          "nodeGroup": "sqldb",
+          "nodeType": "mariadb-dockerized",
+          "restartDelay": 0,
+          "tag": "${nodes.sqldb.first.version}"
+        },
+        {
+          "count": ${nodes.proc.length},
+          "fixedCloudlets": ${nodes.proc.first.fixedCloudlets},
+          "flexibleCloudlets": ${nodes.proc.first.flexibleCloudlets},
+          "nodeGroup": "proc",
+          "nodeType": "jahia",
+          "restartDelay": 0,
+          "tag": "${nodes.proc.first.version}",
+          "volumes": [
+            "/data",
+            "/opt/tomcat/webapps",
+            "/share"
+          ],
+          "volumeMounts": {
+            "/share": {
+              "readOnly":false,
+              "sourcePath": "data",
+              "sourceNodeGroup": "storage",
+              "sourceAddressType":"NODE_GROUP"
+            }
+          }
+        },
+        {
+          "cluster": storageCluster,
+          "count": ${nodes.sqldb.length},
+          "displayName": "Storage",
+          "env": {
+            "_PROVIDE": "Storage",
+            "_ROLE": "storage",
+            "envName": "${env.shortdomain}",
+            "JELASTIC_EXPOSE": false
+          },
+          "extip": 0,
+          "extipv6": 0,
+          "fixedCloudlets": 0,
+          "flexibleCloudlets": ${globals.storageFlexibleCloudlets},
+          "nodeGroup": "storage",
+          "nodeType": "storage",
+          "restartDelay": 30,
+          "scalingMode": "STATELESS",
+          "tag": "2.0-9.6"
+        }
+      ];
+      nodeGroupsPayload.forEach(function (ng, index) {
+        switch (ng["nodeGroup"]) {
+          case "cp":
+            cpIndex = index;
+            break;
+          case "proc":
+            procIndex = index;
+            break;
+          case "storage":
+            storageIndex = index;
+            break;
+        }
+      });
+
+      var procEnvVars = api.env.control.GetContainerEnvVars(
+        "${env.envName}",
+        session,
+        ${nodes.proc.first.id}
+      );
+      if (procEnvVars["result"] != 0) {
+        return {result: 1, error: "Failed to get proc envvars", errorMessage: procEnvVars["error"]}
+      }
+
+      nodeGroupsPayload[storageIndex]["env"]["DATADOGAPIKEY"] = procEnvVars["object"]["DATADOGAPIKEY"];
+      nodeGroupsPayload[storageIndex]["env"]["envmode"] = procEnvVars["object"]["envmode"];
+
+      if (storageCluster) {
+        nodeGroupsPayload[cpIndex]["volumeMounts"]["/share"]["protocol"] = "GLUSTER";
+        nodeGroupsPayload[procIndex]["volumeMounts"]["/share"]["protocol"] = "GLUSTER";
+      }
+
+      var envInfo = api.env.control.GetEnvInfo("${env.envName}", session);
+      if (envInfo["result"] != 0) {
+        return {result: 1, error: "Failed to get the list of nodes", errorMessage: envInfo["error"]}
+      }
+
+      // We check if the shared volume is already mounted on Tomcat nodes (using the proc node as a reference)
+      volumeMountedOnTomcatNodes = envInfo["nodes"].find(
+        function(node) {
+          if (node["nodeGroup"] == "proc") {
+            return node["customitem"]["dockerVolumes"].includes("/share");
+          }
+        }
+      )
+
+      // If the environment has storage nodes and the shared volume is already mounted, we stop here
+      if (volumeMountedOnTomcatNodes && ! "${nodes.storage.length}".includes("storage")) {
+        return {result: 0, message: "/share already mounted on proc node, nothing to do"}
+      }
+
+      // Otherwise we trigger a topology update to create storage nodes/mount the shared volume on Jahia nodes
+      resp = api.env.control.ChangeTopology(
+        "${env.envName}",
+        session,
+        "changetopology;${env.appid};${env.envName};${user.uid}",
+        "{\"region\": ${env.region},\"sslstate\": true,\"ishaenabled\": false}",
+        JSON.stringify(nodeGroupsPayload)
+      )
+      if (resp["result"] != 0) {
+        return {result: 1, error: "The topology update API call failed", errorMessage: resp["error"]}
+      }
+
+      return {result: 0}
+
+  # Waiting for storage nodes to be available for following cmds
+  - if ("${nodes.storage.first.nodeGroup}" != "storage"):
+    - script: |-
+        return {"result": 0, "tryCount": [1,2,3,4,5,6,7,8,9,10]}
+    - forEach(response.tryCount):
+      - if ("${nodes.storage.first.nodeGroup}" != "storage"):
+        - log: "Try #${@i}..."
+        - sleep: 5000
+
+  - cmd [storage]: |-
+      if rpm -q rclone --quiet && rpm -q jq --quiet; then
+        exit 0
+      fi
+      echo "INSTALL"
+  - if ("${response.out}" == "INSTALL"):
+    - installRequiredPackages:
+        target: storage
+        packages: "jq rclone"
+  - cmd [storage]: |-
+      rpm -q python-3.8 --quiet && exit 0
+      echo "INSTALL"
+  - if ("${response.out}" == "INSTALL"):
+    - installPython:
+        target: storage
+        python_major_version: 3
+        python_minor_version: 8
+  - cmd [storage]: |-
+      [ -f /usr/local/bin/log_event.sh ] && exit 0
+      echo "INSTALL"
+  - if ("${response.out}" == "INSTALL"):
+    - getLogEventScript: storage
+  - cmd [storage]: |-
+      [ -f /usr/local/bin/papi.py ] && exit 0
+      echo "INSTALL"
+  - if ("${response.out}" == "INSTALL"):
+    - installPapiScript: storage
+  - cmd [storage]: |-
+      [ -f /root/.config/rclone/rclone.conf ] && exit 0
+      echo "INSTALL"
+  - if ("${response.out}" == "INSTALL"):
+    - setupRclone
+
+  - log: Checking if the volume is present and shared on all Tomcat nodes
+  - cmd[proc]: |-
+      if [ -d /share ]; then
+        echo "test" > /share/testFile
+      else
+        echo "The /share FS is not accessible, aborting" >&2
+        exit 1
+      fi
+  - cmd[cp]: |-
+      if [ -d /share ]; then
+        if [ "$(cat /share/testFile)" != "test" ]; then
+          echo "There is an issue with the Gluster/NFS setup, testFile not found: aborting"
+          exit 1
+        fi
+      else
+        echo "The /share FS is not accessible, aborting" >&2
+        exit 1
+      fi
+  - cmd[proc]: |-
+      rm /share/testFile
 
   runMigrationScript:
   - cmd [proc]: |-
@@ -136,9 +429,9 @@ actions:
       cfgfile=db-to-vfs.yaml
       jarfile=jackrabbit-datastore-migration-0.1.5.jar
       [ -f /root/$jarfile ] || \
-        curl -fLSso /root/$jarfile ${globals.repoRootUrl}/packages/jahia/migrations/v31-32_assets/$jarfile || exit 1
+        curl -fLSso /root/$jarfile ${globals.repoRootUrl}/packages/jahia/migrations/v32-33_assets/$jarfile || exit 1
       [ -f /root/$cfgfile ] || \
-        curl -fLSso /root/$cfgfile ${globals.repoRootUrl}/packages/jahia/migrations/v31-32_assets/$cfgfile || exit 1
+        curl -fLSso /root/$cfgfile ${globals.repoRootUrl}/packages/jahia/migrations/v32-33_assets/$cfgfile || exit 1
       sed -e "s/\(\s*user: '\).*'/\1$DB_USER'/" \
           -e "s/\(\s*password: '\).*'/\1$DB_PASSWORD'/" \
           -i /root/$cfgfile || exit 1
@@ -169,36 +462,16 @@ actions:
       rm -f /tmp/existingIds.txt
       exit $exit_code
 
-  finishDatastoreMigration:
-  - getCloudlets
-  - runMigrationScript
-  - if (${globals.sqldbNewFlexibleCloudlets} != ${nodes.sqldb.first.flexibleCloudlets}):
-    - log: Decreasing the cloudlets for sqldb nodes
-    - install:
-        jps: "${globals.repoRootUrl}/packages/jahia/set-db-nodes-cloudlets.yml"
-        settings:
-          cloudlets: ${globals.sqldbNewFlexibleCloudlets}
-  - log: Updating Jahia's configuration to use the datastore on the shared filesystem
-  - env.control.AddContainerEnvVars [cp, proc]:
-    vars:
-      jahia_cfg_jahia_jackrabbit_datastore_path: /share/datastore
-  - cmd[cp, proc]: |-
-      newline1="   <param name=\"path\" value=\"\${jahia.jackrabbit.datastore.path}\" />"
-      newline2="    <param name=\"minRecordLength\" value=\"1024\" />"
-      sed -e "s/org\.apache\.jackrabbit\.core\.data\.db\.DbDataStore/org.apache.jackrabbit.core.data.FileDataStore/" \
-          -e "/org.apache.jackrabbit.core.data.FileDataStore/{n;N;N;N;N;d}" \
-          -e "/<\/DataStore>/i \ $newline1\n$newline2" \
-          -i /opt/tomcat/webapps/ROOT/WEB-INF/etc/repository/jackrabbit/repository.xml || exit 1
-  - setGlobals:
-      jahiaRollingRestartNeeded: true
-
-
 settings:
   fields:
     - type: toggle
       name: disable_checks
       caption: disable all checks
     - type: toggle
-      name: runDatastoreMigrationScriptPreFRO
-      caption: Run the datastore migration script before enabling the FRO mode
+      name: runDatastoreMigrationScript
+      caption: Run the datastore migration script once storage nodes are added
       value: true # This is the default value so it should be set to false for non-prod environments
+    - name: ignoredModules
+      type: string
+      caption: Modules to ignore during check ("module1,module2"). Leave empty if none.
+      required: false
