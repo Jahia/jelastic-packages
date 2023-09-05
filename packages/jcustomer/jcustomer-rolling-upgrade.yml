@@ -1,0 +1,67 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Rolling upgrade
+logo: ../../assets/common/jahia-logo-70x70.png
+id: jcustomer-rolling-upgrade
+description:
+  short: Unomi - Rolling upgrade
+
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - api: env.control.GetContainerEnvVarsByGroup
+    envName: ${env.envName}
+    nodeGroup: cp
+  - setGlobals:
+      initialVersion: ${response.object.UNOMI_VERSION}
+
+  # Check if target version is consistent (higher than current version)
+  - isVersionStrictlyHigher:
+      a: "${settings.targetVersion}"
+      b: "${globals.initialVersion}"
+      res: targetVersionIsConsistent
+  - if (!${globals.targetVersionIsConsistent}):
+      return:
+        type: error
+        message: "Target version must be higher than current version."
+
+  # If a Docker tag suffix was passed we need to append it to the jCustomer version
+  - if ('${settings.dockerTagSuffix.print()}' == ''):
+      - set:
+          targetDockerTag: ${settings.targetVersion}
+  - else:
+      - set:
+          targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
+
+  - env.control.AddContainerEnvVars[*]:
+    vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
+  - environment.nodegroup.ApplyData[cp]:
+      data:
+        productVersion: ${settings.targetVersion}
+
+  - forEach (nodes.cp):
+      api: environment.control.RedeployContainerById
+      nodeId: ${@i.id}
+      tag: ${this.targetDockerTag}
+      useExistingVolumes: true
+      skipReinstall: false
+      envName: ${env.envName}
+
+  - updateProductVersionInPapi:
+      version: "${settings.targetVersion}"
+      product: "unomi"
+
+settings:
+  fields:
+    - name: targetVersion
+      type: string
+      caption: JCustomer Target Version
+      vtype: text
+      required: true
+    - name: dockerTagSuffix
+      type: string
+      caption: Docker tag suffix
+      required: false
+      tooltip: Optional. If you set this parameter to "suffix", the tag used will be "{targetVersion}_suffix".

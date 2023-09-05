@@ -37,7 +37,6 @@ actions:
   #################
   onAfterBrowsingScaleOut:
     - copyApp: ${this.newNode}
-    - setToolsPwd: ${this.newNode}
     - setupDatadogAgentJahia: ${this.newNode}
     - cmd[${this.newNode}]: |-
         if (service tomcat status); then
@@ -59,7 +58,6 @@ actions:
     - if (nodes.sqldb.length == 1):
         - disableDatadogCustomChecks
     - copyApp: ${this}
-    - setToolsPwd: ${this}
     - if ("${this}" == "cp"):
         cmd[${this}]:
           - sed -i "s#\(processingServer\s*=\).*#\1 false#g" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
@@ -107,7 +105,6 @@ actions:
     # Parameters:
     #   - jahiaVersion
     #   - __secret__rootpwd: Jahia root user password
-    #   - __secret__toolspwd: Jahia Tools password
     - getLogEventScript: proc, cp
 
     - environment.nodegroup.ApplyData [proc, cp]:
@@ -136,9 +133,6 @@ actions:
     - cmd [proc]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
         mv ${file}-disabled $file
-    - defineToolsPwd:
-        __secret__toolspwd: ${this.__secret__toolspwd}
-    - setToolsPwd: proc, cp
     - api: env.control.ExecDockerRunCmd
       nodeId: ${nodes.proc.first.id}
     - checkPatGroovyScriptExecution
@@ -193,43 +187,13 @@ actions:
         grep -q '^JAVA_OPTS.*-Djava.security.egd=' ${tomcat_env} || sed -i -E '/^JAVA_OPTS/ s|(.)$| -Djava.security.egd=file:/dev/urandom\1|g' ${tomcat_env}
         sed -i 's/SHUTDOWN_WAIT.*=.*/SHUTDOWN_WAIT=30/' ${tomcat_env}
         # Datadog APM
-        grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false"' >>  ${tomcat_env}
+        grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false -Ddd.profiling.disabled.events=jdk.OldObjectSample"' >>  ${tomcat_env}
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
 
     - if ("${response.errOut}" != ""):
         - return:
             type: error
             message: "An error occurred when installing jahia."
-
-  defineToolsPwd:
-    # Parameters:
-    #   - __secret__toolspwd: Jahia Tools password
-    - log: "## Now setting tools password"
-    - setGlobalRepoRootUrl
-    - cmd[proc]: |-
-        if [ ! -f /usr/local/bin/reset-jahia-tools-manager-password.py ]; then
-          curl -fLSso /usr/local/bin/reset-jahia-tools-manager-password.py ${globals.repoRootUrl}/assets/jahia/reset-jahia-tools-manager-password.py || exit 1
-          chmod u+x /usr/local/bin/reset-jahia-tools-manager-password.py
-        fi
-        __secret__toolspwd="${this.__secret__toolspwd.toBase64()}"
-        /usr/local/bin/reset-jahia-tools-manager-password.py $__secret__toolspwd $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
-        chown tomcat:tomcat $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
-    - if ("${response.errOut}" != ""):
-        - return:
-            type: error
-            message: "An error occurred when defining tools password."
-    - cmd [proc]: awk '$1=="jahiaToolManagerPassword" {print $NF}' $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
-    - set:
-        jahiaToolManagerPassword: ${response.out}
-    - cmd [cp]: |-
-        sed -i 's,^\s*\(jahiaToolManagerPassword\s*=\).*$,\1 ${this.jahiaToolManagerPassword},' $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
-    - env.control.AddContainerEnvVars [proc, cp]:
-      vars:
-        MANAGER_PASSWORD: ${this.jahiaToolManagerPassword}
-
-  setToolsPwd:
-    - cmd[${this}]: |-
-         sed -i "s|^jahiaToolManagerPassword .*$|jahiaToolManagerPassword = $MANAGER_PASSWORD|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.properties
 
   setupDatadogAgentJahia:
     - log: "## Finalize Datadog agent setup on ${this}"
@@ -257,8 +221,38 @@ actions:
           sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml
         fi
         /usr/local/bin/set_dd_tags.sh
-        systemctl restart crond
-        systemctl enable datadog-agent
+    - if (nodes.sqldb.length > 1):
+        cmd[${this}]: |-
+          setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+          sed -i '/killall.*glusterd/a \  /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+          cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+          logs:
+            - type: file
+              path: /var/log/glusterfs/share.log
+              source: glusterfs
+              service: glusterfs
+          EOF
+          systemctl restart rsyslog crond datadog-agent
+    - else:
+        cmd[${this}]: |-
+          setfacl -m u:dd-agent:rx /var/log/messages
+          sed -i '/\/bin\/kill/a \        setfacl -m u:dd-agent:rx /var/log/messages' /etc/logrotate.d/syslog
+          cat > /etc/datadog-agent/conf.d/nfsstat.d/conf.yaml << EOF
+          init_config:
+          instances:
+            -
+              min_collection_interval: 60
+          logs:
+            - type: file
+              path: /var/log/messages
+              source: nfsstat
+              service: nfs
+              log_processing_rules:
+              - type: include_at_match
+                name: include_nfsstat_only
+                pattern: "nfsstat"
+          EOF
+          systemctl restart rsyslog crond datadog-agent
 
   startupJahiaHealthCheck:
     # Two arguments:
@@ -1418,31 +1412,6 @@ actions:
           skipReinstall: false
           envName: ${env.envName}
 
-  setVersionPropertiesValue:
-    # Parameters:
-    #   - initialJahiaVersion: the initial Jahia version string (eg: "8.0.3.0")
-    #   - targetJahiaVersion: the target Jahia version string (eg: "8.0.3.0")
-    # Add jahia version in /data/digital-factory-data/info/version.properties before redeploy
-    # in case we upgrade from a version that does not handle it to a version that does,
-    # namely if we upgrade from Jahia < 7.3.8.0 to Jahia >= 7.3.8.0
-    - isVersionStrictlyLower:
-        a: "${this.initialJahiaVersion}"
-        b: "7.3.8.0"
-        res: isCurrentVersionStriclyLowerThan7380
-    - isVersionHigherOrEqual:
-        a: "${this.targetJahiaVersion}"
-        b: "7.3.8.0"
-        res: isTargetVersionHigherOrEqual7380
-
-    - if ( ${globals.isCurrentVersionStriclyLowerThan7380} && ${globals.isTargetVersionHigherOrEqual7380} ):
-        cmd[proc,cp]: |-
-          INFO_DIR="/data/digital-factory-data/info"
-          if [ ! -f $INFO_DIR/version.properties ]; then
-            mkdir -p $INFO_DIR
-            echo "version=${this.initialJahiaVersion}" > $INFO_DIR/version.properties
-            chown -R tomcat:tomcat $INFO_DIR
-          fi
-
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-
         mysql jahia -Nse "SELECT revision_id FROM JR_J_LOCAL_REVISIONS WHERE journal_id LIKE 'processing.%'"
@@ -1553,16 +1522,9 @@ actions:
         # Clean up any possible remainder of previous script execution
         rm -f ${groovy_file_path}*
 
-        jahia_major_version=$(echo "${this.jahia_version}" | cut -d'.' -f1)
-        if [ $jahia_major_version -eq 7 ]; then
-          jahia_7_parameter=", null"
-        else
-          jahia_7_parameter=""
-        fi
-
         echo """
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
-          org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\"$jahia_7_parameter)
+          org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\")
               .tokenBuilder(\"/users/root\", \"jahia-cloud-token_admin_${env.envName}\", session)
               .setToken(\"$__secret__pat_token\")
               .setActive(true)
@@ -1754,26 +1716,18 @@ actions:
     #   ${globals.jexperienceVersion}: jExperience version to install according to current Jahia / jCustomer version
     #   ${globals.jexperienceDashboardsVersion}: jExperience-Dashboards version to install according to current Jahia / jCustomer version
     - getJahiaVersion
+    - setGlobals:
+        jexperienceDashboardsVersion: 0.3.0
     - isVersionStrictlyLower:
         a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: isLowerThan8000
-    - if( ${globals.isLowerThan8000} ):
+        b: 8.1.0.0
+        res: isLowerThan8100
+    - if( ${globals.isLowerThan8100} ):
         - setGlobals:
-            jexperienceVersion: 1.11.9
+            jexperienceVersion: 2.2.0
     - else:
-      - setGlobals:
-          jexperienceDashboardsVersion: 0.3.0
-      - isVersionStrictlyLower:
-          a: ${globals.jahiaVersion}
-          b: 8.1.0.0
-          res: isLowerThan8100
-      - if( ${globals.isLowerThan8100} ):
-          - setGlobals:
-              jexperienceVersion: 2.2.0
-      - else:
-          - setGlobals:
-              jexperienceVersion: 2.7.2
+        - setGlobals:
+            jexperienceVersion: 2.7.2
     - api: env.control.GetContainerEnvVarsByGroup
       envName: ${this.unomi_env_name}
       nodeGroup: cp
@@ -1858,34 +1812,6 @@ actions:
           );
     - setGlobals:
         kibanaEndpoint: "${response.successText.fromBase64()}"
-
-  setupKibanaDashboardAndCreateCustomerAccount:
-  # Parameters
-  # envVersion (default: the env version): the environment version (useful for upgrades)
-  - if ("${this.envVersion.print()}" == ""):
-    - getJahiaVersion
-    - set:
-        version: ${globals.jahiaVersion}
-  - else:
-      set:
-        version: ${this.envVersion}
-  - isVersionHigherOrEqual:
-      a: ${this.version}
-      b: 8.0.0.0
-      res: jahia8
-  - if (${globals.jahia8}):
-    - getEnvLinkedJcustomer:
-        envName: ${env.envName}
-    - if (${globals.unomi_env_linked}):
-      - setupKibanaDashboard:
-          roleAndAccountName: ${env.envName}-kibana-dashboard
-          __secret__password: ${fn.password(20)}
-          jcustomerEnv: ${globals.unomi_env_name}
-      - createKibanaCustomerUserAccount:
-          accountName: ${env.envName}-kibana-user
-          rolesList: ${env.envName}-kibana-dashboard
-          __secret__password: ${fn.password(20)}
-          jcustomerEnv: ${globals.unomi_env_name}
 
   setupKibanaDashboard:
     # Parameters
@@ -1977,22 +1903,16 @@ actions:
         );
 
   removeKibanaAndJexperienceDashboards:
-    - getJahiaVersion
-    - isVersionHigherOrEqual:
-        a: ${globals.jahiaVersion}
-        b: 8.0.0.0
-        res: jahia8
-    - if (${globals.jahia8}):
-        - cmd [proc]: |-
-            cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
-            if [ -f $cfg_file ]; then
-              sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
-              sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
-            fi
-        - uninstallModule:
-            moduleSymname: kibana-dashboards-provider
-        - uninstallModule:
-            moduleSymname: jexperience-dashboards
+    - cmd [proc]: |-
+        cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
+        if [ -f $cfg_file ]; then
+          sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
+          sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
+        fi
+    - uninstallModule:
+        moduleSymname: kibana-dashboards-provider
+    - uninstallModule:
+        moduleSymname: jexperience-dashboards
 
 ### Vault related actions ###
   vaultGetIPsecConfB64:
@@ -2048,7 +1968,9 @@ actions:
             -d '{"query":"mutation { admin { jahia { shutdown( dryRun: true timeout: 120 force: false ) } } }"}' \
             | jq -r .data.admin.jahia.shutdown)
         echo $result
-    - if ("${response.out}" != "true"):
+    - if ("${response.errOut}" != ""):
+        - log: "Unable to query SAM shutdown endpoint before stopping the node."
+    - elif ("${response.out}" != "true"):
         - cmd[${this.target}]: |-
             tasklist=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
                   -X POST \
@@ -2058,4 +1980,145 @@ actions:
                   -d '{"query":"query { admin { jahia { tasks { name, service, started } } } }"}' \
                   | jq -r '.data.admin.jahia.tasks | map(.name) | join(", ")' )
             echo $tasklist
-        - log: "The node was stopped while these tasks were running: ${response.out}"
+        - if ("${response.errOut}" != ""):
+            - log: "Unable to list running tasks before stopping."
+        - else:
+            - log: "The node was stopped while these tasks were running: ${response.out}"
+
+  setupDatadogAgentStorage:
+    - log: "## Finalize Datadog agent setup on ${this}"
+    - setGlobalRepoRootUrl
+    - installLatestDatadogAgent: ${this}
+    - cmd[${this}]: |-
+        NODE_NAME=${HOSTNAME/-*}
+        echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
+        echo "tags:" >> /etc/datadog-agent/datadog.yaml
+        echo " - product:jahia" >> /etc/datadog-agent/datadog.yaml
+        echo " - version:${DX_VERSION}" >> /etc/datadog-agent/datadog.yaml
+        echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
+        echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
+        echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
+        curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
+        curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
+        chmod u+x /usr/local/bin/set_dd_tags.sh
+    - if (nodes.sqldb.length > 1):
+        - cmd[${this}]: |-
+            echo "dd-agent ALL=(ALL) NOPASSWD:/opt/datadog-agent/embedded/sbin/gstatus" > /etc/sudoers.d/dd-agent
+            cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+            init_config:
+            instances:
+              -
+                min_collection_interval: 60
+            logs:
+              - type: file
+                path: /var/log/glusterfs/glusterd.log
+                source: glusterfs
+                service: glusterfs
+              - type: file
+                path: /var/log/glusterfs/glustershd.log
+                source: glusterfs
+                service: glusterfs
+              - type: file
+                path: /var/log/glusterfs/data.log
+                source: glusterfs
+                service: glusterfs
+            EOF
+            log_dir=/var/log/glusterfs
+            [ -d $log_dir ] || mkdir $log_dir
+            setfacl -m u:dd-agent:rx /var/log/glusterfs
+            setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+            sed -i '/killall.*glusterd/a \  touch \/var\/log\/glusterfs\/glusterd.log && /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+            systemctl restart rsyslog crond datadog-agent
+
+  dumpModules:
+    # Parameters:
+    # - operation: type of operation performed
+    # - checkVersion: if true, add versions to validation
+    - enableKarafLogin: "proc, cp"
+    - if (${this.checkVersion}):
+      - cmd[cp, proc]: |-
+          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+    - else:
+      - cmd[cp, proc]: |-
+          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+    - disableKarafLogin: "proc, cp"
+
+  checkModulesAfterOperation:
+    # Parameters:
+    # - operation: type of operation performed
+    # - checkVersion: if true, add versions to validation
+    # - (optional) ignoredModules: list of ignored modules (ex: "module1,module2,module3")
+    - enableKarafLogin: "proc, cp"
+    - if ("${this.ignoredModules:}" != ""):
+        - cmd[cp, proc]: |-
+            # Create workable ignored modules list
+            ignoredlist=/opt/tomcat/temp/ignoredmodules
+            echo ${this.ignoredModules} > $ignoredlist
+            sed -i 's/,/\n/g' $ignoredlist
+
+    - cmd[cp, proc]: |-
+        ignoredlist=/opt/tomcat/temp/ignoredmodules
+        clusterdump=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | head -n 1)
+        # Create new dump
+        clusterdump_after=$(mktemp)
+        if [ ${this.checkVersion} == "true" ]; then
+          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > $clusterdump_after
+        else
+          ${globals.karafConsole} cluster:bundle-list default | awk -F ' │' 'NR > 3 { print $2, $7 }' > $clusterdump_after
+        fi
+
+        # If ignored list exists, clean up the dumps
+        if [ -f "$ignoredlist" ]; then
+          tmpfile1=$(mktemp)
+          tmpfile2=$(mktemp)
+          grep -vF -f $ignoredlist $clusterdump > $tmpfile1 && mv $tmpfile1 $clusterdump
+          grep -vF -f $ignoredlist $clusterdump_after > $tmpfile2 && mv $tmpfile2 $clusterdump_after
+        fi
+
+        sumbefore=$(cat $clusterdump | md5sum)
+        sumafter=$(cat $clusterdump_after | md5sum)
+
+        # Log list of problematic modules in jelastic-packages
+        if [[ "$sumbefore" != "$sumafter" ]]; then
+          logfile=/var/log/jelastic-packages/modulescheck.log
+          errors=$(comm -3 <(sort $clusterdump_after) <(sort $clusterdump))
+          echo "Errors in cluster modules validation. Some modules are not in the original state after ${this.operation}:" >> $logfile
+          echo $errors >> $logfile
+        fi
+
+    - cmd[cp, proc]: |-
+        ignoredlist=/opt/tomcat/temp/ignoredmodules
+        localdump=$(ls -t /opt/tomcat/temp/modulesdump-local* | head -n 1)
+        localdump_after=$(mktemp)
+        if [ ${this.checkVersion} == "true" ]; then
+          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > $localdump_after
+        else
+          ${globals.karafConsole} bundle:list | awk -F ' │' 'NR > 3 { print $2, $5 }' > $localdump_after
+        fi
+
+        # If ignored list exists, clean up the dumps
+        if [ -f "$ignoredlist" ]; then
+          tmpfile1=$(mktemp)
+          tmpfile2=$(mktemp)
+          grep -vF -f $ignoredlist $localdump > $tmpfile1 && mv -f $tmpfile1 $localdump
+          grep -vF -f $ignoredlist $localdump_after > $tmpfile2 && mv -f $tmpfile2 $localdump_after
+        fi
+
+        sumbefore=$(cat $localdump | md5sum)
+        sumafter=$(cat $localdump_after | md5sum)
+
+        # Log list of problematic modules in jelastic-packages
+        if [[ "$sumbefore" != "$sumafter" ]]; then
+          logfile=/var/log/jelastic-packages/modulescheck.log
+          errors=$(comm -3 <(sort $localdump_after) <(sort $localdump))
+          echo "Errors in local modules validation. Some modules are not in the original state after ${this.operation}:" >> $logfile
+          echo $errors >> $logfile
+        fi
+
+        # Remove ignored list
+        rm -f $ignoredlist
+
+    - disableKarafLogin: "proc, cp"

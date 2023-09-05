@@ -1,0 +1,68 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Set database node cloudlets
+logo: ../../assets/common/jahia-logo-70x70.png
+id: set-db-nodes-cloudlets
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - if ( "${settings.cloudlets}" == "" ):
+      return:
+        type: error
+        message: "cloudlets setting is empty"
+  - if (nodes.sqldb.length > 1):
+      - getGaleraMaster
+      - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
+          - getGaleraNodeNameIndex: ${@i.id}
+          - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+            - log: "Setting cloudlets on MariaDB node ${@i.id}..."
+            - setDonorNode:
+                target : ${@i.id}
+            - setCloudlets: ${@i.id}
+          - else:
+            - setGlobals:
+                origMasterId: ${@i.id}
+
+      - script: |-
+          masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+          newMasterIndex = ((masterIndex + 1) % 3) + 1
+          return {'result':0, 'newMasterIndex': newMasterIndex}
+
+      - proxysqlSwitchMaster:
+          target: ${response.newMasterIndex}
+
+      - setDonorNode:
+          target: ${globals.origMasterId}
+
+      - setCloudlets: ${globals.origMasterId}
+  - else:
+      - setCloudlets: ${nodes.sqldb.first.id}
+
+actions:
+  setCloudlets:
+    - script: |
+        return api.env.control.SetCloudletsCountById(
+          "${env.envName}",
+          session,
+          ${settings.cloudlets},
+          ${this},
+          ${settings.cloudlets},
+          0
+        )
+    - checkMariadbHealth:
+        target: ${this}
+        maxDuration: 300
+    - if (nodes.sqldb.length > 1):
+        checkGaleraClusterHealth: ${this}
+
+settings:
+  fields:
+    - name: cloudlets
+      type: string
+      caption: New cloudlets value
+      required: true

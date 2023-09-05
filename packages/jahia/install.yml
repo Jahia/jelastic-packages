@@ -12,7 +12,7 @@ description:
     needs for sustainable growth.
 
 globals:
-  jahia_env_version: 31
+  jahia_env_version: 34
   db_user: jahia-db-${fn.random}
   __secret__db_pass: ${fn.password(20)}
   __secret__db_user_datadog: ${fn.password(20)}
@@ -92,12 +92,14 @@ onBeforeInstall: |
       var browsingXmx = "7680M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "3000M";
+      var glusterFSCloudlets = 10;
       break;
     case 'medium':
       var browsingCloudlets = 64;
       var browsingXmx = "5632M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "2500M";
+      var glusterFSCloudlets = 8;
       break;
     case 'small':
     default:
@@ -105,6 +107,7 @@ onBeforeInstall: |
       var browsingXmx = "2584M";
       var browsingMaxBytesLocalHeap = "500M";
       var browsingBigMaxBytesLocalHeap = "500M";
+      var glusterFSCloudlets = 6;
   }
 
   node_cp = {
@@ -115,6 +118,19 @@ onBeforeInstall: |
     "links": "sqldb:" + db_scheme,
     "startServiceOnCreation": false,
     "isSLBAccessEnabled": false,
+    "volumeMounts": {
+        "/share": {
+            "readOnly": "false",
+            "sourcePath": "data",
+            "sourceNodeGroup": "storage",
+            "sourceAddressType":"NODE_GROUP",
+      },
+    },
+    "volumes": [
+      "/data",
+      "/share",
+      "/opt/tomcat/webapps"
+    ],
     "env": {
         "DB_USER": "${globals.db_user}",
         "DB_PASSWORD": __secret__dbPass,
@@ -134,6 +150,7 @@ onBeforeInstall: |
         "jahia_cfg_elasticsearch_prefix": "${settings.shortdomain}",
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": browsingMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": browsingBigMaxBytesLocalHeap,
+        "jahia_cfg_jahia_jackrabbit_datastore_path": "/share/datastore",
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
         "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
@@ -148,7 +165,9 @@ onBeforeInstall: |
   } else {
     node_cp['image']  = dockerImage;
   }
-
+  if (${settings.sqldbNodeCount} == 3) {
+    node_cp['volumeMounts']['/share']['protocol'] = "GLUSTER"
+  }
   nodes.push(node_cp);
 
   // Processing node
@@ -182,6 +201,19 @@ onBeforeInstall: |
     "links": "sqldb:" + db_scheme,
     "startServiceOnCreation": false,
     "isSLBAccessEnabled": false,
+    "volumeMounts": {
+        "/share": {
+            "readOnly": "false",
+            "sourcePath": "data",
+            "sourceNodeGroup": "storage",
+            "sourceAddressType":"NODE_GROUP"
+        },
+    },
+    "volumes": [
+      "/data",
+      "/share",
+      "/opt/tomcat/webapps"
+    ],
     "env": {
         "DB_USER": "${globals.db_user}",
         "DB_PASSWORD": __secret__dbPass,
@@ -201,6 +233,7 @@ onBeforeInstall: |
         "jahia_cfg_elasticsearch_prefix": "${settings.shortdomain}",
         "jahia_cfg_org_jahia_ehcachemanager_maxBytesLocalHeap": procMaxBytesLocalHeap,
         "jahia_cfg_org_jahia_ehcachemanager_big_maxBytesLocalHeap": procBigMaxBytesLocalHeap,
+        "jahia_cfg_jahia_jackrabbit_datastore_path": "/share/datastore",
         "HAPROXY_NODES_COUNT": "${settings.haproxyNodeCount}",
         "tomcat_cfg_maxpostsize": "${globals.tomcat_maxpostsize}",
         "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
@@ -214,20 +247,23 @@ onBeforeInstall: |
   } else {
     node_proc['image']  = dockerImage;
   }
+  if (${settings.sqldbNodeCount} == 3) {
+    node_proc['volumeMounts']['/share']['protocol'] = "GLUSTER"
+  }
   nodes.push(node_proc);
 
   // MariaDB nodes
 
   switch ("${settings.sqldbNodeSize}") {
     case 'large':
-      var mariadbCloudlets = 80;
+      var mariadbCloudlets = 64;
       break;
     case 'medium':
-      var mariadbCloudlets = 64;
+      var mariadbCloudlets = 48;
       break;
     case 'small':
     default:
-      var mariadbCloudlets = 40;
+      var mariadbCloudlets = 20;
   }
 
   node_mariadb = {
@@ -253,6 +289,30 @@ onBeforeInstall: |
       "distribution": nodes_distribution
   }
   nodes.push(node_mariadb);
+
+  var is_glusterfs = false
+  if (${settings.sqldbNodeCount} == 3) {
+    is_glusterfs = true
+  }
+
+  node_storage = {
+    "nodeType": "storage",
+    "cloulets": glusterFSCloudlets,
+    "count": ${settings.sqldbNodeCount},
+    "nodeGroup": "storage",
+    "displayName": "Storage",
+    "cluster": is_glusterfs,
+    "env": {
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
+        "_PROVIDE": "Storage",
+        "_ROLE": "storage",
+        "envName": "${settings.shortdomain}",
+        "envmode": envmode,
+        "JELASTIC_EXPOSE": false
+      }
+  }
+  nodes.push(node_storage);
+
   var resp = {
     result: 0,
     nodes: nodes
@@ -266,10 +326,10 @@ onInstall:
   - log: "## Beginning installation of Jahia"
   - setJelasticUserAsRoot: "*"
   - installRequiredPackages:
-      target: "bl, sqldb"
+      target: "bl, sqldb, storage"
       packages: "jq rclone"
   - installPython:
-      target: "bl, sqldb"
+      target: "bl, sqldb, storage"
       python_major_version: 3
       python_minor_version: 8
   - setJournaldLimit
@@ -290,12 +350,12 @@ onInstall:
   - installJahia:
       jahiaVersion: ${settings.productVersion}
       __secret__rootpwd: ${settings.rootpwd}
-      __secret__toolspwd: ${settings.toolspwd}
   - installHaproxy
-  - getLogEventScript: bl, proc, cp, sqldb
-  - installPapiScript: bl, proc, cp, sqldb
+  - getLogEventScript: bl, proc, cp, sqldb, storage
+  - installPapiScript: bl, proc, cp, sqldb, storage
   - setupDatadogAgentSql: sqldb
   - setupDatadogAgentJahia: cp, proc
+  - setupDatadogAgentStorage: storage
   - setupDatadogAgentHaproxy: bl
   - setupRclone
   - setEnvVersion: ${globals.jahia_env_version}
@@ -318,11 +378,6 @@ settings:
     - name: rootpwd
       type: string
       caption: Jahia root password
-      vtype: string
-      required: true
-    - name: toolspwd
-      type: string
-      caption: Jahia tools password
       vtype: string
       required: true
     - name: haproxyNodeCount
