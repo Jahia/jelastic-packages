@@ -94,6 +94,8 @@ onBeforeRedeployContainer[cp]:
       - removeBrowsingNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
           reload: true
+      - queryShutdownEndpoint:
+          target: ${event.params.nodeId}
       - cmd [${event.params.nodeId}]: |-
           service tomcat stop
       - saveApplicationcontextFilesBeforeRedeploy: ${event.params.nodeId}
