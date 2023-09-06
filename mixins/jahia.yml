@@ -2077,8 +2077,8 @@ actions:
         localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
 
         result_file=$(mktemp)
-        diff --changed-group-format='%<' --unchanged-group-format='' $clusterdump_before $clusterdump_after | awk '{ print $3 }' >> $result_file
-        diff --changed-group-format='%<' --unchanged-group-format='' $localdump_before $localdump_after | awk '{ print $3 }' >> $result_file
+        diff -b --changed-group-format='%<' --unchanged-group-format='' <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $result_file
+        diff -b --changed-group-format='%<' --unchanged-group-format='' <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $result_file
 
         # Log error if any
         if [ -s "$result_file" ]; then
