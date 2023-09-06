@@ -2076,12 +2076,26 @@ actions:
         localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '2 p')
         localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
 
+        # If this is an upgrade, only keep active modules
+        dumps_before=($clusterdump_before $localdump_before)
+        if [[ ${this.operation} == "upgrade" ]]; then
+            for dump in ${dumps_before[@]}; do
+              sed -i '/Active/!d' "$dump"
+            done
+        fi
+
+        # Make sure there's no space issues
+        dumps=($clusterdump_before $clusterdump_after $localdump_before $localdump_after)
+        for dump in ${dumps[@]}; do
+          sed -i 's/  */ /g' "$dump"
+        done
+
         result_file=$(mktemp)
-        diff -b --changed-group-format='%<' --unchanged-group-format='' <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $result_file
-        diff -b --changed-group-format='%<' --unchanged-group-format='' <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $result_file
+        comm -23 <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $result_file
+        comm -23 <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $result_file
 
         # Log error if any
         if [ -s "$result_file" ]; then
           logfile=/var/log/jelastic-packages/modulescheck.log
-          echo "Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(paste -s -d, $result_file)" >> $logfile
+          echo "Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(sort -u $result_file | paste -s -d,)" >> $logfile
         fi
