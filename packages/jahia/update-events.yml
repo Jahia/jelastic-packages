@@ -49,11 +49,11 @@ onAfterServiceScaleOut[cp]:
           unomiEnvName: ${globals.unomi_env_name}
 
 onBeforeRestartNode[cp]:
-  - queryShutdownEndpoint:
-      target: ${event.params.nodeId}
   - removeBrowsingNodeFromHaproxy:
       nodeId: ${event.params.nodeId}
       reload: true
+  - queryShutdownEndpoint:
+      target: ${event.params.nodeId}
 
 onAfterRestartNode[cp]:
   forEach(nodes.cp):
@@ -65,10 +65,10 @@ onAfterRestartNode[cp]:
           reload: true
 
 onBeforeRestartNode[proc]:
-  - queryShutdownEndpoint:
-      target: ${event.params.nodeId}
   - removeProcNodeFromHaproxy:
       reload: true
+  - queryShutdownEndpoint:
+      target: ${event.params.nodeId}
   - cleanJRJJournalTable:
       batchSize: 10000
 
@@ -81,11 +81,11 @@ onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - forEach(nodes.cp):
-        - queryShutdownEndpoint:
-            target: ${@i.id}
         - removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: true
+        - queryShutdownEndpoint:
+            target: ${@i.id}
       - cmd [cp]: |-
           service tomcat stop
       - saveApplicationcontextFilesBeforeRedeploy: ${event.params.nodeGroup}
@@ -122,10 +122,10 @@ onAfterRedeployContainer[cp]:
 
 onBeforeRedeployContainer[proc]:
   - saveApplicationcontextFilesBeforeRedeploy: proc
-  - queryShutdownEndpoint:
-      target: proc
   - removeProcNodeFromHaproxy:
       reload: true
+  - queryShutdownEndpoint:
+      target: proc
   - cmd [proc]: |-
       service tomcat stop
 
