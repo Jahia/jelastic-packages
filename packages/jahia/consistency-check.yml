@@ -93,34 +93,21 @@ actions:
                 message: "Running personal-api-tokens version is ${globals.runningVersion} instead of ${this.expectedVersion}"
 
   checkSAM:
-    # Jahia 8.0 ==> 2.0.1
-    # Jahia 8.1 < 8.1.2 ==> 2.1.0
-    # Jahia 8.1.2+ ==> 2.6.0
+    # Jahia < 8.2 ==> 3.0.0 (the module is directly embedded in Jahia starting from 8.2)
     - basicModuleCheck:
         moduleSymname: server-availability-manager
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
         - isVersionStrictlyLower:
             a: ${globals.jahiaVersion}
-            b: 8.1.0.0
-            res: isLowerThan8100
-        - if( ${globals.isLowerThan8100} ):
+            b: 8.2.0.0
+            res: isLowerThan8200
+        - if( ${globals.isLowerThan8200} ):
             - set:
-                expectedVersion: 2.0.1
-        - else:
-            - isVersionStrictlyLower:
-                a: ${globals.jahiaVersion}
-                b: 8.1.2.0
-                res: isLowerThan8120
-            - if( ${globals.isLowerThan8120} ):
-                - set:
-                    expectedVersion: 2.1.0
-            - else:
-                - set:
-                    expectedVersion: 2.6.0
-        - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
-            - addError:
-                message: "Running server-availability-manager version is ${globals.runningVersion} instead of ${this.expectedVersion}"
+                expectedVersion: 3.0.0
+            - if( "${globals.runningVersion}" != "${this.expectedVersion}" ):
+                - addError:
+                    message: "Running server-availability-manager version is ${globals.runningVersion} instead of ${this.expectedVersion}"
 
   checkDistributedSessions:
     - basicModuleCheck:
