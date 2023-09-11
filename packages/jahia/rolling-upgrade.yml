@@ -12,6 +12,10 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
+  # Dump modules state
+  - dumpModules:
+      operation: upgrade
+      checkVersion: false
   ## Redeploy Jahia nodes
   - procRedeploy:
       upgradeJahia: true
@@ -29,6 +33,10 @@ onInstall:
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
       product: "dx"
+  # Check modules state
+  - checkModulesAfterOperation:
+      operation: upgrade
+      checkVersion: false
 
 settings:
   fields:
