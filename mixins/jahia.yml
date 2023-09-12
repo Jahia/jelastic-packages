@@ -2038,12 +2038,12 @@ actions:
     - enableKarafLogin: "proc, cp"
     - if (${this.checkVersion}):
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date +"%Y-%m-%dT%H:%M:%S")
+          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date +"%Y-%m-%dT%H:%M:%S")
     - else:
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date '+%Y-%m-%d.%H:%M:%S')
+          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.$(date +"%Y-%m-%dT%H:%M:%S")
+          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.$(date +"%Y-%m-%dT%H:%M:%S")
     - disableKarafLogin: "proc, cp"
 
   checkModulesAfterOperation:
@@ -2071,10 +2071,10 @@ actions:
 
     # Validate before vs after and log any errors
     - cmd[cp, proc]: |-
-        clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '2 p')
-        clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '1 p')
-        localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '2 p')
-        localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
+        clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster.${this.operation}* | sed -n '2 p')
+        clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster.${this.operation}* | sed -n '1 p')
+        localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '2 p')
+        localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '1 p')
 
         # If this is an upgrade, only keep active modules
         dumps_before=($clusterdump_before $localdump_before)
@@ -2097,5 +2097,7 @@ actions:
         # Log error if any
         if [ -s "$result_file" ]; then
           logfile=/var/log/jelastic-packages/modulescheck.log
-          echo "Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(sort -u $result_file | paste -s -d,)" >> $logfile
+          timestamp=$(date +"%Y-%m-%dT%H:%M:%S")
+          errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(sort -u $result_file | paste -s -d,)"
+          echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
         fi
