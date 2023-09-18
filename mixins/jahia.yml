@@ -1709,7 +1709,7 @@ actions:
     # - Jahia 7.3.x   ==> jExperience 1.11.9
     # - Jahia 8.0.x   ==> jExperience 2.2.0 & jExperienceDashboards 0.3.0
     # - Jahia 8.1.x   ==> jExperience 2.7.2 & jExperienceDashboards 0.3.0
-    # - jCustomer 2.x ==> jExperience 3.2.0 & jExperienceDashboards 1.0.0
+    # - jCustomer 2.x ==> jExperience 3.3.0 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of unomi environment
     # Returns:
@@ -1739,7 +1739,7 @@ actions:
         res: isHigherOrEqual200
     - if( ${globals.isHigherOrEqual200} ):
         - setGlobals:
-            jexperienceVersion: 3.2.0
+            jexperienceVersion: 3.3.0
             jexperienceDashboardsVersion: 1.0.0
 
   getEnvLinkedJcustomer:
