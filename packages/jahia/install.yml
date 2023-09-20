@@ -156,7 +156,7 @@ onBeforeInstall: |
         "PROXYSQL_ADMIN_PASSWORD": __secret__proxysql_admin_password,
         "PROXYSQL_MONITORING_PASSWORD": __secret__proxysql_monitoring_password,
         "PROXYSQL_CLUSTER_PASSWORD": __secret__proxysql_cluster_password,
-      },
+    },
     "distribution": nodes_distribution
   }
   if (dockerImage == "undefined") {
@@ -285,8 +285,8 @@ onBeforeInstall: |
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false,
-      },
-      "distribution": nodes_distribution
+    },
+    "distribution": nodes_distribution
   }
   nodes.push(node_mariadb);
 
@@ -309,7 +309,8 @@ onBeforeInstall: |
         "envName": "${settings.shortdomain}",
         "envmode": envmode,
         "JELASTIC_EXPOSE": false
-      }
+    },
+    "distribution": nodes_distribution
   }
   nodes.push(node_storage);
 

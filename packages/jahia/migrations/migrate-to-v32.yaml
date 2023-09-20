@@ -294,6 +294,14 @@ actions:
             "envName": "${env.shortdomain}",
             "JELASTIC_EXPOSE": false
           },
+          "distribution": {
+              "mode": "SOFT",
+              "zones": [{
+                  "az1": "zoneA",
+                  "az2": "zoneB",
+                  "az3": "zoneC"
+              }]
+          },
           "extip": 0,
           "extipv6": 0,
           "fixedCloudlets": 0,
