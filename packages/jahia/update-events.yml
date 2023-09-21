@@ -38,6 +38,11 @@ onAfterServiceScaleOut[cp]:
           target: ${@i.id}
       - onAfterBrowsingScaleOut:
           newNode: ${@i.id}
+      - logEvent:
+          target: ${@i.id}
+          title: "Scaled out ${event.params.nodeGroup} node group"
+          text: "Node ${@i.id} has been added"
+      - installPapiScript: ${@i.id}
   - resetHaproxyBackends
   - refreshProxysqlInstancesList
   - generateNodesListFile
@@ -201,6 +206,14 @@ onAfterScaleOut[bl]:
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
+
+onAfterServiceScaleOut[bl]:
+  forEach(event.response.nodes):
+    - logEvent:
+        target: ${@i.id}
+        title: "Scaled out ${event.params.nodeGroup} node group"
+        text: "Node ${@i.id} has been added"
+    - installPapiScript: ${@i.id}
 
 onBeforeRedeployContainer[sqldb]:
   # disable mysql autostart because JEM will do it
@@ -385,14 +398,6 @@ onBeforeScaleIn:
         duration: 2880 # 48h
     - cmd[${@i.id}]: |-
         service tomcat stop
-
-onAfterServiceScaleOut:
-  forEach(event.response.nodes):
-    - logEvent:
-        target: ${@i.id}
-        title: "Scaled out ${event.params.nodeGroup} node group"
-        text: "Node ${@i.id} has been added"
-    - installPapiScript: ${@i.id}
 
 onBeforeDelete:
   - setGlobalRepoRootUrl
