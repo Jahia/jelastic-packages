@@ -181,13 +181,10 @@ actions:
         f=/opt/tomcat/conf/tomcat-env.sh
         if ! grep -qE "^APM_OPTS=\".*OldObjectSample" $f; then
           sed -i "s;^\(APM_OPTS=\".*\)\"$;\1 -Ddd.profiling.disabled.events=jdk.OldObjectSample\";" $f || exit 1
-          echo "RESTART"
+          echo "UPDATED"
         fi
         # The following line is useful to remove what was added for Virbac and Arkema's environments
         sed -i -r "/^APM_OPTS\+=\".*OldObjectSample\"/d" $f
-    - if ("${response.out}" == "RESTART"):
-        setGlobals:
-          jahiaRollingRestartNeeded: true
 
   addHaproxyLetsEncryptConfig:
     - cmd[bl]: |-
