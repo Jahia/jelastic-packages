@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 32
-  ignoredModules: ""
+  ignoredModules: "server-availability-manager"
 
 onInstall:
   ### Pre-migration actions
