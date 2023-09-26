@@ -123,7 +123,7 @@ def is_count_valid(node_group, count, environment):
     return True
 
 
-def check_hardwarenodes(jelastic_session, region, papi_hostname, papi_token):
+def check_hardwarenodes(jelastic_session, region, papi_hostname, papi_token, logger=logger):
     environments = {}
     hardware_node_with_containers = []
 
