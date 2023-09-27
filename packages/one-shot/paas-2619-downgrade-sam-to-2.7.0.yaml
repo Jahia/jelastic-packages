@@ -1,0 +1,25 @@
+---
+type: update
+version: 1.5.2
+name: SAM downgrade 2.7.0
+id: downgrade-sam-to-2-7-0
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - checkModule:
+      moduleSymname: server-availability-manager
+  - if ("${globals.runningVersion}" != "2.7.0"):
+      - disableHaproxyHealthcheck
+      - uninstallModule:
+          moduleSymname: server-availability-manager
+      - installOrUpgradeModule:
+          moduleSymname: server-availability-manager
+          moduleVersion: 2.7.0
+          moduleGroupId: org.jahia.modules
+          moduleRepository: jahia-releases
+      - checkJahiaHealth: "cp, proc"
+      - enableHaproxyHealthcheck
+
