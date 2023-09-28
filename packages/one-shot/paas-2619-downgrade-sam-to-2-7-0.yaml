@@ -22,4 +22,3 @@ onInstall:
           moduleRepository: jahia-releases
       - checkJahiaHealth: "cp, proc"
       - enableHaproxyHealthcheck
-
