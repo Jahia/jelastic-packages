@@ -2037,8 +2037,7 @@ actions:
           ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
           ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - cmd[cp, proc]: |-
-        sed -i -E "s/Resolved|Installed/Stopped/" \
-            /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+        sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
     - disableKarafLogin: "proc, cp"
 
   checkModulesAfterOperation:
