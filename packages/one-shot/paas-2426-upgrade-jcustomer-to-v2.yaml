@@ -35,7 +35,13 @@ onInstall:
   - env.control.AddContainerEnvVars[cp]:
     vars:
       UNOMI_MIGRATION_RECOVER_FROM_HISTORY: true
-      KARAF_OPTS: "-Dunomi.autoMigrate=${globals.currentVersion} -Dunomi.autoStart=true"
+
+  - cmd[${nodes.cp.first.id}]: |-
+      setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+      tmpenv=/opt/jcustomer/jcustomer-2.4.0/bin/setenv
+      mkdir -p /opt/jcustomer/jcustomer-2.4.0/bin && cp $setenv $tmpenv
+      sed -i 's/KARAF_OPTS="-Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoMigrate=1.6.0 -Dunomi.autoStart=true"/' $tmpenv
+      echo $tmpenv >> /etc/jelastic/redeploy.conf
 
   - cmd[cp]: |-
       service datadog-agent stop
@@ -44,7 +50,11 @@ onInstall:
   - upgradeJcustomerOnNode: ${nodes.cp.first.id}
 
   - env.control.RemoveContainerEnvVars[cp]:
-    vars: ["UNOMI_MIGRATION_RECOVER_FROM_HISTORY", "KARAF_OPTS"]
+    vars: ["UNOMI_MIGRATION_RECOVER_FROM_HISTORY"]
+
+  - cmd[${nodes.cp.first.id}]: |-
+      setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+      sed -i 's/export KARAF_OPTS="-Dunomi.autoMigrate=1.6.0 -Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoStart=true"/' $setenv
 
   - forEach(nodes.cp):
       if ("${@i.id}" != "${nodes.cp.first.id}"):
