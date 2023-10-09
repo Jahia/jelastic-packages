@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Unomi - Upgrade
-id: unomi-upgrade-to-v2
+name: Unomi - Retry upgrade
+id: unomi-retry-upgrade-to-v2
 
 mixins:
   - "../../mixins/common.yml"
