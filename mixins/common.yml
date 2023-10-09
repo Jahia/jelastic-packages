@@ -1236,3 +1236,11 @@ actions:
         awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST
     - setGlobals:
         region: ${response.out}
+
+  getEnvRole:
+    # Returns
+    #  envRole: the cluster role hosting the environment (dev/preprod/prod)
+    - cmd[${nodes.cp.first.id}]: |-
+        awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST
+    - setGlobals:
+       envRole: ${response.out}
