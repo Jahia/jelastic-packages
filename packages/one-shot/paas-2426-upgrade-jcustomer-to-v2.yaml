@@ -13,13 +13,6 @@ onInstall:
   - setGlobals:
       currentVersion: ${nodes.cp.first.customitem.nodeVersion}
 
-  - if(!${settings.skip_backup}):
-      install:
-        jps: "${globals.repoRootUrl}/packages/common/backup.yml"
-        settings:
-          backup_name: "${env.envName}-pre-upgrade-v2"
-          backtype: manual
-
   # Check if env version is < 2.0.0
   - isVersionStrictlyLower:
       a: "${globals.currentVersion}"
@@ -29,6 +22,13 @@ onInstall:
       return:
         type: error
         message: "Current version must be lower than 2.0.0"
+
+  - if(!${settings.skip_backup}):
+      install:
+        jps: "${globals.repoRootUrl}/packages/common/backup.yml"
+        settings:
+          backup_name: "${env.envName}-pre-upgrade-v2"
+          backtype: manual
 
   - muteEnvWideMonitors
 
@@ -55,6 +55,7 @@ onInstall:
   - cmd[${nodes.cp.first.id}]: |-
       setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
       sed -i 's/export KARAF_OPTS="-Dunomi.autoMigrate=1.6.0 -Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoStart=true"/' $setenv
+      sed -i '/setenv/d' /etc/jelastic/redeploy.conf
 
   - forEach(nodes.cp):
       if ("${@i.id}" != "${nodes.cp.first.id}"):
