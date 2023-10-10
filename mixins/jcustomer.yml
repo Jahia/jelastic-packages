@@ -127,6 +127,11 @@ actions:
             message: "An error occurred during unomi setup."
     - checkJcustomerHealthWhenStarting: ${this.nodeId}
 
+  initRedeployConfig:
+    - cmd[cp]: |-
+        redeploy_conf_path="/etc/jelastic/redeploy.conf"
+        echo "$redeploy_conf_path" >> $redeploy_conf_path
+
   getLinkedJahiaEnvs:
     # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global
     # Parameters:
@@ -328,7 +333,6 @@ actions:
     - setupDatadogAgentUnomi:
         target: ${this}
         __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-
 
   enablejCustomerKarafLogin:
     - isjCustomerKarafLoginEnabled: ${globals.isjCustomerKarafLoginEnabled}

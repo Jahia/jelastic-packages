@@ -139,6 +139,7 @@ onInstall:
       - setupUnomi:
           nodeId: ${@i.id}
           __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+  - initRedeployConfig
   - setupDatadogAgentUnomi:
       target: cp
       __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
