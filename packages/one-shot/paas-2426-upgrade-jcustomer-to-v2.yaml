@@ -55,6 +55,7 @@ onInstall:
   - cmd[${nodes.cp.first.id}]: |-
       setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
       sed -i 's/export KARAF_OPTS="-Dunomi.autoMigrate=1.6.0 -Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoStart=true"/' $setenv
+      sed -i '/setenv/d' /etc/jelastic/redeploy.conf
 
   - forEach(nodes.cp):
       if ("${@i.id}" != "${nodes.cp.first.id}"):
