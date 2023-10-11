@@ -48,11 +48,11 @@ onBeforeInstall: |
   var __secret__proxysql_cluster_password = "${globals.__secret__proxysql_cluster_password}";
   nodes_distribution = {
       "mode": "SOFT",
-      "zones": [{
-          "az1": "zoneA",
-          "az2": "zoneB",
-          "az3": "zoneC"
-      }]
+      "zones": [
+          {"az1": "zoneA"},
+          {"az2": "zoneB"},
+          {"az3": "zoneC"}
+      ]
   }
 
   // HAProxy nodes
