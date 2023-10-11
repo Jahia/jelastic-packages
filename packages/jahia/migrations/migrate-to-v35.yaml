@@ -30,7 +30,9 @@ onInstall:
   # Actions that update modules (needs to be done first)
   # (None)
 
+  # Regular actions
   - updateDDIPSecConnStatus                  # PAAS-2601
+  - fixNodesDistribution                     # PAAS-2634
 
   # Actions that require a restart
   # (None)
@@ -104,6 +106,40 @@ actions:
           chown dd-agent: $file_path
           systemctl restart datadog-agent
         fi
+
+  fixNodesDistribution:
+  - script: |
+      var distribution = {
+        "mode": "SOFT",
+        "zones": [
+          {"az1": "zoneA"},
+          {"az2": "zoneB"},
+          {"az3": "zoneC"}
+        ]
+      }
+      var nodeGroupsPayload = [{"nodeGroup": "proc"}]
+      var nodeGroups = ["bl", "cp", "sqldb", "storage"]
+      nodeGroups.forEach(function (ng) {
+        nodeGroupsPayload.push(
+          {
+            "nodeGroup": ng,
+            "distribution": distribution
+          }
+        )
+      })
+
+      resp = api.env.control.ChangeTopology(
+        "${env.envName}",
+        session,
+        "changetopology;${env.appid};${env.envName};${user.uid}",
+        "{\"region\": ${env.region},\"sslstate\": true,\"ishaenabled\": false}",
+        JSON.stringify(nodeGroupsPayload)
+      )
+      if (resp["result"] != 0) {
+        return {result: 1, error: "The topology update API call failed", errorMessage: resp["error"]}
+      }
+
+      return {result: 0}
 
 settings:
   fields:
