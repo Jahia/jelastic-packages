@@ -1100,6 +1100,8 @@ actions:
   setupRclone:
     - setGlobalRepoRootUrl
     - fetchS3LogsBucketInfos
+    - setS3LogsBucketName:
+        s3LogsBucketName: ${globals.__secret__bucket_name}
     - fetchRcloneFiles
     - setupLogsRCloneConfig:
         provider: ${globals.logs_bucket_provider}
@@ -1206,6 +1208,13 @@ actions:
     - script: |-
         valid_groups = ["cp", "proc", "bl"];
         const __secret__data = ${response.out.toJSON()};
+        return {"result": 0, "onAfterReturn": {setGlobals: __secret__data}}
+
+  setS3LogsBucketName:
+    # Params:
+    #   s3LogsBucketName
+    - script: |-
+        valid_groups = ["cp", "proc", "bl"];
         jelastic.environment.control.getnodegroups("${env.envName}", session)["object"].forEach((nodeGroup) => {
           if ( valid_groups.includes(nodeGroup.name) ) {
             jelastic.env.control.AddContainerEnvVars(
@@ -1213,13 +1222,32 @@ actions:
               session,
               nodeGroup=nodeGroup.name,
               vars={
-                "logs_s3_bucket_name": __secret__data["__secret__bucket_name"],
+                "logs_s3_bucket_name": "${this.s3LogsBucketName}",
               }
             );
           }
         });
 
-        return {"result": 0, "onAfterReturn": {setGlobals: ${response.out.toJSON()} } }
+        return {"result": 0}
+
+  updateS3LogsCredentials:
+    - fetchS3LogsBucketInfos
+    - cmd[*]: |-
+        rclone_conf=/root/.config/rclone/rclone.conf
+        provider="${globals.logs_bucket_provider}"
+        region="${globals.s3_bucket_region}"
+        __secret__access_key="${globals.__secret__access_key}"
+        __secret__secret_key="${globals.__secret__secret_key}"
+        __secret__aes256_key="${globals.__secret__aes256_key.print()}"
+
+        set -e
+        sed -e "s/access_key_id.*/access_key_id = $__secret__access_key/" \
+            -e "s/secret_access_key.*/secret_access_key = $__secret__secret_key/" \
+            -i $rclone_conf
+
+        if [ "$provider" = "ovh" ]; then
+          sed -e "s/sse_customer_key.*/sse_customer_key = $__secret__aes256_key/" -i $rclone_conf
+        fi
 
   getEnvCloudProvider:
     # Returns

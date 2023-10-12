@@ -78,6 +78,7 @@ onAfterStart:
       title: "$envName environment started"
       text: "$envName is started"
   - refreshUnomiAllowedIPs
+  - updateS3LogsCredentials
   - checkJcustomerHealthWhenStarting: cp
   - unmuteDatadogHost:
       target: "*"

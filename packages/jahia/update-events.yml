@@ -297,6 +297,7 @@ onAfterStart:
   - resetHaproxyBackends
   - updateEnvStatusInPapi:
       status: running
+  - updateS3LogsCredentials
   - logEvent:
       target: ${nodes.proc.first.id}
       title: "$envName environment started"
