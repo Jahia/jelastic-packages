@@ -257,6 +257,7 @@ actions:
   refreshUnomiAllowedIPs:
     # Parameters:
     #   - unomiEnvName (optional, defaults to current envName)
+    - setGlobalRepoRootUrl
     - if ('${this.unomiEnvName.print()}' == ''):
         set:
           unomiEnvName: ${env.envName}
@@ -305,9 +306,13 @@ actions:
           envName: ${this.unomiEnvName}
           nodeGroup: cp
           vars: {"UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES": "${this.newIPList}"}
-        - api: env.control.RestartNodes
-          envName: ${this.unomiEnvName}
-          nodeGroup: cp
+        - script: |-
+            return api.marketplace.jps.Install(
+              {
+                jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml",
+                envName: "${this.unomiEnvName}"
+              }
+            );
     - else:
         log: "UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES unchanged, no update needed"
 
