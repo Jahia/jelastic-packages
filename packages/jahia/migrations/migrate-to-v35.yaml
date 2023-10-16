@@ -35,7 +35,7 @@ onInstall:
   - fixNodesDistribution                     # PAAS-2634
 
   # Actions that require a restart
-  # (None)
+  - useTCMalloc                              # PAAS-2583
 
   # Actions that require a redeploy
   # (None)
@@ -140,6 +140,18 @@ actions:
       }
 
       return {result: 0}
+
+  useTCMalloc:
+    - cmd[cp, proc]: |-
+        yum install -y gperftools > /dev/null
+        chmod +s $(readlink -f /usr/lib64/libtcmalloc.so)
+        if ! (grep -q LD_PRELOAD /opt/tomcat/conf/tomcat-env.sh); then
+          echo "export LD_PRELOAD=libtcmalloc.so" >> /opt/tomcat/conf/tomcat-env.sh
+          echo "Restart needed"
+        fi
+    - if ("${response.out}" != ""):
+        setGlobals:
+          jahiaRollingRestartNeeded: true
 
 settings:
   fields:
