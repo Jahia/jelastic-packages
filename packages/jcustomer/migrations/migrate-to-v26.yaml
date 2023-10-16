@@ -1,0 +1,70 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v26
+id: migrate-jcustomer-env-v26
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 26
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # (No action yet, but events need to be updated for PAAS-2605)
+
+  # Actions that require a restart
+  # (None)
+
+  # Actions that require a redeploy
+  # (None)
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  preChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  postChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks
