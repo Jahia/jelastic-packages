@@ -709,13 +709,17 @@ actions:
         ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
         ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
         ec_deployment_mutualized=$(echo $ec_deployment | jq -r .mutualized)
+        ec_deployment_min_score=$(echo $ec_deployment | jq -r .min_score)
+        if [ "$ec_deployment_min_score" = "null" ]; then
+          ec_deployment_min_score=0
+        fi
 
-        dev_dedicated=50
-        dev_mutualized=100
-        preprod_dedicated=50
-        preprod_mutualized=100
-        prod_dedicated=20
-        prod_mutualized=100
+        dev_dedicated=15
+        dev_mutualized=20
+        preprod_dedicated=15
+        preprod_mutualized=20
+        prod_dedicated=10
+        prod_mutualized=15
 
         if [ "$ec_deployment_mutualized" = true ]; then
           eval ratio=\$${JEL_ENV_ROLE}_mutualized
@@ -738,7 +742,7 @@ actions:
         new_score=$(( (new_total_shards/ratio) + ((new_total_shards%ratio) > 0 )))
 
         # Update PAPI and trigger CircleCI pipeline only if new score is greater
-        if [ "$new_score" -gt "$current_score" ]; then
+        if [ "$new_score" -gt "$current_score" ] && [ "$new_score" -gt "$ec_deployment_min_score" ]; then
           organization_id=$(echo $environment | jq -r .paas_organization_id)
           ec_deployment_name=$(echo $ec_deployment | jq -r .name)
           papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}'
