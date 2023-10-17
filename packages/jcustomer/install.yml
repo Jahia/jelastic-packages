@@ -36,6 +36,14 @@ onBeforeInstall: |
   var envmode = '${settings.envmode}';
   var __secret__elasticsearchPassword = "${globals.__secret__elasticsearch_password}";
   var __secret__DATADOGAPIKEY = "${settings.ddogApikey}";
+  nodes_distribution = {
+      "mode": "SOFT",
+      "zones": [
+          {"az1": "zoneA"},
+          {"az2": "zoneB"},
+          {"az3": "zoneC"}
+      ]
+  }
 
   var resp = {
     result: 0,
@@ -97,7 +105,8 @@ onBeforeInstall: |
       _ROLE: 'unomi',
       _PROVIDE: 'unomi',
       envmode: envmode,
-    }
+    },
+    "distribution": nodes_distribution
   }
 
   resp.nodes.push(node_unomi)

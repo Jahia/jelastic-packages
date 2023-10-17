@@ -26,7 +26,8 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End pre-migration actions
 
-  # (No action yet, but events need to be updated for PAAS-2605)
+  # Regular actions
+  - fixNodesDistribution
 
   # Actions that require a restart
   # (None)
@@ -62,6 +63,32 @@ actions:
   postChecks:
     - checkJcustomerHealth: cp
     - checkJcustomerDatadogCustomChecks: cp
+
+  fixNodesDistribution:
+    - script: |
+        var distribution = {
+          "mode": "SOFT",
+          "zones": [
+            {"az1": "zoneA"},
+            {"az2": "zoneB"},
+            {"az3": "zoneC"}
+          ]
+        }
+        var nodeGroupsPayload = [{
+          "nodeGroup": "cp",
+          "distribution": distribution
+        }]
+        resp = api.env.control.ChangeTopology(
+          "${env.envName}",
+          session,
+          "changetopology;${env.appid};${env.envName};${user.uid}",
+          "{\"region\": ${env.region},\"sslstate\": true,\"ishaenabled\": false}",
+          JSON.stringify(nodeGroupsPayload)
+        )
+        if (resp["result"] != 0) {
+          return {result: 1, error: "The topology update API call failed", errorMessage: resp["error"]}
+        }
+        return {result: 0}
 
 settings:
   fields:
