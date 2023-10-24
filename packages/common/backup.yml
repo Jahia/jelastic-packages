@@ -146,8 +146,10 @@ actions:
         mirror_folder=~/share_mirror
 
         # mirroring the datastore from the share to a local directory
-        rsync -a --delete $DS_folder $mirror_folder --log-file=${globals.logsPath} 2>>${globals.logsPath}
-        if (($?)); then
+        # we dont care about tmp file like /share/datastore/tmp6142621287746279577.tmp (and remove them from the target if any)
+        rsync -a --delete --exclude='tmp[[:digit:]]*.tmp' --delete-excluded -- $DS_folder $mirror_folder --log-file=${globals.logsPath} 2>>${globals.logsPath}
+        # if the output code is different from 0 or 24 (vanished file(s)) then we have a problem
+        if (($? && $? != 24)); then
           echo "Something went wrong with rsync" >> ${globals.logsPath}
           echo "ERROR" >&2
         fi
