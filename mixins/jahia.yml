@@ -463,28 +463,71 @@ actions:
           );
 
   switchFullReadonly:
+    # Parameters:
+    # maxTry (optional): default value is 15
+    # group: nodegroup/host where the commands will be executed
+    # fullreadmode: ON/OFF to enable/disable FRO
     - log: "switch full read mode to ${this.fullreadmode} on nodegroup ${this.group}"
-    - cmd[${this.group}]: |-
-          max_try=15
-          try=0
-          until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only ${this.fullreadmode}); do
-            # Failure can lead to a partial-on read-only mode. Consequently, we force read only to OFF
-            if [ $try == $max_try ]; then
-              ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only OFF
-              exit 1
+    - cmd[proc]: |-
+        wc -l /opt/tomcat/logs/catalina.out | awk '{print $1}'
+    - set:
+        maxTry: ${this.maxTry:15}
+        execution: "FAIL"
+        last_log_line: ${response.out}
+
+    - callProvisioningAPI:
+        target: ${this.group}
+        payload:
+          - karafCommand: "full-read-only ${this.fullreadmode}"
+            timeout: "60000"
+
+    - if (${globals.provisioning_api_call_success}):
+        # If OK, let's check logs to make sure FRO is really in the state we asked
+        - cmd[${this.group}]: |-
+            pattern="Now the read-only mode is"
+            last_mode=$(tail -n +${this.last_log_line} /opt/tomcat/logs/catalina.out | grep "$pattern" | tail -n1 | awk '{print $NF}')
+            if [ -z "$last_mode" ] || [ "$last_mode" != "${this.fullreadmode}" ]; then
+              echo "NOK"
             fi
-            ((try++))
-          done
-          # it's not elegant, but it seems that the "until" loop can have an "exit status" of 1 if the second try is successful
-          # so we force an "0" exit status if the loop ended before max_try is reached
-          true
+        - if ("${response.out}" == ""):
+            - set:
+                execution: "OK"
+            - log: "FRO is now ${this.fullreadmode}"
+
+    - if ( "${this.execution}" == "FAIL" ):
+        - if (${this.maxTry} > 0):
+            - script: |-
+                resp = {"result": 0}
+                resp.onAfterReturn = {
+                  set: {
+                    maxTry: ${this.maxTry} -1
+                  }
+                }
+                return resp
+
+            - switchFullReadonly:
+                maxTry: ${this.maxTry}
+                group: ${this.group}
+                fullreadmode: ${this.fullreadmode}
+        - else:
+            - if ('${this.fullreadmode}' == 'ON'):
+                callProvisioningAPI:
+                  target: ${this.group}
+                  payload: '- karafCommand: "full-read-only OFF"'
+                  timeout: "60000"
+            - return:
+              type: error
+              message: "Read only switch failed"
 
   switchReadonly:
     - log: "switch read-only mode to ${this.readmode} on nodegroup ${this.group}"
-    - cmd[${this.group}]: |-
-        # Don't know why but running this command in one line fails half of the time so the output is captured and displayed so we have two lines.
-        res=$(ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR read-only ${this.readmode})
-        echo $res
+    - callProvisioningAPI:
+        target: ${this.group}
+        payload: '- karafCommand: "read-only ${this.readmode}"'
+    - if (! ${globals.provisioning_api_call_success}):
+        return:
+        type: error
+        message: "Read only switch failed"
 
   enableKarafLogin:
     - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
@@ -563,32 +606,24 @@ actions:
             isKarafLoginEnabled: ${response.isEnable}
 
   enableReadOnlyOnCluster:
-    - enableKarafLogin: "proc, cp"
     - switchReadonly:
         group: "proc, cp"
         readmode: "ON"
-    - disableKarafLogin: "proc, cp"
 
   disableReadOnlyOnCluster:
-    - enableKarafLogin: "proc, cp"
     - switchReadonly:
         group: "proc, cp"
         readmode: "OFF"
-    - disableKarafLogin: "proc, cp"
 
   enableFullReadOnlyOnCluster:
-    - enableKarafLogin: proc
     - switchFullReadonly:
         group: "proc"
         fullreadmode: "ON"
-    - disableKarafLogin: proc
 
   disableFullReadOnlyOnCluster:
-    - enableKarafLogin: proc
     - switchFullReadonly:
         group: "proc"
         fullreadmode: "OFF"
-    - disableKarafLogin: proc
 
   getJahiaVersion:
   # The placeholder ${nodes.proc.first.customitem.nodeVersion} doesn't return the correct value during an upgrade
@@ -1996,41 +2031,33 @@ actions:
         curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
     - if (nodes.sqldb.length > 1):
-        - forEach(nodes.storage):
-            cmd[${@i.id}]: |-
-              if [[ ${@i.id} = ${nodes.storage.first.id} ]]; then
-                interval=59
-              elif [[ ${@i.id} = ${nodes.storage.last.id} ]]; then
-                interval=63
-              else
-                interval=61
-              fi
-              echo "dd-agent ALL=(ALL) NOPASSWD:/opt/datadog-agent/embedded/sbin/gstatus" > /etc/sudoers.d/dd-agent
-              cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
-              init_config:
-              instances:
-                -
-                  min_collection_interval: $interval
-              logs:
-                - type: file
-                  path: /var/log/glusterfs/glusterd.log
-                  source: glusterfs
-                  service: glusterfs
-                - type: file
-                  path: /var/log/glusterfs/glustershd.log
-                  source: glusterfs
-                  service: glusterfs
-                - type: file
-                  path: /var/log/glusterfs/data.log
-                  source: glusterfs
-                  service: glusterfs
-              EOF
-              log_dir=/var/log/glusterfs
-              [ -d $log_dir ] || mkdir $log_dir
-              setfacl -m u:dd-agent:rx /var/log/glusterfs
-              setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
-              sed -i '/killall.*glusterd/a \  touch \/var\/log\/glusterfs\/glusterd.log && /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
-              systemctl restart rsyslog crond datadog-agent
+        - cmd[${this}]: |-
+            echo "dd-agent ALL=(ALL) NOPASSWD:/opt/datadog-agent/embedded/sbin/gstatus" > /etc/sudoers.d/dd-agent
+            cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+            init_config:
+            instances:
+              -
+                min_collection_interval: 60
+            logs:
+              - type: file
+                path: /var/log/glusterfs/glusterd.log
+                source: glusterfs
+                service: glusterfs
+              - type: file
+                path: /var/log/glusterfs/glustershd.log
+                source: glusterfs
+                service: glusterfs
+              - type: file
+                path: /var/log/glusterfs/data.log
+                source: glusterfs
+                service: glusterfs
+            EOF
+            log_dir=/var/log/glusterfs
+            [ -d $log_dir ] || mkdir $log_dir
+            setfacl -m u:dd-agent:rx /var/log/glusterfs
+            setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+            sed -i '/killall.*glusterd/a \  touch \/var\/log\/glusterfs\/glusterd.log && /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+            systemctl restart rsyslog crond datadog-agent
 
   dumpModules:
     # Parameters:
