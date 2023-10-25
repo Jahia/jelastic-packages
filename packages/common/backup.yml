@@ -162,7 +162,7 @@ actions:
               echo "$(date) - JournalService deadlock workaround failed !" >> ${globals.logsPath}
             fi
 
-    - if ("${tarCmdRes}" == "ERROR"):
+    - if ("${this.tarCmdRes}" == "ERROR"):
         return:
           type: error
           message: "An error occurred during Jahia backup (data)"
