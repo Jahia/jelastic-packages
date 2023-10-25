@@ -2095,3 +2095,52 @@ actions:
           errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(sort -u $result_file | paste -s -d,)"
           echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
         fi
+
+  callProvisionningAPI:
+    # Parameters:
+    #  - target: the node group/id that will perform the call
+    #  - payload: the request payload. Can have many formats:
+    #     - file path of a non-script (like .zip). form_type parameter must be set to "file"
+    #     - file path of a script ex: '@install_jexperience.yaml'. script_format must be set unless it's yaml
+    #     - yaml/json string  ex: '- karafCommand: "cluster:bundle-list -s default"' . script_format parameter must be set unless it's yaml
+    #     - raw yaml. Example of parameter:
+    #         payload:
+    #           - installBundle:
+    #               - "mvn:org.jahia.modules/addstuff/2.1.0"
+    #             autostart: false
+    #             uninstallPreviousVersion: false
+    #  - script_format (optional): ex: yaml, json. If form_type=script, default value is set to yaml
+    #  - form_type (optional): possible values: script, file. Default value is script
+    #  - curl extra args (optional)
+    # Returns
+    #   provisionning_api_call_success - true if succeed, false otherwise
+    - getPatTokenAndKey
+    - if ( "${this.form_type:script}" == "script" ):
+        - set:
+            format: ";type=text/${this.script_format:yaml}"
+
+    - cmd[${this.target}]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        current_line_number=$(wc -l /opt/tomcat/logs/catalina.out |awk '{print $1}')
+        http_code=$(curl -sS -o /tmp/output -w '%{http_code}' \
+                    -H "authorization: APIToken $__secret__API_TOKEN" \
+                    http://localhost/modules/api/provisioning $curl_extra_args \
+                    --form ${this.form_type:script}='${this.payload}${this.format:}')
+        if [ $http_code -lt 200 ] && [ $http_code -ge 299 ]; then
+          >&2 echo "Curl command returned wrong http code $http_code"
+          >&2 cat /tmp/output
+          rm /tmp/output
+        fi
+
+        errors=$(tail -n +$current_line_number /opt/tomcat/logs/catalina.out | grep -e ProvisioningScriptUtil -e KarafCommand | grep ERROR)
+        if [[ $errors" ]]; then
+          >&2 echo "The command returned an error: \n$errors"
+          >&2 echo "Check catalina.out file from line $current_line_number"
+        fi
+
+    - if ("${response.errOut}" == ""):
+        setGlobals:
+          provisionning_api_call_success: true
+    - else:
+        setGlobals:
+          provisionning_api_call_success: false
