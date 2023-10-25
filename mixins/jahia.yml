@@ -2096,7 +2096,7 @@ actions:
           echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
         fi
 
-  callProvisionningAPI:
+  callProvisioningAPI:
     # Parameters:
     #  - target: the node group/id that will perform the call
     #  - payload: the request payload. Can have many formats:
@@ -2113,7 +2113,7 @@ actions:
     #  - form_type (optional): possible values: script, file. Default value is script
     #  - curl extra args (optional)
     # Returns
-    #   provisionning_api_call_success - true if succeed, false otherwise
+    #   provisioning_api_call_success - true if succeed, false otherwise
     - getPatTokenAndKey
     - if ( "${this.form_type:script}" == "script" ):
         - set:
@@ -2140,7 +2140,7 @@ actions:
 
     - if ("${response.errOut}" == ""):
         setGlobals:
-          provisionning_api_call_success: true
+          provisioning_api_call_success: true
     - else:
         setGlobals:
-          provisionning_api_call_success: false
+          provisioning_api_call_success: false
