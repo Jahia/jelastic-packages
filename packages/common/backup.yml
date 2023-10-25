@@ -114,6 +114,15 @@ actions:
         argTimestamp: '-t "${response.timestamp}"'
 
   backupJahia:
+    # in order to test of the env is <8.2 and subject to JournalService deadlock (cf PAAS-2653),
+    # we first get it's version
+    - getJahiaVersion
+    # and test the version now in order to save time and being able to
+    # launch the workaround right after the FRO switch off
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: lessjahia82
     - enableFullReadOnlyOnCluster
     - cmd[${nodes.sqldb.first.id}]: |-
         mysql jahia -e "OPTIMIZE TABLE JR_J_JOURNAL" >>${globals.logsPath} 2>&1
@@ -128,6 +137,31 @@ actions:
     - set:
         tarCmdRes: "${response.out}"
     - disableFullReadOnlyOnCluster
+    # if jahia < 8.2, we have to apply a workaround for
+    # JournalService deadlock after FRO switch off (cf PAAS-2653)
+    - if(globals.lessjahia82):
+        - cmd[proc]: |-
+            echo "$(date) - Jahia is < 8.2, we need to fix the JournalService deadlock after FRO switch off" \
+              >> ${globals.logsPath}
+            wc -l < /opt/tomcat/logs/catalina.out
+        - set:
+            log_line_number: ${response.out}
+        - callProvisioningAPI:
+            target: proc
+            payload:
+              - executeScript: "file:/opt/tomcat/temp/workaround_JournalService_deadlock_on_FRO_switch.groovy"
+        - cmd[proc]: |-
+            result=$(awk 'NR>${this.log_line_number} \
+                          && $4=="[ExecuteScript]" \
+                          && $7~/workaround_JournalService_deadlock/ \
+                          && $NF==".installed" \
+                          {print "OK"}' /opt/tomcat/logs/catalina.out)
+            if [[ $result ]]; then
+              echo "$(date) - JournalService deadlock workaround launched successfully" >> ${globals.logsPath}
+            else
+              echo "$(date) - JournalService deadlock workaround failed !" >> ${globals.logsPath}
+            fi
+
     - if ("${tarCmdRes}" == "ERROR"):
         return:
           type: error
