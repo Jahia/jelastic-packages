@@ -36,6 +36,7 @@ onInstall:
 
   # Actions that require a restart
   - useTCMalloc                              # PAAS-2583
+  - updateGlusterFSDatadogConf               # PAAS-2666
 
   # Actions that require a redeploy
   # (None)
@@ -152,6 +153,24 @@ actions:
     - if ("${response.out}" != ""):
         setGlobals:
           jahiaRollingRestartNeeded: true
+
+  updateGlusterFSDatadogConf:
+    - if (nodes.storage.length > 1):
+        forEach(nodes.storage):
+          cmd[${@i.id}]: |-
+            if [[ ${@i.id} = ${nodes.storage.first.id} ]]; then
+              interval=59
+            elif [[ ${@i.id} = ${nodes.storage.last.id} ]]; then
+              interval=63
+            else
+              interval=61
+            fi
+            conf_path=/etc/datadog-agent/conf.d/glusterfs.d/conf.yaml
+            sum=$(md5sum $conf_path)
+            sed -i "s/\(min_collection_interval:\).*/\1 $interval/" $conf_path
+            if [ "$sum" != "$(md5sum $conf_path)" ]; then
+              service datadog-agent restart
+            fi
 
 settings:
   fields:
