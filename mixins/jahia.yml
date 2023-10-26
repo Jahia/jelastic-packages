@@ -468,7 +468,11 @@ actions:
           max_try=15
           try=0
           until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only ${this.fullreadmode}); do
-            [[ $try == $max_try ]] && exit 1
+            # Failure can lead to a partial-on read-only mode. Consequently, we force read only to OFF
+            if [ $try == $max_try ]; then
+              ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only OFF
+              exit 1
+            fi
             ((try++))
           done
           # it's not elegant, but it seems that the "until" loop can have an "exit status" of 1 if the second try is successful
