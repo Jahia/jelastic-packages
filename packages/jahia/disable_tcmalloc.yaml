@@ -1,0 +1,21 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Disable tcmalloc
+id: jahia-disable-tcmalloc
+description:
+  short: Jahia - Disable tcmalloc
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - cmd[cp, proc]: |-
+      envfile=/opt/tomcat/conf/tomcat-env.sh
+      if (grep -q LD_PRELOAD $envfile); then
+        sed -i '/export LD_PRELOAD=libtcmalloc\.so/d' $envfile
+        echo "Restart needed"
+      fi
+  - if ("${response.out}" == "Restart needed"):
+      - setGlobalRepoRootUrl
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
