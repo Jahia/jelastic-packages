@@ -2124,7 +2124,7 @@ actions:
         current_line_number=$(wc -l /opt/tomcat/logs/catalina.out |awk '{print $1}')
         http_code=$(curl -sS -o /tmp/output -w '%{http_code}' \
                     -H "authorization: APIToken $__secret__API_TOKEN" \
-                    http://localhost/modules/api/provisioning ${this.curl_extra_args} \
+                    http://localhost/modules/api/provisioning ${this.curl_extra_args:} \
                     --form ${this.form_type:script}='${this.payload}${this.format:}')
         if [ $http_code -lt 200 ] && [ $http_code -ge 299 ]; then
           >&2 echo "Curl command returned wrong http code $http_code"
