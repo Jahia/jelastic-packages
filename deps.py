@@ -480,6 +480,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
             if is_keyword(first_word):
                 if first_word in jelastic_script_keyword:
                     kind = "script_keyword"
+                    to_break = True
                 elif first_word in jelastic_keywords_with_args:
                     kind = "jelastic keyword with args"
                     to_break = True
@@ -564,6 +565,7 @@ def crawl(item, degree=1, section="", manifest_name="", previous_was_legit=True,
             elif degree > 1 and previous_item_id != 0:
                 legit = True
                 log(rf"{padding :>{width}}\[{k}] is a parameter")
+                to_break = True
 
             elif not legit and previous_was_legit:
                 legit = False
