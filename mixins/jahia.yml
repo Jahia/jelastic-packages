@@ -1992,33 +1992,41 @@ actions:
         curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
     - if (nodes.sqldb.length > 1):
-        - cmd[${this}]: |-
-            echo "dd-agent ALL=(ALL) NOPASSWD:/opt/datadog-agent/embedded/sbin/gstatus" > /etc/sudoers.d/dd-agent
-            cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
-            init_config:
-            instances:
-              -
-                min_collection_interval: 60
-            logs:
-              - type: file
-                path: /var/log/glusterfs/glusterd.log
-                source: glusterfs
-                service: glusterfs
-              - type: file
-                path: /var/log/glusterfs/glustershd.log
-                source: glusterfs
-                service: glusterfs
-              - type: file
-                path: /var/log/glusterfs/data.log
-                source: glusterfs
-                service: glusterfs
-            EOF
-            log_dir=/var/log/glusterfs
-            [ -d $log_dir ] || mkdir $log_dir
-            setfacl -m u:dd-agent:rx /var/log/glusterfs
-            setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
-            sed -i '/killall.*glusterd/a \  touch \/var\/log\/glusterfs\/glusterd.log && /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
-            systemctl restart rsyslog crond datadog-agent
+        - forEach(nodes.storage):
+            cmd[${@i.id}]: |-
+              if [[ ${@i.id} = ${nodes.storage.first.id} ]]; then
+                interval=59
+              elif [[ ${@i.id} = ${nodes.storage.last.id} ]]; then
+                interval=63
+              else
+                interval=61
+              fi
+              echo "dd-agent ALL=(ALL) NOPASSWD:/opt/datadog-agent/embedded/sbin/gstatus" > /etc/sudoers.d/dd-agent
+              cat > /etc/datadog-agent/conf.d/glusterfs.d/conf.yaml << EOF
+              init_config:
+              instances:
+                -
+                  min_collection_interval: $interval
+              logs:
+                - type: file
+                  path: /var/log/glusterfs/glusterd.log
+                  source: glusterfs
+                  service: glusterfs
+                - type: file
+                  path: /var/log/glusterfs/glustershd.log
+                  source: glusterfs
+                  service: glusterfs
+                - type: file
+                  path: /var/log/glusterfs/data.log
+                  source: glusterfs
+                  service: glusterfs
+              EOF
+              log_dir=/var/log/glusterfs
+              [ -d $log_dir ] || mkdir $log_dir
+              setfacl -m u:dd-agent:rx /var/log/glusterfs
+              setfacl -m u:dd-agent:rx /var/log/glusterfs/*.log
+              sed -i '/killall.*glusterd/a \  touch \/var\/log\/glusterfs\/glusterd.log && /usr\/bin\/setfacl -m u:dd-agent:rx \/var\/log\/glusterfs\/*.log' /etc/logrotate.d/glusterfs
+              systemctl restart rsyslog crond datadog-agent
 
   dumpModules:
     # Parameters:
