@@ -2111,7 +2111,7 @@ actions:
     #             uninstallPreviousVersion: false
     #  - script_format (optional): ex: yaml, json. If form_type=script, default value is set to yaml
     #  - form_type (optional): possible values: script, file. Default value is script
-    #  - curl extra args (optional)
+    #  - curl_extra_args (optional)
     # Returns
     #   provisioning_api_call_success - true if succeed, false otherwise
     - getPatTokenAndKey
@@ -2124,7 +2124,7 @@ actions:
         current_line_number=$(wc -l /opt/tomcat/logs/catalina.out |awk '{print $1}')
         http_code=$(curl -sS -o /tmp/output -w '%{http_code}' \
                     -H "authorization: APIToken $__secret__API_TOKEN" \
-                    http://localhost/modules/api/provisioning $curl_extra_args \
+                    http://localhost/modules/api/provisioning ${this.curl_extra_args} \
                     --form ${this.form_type:script}='${this.payload}${this.format:}')
         if [ $http_code -lt 200 ] && [ $http_code -ge 299 ]; then
           >&2 echo "Curl command returned wrong http code $http_code"
@@ -2132,8 +2132,8 @@ actions:
           rm /tmp/output
         fi
 
-        errors=$(tail -n +$current_line_number /opt/tomcat/logs/catalina.out | grep -e ProvisioningScriptUtil -e KarafCommand | grep ERROR)
-        if [[ $errors" ]]; then
+        errors=$(tail -n +$current_line_number /opt/tomcat/logs/catalina.out | grep -e ProvisioningScriptUtil -e KarafCommand -e ProvisioningResource | grep ERROR)
+        if [ -n "$errors" ]; then
           >&2 echo "The command returned an error: \n$errors"
           >&2 echo "Check catalina.out file from line $current_line_number"
         fi
