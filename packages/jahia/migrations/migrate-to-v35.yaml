@@ -33,6 +33,7 @@ onInstall:
   # Regular actions
   - updateDDIPSecConnStatus                  # PAAS-2601
   - fixNodesDistribution                     # PAAS-2634
+  - addOptionalJVMProxies                    # PAAS-2648
 
   # Actions that require a restart
   - useTCMalloc                              # PAAS-2583
@@ -171,6 +172,29 @@ actions:
             if [ "$sum" != "$(md5sum $conf_path)" ]; then
               service datadog-agent restart
             fi
+
+  addOptionalJVMProxies:
+    - cmd[cp, proc]: |-
+        # squid installation/configuration part
+        if ! (rpm -q squid) > /dev/null; then
+          yum install -y squid
+        fi
+        url="${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets"
+        curl -fLSso /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled $url/dd_agent_squid_conf.yaml || exit 1
+        chown dd-agent: /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled
+        curl -fLSso /etc/squid/squid.conf $url/squid.conf || exit 1
+        chown root:squid /etc/squid/squid.conf
+        curl -fLSso /etc/squid/allowlist_jahia.txt $url/squid_allowlist_jahia.txt || exit 1
+
+        # tomcat configuration part
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+        if ! (grep -q tomcat_cfg_cloud_filtering $tomcat_env); then
+          echo 'PROXY_HOST="localhost"' >> $tomcat_env
+          echo 'PROXY_PORT=3128' >> $tomcat_env
+          echo 'PROXY_NONPROXY="127.0.0.1|localhost|*.j.jahia.com|*.cloud.jahia.com"' >> $tomcat_env
+          echo 'JVM_PROXY_CONF="-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT} -Dftp.proxyHost=${PROXY_HOST} -Dftp.proxyPort=${PROXY_PORT} -Dhttp.nonProxyHosts='\''${PROXY_NONPROXY}'\''"' >> $tomcat_env
+          echo '[[ $tomcat_cfg_cloud_filtering = true ]] && CATALINA_OPTS+=" $JVM_PROXY_CONF"' >> $tomcat_env
+        fi
 
 settings:
   fields:
