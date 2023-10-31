@@ -1,0 +1,5 @@
+---
+init_config:
+    service: squid
+instances:
+    - name: squid

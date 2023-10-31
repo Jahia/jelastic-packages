@@ -1,0 +1,5 @@
+.jahia.com
+.datadoghq.com
+.datadoghq.eu
+.aws.found.io      # for elastic cloud instance access
+.workato.com       # for workato access (StackConnect)
