@@ -1,0 +1,20 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Disable tomcat web filtering
+id: jahia-disable-tomcat-filtering
+description:
+  short: Jahia - Disable tomcat web filtering
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - env.control.AddContainerEnvVars[cp, proc]:
+      vars: {"tomcat_cfg_cloud_filtering": "false"}
+  - cmd[cp,proc]: |-
+      systemctl disable --now squid.service
+      mv /etc/datadog-agent/conf.d/squid.d/conf.yaml /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled
+      systemctl restart datadog-agent
+  - setGlobalRepoRootUrl
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
