@@ -363,6 +363,26 @@ actions:
           echo "[ERROR] Datadog agent's '${this.checkName}' check failed" >&2
           exit 1
         fi
+  configureDatadogSite:
+    # Parameters :
+    #  - target: target nodegroup or nodeid
+  - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
+      getPapiInfoAll
+  - cmd [${nodes.cp.first.id}]: |-
+      set -e
+      __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+      export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+      export PAPI_HOSTNAME="${globals.papiHostname}"
+      export PAPI_ENV_ID="${globals.papiEnvId}"
+      export PAPI_API_VERSION="${globals.papiApiVersion}"
+      organization_id=$(papi.py -X GET paas-environment/$PAPI_ENV_ID | jq -r '.paas_organization_id')
+      organization=$(papi.py -X GET paas-organization/$organization_id)
+      dd_site=$(echo $organization | jq -r '.datadog_site')
+      [ "$dd_site" = "null" ] && exit 1
+      echo $dd_site
+  - env.control.AddContainerEnvVars [${this.target}]:
+    vars:
+      DD_SITE: ${response.out}
 
   installLatestDatadogAgent:
     - cmd[${this}]: |-
@@ -370,6 +390,8 @@ actions:
         export DD_API_KEY=$DATADOGAPIKEY
         export DD_INSTALL_ONLY=true
         bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
+    - configureDatadogSite:
+        target: ${this}
 
   installRequiredPackages:
     # Parameters :

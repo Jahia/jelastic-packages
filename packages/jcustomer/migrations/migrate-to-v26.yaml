@@ -27,7 +27,8 @@ onInstall:
   ### End pre-migration actions
 
   # Regular actions
-  - fixNodesDistribution
+  - fixNodesDistribution                     # PAAS-2634
+  - addDatadogSiteEnvvar                     # PAAS-2592
 
   # Actions that require a restart
   # (None)
@@ -89,6 +90,13 @@ actions:
           return {result: 1, error: "The topology update API call failed", errorMessage: resp["error"]}
         }
         return {result: 0}
+
+  addDatadogSiteEnvvar:
+  - cmd [${nodes.cp.first.id}]: '[ -z $DD_SITE ] && echo true || echo false'
+  - if (${response.out}):
+    - configureDatadogSite:
+        target: cp
+    - cmd [cp]: systemctl restart datadog-agent
 
 settings:
   fields:
