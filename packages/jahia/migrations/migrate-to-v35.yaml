@@ -34,6 +34,7 @@ onInstall:
   - updateDDIPSecConnStatus                  # PAAS-2601
   - fixNodesDistribution                     # PAAS-2634
   - addOptionalJVMProxies                    # PAAS-2648
+  - addDatadogSiteEnvvar                     # PAAS-2592
 
   # Actions that require a restart
   - useTCMalloc                              # PAAS-2583
@@ -195,6 +196,13 @@ actions:
           echo 'JVM_PROXY_CONF="-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT} -Dftp.proxyHost=${PROXY_HOST} -Dftp.proxyPort=${PROXY_PORT} -Dhttp.nonProxyHosts='\''${PROXY_NONPROXY}'\''"' >> $tomcat_env
           echo '[[ $tomcat_cfg_cloud_filtering = true ]] && CATALINA_OPTS+=" $JVM_PROXY_CONF"' >> $tomcat_env
         fi
+
+  addDatadogSiteEnvvar:
+  - cmd [${nodes.cp.first.id}]: '[ -z $DD_SITE ] && echo true || echo false'
+  - if (${response.out}):
+    - configureDatadogSite:
+        target: "haproxy, cp, sqldb, proc, storage"
+    - cmd [haproxy, cp, sqldb, proc, storage]: systemctl restart datadog-agent
 
 settings:
   fields:

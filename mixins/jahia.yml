@@ -201,6 +201,8 @@ actions:
     - isAugSearchEnabled
     - generateNodesListFile
     - getPatTokenAndKey
+    - configureDatadogSite:
+        target: "cp, proc"
     - cmd[${this}]: |-
         __secret__pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
