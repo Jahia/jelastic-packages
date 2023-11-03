@@ -201,8 +201,8 @@ actions:
   - cmd [${nodes.cp.first.id}]: '[ -z $DD_SITE ] && echo true || echo false'
   - if (${response.out}):
     - configureDatadogSite:
-        target: "haproxy, cp, sqldb, proc, storage"
-    - cmd [haproxy, cp, sqldb, proc, storage]: systemctl restart datadog-agent
+        target: "bl, cp, sqldb, proc, storage"
+    - cmd [bl, cp, sqldb, proc, storage]: systemctl restart datadog-agent
 
 settings:
   fields:
