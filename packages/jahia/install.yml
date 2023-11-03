@@ -368,6 +368,9 @@ onInstall:
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId
+  - if(env.region == "aws-loim"):
+      - install:
+          jps: "${baseUrl}/enable-tomcat-filtering.yaml"
 
 
 settings:
