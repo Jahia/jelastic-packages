@@ -1669,6 +1669,7 @@ actions:
 
   removeDefaultESConnection:
     # Delete the jahia-cloud_augmented-search connexion from elasticsearch-connector module
+    - getPatTokenAndKey
     - cmd[proc]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
 
@@ -1741,6 +1742,13 @@ actions:
             echo "Failed to use the $es_connection_name connection for AS: $response"
             exit 1
           fi
+
+  removeAndCleanAugmentedSearch:
+    - removeDefaultESConnection
+    - uninstallModule:
+        moduleSymname: augmented-search
+    - cmd[proc, cp]: |-
+        rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
 
   #######################
   # jexperience related #
