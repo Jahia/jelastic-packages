@@ -31,7 +31,8 @@ onInstall:
       - setGlobals:
           jahiaEnvStatus: ${settings.jahiaEnvStatus}
   - getJcustomerEnvStatus
-  - if ("${globals.jahiaEnvStatus}" != "1" ) || ("${globals.jCustomerEnvStatus}" != "1"):
+  # If jahia is stopped or (jcustomer is stopped AND we are not called by the onBeforeDelete event of a jcustomer), then we raise an error
+  - if (("${globals.jahiaEnvStatus}" != "1" ) || ("${globals.jCustomerEnvStatus}" != "1" && "${globals.isUnomiEnvDeletion}" == false)):
       - return:
           type: error
           message: "Impossible to unlink Jahia and jCustomer if either environment is not running. Make sure your environments are runnning and try again"
