@@ -62,6 +62,8 @@ actions:
                 jcontent_ver: 2.7.0
 
   installModules:
+    - cmd[proc, cp]: |-
+        rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
     - if(globals.jahia810):  # if jahia 8.1.0 then graphql-dxm-provider and jahia-administration must be upgraded
         - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
         - installOrUpgradeModule:
