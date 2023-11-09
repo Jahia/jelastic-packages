@@ -2097,14 +2097,27 @@ actions:
     - cmd [proc]: date +"%Y-%m-%dT%H:%M:%S"
     - set:
         nowDate: ${response.out}
+    - cmd[cp, proc]: |-
+        rm -f /tmp/cluster /tmp/local
+        max_nb_tries=5
+        try=0
+        until ${globals.karafConsole} cluster:bundle-list -s default > /tmp/cluster || [ $try -eq $max_nb_tries ]; do
+          sleep 1
+          ((try++))
+        done
+        try=0
+        until ${globals.karafConsole} bundle:list -s > /tmp/local || [ $try -eq $max_nb_tries ]; do
+          sleep 1
+          ((try++))
+        done
     - if (${this.checkVersion}):
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+          cat /tmp/cluster | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+          cat /tmp/local | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - else:
       - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+          cat /tmp/cluster | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+          cat /tmp/local | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - cmd[cp, proc]: |-
         sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
     - disableKarafLogin: "proc, cp"
