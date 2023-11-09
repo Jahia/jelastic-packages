@@ -23,12 +23,25 @@ globals:
     -Dcom.sun.management.jmxremote.port=7199
     -Dcom.sun.management.jmxremote.ssl=false
     -Dcom.sun.management.jmxremote.authenticate=false
-    -XX:MaxPermSize=512m
+    -XX:+UseG1GC
+    -XX:+DisableExplicitGC
+    -XX:-UseBiasedLocking
+    -XX:+SafepointTimeout
+    -XX:SafepointTimeoutDelay=1000
+    -XX:+UnlockDiagnosticVMOptions
+    -XX:GuaranteedSafepointInterval=0
+    -XX:+ParallelRefProcEnabled
+    -XX:+UseCountedLoopSafepoints
+    -XX:+UseStringDeduplication
+    -XX:LoopStripMiningIter=100
+    -XX:MaxTenuringThreshold=7
+    -XX:MaxMetaspaceSize=512m
     -XX:+HeapDumpOnOutOfMemoryError
     -XX:HeapDumpPath=${DUMPS_PATH}/heap_dumps
     -XX:+PrintConcurrentLocks
-    -XX:+UseParallelGC
-    -XX:SurvivorRatio=8
+    -XX:NativeMemoryTracking=summary
+    -XshowSettings:vm
+    -Dkaraf.handle.sigterm=false
     -Xmn1G
 
 actions:
@@ -165,7 +178,6 @@ actions:
         sed -i "s|^cluster.node.serverId.*|cluster.node.serverId = $short_name|" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
         # the follwing will update or add if not present the jvmRoute property
         sed -i -n -e '/^\s*jahia.session.jvmRoute\s*=/!p' -e "\$ajahia.session.jvmRoute = $short_name" $STACK_PATH/conf/digital-factory-config/jahia/jahia.node.properties
-        grep -q '^JMX_OPTS=\-XX:+UseParallelGC$' ${tomcat_env} || sed -i "2i JMX_OPTS=\-XX:+UseParallelGC" ${tomcat_env}
         sed -i '/<!-- Access log processes all example./i \\t<!-- Remote IP Valve -->\n \t<Valve className="org.apache.catalina.valves.RemoteIpValve" protocolHeader="X-Forwarded-Proto" />\n' /opt/tomcat/conf/server.xml
         #Secure cookies from cross scripting
         indent="      " && printf "$indent<cookie-config>\n$indent$indent<secure>true</secure>\n$indent$indent<http-only>true</http-only>\n$indent</cookie-config>\n" > /tmp/cookies-config
