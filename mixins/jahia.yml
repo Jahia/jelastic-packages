@@ -214,7 +214,7 @@ actions:
     - generateNodesListFile
     - getPatTokenAndKey
     - configureDatadogSite:
-        target: "cp, proc"
+        target: ${this}
     - cmd[${this}]: |-
         __secret__pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
