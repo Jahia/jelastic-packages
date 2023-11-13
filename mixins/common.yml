@@ -368,6 +368,7 @@ actions:
     #  - target: target nodegroup or nodeid
   - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
       getPapiInfoAll
+  - installPapiScript: ${nodes.cp.first.id}
   - cmd [${nodes.cp.first.id}]: |-
       set -e
       __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
@@ -435,10 +436,12 @@ actions:
   installPapiScript:
     - setGlobalRepoRootUrl
     - cmd [${this}]: |-
-        python3 -m pip install --upgrade pip
-        python3 -m pip install requests
-        curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
-        chmod 755 /usr/local/bin/papi.py
+        if [ ! -f /usr/local/bin/papi.py ]; then
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests
+          curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+          chmod 755 /usr/local/bin/papi.py
+        fi
       user: root
 
   ###################
