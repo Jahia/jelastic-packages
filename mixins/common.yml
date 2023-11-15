@@ -388,9 +388,15 @@ actions:
   installLatestDatadogAgent:
     - cmd[${this}]: |-
         source /etc/profile
+        dd_agent_override_dir=/etc/systemd/system/datadog-agent.service.d
+        dd_agent_override_file=$dd_agent_override_dir/override.conf
         export DD_API_KEY=$DATADOGAPIKEY
         export DD_INSTALL_ONLY=true
-        bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
+        bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)" || exit 1
+        mkdir -p $dd_agent_override_dir
+        chmod 755 $dd_agent_override_dir
+        echo -e "[Service]\nEnvironmentFile=-/.jelenv" > $dd_agent_override_file
+        chmod 644 $dd_agent_override_file
     - configureDatadogSite:
         target: ${this}
 
