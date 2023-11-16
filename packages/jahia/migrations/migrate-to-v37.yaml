@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate Jahia env to v36
-id: migrate-jahia-env-v36
+name: Migrate Jahia env to v37
+id: migrate-jahia-env-v37
 
 # Required for healthchecks
 mixins:
@@ -13,7 +13,7 @@ mixins:
   - "../../../mixins/elasticsearch.yml"
 
 globals:
-  version: 36
+  version: 37
   ignoredModules: ""
 
 onInstall:
