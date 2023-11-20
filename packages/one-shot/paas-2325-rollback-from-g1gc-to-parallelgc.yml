@@ -21,14 +21,13 @@ onInstall:
 actions:
   useParallelGC:
     - cmd[proc, cp]: |-
-        if (grep -q UseG1GC /opt/*maven*/bin/mvn); then
-          sed -i '/^MAVEN_OPTS=-XX:+UseG1GC$/d' -i /opt/*maven*/bin/mvn
+        if ! (grep -q UseParallelGC /opt/*maven*/bin/mvn); then
+          sed -i "2i MAVEN_OPTS=-XX:+UseParallelGC" /opt/*maven*/bin/mvn
         fi
         if (pgrep -u tomcat -f UseG1GC > /dev/null); then
-          oldGCconf="-XX:+UseG1GC -XX:+DisableExplicitGC -XX:+UseStringDeduplication -XX:MaxTenuringThreshold=7"
-          sed -e '/^JMX_OPTS=/d' \
-              -e "s/$oldGCconf/-XX:+UseParallelGC/" \
-              -i /opt/tomcat/conf/tomcat-env.sh
+          sed -i "2i JMX_OPTS=-XX:+UseParallelGC" /opt/tomcat/conf/tomcat-env.sh
+          newGCconf='-XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${DUMPS_PATH}\/heap_dumps -XX:+PrintConcurrentLocks -XX:+UseParallelGC -XX:SurvivorRatio=8'
+          sed -e "s/-XX:+UseG1GC.*-Dkaraf.handle.sigterm=false/$newGCconf/" -i /opt/tomcat/conf/tomcat-env.sh
           echo "restart"
         fi
     - if("${response.out}" == "restart"):

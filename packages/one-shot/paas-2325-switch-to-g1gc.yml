@@ -1,0 +1,36 @@
+---
+type: update
+version: 1.5.2
+name: Jahia - Switch to G1GC
+id: jahia-switch-to-g1gc
+description:
+  short: Jahia - Switch to G1GC
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - useG1GC
+
+  # Restart action:
+  - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+actions:
+  useG1GC:
+    - cmd[cp,proc]: |-
+        if (grep -q UseParallelGC /opt/*maven*/bin/mvn); then
+          sed -i '/^MAVEN_OPTS=-XX:+UseParallelGC$/d' -i /opt/*maven*/bin/mvn
+        fi
+        if (pgrep -u tomcat -f UseParallelGC > /dev/null); then
+          newGCconf='-XX:+UseG1GC -XX:+DisableExplicitGC -XX:-UseBiasedLocking -XX:+SafepointTimeout -XX:SafepointTimeoutDelay=1000 -XX:+UnlockDiagnosticVMOptions -XX:GuaranteedSafepointInterval=0 -XX:+ParallelRefProcEnabled -XX:+UseCountedLoopSafepoints -XX:+UseStringDeduplication -XX:LoopStripMiningIter=100 -XX:MaxTenuringThreshold=7 -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${DUMP_PATH}\/heap_dumps -XX:+PrintConcurrentLocks -XX:NativeMemoryTracking=summary -XshowSettings:vm -Dkaraf.handle.sigterm=false'
+          sed -e '/^JMX_OPTS=/d' \
+              -e "s/-XX:MaxPermSize.*SurvivorRatio=8/$newGCconf/" \
+              -i /opt/tomcat/conf/tomcat-env.sh
+          echo "restart"
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
