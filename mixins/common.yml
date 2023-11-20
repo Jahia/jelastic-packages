@@ -341,11 +341,6 @@ actions:
           curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file || exit 1
         done
         curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py || exit 1
-        # install JournalService deadlock workaround (PAAS-2653) in case of jahia < 8.2
-        if [[ $_PROVIDE == "jahia" && ! $DX_VERSION =~ ^8\.2 ]]; then
-          workaround_script="workaround_JournalService_deadlock_on_FRO_switch.groovy"
-          curl -fLSso /opt/tomcat/temp/$workaround_script ${globals.repoRootUrl}/assets/jahia/$workaround_script
-        fi
 
   clearJelasticLogs:
     - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
