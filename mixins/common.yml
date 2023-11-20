@@ -341,11 +341,6 @@ actions:
           curl -fLSso $file ${globals.repoRootUrl}/assets/common/$file || exit 1
         done
         curl -fLSso elasticsearch.py ${globals.repoRootUrl}/assets/elasticsearch/elasticsearch.py || exit 1
-        # install JournalService deadlock workaround (PAAS-2653) in case of jahia < 8.2
-        if [[ $_PROVIDE == "jahia" && ! $DX_VERSION =~ ^8\.2 ]]; then
-          workaround_script="workaround_JournalService_deadlock_on_FRO_switch.groovy"
-          curl -fLSso /opt/tomcat/temp/$workaround_script ${globals.repoRootUrl}/assets/jahia/$workaround_script
-        fi
 
   clearJelasticLogs:
     - cmd[${this.target}]: echo "" > ${this.logsPath}; chown ${this.user}:root ${this.logsPath}
@@ -388,9 +383,16 @@ actions:
   installLatestDatadogAgent:
     - cmd[${this}]: |-
         source /etc/profile
+        dd_agent_override_dir=/etc/systemd/system/datadog-agent.service.d
+        dd_agent_override_file=$dd_agent_override_dir/override.conf
         export DD_API_KEY=$DATADOGAPIKEY
         export DD_INSTALL_ONLY=true
-        bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
+        bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)" || exit 1
+        mkdir -p $dd_agent_override_dir
+        chmod 755 $dd_agent_override_dir
+        echo -e "[Service]\nEnvironmentFile=-/.jelenv" > $dd_agent_override_file
+        chmod 644 $dd_agent_override_file
+        systemctl daemon-reload
     - configureDatadogSite:
         target: ${this}
 
