@@ -92,7 +92,7 @@ def check_if_db_master_node(envname, node_index, jelastic_user_session):
         Return True if the db node is the current cluster "master", False otherwise
     """
     url = jelastic_user_session.hostname + "/1.0/environment/control/rest/execcmdbygroup"
-    command = "mysql -NB -u admin -padmin -P 6032 -h 127.0.0.1 " \
+    command = "mysql -NB -u admin -p$(awk '$1=="password:" {print $2}' /etc/datadog-agent/conf.d/proxysql.d/conf.yaml) -P 6032 -h 127.0.0.1 " \
               "-e \\\"SELECT hostname FROM runtime_mysql_servers ORDER BY weight DESC LIMIT 1\\\""
     params = {
         'session': jelastic_user_session.session,
