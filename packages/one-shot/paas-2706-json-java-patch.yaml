@@ -1,0 +1,48 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2706 - Apply json-java patch
+id: paas-2706-apply-json-java-patch
+description:
+  short: Updates json-java lib to fix security issue https://academy.jahia.com/cms/render/default/customer-center/jahia/patches/security-patch-november-2023
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - removeProcNodeFromHaproxy:
+      reload: true
+  - installPatch: ${nodes.proc.first.id}
+  - addProcNodeToHaproxy:
+      reload: true
+
+  - foreach (nodes.cp):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+      - installPatch: ${@i.id}
+      - addBrowsingNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+          reload: true
+
+actions:
+  installPatch:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/json-20231013.jar"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+          exit 0
+        fi
+        sudo service tomcat stop
+        patch_url="https://repo1.maven.org/maven2/org/json/json/20231013/json-20231013.jar"
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-*.jar
+        curl -fLSso $patch_file $patch_url || exit 1
+        chmod 644 $patch_file
+        chown tomcat: $patch_file
+        sudo service tomcat start
+        echo "restarted"
+    - if ("${response.out}" == "restarted"):
+        startupJahiaHealthCheck: ${this}
