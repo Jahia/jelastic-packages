@@ -38,7 +38,7 @@ actions:
         fi
         sudo service tomcat stop
         patch_url="https://repo1.maven.org/maven2/org/json/json/20231013/json-20231013.jar"
-        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-*.jar
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-[0-9]*.jar
         curl -fLSso $patch_file $patch_url || exit 1
         chmod 644 $patch_file
         chown tomcat: $patch_file
