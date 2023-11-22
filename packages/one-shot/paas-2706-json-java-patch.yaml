@@ -43,6 +43,4 @@ actions:
         chmod 644 $patch_file
         chown tomcat: $patch_file
         sudo service tomcat start
-        echo "restarted"
-    - if ("${response.out}" == "restarted"):
-        startupJahiaHealthCheck: ${this}
+    - startupJahiaHealthCheck: ${this}
