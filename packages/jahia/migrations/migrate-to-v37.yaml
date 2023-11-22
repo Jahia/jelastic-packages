@@ -34,6 +34,7 @@ onInstall:
 
   # Actions that require a restart
   - useG1GC                                # PAAS-2325
+  - obuscateESQueriesInDDAPM               # PAAS-2655
 
   # Actions that require a redeploy
   # (None)
@@ -109,6 +110,15 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  obuscateESQueriesInDDAPM:
+    cmd[cp, proc]: |-
+      md5="e9c7ecba1b881933e14dca425361e549"
+      file="/usr/local/bin/set_dd_tags.sh"
+      if ! (echo "$md5 $file" | md5sum --status -c); then
+          curl -fLSso $file ${globals.repoRootUrl}/packages/jahia/migrations/v37_assets/set_dd_tags.sh || exit 1
+      fi
+
 settings:
   fields:
     - type: toggle
