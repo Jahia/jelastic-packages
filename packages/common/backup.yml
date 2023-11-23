@@ -262,12 +262,13 @@ actions:
         export RCLONE_S3_ACCESS_KEY_ID="$__secret__RCLONE_ACCESS_KEY_ID"
         export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__RCLONE_SECRET_ACCESS_KEY"
         region=${globals.region}
-        if [ "${globals.provider}" != "aws" ]; then
-          aws_region='eu-west-1'
+
+        # Due to location contraint, we need to force eu-west-1 region if region is eu-central-2
+        if [[ $region == eu-central-2 ]]; then
+          force_region="--s3-region eu-west-1"
         else
-          aws_region=$(awk -F'=' '$1=="JEL_REGION" {print $2}' /metadata_from_HOST);
-        fi;
-        export AWS_DEFAULT_REGION="$aws_region"
+          force_region=""
+        fi
 
         cd jelastic_backup
         if [ "${this}" == "proc" ]; then  # Jahia
@@ -288,9 +289,9 @@ actions:
           fi
           echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
           if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
-            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
+            rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} ${force_region} 2>&1
             if [ $? -ne 0 ]; then
-              read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile})
+              read locker locked_until < <(rclone cat backup:${meta_bucket_name}/${lockfile} ${force_region})
               echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
               sleep 1
               getLock ${locked_until}
@@ -299,12 +300,13 @@ actions:
             fi
           else
             echo "$(date) - we take control from now" >> ${globals.logsPath}
-            rclone copy /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
+            rclone copy /tmp/${lockfile} backup:${meta_bucket_name} ${force_region} 2>&1
           fi
         }
         getLock
-        python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --envversion '${globals.envVersion}' --displayname '${env.displayName}' --size $size $esversionParameter 2>>${globals.logsPath} || exit 1
-        rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
+        # metadata files are always on eu-west-1
+        AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --envversion '${globals.envVersion}' --displayname '${env.displayName}' --size $size $esversionParameter 2>>${globals.logsPath} || exit 1
+        rclone delete backup:${meta_bucket_name}/${lockfile} ${force_region} 2>&1
     - if ("${response.errOut}" != ""):
         - return:
             type: error
