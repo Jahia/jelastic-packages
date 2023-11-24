@@ -662,72 +662,10 @@ actions:
         return {"result": 1, errOut: "Can't get Jahia version"}
     - log: "Jahia is v${globals.jahiaVersion}"
 
-  installOrUpgradeModule:
-    # Installs and starts a module with the specified version. If the module is already installed, several use cases:
-    # - if it is not running, then the specified version is installed and started
-    # - if it is running with an older version, then the specified version is installed and started
-    # - if it is running with the same version or a more recent one, then nothing is done, to prevent downgrade
-    # Last step is to clean the module by uninstalling stopped versions to only keep the running (and desired) one
-    #
-    # Parameters:
-    # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
-    # - moduleVersion: the version of the module to install
-    # - moduleGroupId: group id of the artifact
-    # - moduleRepository: repository that the artifact is contained in Nexus
-    - set:
-        moduleInstalled: true
-    - checkModule:
-        moduleSymname: ${this.moduleSymname}
-    - if ("${globals.moduleState}" == "uninstalled"):
-        - installModule:
-            moduleSymname: ${this.moduleSymname}
-            moduleVersion: ${this.moduleVersion}
-            moduleGroupId: ${this.moduleGroupId}
-            moduleRepository: ${this.moduleRepository}
-            startModule: true
-    - else:
-        - if ("${globals.moduleState}" == "installed"):
-            - installModule:
-                moduleSymname: ${this.moduleSymname}
-                moduleVersion: ${this.moduleVersion}
-                moduleGroupId: ${this.moduleGroupId}
-                moduleRepository: ${this.moduleRepository}
-                startModule: true
-        - if ("${globals.moduleState}" == "started"):
-            - isVersionStrictlyHigher:
-                a: "${this.moduleVersion}"
-                b: "${globals.runningVersion}"
-                res: needsInstall
-            - if (${globals.needsInstall}):
-                - installModule:
-                    moduleSymname: ${this.moduleSymname}
-                    moduleVersion: ${this.moduleVersion}
-                    moduleGroupId: ${this.moduleGroupId}
-                    moduleRepository: ${this.moduleRepository}
-                    startModule: true
-            # If the module is already running with the desired version or a more recent one, we don't need to check the status right after
-            - else:
-                # Prints a warning if the module is running with a more recent version only. If same version, nothing is wrong so no warning
-                - if ("${globals.runningVersion}" != "${this.moduleVersion}"):
-                    - log: "WARNING: ${this.moduleSymname} is already running with a more recent version (${globals.runningVersion}), version ${this.moduleVersion} won't be installed"
-                - set:
-                    moduleInstalled: false
-    - if (${this.moduleInstalled}):
-        - checkModule:
-            moduleSymname: ${this.moduleSymname}
-        - if ("${globals.moduleState}" != "started") || ("${globals.runningVersion}" != "${this.moduleVersion}"):
-            - log: ${this.moduleSymname} is either not running, or running with a different version than the desired one
-            - return:
-                type: error
-                message: "An error occurred during module upgrade/installation."
-    - uninstallStoppedVersionsOfModule:
-        moduleSymname: ${this.moduleSymname}
-        moduleVersion: ${this.moduleVersion}
-
   checkModule:
-    # Checks the state of a module via the endpoint modules/api/bundles (or fallback to the digital-factory-data/bundles-deployed folder if the previous one failed).
+    # Checks the state of a module using the provisioning API (or fallback to the digital-factory-data/bundles-deployed folder if failed).
     # First we check the state of the module, uninstalled, installed or started. Then, if installed or started,
-    # we check the version: most recent version installed if module is not running, or running version otherwise.
+    # we check the versions: most recent version installed, running version, list of installed versions...
     #
     # Parameters:
     # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
@@ -738,73 +676,96 @@ actions:
     #   - "uninstalled" if the module is not installed
     # - globals.mostRecentInstalledVersion: the most recent version installed (or an empty string if the module is uninstalled)
     # - globals.installedVersionsCount: the number of installed versions (or an empty string if the module is uninstalled)
+    # - globals.installedVersions: a comma seperated list of installed versions (or an empty string if the module is uninstalled)
     # - globals.runningVersion: the version running (or an empty string if the module is not running)
     - setGlobals:  # re-initialise globals to prevent successive calls to this action from overlapping
         moduleState: ""
         runningVersion: ""
         mostRecentInstalledVersion: ""
         installedVersionsCount: 0
-    - getPatTokenAndKey
+    - set:
+        karafOutputFile: /tmp/check_modue_karaf_output_${fn.random}
     - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -fSsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
-        if [ $? -ne 0 ]; then  # if curl failed, we fallback to the FS method
+        rm -f ${this.karafOutputFile}
+    - callProvisioningAPI:
+        target: proc
+        payload: '- karafCommand: "cluster:bundle-list -s default ${this.moduleSymname} | tac -a ${this.karafOutputFile}"'
+    - cmd [proc]: |-
+        karaf_output=${this.karafOutputFile}
+        # if the `cluter:bundle-list` command succeeded, it does contain the header line
+        # even if the module is not present...
+        if grep -q ID $karaf_output; then
+          awkScript='BEGIN {
+            FS = "│"
+            printf "{"
+            comma = ", "
+          }
+          NR>3 {
+            gsub(/ /, "", $0)
+            if (NR == lastLine) comma = ""
+            printf("\"%s/%s\": {\"moduleState\":\"%s\"}%s", $7, $6, $2, comma)
+          }
+          END {
+            print "}"
+          }'
+          resp=$(awk -v lastLine="$(awk "END {print NR}" $karaf_output)" "$awkScript" $karaf_output)
+        else # ...if not then it means the command failed and we have to use the fallback method
           modules_found=$(grep "/${this.moduleSymname}/" -l /data/digital-factory-data/bundles-deployed/*/bundle.info)
           read -r -d '' awkScript <<- 'EOS'
-        	BEGIN {
-        	  FS=":"
-        	  printf "{"
-        	  file_count=ARGC-1
-        	}
-        	BEGINFILE {
-        	  file_number++
-        	  NR=0
-        	}
-        	{
-        	  switch(NR) {
-        	    case 2:
-        	      module_ver=$NF
-        	      break
-        	    case 3:
-        	      switch($1) {
-        	        case 1:
-        	          status="UNINSTALLED"
-        	          break
-        	        case 2:
-        	          status="INSTALLED"
-        	          break
-        	        case 4:
-        	          status="RESOLVED"
-        	          break
-        	        case 8:
-        	          status="STARTING"
-        	          break
-        	        case 16:
-        	          status="STOPPING"
-        	          break
-        	        case 32:
-        	          status="STARTED"
-        	          break
-        	        default:
-        	          status="go fuck yourself"
-        	          break
-        	      }
-        	      break
-        	  }
-        	}
-        	ENDFILE {
-        	  if(file_number<file_count) {
-        	    sep=","
-        	  }
-        	  else {
-        	    sep=""
-        	  }
-        	  printf "\"%s\": {\"moduleState\":\"%s\"}%s",module_ver,status,sep
-        	}
-        	END {
-        	  print "}"
-        	}
-        	EOS
+          BEGIN {
+            FS=":"
+            printf "{"
+            file_count=ARGC-1
+          }
+          BEGINFILE {
+            file_number++
+            NR=0
+          }
+          {
+            switch(NR) {
+              case 2:
+                module_ver=$NF
+                break
+              case 3:
+                switch($1) {
+                  case 1:
+                    status="uninstalled"
+                    break
+                  case 2:
+                    status="installed"
+                    break
+                  case 4:
+                    status="resolved"
+                    break
+                  case 8:
+                    status="starting"
+                    break
+                  case 16:
+                    status="stopping"
+                    break
+                  case 32:
+                    status="started"
+                    break
+                  default:
+                    status="go fuck yourself"
+                    break
+                }
+                break
+            }
+          }
+          ENDFILE {
+            if(file_number<file_count) {
+              sep=","
+            }
+            else {
+              sep=""
+            }
+            printf "\"%s\": {\"moduleState\":\"%s\"}%s",module_ver,status,sep
+          }
+          END {
+            print "}"
+          }
+        EOS
           if [ $(echo $modules_found | wc -w) -ne 0 ]; then
             resp=$(awk "$awkScript" $modules_found)
           else
@@ -821,7 +782,7 @@ actions:
             exit 1
             ;;
           *)
-            module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<< $resp | grep STARTED)
+            module_started=$(jq -r 'to_entries[] | "\(.key);\(.value | .moduleState | ascii_downcase)"' <<< $resp | grep -E "started|active")
             if [ $? -eq 0 ]; then
               module_state=started
               running_version=$(echo $module_started | cut -d';' -f1 | awk -F'/' '{print $NF}')
@@ -830,13 +791,15 @@ actions:
             fi
             most_recent_installed_version=$(jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | head -1)
             installed_versions_count=$(jq -r "keys | length" <<< $resp)
+            installed_versions=$(jq -r 'keys[] | gsub("^.+/"; "")' <<< $resp | paste -sd, -)  # comma separated string of installed versions
             ;;
         esac
         echo "{ \
             'moduleState': '$module_state', \
             'runningVersion': '$running_version', \
             'mostRecentInstalledVersion': '$most_recent_installed_version', \
-            'installedVersionsCount': '$installed_versions_count' \
+            'installedVersionsCount': '$installed_versions_count', \
+            'installed_versions': '$installed_versions' \
           }"
     - script: |-
         const resp = ${response.out.toJSON()}
@@ -847,300 +810,259 @@ actions:
           }
         };
 
-  checkVersionOfModule:
-    # Checks the state of a module for a specific version: uninstalled, installed or started.
+  installOrUpgradeModules:
+    # Installs or upgrades a list of one or more modules using the "installOrUpgradeBundle" endpoint
+    # from the provisioning API.
+    # (https://github.com/Jahia/jahia/tree/master/bundles/provisioning#additional-syntax)
     #
     # Parameters:
-    # - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
-    # - moduleVersion: the version of the module to check
-    # Returns:
-    # - globals.moduleVersionState:
-    #   - "started" if the specified version of the module is running
-    #   - "installed" if the specified version of the module is installed but not running
-    #   - "uninstalled" if the specified version of the module is not installed
-    - getPatTokenAndKey
-    - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_localInfo")
-        case "$(jq -r .moduleState <<< $resp)" in
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          STARTED) # Means the module is running
-            echo "started"
-            ;;
-          null|UNINSTALLED) # null is in case a 404 (but still JSON) is returned (normal behavior)
-            echo "uninstalled"
-            ;;
-          *)
-            echo "installed"
-            ;;
-        esac
-    - if ("${response.out}" == "error"):
-        - return:
-            type: error
-            message: "An error occurred during module verification."
-    - else:
-        - log: ${this.moduleSymname}/${this.moduleVersion} is ${response.out}
-        - setGlobals:
-                moduleVersionState: ${response.out}
-
-  installModule:
-    # Downloads a module jar file and installs it. The module can also be started at the same time.
-    # If the module is already installed, the installation is skipped, but if the "startModule" parameter is set to true,
-    # then the specified version of the module is started.
-    #
-    # Parameters:
-    #   - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
-    #   - moduleVersion: the version of the module to install
-    #   - moduleGroupId: group id of the artifact in Nexus
-    #   - moduleRepository: repository that the artifact is contained in Nexus
-    #   - startModule (optional): if the module should be started or not, true or false. Default: false
-    - checkVersionOfModule:
-        moduleSymname: ${this.moduleSymname}
-        moduleVersion: ${this.moduleVersion}
-    - if ("${globals.moduleVersionState}" == "uninstalled"):
-      - set:
-          modulesUrl: https://devtools.jahia.com/nexus/service/local/artifact/maven/content
-      - if ('${this.startModule.print()}' == ''):
-          set:
-            startModule: "false"
+    #   - modules: a comma separated list of "<module>/<version>" to install. Examples:
+    #              - "distributed-session/3.4.0"
+    #              - "augmented-search/3.3.2, jexperience/3.3.0"
+    - set:
+        provisioningFile: /opt/tomcat/temp/install_modules_provisioning_${fn.random}.yaml
+        mavenRepository: devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise
+        paxFile: /data/digital-factory-data/karaf/etc/org.ops4j.pax.url.mvn.cfg
+    - cmd [proc]: grep -q '${this.mavenRepository}' ${this.paxFile} || echo "need to install maven repository"
+    - if (${response.out}):
+      - log: Installing the Jahia Enterprise Maven repository to install new modules
       - getNexusCredentials
-      - getPatTokenAndKey
-      - log: Installing ${this.moduleSymname}/${this.moduleVersion}
-      - cmd [proc]: |-
-          __secret__nexus_creds=$(echo -n "${globals.__secret__nexusLogin}:${globals.__secret__nexusPassword}" | base64)
-          __secret__pat_token="${globals.__secret__pat_token}"
-
-          tmp_dir=$(mktemp -d)
-          local_jar_file=$tmp_dir/${this.moduleSymname}-${this.moduleVersion}.jar
-          curl -fLSso $local_jar_file "${this.modulesUrl}" -G \
-            -H "Authorization: Basic $__secret__nexus_creds" \
-            -d "g=${this.moduleGroupId}" \
-            -d "r=${this.moduleRepository}" \
-            -d "a=${this.moduleSymname}" \
-            -d "v=${this.moduleVersion}" >&2
-          if [ $? -ne 0 ]; then
-            echo "error"
-            rm -rf $tmp_dir
-            exit 0
-          fi
-          resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST \
-                  --form bundle=@$local_jar_file \
-                  --form start=${this.startModule} \
-                  --form ignoreChecks=true \
-                  localhost/modules/api/bundles)
-          case "$(jq -r .bundleInfos <<< $resp)" in
-            "null") # If install failed, there is no bundleInfos attribute in the JSON response
-              echo "error"
-              jq -r .message <<< $resp >&2
-              ;;
-            "") # if response is not JSON, for instance 401 unauthorized
-              echo "error"
-              echo $resp >&2
-              ;;
-            *) # Otherwise it means the module was installed, nothing to do
-              ;;
-          esac
-          rm -rf $tmp_dir
-      - if ("${response.out}" == "error"):
+      - callProvisioningAPI:
+          target: proc
+          payload:
+            - addMavenRepository: "https://${this.mavenRepository}"
+              username: ${globals.__secret__nexusLogin}
+              password: ${globals.__secret__nexusPassword}
+      - cmd [proc]: grep '${this.mavenRepository}' ${this.paxFile}
+      - if (! ${response.out}):
+        - log: The installation of the Jahia Enterprise Maven repository failed, please check Jahia logs
+        - return:
+            type: error
+            message: "An error occurred at module installation."
+    - log: "Installing the following module(s): ${this.modules}"
+    - cmd [proc]: |-
+        awk 'BEGIN {
+          RS = ","
+          print("- installOrUpgradeBundle:")
+        }
+        $1 != "" {
+          printf("  - \"mvn:org.jahia.modules/%s\"\n", $1)
+        }
+        ' <<<'${this.modules}' > ${this.provisioningFile}
+    - callProvisioningAPI:
+        target: proc
+        payload: "@${this.provisioningFile}"
+    - if (! ${globals.provisioning_api_call_success}):
+        - return:
+            type: error
+            message: "An error occurred at module installation."
+    # We parse the list of modules to be able to check each one of them
+    - script: |
+        var modulesParsed = []
+        "${this.modules}".split(",").forEach(
+          function(moduleWithVersion) {
+            var moduleAndVersion = moduleWithVersion.split("/")
+            modulesParsed.push({"module": moduleAndVersion[0], "version": moduleAndVersion[1]})
+          }
+        )
+        return {"result": 0, "onAfterReturn": {set: {"modulesParsed": modulesParsed}}}
+    - forEach (this.modulesParsed):
+      - checkModule:
+          moduleSymname: ${@i.module}
+      # If the module is "uninstalled", it means the installation/upgrade completely failed
+      - if ("${globals.moduleState}" == "uninstalled"):
+        - return:
+            type: error
+            message: "An error occurred at module installation."
+      # If it is "installed", it can be for multiple reasons:
+      # - the module was "installed" with an older version
+      # - the module was "installed" with a newer version
+      # - the module was "started" with an older version or "uninstalled" and the startup failed
+      # In each one of these situations we want to try and start the most recent installed version of the module
+      # (if it is greater or equal to the version we tried to install or else it means the installation/upgrade failed)
+      #  since the installOrUpgradeBundle action will preserve the module state but we want the module to be running
+      # regardless of the previous status
+      - if ("${globals.moduleState}" == "installed"):
+        - isVersionHigherOrEqual:
+            a: ${globals.mostRecentInstalledVersion}
+            b: ${@i.version}
+            res: moduleIsUpToDate
+        - if (! "${globals.moduleIsUpToDate}"):
           - return:
               type: error
-              message: "An error occurred during module installation."
-    - elif ("${globals.moduleVersionState}" == "installed"):
-        - log: ${this.moduleSymname}/${this.moduleVersion} is already installed, skipping the installation
-        - if (${this.startModule}):
-            - startModule:
-                moduleSymname: ${this.moduleSymname}
-                moduleVersion: ${this.moduleVersion}
-    - else:
-        - log: ${this.moduleSymname}/${this.moduleVersion} is already running, nothing to do
-    - if ("${globals.moduleVersionState}" != "started") && (${this.startModule}):
-      - checkVersionOfModule:
-          moduleSymname: ${this.moduleSymname}
-          moduleVersion: ${this.moduleVersion}
-      - if ("${globals.moduleVersionState}" != "started"):
-        - script: |-
-            return {"result": 0, "tryCount": [1,2,3,4,5,6,7,8,9,10]}
-        - forEach(response.tryCount):
-          - if ("${globals.moduleVersionState}" != "started"):
+              message: "An error occurred at module upgrade."
+        - startModules:
+            modules: "${@i.module}/${globals.mostRecentInstalledVersion}"
+
+  startModules:
+    # Starts a list of one or more modules and make sure the right version of the module
+    # is running.
+    #
+    # Parameters:
+    #   - modules: a comma separated list of "<module>/<version>" to start. Examples:
+    #              - "distributed-session/3.4.0"
+    #              - "augmented-search/3.3.2, jexperience/3.3.0"
+    - set:
+        provisioningFile: /opt/tomcat/temp/start_modules_provisioning_${fn.random}.yaml
+    - log: "Starting the following module(s): ${this.modules}"
+    - cmd [proc]: |-
+        awk 'BEGIN {
+          RS = ","
+          print("- startBundle:")
+        }
+        $1 != "" {
+          printf("  - \"%s\"\n", $1)
+        }
+        ' <<<'${this.modules}' > ${this.provisioningFile}
+    - callProvisioningAPI:
+        target: proc
+        payload: "@${this.provisioningFile}"
+    - if (! ${globals.provisioning_api_call_success}):
+        - return:
+            type: error
+            message: "An error occurred at module startup."
+    # We parse the list of modules to be able to check each one of them
+    - script: |
+        var modulesParsed = []
+        "${this.modules}".split(",").forEach(
+          function(moduleWithVersion) {
+            var moduleAndVersion = moduleWithVersion.split("/")
+            modulesParsed.push({"module": moduleAndVersion[0], "version": moduleAndVersion[1]})
+          }
+        )
+        return {"result": 0, "onAfterReturn": {set: {"modulesParsed": modulesParsed}}}
+    - forEach (this.modulesParsed):
+      - checkModule:
+          moduleSymname: ${@i.module}
+      # If the module is not "started" with the version we tried to start, we wait for 30s
+      # and exit with an error if it is still not running
+      - if ("${globals.runningVersion}" != "${@i.version}"):
+        - set:
+            tryCount: [1,2,3,4,5,6,7,8,9,10]
+        - forEach (this.tryCount):
+          - if ("${globals.runningVersion}" != "${@i.version}"):
             - log: "Try #${@i}..."
-            - checkVersionOfModule:
+            - checkModule:
                 moduleSymname: ${this.moduleSymname}
-                moduleVersion: ${this.moduleVersion}
-            - if ("${globals.moduleVersionState}" != "started"):
-              - sleep: 5000
-        - if ("${globals.moduleVersionState}" != "started"):
-          - return:
-              type: error
-              message: "An error occurred during module startup."
-
-  stopModule:
-    # Stops the running version of a module.
-    #
-    # Parameters:
-    #   - moduleSymname: the symbolic name of the module to stop (for instance "distributed-sessions")
-    - getPatTokenAndKey
-    - log: Stopping ${this.moduleSymname}
-    - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
-                 "localhost/modules/api/bundles/${this.moduleSymname}/_stop")
-        case "$(jq -r .bundleInfos <<< $resp)" in
-          "null") # If stop failed, there is no bundleInfos attribute in the JSON response
-            echo "error"
-            jq -r .message <<< $resp >&2
-            ;;
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          *) # Otherwise it means the module was stopped, nothing to do
-            ;;
-        esac
-    - if ("${response.out}" == "error"):
+            - if ("${globals.runningVersion}" != "${@i.version}"):
+              - sleep: 3000
+        - if ("${globals.runningVersion}" != "${@i.version}"):
         - return:
             type: error
-            message: "An error occurred during module stop."
-    - log: ${this.moduleSymname}/${this.moduleVersion} has been stopped
+            message: "An error occurred at module startup."
 
-
-  startModule:
-    # Starts the specified version of a module.
+  stopModules:
+    # Stops a list of one or more modules and make sure the right version of the module
+    # is running.
     #
     # Parameters:
-    #   - moduleSymname: the symbolic name of the module to start (for instance "distributed-sessions")
-    #   - moduleVersion: the version of the module to install
-    - getPatTokenAndKey
-    - log: Starting ${this.moduleSymname}/${this.moduleVersion}
+    #   - modules: a comma separated list of modules to stop (including the version is not mandatory). Examples:
+    #              - "distributed-session/3.4.0"
+    #              - "augmented-search, jexperience/3.3.0"
+    - set:
+        provisioningFile: /opt/tomcat/temp/stop_modules_provisioning_${fn.random}.yaml
+    - log: "Stopping the following module(s): ${this.modules}"
     - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
-                 "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_start")
-        case "$(jq -r .bundleInfos <<< $resp)" in
-          "null") # If install failed, there is no bundleInfos attribute in the JSON response
-            echo "error"
-            jq -r .message <<< $resp >&2
-            ;;
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          *) # Otherwise it means the module was started, nothing to do
-            ;;
-        esac
-    - if ("${response.out}" == "error"):
+        awk 'BEGIN {
+          RS = ","
+          print("- stopBundle:")
+        }
+        $1 != "" {
+          printf("  - \"%s\"\n", $1)
+        }
+        ' <<<'${this.modules}' > ${this.provisioningFile}
+    - callProvisioningAPI:
+        target: proc
+        payload: "@${this.provisioningFile}"
+    - if (! ${globals.provisioning_api_call_success}):
         - return:
             type: error
-            message: "An error occurred during module startup."
-    - log: ${this.moduleSymname}/${this.moduleVersion} has been started
-
-  uninstallModuleVersion:
-    # Uninstalls the specified version of a module.
-    #
-    # Parameters:
-    #   - moduleSymname: the symbolic name of the module to upgrade (for instance "distributed-sessions")
-    #   - moduleVersion: the version of the module to install
-    - getPatTokenAndKey
-    - log: Uninstalling ${this.moduleSymname}/${this.moduleVersion}
-    - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" -XPOST -d "" \
-              "localhost/modules/api/bundles/${this.moduleSymname}/${this.moduleVersion}/_uninstall")
-        case "$(jq -r .bundleInfos <<< $resp)" in
-          "null") # If uninstall failed, there is no bundleInfos attribute in the JSON response
-            echo "error"
-            jq -r .message <<< $resp >&2
-            ;;
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          *) # Otherwise it means the module was uninstalled, nothing to do
-            ;;
-        esac
-    - if ("${response.out}" == "error"):
-        - return:
-            type: error
-            message: "An error occurred during module uninstall."
-    - log: Version ${this.moduleVersion} of ${this.moduleSymname} module uninstalled
-
-  uninstallStoppedVersionsOfModule:
-    # Uninstalls all the stopped versions of a module. If no version of the module is running, the module
-    # will be completely uninstalled. If the module is not installed, nothing is done.
-    #
-    # Parameters:
-    #   - moduleSymname: the module to clean
-    - getPatTokenAndKey
-    - log: Uninstalling stopped versions of ${this.moduleSymname} module
-    - cmd [proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
-        case "$(jq -r ". | length" <<< $resp)" in
-          "0") # Means the module is not installed, nothing to do
-            ;;
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          *)
-            jq -r 'to_entries[] | "\(.key);\(.value | .moduleState)"' <<<$resp | grep -v STARTED | cut -d';' -f1 | awk -F'/' '{print $NF}' | tr "\n" ";" | sed 's/.$//'
-            ;;
-        esac
-    - if ("${response.out}" == ""):
-        log: ${this.moduleSymname} module doesn't have any stopped version, nothing to do
-    - elif ("${response.out}" == "error"):
-        - return:
-            type: error
-            message: "An error occurred during module installation."
-    - else:
-        - log: "Versions to delete for ${this.moduleSymname} module: ${response.out}"
-        - script: |-
-            return {"result": 0, "versions": "${response.out}".split(";")}
-        - forEach(response.versions):
-            - uninstallModuleVersion:
+            message: "An error occurred at module stop."
+    # We parse the list of modules to be able to check each one of them
+    - script: |
+        var modulesParsed = []
+        "${this.modules}".split(",").forEach(
+          function(moduleWithVersion) {
+            var moduleAndVersion = moduleWithVersion.split("/")
+            modulesParsed.push({"module": moduleAndVersion[0], "version": moduleAndVersion[1]})
+          }
+        )
+        return {"result": 0, "onAfterReturn": {set: {"modulesParsed": modulesParsed}}}
+    - forEach (this.modulesParsed):
+      - checkModule:
+          moduleSymname: ${@i.module}
+      # If the module is not "installed" or "uninstalled", we wait for 15s
+      # and exit with an error if it is still running
+      - if ("${globals.moduleState}" == "started"):
+        - set:
+            tryCount: [1,2,3,4,5]
+        - forEach (this.tryCount):
+          - if ("${globals.moduleState}" == "started"):
+            - log: "Try #${@i}..."
+            - checkModule:
                 moduleSymname: ${this.moduleSymname}
-                moduleVersion: ${@i}
-        - log: Stopped versions of ${this.moduleSymname} module uninstalled
+            - if ("${globals.moduleState}" == "started"):
+              - sleep: 3000
+        - if ("${globals.moduleState}" == "started"):
+        - return:
+            type: error
+            message: "An error occurred at module stop."
 
   uninstallModule:
-    # Uninstalls all the versions of a module If the module is not installed, nothing is done.
+    # Does a partial or complete uninstallation of a module.
     #
     # Parameters:
-    #   - moduleSymname: the module to clean
-    - getPatTokenAndKey
-    - log: Uninstalling all versions of ${this.moduleSymname} module
-    - cmd[proc]: |-
-        __secret__pat_token="${globals.__secret__pat_token}"
-        resp=$(curl -SsH "Authorization: APIToken $__secret__pat_token" "localhost/modules/api/bundles/${this.moduleSymname}/*/_localInfo")
-        case "$(jq -r ". | length" <<< $resp)" in
-          "0") # Means the module is not installed
-            echo "not installed"
-            ;;
-          "") # if response is not JSON, for instance 401 unauthorized
-            echo "error"
-            echo $resp >&2
-            ;;
-          *)
-            jq -r "keys[]" <<< $resp | awk -F'/' '{print $NF}' | sort -nr | tr "\n" ";" | sed 's/.$//'
-            ;;
-        esac
-    - if ("${response.out}" == "not installed"):
-        log: ${this.moduleSymname} module is not installed, nothing to do
-    - elif ("${response.out}" == "error"):
-        - return:
-            type: error
-            message: "An error occurred during module uninstall."
+    #   - moduleSymname: the symbolic name of the module to uninstall (for instance "distributed-sessions")
+    #   - moduleVersion: the version of the module to uninstall
+    #   - stoppedVersions: set to "true" if only stopped versions should be uninstalled.
+    #                      Default value is "false". This parameter is ignored if "moduleVersion" is set
+    - set:
+        provisioningFile: /opt/tomcat/temp/uninstall_module_provisioning_${fn.random}.yaml
+        skip: false
+    - checkModule:
+        moduleSymname: ${this.moduleSymname}
+    - if ("${globals.moduleState}" == "uninstalled"):
+      - log: ${this.moduleSymname} module is not installed, nothing to do
+      - set:
+          skip: true
     - else:
-        - log: "Versions to delete for ${this.moduleSymname} module: ${response.out}"
-        - script: |-
-            return {"result": 0, "versions": "${response.out}".split(";")}
-        - forEach(response.versions):
-            - uninstallModuleVersion:
-                moduleSymname: ${this.moduleSymname}
-                moduleVersion: ${@i}
-        - log: ${this.moduleSymname} module completely uninstalled
+      - if ("${this.moduleVersion.print()}"):
+        - script: |
+            return {"result": 0, "isVersionInstalled": ${globals.installedVersions}.split(",").includes(${this.moduleVersion})}
+        - if (! ${response.isVersionInstalled}):
+          - log: ${this.moduleSymname}/${this.moduleVersion} is not installed, nothing to do
+          - set:
+              skip: true
+        - else:
+          - log: Uninstalling ${this.moduleSymname}/${this.moduleVersion}
+          - cmd [proc]: |-
+              echo "- uninstallBundle: \"${this.moduleSymname}/${this.moduleVersion}\"" > ${this.provisioningFile}
+      - else:
+        - if ("${this.stoppedVersions.print()}" == "true") && ("${globals.moduleState}" == "started") && (${globals.installedVersionsCount} > 1):
+          - cmd [proc]: |-
+              awk 'BEGIN {
+                RS = ","
+              }
+              ($1 !~ /${this.runningVersion}/ && $1 != "") {
+                printf("- uninstallBundle: \"${this.moduleSymname}/%s\"\n", $1)
+              }
+              ' <<<$versions > ${this.provisioningFile}
+          - log: "Uninstalling stopped versions of ${this.moduleSymname} module:"
+        - else:
+          - log: Uninstalling ${this.moduleSymname}
+          - cmd [proc]: |-
+              echo "- uninstallBundle: \"${this.moduleSymname}\"" > ${this.provisioningFile}
+    - if (! ${this.skip}):
+      - callProvisioningAPI:
+          target: proc
+          payload: "@${this.provisioningFile}"
+      - checkModule:
+          moduleSymname: ${this.moduleSymname}
+      - if ("${globals.moduleState}" != "uninstalled"):
+        - if ("${response.out}" == "error"):
+            - return:
+                type: error
+                message: "An error occurred during module uninstallation."
 
   triggerAugSearchFullReindex:
     # Parameters:
@@ -1872,18 +1794,10 @@ actions:
     - set:
         es_permissions: '{"indices": [{"names": ["${this.jcustomerEnv}_*"], "privileges": ["read"]}]}'
         kibana_permissions: '[{"base": ["all"], "feature": {}, "spaces": ["${this.roleAndAccountName}"]}]'
-    - installOrUpgradeModule:
-        moduleSymname: kibana-dashboards-provider
-        moduleVersion: 1.1.0
-        moduleGroupId: org.jahia.modules
-        moduleRepository: marketing-factory-releases
+    - installOrUpgradeModules:
+        modules: kibana-dashboards-provider/1.1.0, jexperience-dashboards/${globals.jexperienceDashboardsVersion}
     - getJexperienceVersion:
         unomi_env_name: ${this.jcustomerEnv}
-    - installOrUpgradeModule:
-        moduleSymname: jexperience-dashboards
-        moduleVersion: ${globals.jexperienceDashboardsVersion}
-        moduleGroupId: org.jahia.modules
-        moduleRepository: marketing-factory-releases
     - script: |-
         return api.marketplace.jps.Install(
             {
@@ -2184,7 +2098,6 @@ actions:
     #     You won't be noticed if provided commands were ok,
     #     you have to implement a check in the action calling callProvisioningAPI
     - getPatTokenAndKey
-
     - cmd[${this.target}]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
         output_file=/tmp/provAPIOutput
@@ -2198,7 +2111,6 @@ actions:
           >&2 cat $output_file
           rm $output_file
         fi
-
     - if ("${response.errOut}" == ""):
         setGlobals:
           provisioning_api_call_success: true

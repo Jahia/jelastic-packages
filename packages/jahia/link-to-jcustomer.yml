@@ -26,11 +26,8 @@ onInstall:
       unomi_env_name: ${settings.unomienv}
   - getJexperienceVersion:
       unomi_env_name: ${settings.unomienv}
-  - installOrUpgradeModule:
-      moduleSymname: jexperience
-      moduleVersion: ${globals.jexperienceVersion}
-      moduleGroupId: org.jahia.modules
-      moduleRepository: marketing-factory-releases
+  - installOrUpgradeModules:
+      modules: jexperience/${globals.jexperienceVersion}
   - getJcustomerKey:
       jcustomerEnv: ${settings.unomienv}
   - confJexperience: proc

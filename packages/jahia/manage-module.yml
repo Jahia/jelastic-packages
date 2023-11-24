@@ -12,14 +12,13 @@ mixins:
 
 onInstall:
   - if ("${settings.action}" == "installOrUpgrade"):
-    - installOrUpgradeModule:
-        moduleSymname: ${settings.moduleSymname}
-        moduleVersion: ${settings.moduleVersion}
-        moduleGroupId: ${settings.moduleGroupId}
-        moduleRepository: ${settings.moduleRepository}
+    - installOrUpgradeModules:
+        modules: ${settings.modulesToInstall}
   - elif ("${settings.action}" == "uninstall"):
     - uninstallModule:
         moduleSymname: ${settings.moduleSymname}
+        moduleVersion: ${settings.moduleVersionToUninstall}
+        stoppedVersions: ${settings.onlyOlderVersions}
   - else:
       log: Action not recognized, nothing to do.
 
@@ -33,20 +32,24 @@ settings:
         uninstall: uninstall
       default: installOrUpgrade
       required: true
-    - name: moduleSymname
-      type: string
-      caption: Module symbolic name
-      tooltip: Module symbolic name would be for instance "distributed-sessions" instead of "Distributed Sessions"
-      required: true
-    - name: moduleVersion
-      type: string
-      caption: Module version (for installation only)
-      required: false
-    - name: moduleGroupId
-      type: string
-      caption: Module group id (for installation only)
-      required: false
-    - name: moduleRepository
-      type: string
-      caption: Module repository in Nexus (for installation only)
-      required: false
+      showIf:
+        installOrUpgrade:
+        - name: modulesToInstall
+          type: string
+          caption: Comma separated list of one or more "<module>/<version>" to install
+          tooltip: "Example: \"augmented-search/3.3.2, jexperience/3.3.0\""
+        uninstall:
+        - name: moduleSymname
+          type: string
+          caption: Module symbolic name
+          tooltip: Module symbolic name would be for instance "distributed-sessions" instead of "Distributed Sessions"
+        - name: moduleVersionToUninstall
+          type: string
+          caption: Version to uninstall (optional)
+          required: false
+        - name: onlyOlderVersions
+          type: toggle
+          caption: Only uninstall older versions (this parameter is ignored if a version is set)
+          tooltip: (this parameter is ignored if a specific version to uninstall is set)
+          value: false
+          required: false

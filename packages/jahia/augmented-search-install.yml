@@ -66,38 +66,16 @@ actions:
         rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
     - if(globals.jahia810):  # if jahia 8.1.0 then graphql-dxm-provider and jahia-administration must be upgraded
         - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
-        - installOrUpgradeModule:
-            moduleSymname: graphql-dxm-provider
-            moduleVersion: ${globals.graphql_ver}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-releases
+        - installOrUpgradeModules:
+            modules: graphql-dxm-provider/${globals.graphql_ver}
         - enableHaproxyHealthcheck
-        - installOrUpgradeModule:
-            moduleSymname: jahia-administration
-            moduleVersion: ${globals.jahia_admin_ver}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-releases
+        - installOrUpgradeModules:
+            modules: jahia-administration/${globals.jahia_admin_ver}
     - if(globals.lessjahia812):
-        - installOrUpgradeModule:
-            moduleSymname: jcontent
-            moduleVersion: ${globals.jcontent_ver}
-            moduleGroupId: org.jahia.modules
-            moduleRepository: jahia-releases
-    - installOrUpgradeModule:
-        moduleSymname: database-connector
-        moduleVersion: ${globals.db_connector_ver}
-        moduleGroupId: org.jahia.modules
-        moduleRepository: jahia-connector-enterprise-releases
-    - installOrUpgradeModule:
-        moduleSymname: elasticsearch-connector
-        moduleVersion: ${globals.es_connector_ver}
-        moduleGroupId: org.jahia.modules
-        moduleRepository: jahia-connector-enterprise-releases
-    - installOrUpgradeModule:
-        moduleSymname: augmented-search
-        moduleVersion: ${globals.augsearch_ver}
-        moduleGroupId: org.jahia.modules
-        moduleRepository: augmented-search-releases
+        - installOrUpgradeModules:
+            modules: jcontent/${globals.jcontent_ver}
+    - installOrUpgradeModules:
+        modules: database-connector/${globals.db_connector_ver}, elasticsearch-connector/${globals.es_connector_ver}, augmented-search/${globals.augsearch_ver}
 
   setNodeGroupData:
     - environment.nodegroup.ApplyData[cp]:
