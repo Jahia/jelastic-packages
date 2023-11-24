@@ -357,8 +357,8 @@ actions:
         - triggerAugSearchFullReindex
     - else:
         # Stops AS module if it was not running on the env before the restore
-        - stopModule:
-            moduleSymname: augmented-search
+        - stopModules:
+            modules: augmented-search
     - cmd[proc] : rm -f /tmp/as-state
 
   restoreJahia:

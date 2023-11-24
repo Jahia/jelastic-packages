@@ -65,11 +65,8 @@ onInstall:
         envName: ${env.envName}
     - getJexperienceVersion:
         unomi_env_name: ${globals.unomi_env_name}
-    - installOrUpgradeModule:
-        moduleSymname: jexperience
-        moduleVersion: ${globals.jexperienceVersion}
-        moduleGroupId: org.jahia.modules
-        moduleRepository: marketing-factory-releases
+    - installOrUpgradeModules:
+        modules: jexperience/${globals.jexperienceVersion}
 
   # Update Jahia version in node group data, envvar, and PAPI:
   - env.nodegroup.ApplyData[cp, proc]:
