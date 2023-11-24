@@ -1,0 +1,23 @@
+---
+logs:
+   - type: file
+     path: /opt/jcustomer/jcustomer/data/log/karaf.log
+     source: jcustomer
+     service: jcustomer
+     log_processing_rules:
+        - type: multi_line
+          name: log_start_with_date
+          pattern: \d{4}-(?:0?[1-9]|1[012])-(?:0?[1-9]|[12]\d|3[01])T(?:0?[1-9]|1\d|2[0-3]):[0-5]\d:[0-5]\d,\d{3}
+   - type: file
+     path: /opt/jcustomer/jcustomer/data/security/audit.log
+     source: jcustomer
+     service: jcustomer
+
+init_config:
+
+instances:
+   - user: karaf
+     password: karaf
+     tags:
+       - "role:server"
+       - "provide:unomi"
