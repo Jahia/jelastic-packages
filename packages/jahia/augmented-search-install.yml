@@ -164,6 +164,24 @@ actions:
             | jq -r '.data.admin.search.clearDbConnection'
         }
 
+        curl_remove_as_site() {
+          curl -fLSs -XPOST http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"mutation { admin { search { removeSite(siteKey:\"'$1'\") } } }"}' \
+            | jq -r '.data.admin.search.removeSite'
+        }
+
+        curl_list_as_sites() {
+          curl -fLSs -XPOST http://localhost:8080/modules/graphql \
+            -H "Authorization: APIToken $__secret__API_TOKEN" \
+            -H 'Origin: http://localhost:8080' \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"query { admin { search { listSites {sites { siteKey } } } } }"}' \
+            | jq -r '.data.admin.search.listSites.sites | .[] | .siteKey'
+        }
+
         add_es(){
           result=$(curl_add_es)
           success=$(echo $result | jq -r .success)
@@ -184,6 +202,18 @@ actions:
           add_es
         elif [ "$current_es_connection" = "$es_connection_name" ]; then
           echo "Connection already configured, we recreate it"
+          # to be absolutely sure that you can remove the connection,
+          # first check whether any sites are registered in AS and remove them if necessary
+          for site in $(curl_list_as_sites); do
+            echo "Sitekey $site is registred on augmented search"
+            result=$(curl_remove_as_site $site)
+            if [ "$result" != "Successful" ]; then
+              echo "Error when removing $site from augmented search"
+              exit 1
+            else
+              echo "$site is now removing from augmented search"
+            fi
+          done
           result=$(curl_clear_as_conn)
           if [ "$result" != "Successful" ] && [ "$result" != "Exist already" ]; then
             echo "Failed to clear AS database connection"
