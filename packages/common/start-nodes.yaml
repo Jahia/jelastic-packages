@@ -26,12 +26,15 @@ onInstall:
   - getNodesAsList: ${settings.nodesToStart}
 
   - if (nodes.proc):  # Jahia
-    - if (globals.nodesDict.sqldb): # Database
-        - startNode: ${globals.nodesDict.sqldb[0]}
-        - callCheckMariadbHealthAction: ${globals.nodesDict.sqldb[0]}
-        - if (nodes.sqldb.length > 1):
-            callCheckGaleraClusterHealthAction
-        - else:
+    - if (globals.nodesDict.sqldb || globals.nodesDict.storage): # Database or storage
+        - if (globals.nodesDict.sqldb):
+            - startNode: ${globals.nodesDict.sqldb[0]}
+            - callCheckMariadbHealthAction: ${globals.nodesDict.sqldb[0]}
+            - if (nodes.sqldb.length > 1):
+                callCheckGaleraClusterHealthAction
+        - if (globals.nodesDict.storage):
+            - startNode: ${globals.nodesDict.storage[0]}
+        - if (nodes.sqldb.length == 1):
             forEach(nodes.cp):
               if ( ! ${globals.nodesDict.cp.contains([@i.id])}): # No idea why we have to use [] instead of ${} here. It's the way it works
                 startJahia: ${@i.id}
