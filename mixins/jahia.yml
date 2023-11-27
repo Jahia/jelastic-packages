@@ -824,7 +824,7 @@ actions:
         mavenRepository: devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise
         paxFile: /data/digital-factory-data/karaf/etc/org.ops4j.pax.url.mvn.cfg
     - cmd [proc]: grep -q '${this.mavenRepository}' ${this.paxFile} || echo "need to install maven repository"
-    - if (${response.out}):
+    - if ("${response.out}"):
       - log: Installing the Jahia Enterprise Maven repository to install new modules
       - getNexusCredentials
       - callProvisioningAPI:
@@ -833,8 +833,8 @@ actions:
             - addMavenRepository: "https://${this.mavenRepository}"
               username: ${globals.__secret__nexusLogin}
               password: ${globals.__secret__nexusPassword}
-      - cmd [proc]: grep '${this.mavenRepository}' ${this.paxFile}
-      - if (! ${response.out}):
+      - cmd [proc]: grep -q '${this.mavenRepository}' ${this.paxFile} || echo "maven repository not present"
+      - if ("${response.out}"):
         - log: The installation of the Jahia Enterprise Maven repository failed, please check Jahia logs
         - return:
             type: error
