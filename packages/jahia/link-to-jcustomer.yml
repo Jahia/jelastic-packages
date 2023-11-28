@@ -132,7 +132,7 @@ actions:
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         while [ $timeout -ge 0 ]; do
           # First we test if Jahia is up with a curl request.
-          if curl_resp=$(curl -f -s -m 1 ""http://127.0.0.1:8080/modules/healthcheck -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
+          if curl_resp=$(curl -f -s -m 1 http://127.0.0.1:8080/modules/healthcheck -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
             status=$(echo $curl_resp | jq -r '.probes[] | select(.name == "JExperienceConnections") | .status.health')
             if [ "$status" = "GREEN" ]; then
               exit 0
