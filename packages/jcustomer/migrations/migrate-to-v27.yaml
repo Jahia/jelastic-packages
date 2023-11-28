@@ -28,6 +28,7 @@ onInstall:
 
   # Regular actions
   - removeJMXDDConfig                        # PAAS-2582
+  - obuscateESQueriesInDDAPM                 # PAAS-2655
 
   # Actions that require a restart
   # (None)
@@ -74,6 +75,13 @@ actions:
           service datadog-agent restart
       fi
 
+  obuscateESQueriesInDDAPM:
+    cmd[cp, proc]: |-
+      md5="8e18fdde70f7494256764928e220bb7e"
+      file="/usr/local/bin/set_dd_tags.sh"
+      if ! (echo "$md5 $file" | md5sum --status -c); then
+          curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v27_assets/set_dd_tags.sh || exit 1
+      fi
 
 settings:
   fields:
