@@ -8,13 +8,15 @@ description:
 
 mixins:
   - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
 
 onInstall:
 - setGlobalRepoRootUrl
 - rollbackPatch: cp, proc
 - if ("${response.out}" == "restart needed"):
-  - install:
-      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+  - restart: ${nodes.proc.first.id}
+  - foreach (nodes.cp):
+      - restart: ${@i.id}
 
 actions:
   rollbackPatch:
@@ -32,3 +34,7 @@ actions:
       chmod 644 $OLD_LIB_PATH
       chown tomcat: $OLD_LIB_PATH
       echo "restart needed"
+
+  restart:
+    - api: environment.control.RestartNodeById
+      nodeId: ${this}
