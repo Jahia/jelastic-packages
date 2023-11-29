@@ -9,14 +9,25 @@ description:
 mixins:
   - "../../mixins/common.yml"
   - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
 
 onInstall:
-- setGlobalRepoRootUrl
-- rollbackPatch: cp, proc
-- if ("${response.out}" == "restart needed"):
-  - restart: ${nodes.proc.first.id}
+- cmd [proc]: "[ -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-20231013.jar ] && echo \"rollback needed\""
+- if ("${response.out}" == "rollback needed"):
+  - removeProcNodeFromHaproxy:
+      reload: true
+  - rollbackPatch: ${nodes.proc.first.id}
+  - addProcNodeToHaproxy:
+      reload: true
   - foreach (nodes.cp):
-      - restart: ${@i.id}
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+      - rollbackPatch: ${@i.id}
+      - addBrowsingNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+          reload: true
 
 actions:
   rollbackPatch:
@@ -25,16 +36,10 @@ actions:
       OLD_LIB=json-20070829.jar
       NEW_LIB=json-20231013.jar
       OLD_LIB_PATH=$LIB_FOLDER/$OLD_LIB
-      if [ ! -f $LIB_FOLDER/$NEW_LIB ]; then
-        echo "[INFO] The rollback of the json-java lib has already been done, nothing to do"
-        exit 0
-      fi
-      rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/$NEW_LIB
+      service tomcat stop
       curl -fLSso $OLD_LIB_PATH https://repo1.maven.org/maven2/org/json/json/20070829/$OLD_LIB || exit 1
+      rm -f $LIB_FOLDER/$NEW_LIB
       chmod 644 $OLD_LIB_PATH
       chown tomcat: $OLD_LIB_PATH
-      echo "restart needed"
-
-  restart:
-    - api: environment.control.RestartNodeById
-      nodeId: ${this}
+      service tomcat start
+  - startupJahiaHealthCheck: ${this}
