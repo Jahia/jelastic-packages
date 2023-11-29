@@ -1,0 +1,34 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2717 - Rollback json-java patch
+id: paas-2717-rollback-json-java-patch
+description:
+  short: Rollback json-java fix (PAAS-2706) for customers who are experiencing issues with the new lib
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+- setGlobalRepoRootUrl
+- rollbackPatch: cp, proc
+- if ("${response.out}" == "restart needed"):
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+actions:
+  rollbackPatch:
+  - cmd[${this}]: |-
+      LIB_FOLDER=/opt/tomcat/webapps/ROOT/WEB-INF/lib
+      OLD_LIB=json-20070829.jar
+      NEW_LIB=json-20231013.jar
+      OLD_LIB_PATH=$LIB_FOLDER/$OLD_LIB
+      if [ ! -f $LIB_FOLDER/$NEW_LIB ]; then
+        echo "[INFO] The rollback of the json-java lib has already been done, nothing to do"
+        exit 0
+      fi
+      rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/$NEW_LIB
+      curl -fLSso $OLD_LIB_PATH https://repo1.maven.org/maven2/org/json/json/20070829/$OLD_LIB || exit 1
+      chmod 644 $OLD_LIB_PATH
+      chown tomcat: $OLD_LIB_PATH
+      echo "restart needed"
