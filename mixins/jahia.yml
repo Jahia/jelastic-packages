@@ -1791,11 +1791,24 @@ actions:
     # __secret__password: es account password
     # jcustomerEnv: target jcustomer environment
     - setGlobalRepoRootUrl
+
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.3.0
+        res: isHigherOrEqualThan8130
+    - if(${globals.isHigherOrEqualThan8130}):
+        set:
+          kibanaDashboardProviderVersion: 1.2.0
+    - else:
+        set:
+          kibanaDashboardProviderVersion: 1.1.0
+
     - set:
         es_permissions: '{"indices": [{"names": ["${this.jcustomerEnv}_*"], "privileges": ["read"]}]}'
         kibana_permissions: '[{"base": ["all"], "feature": {}, "spaces": ["${this.roleAndAccountName}"]}]'
     - installOrUpgradeModules:
-        modules: kibana-dashboards-provider/1.1.0, jexperience-dashboards/${globals.jexperienceDashboardsVersion}
+        modules: kibana-dashboards-provider/${this.kibanaDashboardProviderVersion}, jexperience-dashboards/${globals.jexperienceDashboardsVersion}
     - getJexperienceVersion:
         unomi_env_name: ${this.jcustomerEnv}
     - script: |-

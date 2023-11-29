@@ -29,12 +29,13 @@ onInstall:
 
   # Actions that update modules (needs to be done first)
   - updatePat141                           # PAAS-2719
+  - upgradeKibanaDashboardProvider         # PAAS-2710
 
   # Regular actions
+  - obuscateESQueriesInDDAPM               # PAAS-2655
 
   # Actions that require a restart
   - useG1GC                                # PAAS-2325
-  - obuscateESQueriesInDDAPM               # PAAS-2655
 
   # Actions that require a redeploy
   # (None)
@@ -128,6 +129,19 @@ actions:
             modules: personal-api-tokens/1.4.1
         - checkJahiaHealth: "cp, proc"
         - enableHaproxyHealthcheck
+
+  upgradeKibanaDashboardProvider:
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.3.0
+        res: isHigherOrEqualThan8130
+
+    - if (${globals.unomi_env_linked} && ${globals.isHigherOrEqualThan8130}):
+        installOrUpgradeModules:
+          modules: kibana-dashboards-provider/1.2.0
 
 settings:
   fields:
