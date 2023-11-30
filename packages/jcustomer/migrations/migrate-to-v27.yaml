@@ -67,9 +67,10 @@ actions:
 
   removeJMXDDConfig:
     cmd[cp]: |-
-      rm -f /etc/datadog-agent/conf.d/jmx.d/conf.yaml
       file="/etc/datadog-agent/conf.d/jcustomer_status.yaml"
-      if [[ -L /etc/datadog-agent/conf.d/jcustomer_status.yaml ]]; then
+      if [[ -L $file || ! -f $file ]]; then
+          rm -f $file
+          rm -f /etc/datadog-agent/conf.d/jmx.d/conf.yaml
           curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v27_assets/dd_jcustomer_status_conf.yaml
           unomi_root_password_b64=$(grep UNOMI_ROOT_PASSWORD_B64= /opt/jcustomer/jcustomer/bin/setenv | sed 's/.*"\(.*\)"/\1/')
           sed -i "s/\(password: \).*/\1$(echo $unomi_root_password_b64 | base64 -d | sed 's;\([\\\&\$]\);\\\1;g')/" /etc/datadog-agent/conf.d/jcustomer_status.yaml
