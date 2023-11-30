@@ -50,6 +50,19 @@ onInstall:
       - set:
           targetDockerTag: ${settings.targetVersion}_${settings.dockerTagSuffix}
 
+  # Remove tomcat filtering if enabled
+  - api: env.control.GetContainerEnvVarsByGroup
+    nodeGroup: proc
+  - if ("${response.object.tomcat_cfg_cloud_filtering}" == "true"):
+      - setGlobals:
+          tomcatFiltering: true
+  - if(globals.tomcatFiltering):
+      - setGlobalRepoRootUrl
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/disable-tomcat-filtering.yaml"
+          settings:
+            skipRestart: true
+
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [cp, proc]:
       - service tomcat stop
@@ -85,6 +98,11 @@ onInstall:
   - checkModulesAfterOperation:
       operation: upgrade
       checkVersion: false
+
+  # Re-enable tomcat filtering if needed
+  - if(globals.tomcatFiltering):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/enable-tomcat-filtering.yaml"
 
   # Unmute monitors
   - unmuteEnvWideMonitors
