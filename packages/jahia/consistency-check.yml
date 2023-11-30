@@ -62,35 +62,21 @@ actions:
             message: "Multiple versions of ${this.moduleSymname} are installed"
 
   checkPAT:
-    # Jahia 8.0 ==> 1.0.1
-    # Jahia between 8.1.1.0 and 8.1.2.2 ==> 1.2.0
+    # Jahia between 8.1.3 and 8.1.6 ==> 1.4.1
     - basicModuleCheck:
         moduleSymname: personal-api-tokens
     - if( "${globals.moduleState}" == "started" ):
         - getJahiaVersion
-        - set:
-            expectedVersion: ""
-        - isVersionStrictlyLower:
-            a: ${globals.jahiaVersion}
-            b: 8.1.0.0
-            res: isJahia80
-        - if( ${globals.isJahia80} ):
-            - set:
-                expectedVersion: 1.0.1
-        - else:
-            - isVersionBetween:
-                lower: 8.1.1.0
-                lower_may_equal: true
-                version: ${globals.jahiaVersion}
-                higher: 8.1.2.2
-                higher_may_equal: true
-                res: isBetween8110and8122
-            - if( ${globals.isBetween8110and8122} ):
-                - set:
-                    expectedVersion: 1.2.0
-        - if( "${this.expectedVersion}" != "" && "${globals.runningVersion}" != "${this.expectedVersion}" ):
+        - isVersionBetween:
+            lower: 8.1.3.0
+            lower_may_equal: true
+            version: ${globals.jahiaVersion}
+            higher: 8.1.7.0
+            higher_may_equal: false
+            res: isBetween813and816
+        - if( ${globals.isBetween813and816} && "${globals.runningVersion}" != "1.4.1" ):
             - addError:
-                message: "Running personal-api-tokens version is ${globals.runningVersion} instead of ${this.expectedVersion}"
+                message: "Running personal-api-tokens version is ${globals.runningVersion} instead of 1.4.1"
 
   checkSAM:
     # Jahia < 8.2 ==> 2.7.0 (the module is directly embedded in Jahia starting from 8.2)
