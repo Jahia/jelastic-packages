@@ -12,7 +12,12 @@ mixins:
   - "../../mixins/haproxy.yml"
 
 onInstall:
-- cmd [proc]: "[ -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-20231013.jar ] && echo \"rollback needed\""
+- cmd [proc]: |-
+    if [ -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-20231013.jar ]; then
+      echo "rollback needed"
+    else
+      exit 0
+    fi
 - if ("${response.out}" == "rollback needed"):
   - removeProcNodeFromHaproxy:
       reload: true
