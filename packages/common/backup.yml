@@ -323,6 +323,14 @@ actions:
           __secret__AWS_ACCESS_KEY_ID="${globals.__secret__backrestAwsAccessKeyId}"
           __secret__AWS_SECRET_ACCESS_KEY="${globals.__secret__backrestAwsSecretAccessKey}"
           export AWS_ACCESS_KEY_ID="$__secret__AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$__secret__AWS_SECRET_ACCESS_KEY"
+          region=${globals.region}
+
+          # Due to location contraint, we need to force eu-west-1 region if region is eu-central-2
+          if [[ $region == eu-central-2 ]]; then
+            force_region="--s3-region eu-west-1"
+          else
+            force_region=""
+          fi
 
           cd jelastic_backup
           backups_to_keep=$(( ${settings.retention}+1 ))
@@ -339,9 +347,9 @@ actions:
             fi
             echo "${envName} $(date -d "+${lock_sec_max}sec" +"%s")" > /tmp/${lockfile}
             if (( $(( ${locked_until} - $(date +"%s") )) > 0 )); then
-              rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
+              rclone copy --ignore-existing --error-on-no-transfer /tmp/${lockfile} backup:${meta_bucket_name} ${force_region} 2>&1
               if [ $? -ne 0 ]; then
-                read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile})
+                read locker locked_until < <(RCLONE_S3_REGION=eu-west-1 rclone cat backup:${meta_bucket_name}/${lockfile} ${force_region})
                 echo "$(date) - waiting for ${locker} to release his lock (max to $(date -d @${locked_until}))" >> ${globals.logsPath}
                 sleep 1
                 getLock ${locked_until}
@@ -350,18 +358,19 @@ actions:
               fi
             else
               echo "$(date) - we take control from now" >> ${globals.logsPath}
-              rclone copy /tmp/${lockfile} backup:${meta_bucket_name} 2>&1
+              rclone copy /tmp/${lockfile} backup:${meta_bucket_name} ${force_region} 2>&1
             fi
           }
           getLock
           while IFS= read -r backup_name; do
             if [ ! -z "$backup_name" ]; then # Just makes sure we are NEVER going to purge an entire bucket
               timestamp=$(echo "$backup_name"|sed 's/.*_\(.*\)_auto/\1/')
-              python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
+              # metadata files are always on eu-west-1
+              AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
               rclone purge backup:${globals.bucketName}/$backup_name 2>&1
             fi
           done <<<"$(cat /tmp/backups_to_rotate)"
-          rclone delete backup:${meta_bucket_name}/${lockfile} 2>&1
+          rclone delete backup:${meta_bucket_name}/${lockfile} ${force_region} 2>&1
           rm /tmp/backups_to_rotate
       - if ("${response.errOut}" != ""):
           - return:
