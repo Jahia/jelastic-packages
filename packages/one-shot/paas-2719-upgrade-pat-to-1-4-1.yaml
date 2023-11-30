@@ -1,0 +1,29 @@
+---
+type: update
+version: 1.5.2
+name: PAT upgrade to 1.4.1
+id: paas-2719-upgrade-pat-to-1-4-1
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - getJahiaVersion
+  - isVersionHigherOrEqual:
+      a: ${globals.jahiaVersion}
+      b: 8.1.3.0
+      res: jahia813plus
+  - if (${globals.jahia813plus}):
+      - checkModule:
+          moduleSymname: personal-api-tokens
+      - if ("${globals.runningVersion}" == "1.4.0"):
+          - disableHaproxyHealthcheck
+          - installOrUpgradeModule:
+              moduleSymname: personal-api-tokens
+              moduleVersion: 1.4.1
+              moduleGroupId: org.jahia.modules
+              moduleRepository: jahia-releases
+          - checkJahiaHealth: "cp, proc"
+          - enableHaproxyHealthcheck
