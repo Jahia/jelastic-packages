@@ -16,5 +16,14 @@ onInstall:
       mv /etc/datadog-agent/conf.d/squid.d/conf.yaml /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled
       systemctl restart datadog-agent
   - setGlobalRepoRootUrl
-  - install:
-      jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+  - if(! ${settings.skipRestart}):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+settings:
+  fields:
+    - name: skipRestart
+      type: checkbox
+      caption: Skip the rolling restart
+      default: false
+      required: false

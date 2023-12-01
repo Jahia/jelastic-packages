@@ -12,6 +12,16 @@ mixins:
   - ../../mixins/jahia.yml
 
 onInstall:
+  # Remove tomcat filtering if enabled
+  - api: env.control.GetContainerEnvVarsByGroup
+    nodeGroup: proc
+  - if ("${response.object.tomcat_cfg_cloud_filtering}" == "true"):
+      - setGlobals:
+          tomcatFiltering: true
+  - if(globals.tomcatFiltering):
+      - setGlobalRepoRootUrl
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/disable-tomcat-filtering.yaml"
   # Dump modules state
   - dumpModules:
       operation: upgrade
@@ -37,6 +47,10 @@ onInstall:
   - checkModulesAfterOperation:
       operation: upgrade
       checkVersion: false
+  # Re-enable tomcat filtering if needed
+  - if(globals.tomcatFiltering):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/enable-tomcat-filtering.yaml"
 
 settings:
   fields:
