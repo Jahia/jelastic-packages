@@ -20,10 +20,7 @@ onInstall:
           moduleSymname: personal-api-tokens
       - if ("${globals.runningVersion}" == "1.4.0"):
           - disableHaproxyHealthcheck
-          - installOrUpgradeModule:
-              moduleSymname: personal-api-tokens
-              moduleVersion: 1.4.1
-              moduleGroupId: org.jahia.modules
-              moduleRepository: jahia-releases
+          - installOrUpgradeModules:
+              modules: personal-api-tokens/1.4.1
           - checkJahiaHealth: "cp, proc"
           - enableHaproxyHealthcheck
