@@ -28,7 +28,7 @@ onInstall:
   ### End pre-migration actions
 
   # Actions that update modules (needs to be done first)
-  # (None)
+  - updatePat141                           # PAAS-2719
 
   # Regular actions
 
@@ -118,6 +118,16 @@ actions:
       if ! (echo "$md5 $file" | md5sum --status -c); then
           curl -fLSso $file ${globals.repoRootUrl}/packages/jahia/migrations/v37_assets/set_dd_tags.sh || exit 1
       fi
+
+  updatePat141:
+    - checkModule:
+        moduleSymname: personal-api-tokens
+    - if ("${globals.runningVersion}" == "1.4.0"):
+        - disableHaproxyHealthcheck
+        - installOrUpgradeModules:
+            modules: personal-api-tokens/1.4.1
+        - checkJahiaHealth: "cp, proc"
+        - enableHaproxyHealthcheck
 
 settings:
   fields:
