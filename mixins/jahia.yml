@@ -1938,6 +1938,7 @@ actions:
     - getPatTokenAndKey
     - cmd[${this.target}]: |-
         result=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
+            -m 180 \
             -X POST \
             "http://localhost:8080/modules/graphql" \
             -H 'Content-Type: application/json' \
@@ -1950,6 +1951,7 @@ actions:
     - elif ("${response.out}" != "true"):
         - cmd[${this.target}]: |-
             tasklist=$(curl -SsH "Authorization: APIToken ${globals.__secret__pat_token}" \
+                  -m 180 \
                   -X POST \
                   "http://localhost:8080/modules/graphql" \
                   -H 'Content-Type: application/json' \
