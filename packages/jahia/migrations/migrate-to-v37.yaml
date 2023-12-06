@@ -35,7 +35,7 @@ onInstall:
   - obuscateESQueriesInDDAPM               # PAAS-2655
 
   # Actions that require a restart
-  - useG1GC                                # PAAS-2325
+  # (None)
 
   # Actions that require a redeploy
   # (None)
@@ -95,22 +95,6 @@ actions:
         operation: migration
         ignoredModules: ${globals.ignoredModules}
         checkVersion: true
-
-  useG1GC:
-    - cmd[cp,proc]: |-
-        if (grep -q UseParallelGC /opt/*maven*/bin/mvn); then
-          sed -i '/^MAVEN_OPTS=-XX:+UseParallelGC$/d' -i /opt/*maven*/bin/mvn
-        fi
-        if (pgrep -u tomcat -f UseParallelGC > /dev/null); then
-          newGCconf='-XX:+UseG1GC -XX:+DisableExplicitGC -XX:-UseBiasedLocking -XX:+SafepointTimeout -XX:SafepointTimeoutDelay=1000 -XX:+UnlockDiagnosticVMOptions -XX:GuaranteedSafepointInterval=0 -XX:+ParallelRefProcEnabled -XX:+UseCountedLoopSafepoints -XX:+UseStringDeduplication -XX:LoopStripMiningIter=100 -XX:MaxTenuringThreshold=7 -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${DUMPS_PATH}\/heap_dumps -XX:+PrintConcurrentLocks -XX:NativeMemoryTracking=summary -XshowSettings:vm -Dkaraf.handle.sigterm=false'
-          sed -e '/^JMX_OPTS=/d' \
-              -e "s/-XX:MaxPermSize.*SurvivorRatio=8/$newGCconf/" \
-              -i /opt/tomcat/conf/tomcat-env.sh
-          echo "restart"
-        fi
-    - if("${response.out}" == "restart"):
-        - setGlobals:
-            jahiaRollingRestartNeeded: true
 
   obuscateESQueriesInDDAPM:
     cmd[cp, proc]: |-
