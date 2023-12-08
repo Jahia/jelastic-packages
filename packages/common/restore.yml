@@ -755,17 +755,17 @@ actions:
               branch_or_tag="branch"
             fi
             cat << EOF
-            {
-              "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
-              "parameters": {
-                "workflow": "terraform_apply",
-                "env": "$JEL_ENV_ROLE",
-                "papi_organization_id": $organization_id,
-                "papi_instance_id": $ec_deployment_id,
-                "papi_instance_name": "$ec_deployment_name"
-              }
-            }
-          EOF
+        {
+          "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
+          "parameters": {
+            "workflow": "terraform_apply",
+            "env": "$JEL_ENV_ROLE",
+            "papi_organization_id": $organization_id,
+            "papi_instance_id": $ec_deployment_id,
+            "papi_instance_name": "$ec_deployment_name"
+          }
+        }
+        EOF
             }
 
             response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
