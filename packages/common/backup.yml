@@ -399,14 +399,20 @@ actions:
     - else:
         - set:
             region: "eu-west-1"
-    - setAwsSnapshotRepository:
-        repositoryName: ${env.shortdomain}
-        backupName: ${settings.backup_name}
-        region: ${this.region}
-        account: ${globals.bucketName}
-        logsPath: ${globals.logsPath}
-        __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
-        __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
+    - if (env.region == "aws-loim"):
+        setGlobals:
+          ESrepositoryName: "loim_es_snapshots"
+    - else:
+      - setGlobals:
+          ESrepositoryName: "${env.shortdomain}"
+      - setAwsSnapshotRepository:
+          repositoryName: ${globals.ESrepositoryName}
+          backupName: ${settings.backup_name}
+          region: ${this.region}
+          account: ${globals.bucketName}
+          logsPath: ${globals.logsPath}
+          __secret__awsAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
+          __secret__awsSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
 
     # start backup
     - cmd[${nodes.cp.first.id}]: |-
@@ -416,7 +422,7 @@ actions:
         return_code=$(curl -sS -o $output_file -w '%{http_code}' \
           -H 'Content-Type: application/json' \
           -u $__secret__ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${globals.ESrepositoryName}/${timestamp}_${settings.backtype}?wait_for_completion=true" \
           -d'{
             "indices": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-*,-global-geonameentry*",
             "include_global_state": false
@@ -447,7 +453,7 @@ actions:
         snapshots=$(curl -s \
           -H 'Content-Type: application/json' \
           -u $__secret__ec_admin_credentials \
-          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/_all?pretty" \
+          -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${globals.ESrepositoryName}/_all?pretty" \
           | grep "\"snapshot\"" | grep "${settings.backtype}" |awk '{ print substr($3,2,length($3)-3)}')
         delete_count=$(( $(wc -l<<<"$snapshots") - ${settings.retention} ))
         if [ $delete_count -lt 1 ]; then
@@ -486,7 +492,7 @@ actions:
           if [ $? -eq 0 ]; then
             curl \
               -u $__secret__ec_admin_credentials \
-              -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/$snapshot"
+              -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${globals.ESrepositoryName}/$snapshot"
             echo "snapshot $snapshot deleted" | tee -a ${globals.logsPath}
           fi
         done
