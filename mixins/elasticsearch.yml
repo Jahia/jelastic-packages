@@ -195,8 +195,26 @@ actions:
         curl -fLSsu "$login:$password" "$es_endpoint/_cat/indices/global-geonameentry" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
           curl -fLSsu "$login:$password" "$es_endpoint/global-geonameentry" -H 'Content-Type:application/json' -s -XPUT -d '{
-            "settings" : {"index" : {"number_of_shards" : 1,"number_of_replicas" : 1}},
+            "settings" : {"index" : {"number_of_shards" : 1,"number_of_replicas" : 1},"analysis":{"analyzer":{"folding":{"filter":["lowercase","asciifolding"],"type":"custom","tokenizer":"keyword"}}}},
             "mappings": {
+              "dynamic_templates": [
+                {
+                  "all": {
+                    "match": "*",
+                    "match_mapping_type": "string",
+                    "mapping": {
+                      "analyzer": "folding",
+                      "fields": {
+                        "keyword": {
+                          "ignore_above": 256,
+                          "type": "keyword"
+                        }
+                      },
+                      "type": "text"
+                    }
+                  }
+                }
+              ],
               "properties": {
                 "admin1Code": {
                   "type": "text",
@@ -271,6 +289,19 @@ actions:
         if [ $? -ne 0 ]; then
           echo "Failed to create geonameentry alias." && exit 1
         fi
+
+  populateGeonameIndex:
+    cmd[${nodes.cp.first.id}]: |-
+      indexed_documents=$(curl -su $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD https://$UNOMI_ELASTICSEARCH_ADDRESSES/$UNOMI_ELASTICSEARCH_INDEXPREFIX-geonameentry/_count |jq -r .count)
+      if [ "$indexed_documents" != "" ] && [ $indexed_documents -gt 0 ]; then
+        echo "Nothing to do, index is already populated"
+        exit 0
+      fi
+
+      pip install elasticsearch
+      unzip /opt/jcustomer/jcustomer/allCountries.zip -d /tmp/
+      nohup python3 /usr/local/bin/geonames_loader.py /tmp/allCountries.txt > /var/log/jelastic-packages/populateGeonameIndex 2>&1 &
+      exit 0
 
   setESEndpointInJcustomerConfig:
     - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
