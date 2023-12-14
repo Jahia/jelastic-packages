@@ -1,0 +1,46 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2738 - Apply json-java custom patch
+id: paas-2738-apply-json-java-custom-patch
+description:
+  short: Updates json-java lib to fix security issue https://academy.jahia.com/cms/render/default/customer-center/jahia/patches/security-patch-december-2023
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - removeProcNodeFromHaproxy:
+      reload: true
+  - installPatch: ${nodes.proc.first.id}
+  - addProcNodeToHaproxy:
+      reload: true
+
+  - foreach (nodes.cp):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+      - installPatch: ${@i.id}
+      - addBrowsingNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+          reload: true
+
+actions:
+  installPatch:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/json-20070829-jahia1.jar"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+          exit 0
+        fi
+        sudo service tomcat stop
+        patch_url="https://downloads.jahia.com/downloads/jahia/security-patches/2023-12/json-20070829-jahia1.jar"
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/json-[0-9]*.jar
+        curl -fLSso $patch_file $patch_url || exit 1
+        chmod 644 $patch_file
+        chown tomcat: $patch_file
+        sudo service tomcat start
+    - startupJahiaHealthCheck: ${this}
