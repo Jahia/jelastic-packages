@@ -142,6 +142,7 @@ onInstall:
   - setCloudConf
   - setupES:
       papiEnvId: ${settings.papiEnvId}
+  - populateGeonameIndex
   - setJcustomerApiKey
   - configureDatadogAPM: cp
   - forEach(nodes.cp):
