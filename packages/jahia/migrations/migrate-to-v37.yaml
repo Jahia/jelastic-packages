@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 37
-  ignoredModules: ""
+  ignoredModules: "personal-api-tokens,kibana-dashboards-provider"
 
 onInstall:
   ### Pre-migration actions
