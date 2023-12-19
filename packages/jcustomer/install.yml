@@ -85,7 +85,7 @@ onBeforeInstall: |
       DATADOGAPIKEY: __secret__DATADOGAPIKEY,
       UNOMI_VERSION: unomiVersion,
       UNOMI_HTTP_PORT: '80',
-      UNOMI_ELASTICSEARCH_SSL_ENABLE: 'true',
+      UNOMI_ELASTICSEARCH_SSL_ENABLE: "${env.region}" == "aws-loim" ? 'true' : 'false',
       UNOMI_ELASTICSEARCH_CLUSTERNAME: 'jahia-dx',
       UNOMI_ELASTICSEARCH_INDEXPREFIX: '${settings.shortdomain}__jc',
       UNOMI_ELASTICSEARCH_USERNAME: '${settings.shortdomain}',
