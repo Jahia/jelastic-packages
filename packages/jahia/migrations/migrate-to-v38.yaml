@@ -32,6 +32,7 @@ onInstall:
 
   # Regular actions
   - fixDatadogProductTag            # PAAS-2691
+  - forceDatadogSite                # PAAS-2742
 
   # Actions that require a restart
   # (None)
@@ -104,6 +105,14 @@ actions:
         sed -i '/product:/s|.*|echo " - product:$(awk '\''$2~/^product/ {split($2,a,":"); print a[2]}'\'' "$ddconffile")"|' $tagFile
         systemctl restart datadog-agent
       fi
+
+  forceDatadogSite:
+    cmd[bl, cp, proc, sqldb]: |-
+      tagFile="/usr/local/bin/set_dd_tags.sh"
+      if ! (grep -q "DD_SITE" $confFile); then
+        sed '/logs_enabled:/i echo "site: ${DD_SITE}"' -i $tagFile
+      fi
+
 
 settings:
   fields:

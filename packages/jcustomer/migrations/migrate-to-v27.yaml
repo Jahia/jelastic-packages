@@ -28,7 +28,8 @@ onInstall:
 
   # Regular actions
   - removeJMXDDConfig                        # PAAS-2582
-  - obfuscateESQueriesInDDAPM                 # PAAS-2655
+  - obfuscateESQueriesInDDAPM                # PAAS-2655
+  - forceDatadogSite                         # PAAS-2742
 
   # Actions that require a restart
   # (None)
@@ -83,6 +84,13 @@ actions:
       file="/usr/local/bin/set_dd_tags.sh"
       if ! (echo "$md5 $file" | md5sum --status -c); then
           curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v27_assets/set_dd_tags.sh || exit 1
+      fi
+
+  forceDatadogSite:
+    cmd[cp]: |-
+      tagFile="/usr/local/bin/set_dd_tags.sh"
+      if ! (grep -q "DD_SITE" $confFile); then
+        sed '/logs_enabled:/i echo "site: ${DD_SITE}"' -i $tagFile
       fi
 
 settings:
