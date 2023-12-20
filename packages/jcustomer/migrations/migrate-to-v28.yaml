@@ -1,8 +1,8 @@
 ---
 type: update
 version: 1.5.2
-name: Migrate jCustomer env to v27
-id: migrate-jcustomer-env-v27
+name: Migrate jCustomer env to v28
+id: migrate-jcustomer-env-v28
 
 # Required for healthchecks
 mixins:
@@ -11,7 +11,7 @@ mixins:
   - "../../../mixins/elasticsearch.yml"
 
 globals:
-  version: 27
+  version: 28
   jCustomerRollingRestartNeeded: false
   jCustomerRollingRedeployNeeded: false
 
@@ -27,8 +27,7 @@ onInstall:
   ### End pre-migration actions
 
   # Regular actions
-  - removeJMXDDConfig                        # PAAS-2582
-  - obfuscateESQueriesInDDAPM                # PAAS-2655
+  - forceDatadogSite                         # PAAS-2742
 
   # Actions that require a restart
   # (None)
@@ -65,24 +64,11 @@ actions:
     - checkJcustomerHealth: cp
     - checkJcustomerDatadogCustomChecks: cp
 
-  removeJMXDDConfig:
+  forceDatadogSite:
     cmd[cp]: |-
-      file="/etc/datadog-agent/conf.d/jcustomer_status.yaml"
-      if [[ -L $file || ! -f $file ]]; then
-          rm -f $file
-          rm -f /etc/datadog-agent/conf.d/jmx.d/conf.yaml
-          curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v27_assets/dd_jcustomer_status_conf.yaml
-          unomi_root_password_b64=$(grep UNOMI_ROOT_PASSWORD_B64= /opt/jcustomer/jcustomer/bin/setenv | sed 's/.*"\(.*\)"/\1/')
-          sed -i "s/\(password: \).*/\1$(echo $unomi_root_password_b64 | base64 -d | sed 's;\([\\\&\$]\);\\\1;g')/" /etc/datadog-agent/conf.d/jcustomer_status.yaml
-          service datadog-agent restart
-      fi
-
-  obfuscateESQueriesInDDAPM:
-    cmd[cp]: |-
-      md5="8e18fdde70f7494256764928e220bb7e"
-      file="/usr/local/bin/set_dd_tags.sh"
-      if ! (echo "$md5 $file" | md5sum --status -c); then
-          curl -fLSso $file ${globals.repoRootUrl}/packages/jcustomer/migrations/v27_assets/set_dd_tags.sh || exit 1
+      tagFile="/usr/local/bin/set_dd_tags.sh"
+      if ! (grep -q "DD_SITE" $confFile); then
+        sed '/logs_enabled:/i echo "site: ${DD_SITE}"' -i $tagFile
       fi
 
 settings:
