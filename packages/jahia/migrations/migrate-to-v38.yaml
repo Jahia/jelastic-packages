@@ -34,6 +34,7 @@ onInstall:
   - fixDatadogProductTag            # PAAS-2691
   - forceDatadogSite                # PAAS-2742
   - updateSendLogsCron              # PAAS-2739
+  - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
 
   # Actions that require a restart
   # (None)
