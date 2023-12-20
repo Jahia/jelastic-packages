@@ -5,8 +5,12 @@
 actions:
   setupES:
     - getVaultData
-    - if (env.region != "aws-loim"):
-      - runESCircleCIPipeline:
+    - if (env.region == "aws-loim"):
+        env.control.AddContainerEnvVars [cp]:
+        vars:
+          UNOMI_ELASTICSEARCH_SSL_ENABLE: 'false'
+    - else:
+        runESCircleCIPipeline:
           workflow: terraform_apply
     - createESAccountAndAliases
     - setESEndpointInJcustomerConfig: cp
