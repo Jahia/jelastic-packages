@@ -67,7 +67,7 @@ actions:
   forceDatadogSite:
     cmd[cp]: |-
       tagFile="/usr/local/bin/set_dd_tags.sh"
-      if ! (grep -q "DD_SITE" $confFile); then
+      if ! (grep -q "DD_SITE" $tagFile); then
         sed '/logs_enabled:/i echo "site: ${DD_SITE}"' -i $tagFile
       fi
 
