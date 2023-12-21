@@ -29,6 +29,7 @@ onInstall:
   # Regular actions
   - forceDatadogSite                         # PAAS-2742
   - updateSendLogsCron                       # PAAS-2739
+  - getLogEventScript: cp                    # PAAS-2746 (action from mixins/common.yml)
 
   # Actions that require a restart
   # (None)

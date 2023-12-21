@@ -808,7 +808,7 @@ actions:
 
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
 
-        curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/mute" \
+        curl "https://api.${DD_SITE}/api/v1/host/$DD_HOSTNAME/mute" \
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -828,7 +828,7 @@ actions:
         DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
 
-        curl "https://api.datadoghq.com/api/v1/host/$DD_HOSTNAME/unmute" \
+        curl "https://api.${DD_SITE}/api/v1/host/$DD_HOSTNAME/unmute" \
           -XPOST \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"
@@ -1021,7 +1021,7 @@ actions:
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
-        DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
+        DD_SYNTHETICS_TEST=https://api.${DD_SITE}/api/v1/synthetics/tests
         MUTE_END=$(date -d "+${this.duration:60}min" +%s)
         monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
                       -H 'Content-Type: application/json' \
@@ -1032,7 +1032,7 @@ actions:
           echo "[INFO] No synthetics defined for ${env.envName}"
           exit 0
         fi
-        DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
+        DD_MONITOR_SEARCH=https://api.${DD_SITE}/api/v1/monitor/search?query=synthetics
         monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
                              -H 'Content-Type: application/json' \
                              -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -1042,7 +1042,7 @@ actions:
           echo "[INFO] Synthetics is already muted. Nothing to do."
           exit 0
         fi
-        curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/mute" \
+        curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/mute" \
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -1056,7 +1056,7 @@ actions:
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
-        DD_SYNTHETICS_TEST=https://api.datadoghq.com/api/v1/synthetics/tests
+        DD_SYNTHETICS_TEST=https://api.${DD_SITE}/api/v1/synthetics/tests
         monitor_id=$(curl -s $DD_SYNTHETICS_TEST \
                     -H 'Content-Type: application/json' \
                     -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -1066,7 +1066,7 @@ actions:
           echo "[INFO] No synthetics defined for ${env.envName}"
           exit 0
         fi
-        DD_MONITOR_SEARCH=https://api.datadoghq.com/api/v1/monitor/search?query=synthetics
+        DD_MONITOR_SEARCH=https://api.${DD_SITE}/api/v1/monitor/search?query=synthetics
         monitor_mute_status=$(curl -s $DD_MONITOR_SEARCH \
                              -H 'Content-Type: application/json' \
                              -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -1089,7 +1089,7 @@ actions:
           fi
           sleep 1
         done
-        curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute" \
+        curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/unmute" \
           -XPOST \
           -H 'Content-Type: application/json' \
           -H "DD-API-KEY: $DATADOGAPIKEY" \
@@ -1105,12 +1105,12 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
-        monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
+        monitors_id=($(curl -s "https://api.${DD_SITE}/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
         MUTE_END=$(date -d "+${this.duration:2880}min" +%s)
 
         ENVNAME="${env.envName}"
         for monitor_id in "${monitors_id[@]}"; do
-          curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/mute?scope=envname:$ENVNAME&end=$MUTE_END" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
+          curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/mute?scope=envname:$ENVNAME&end=$MUTE_END" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
         done
 
   unmuteEnvWideMonitors:
@@ -1121,11 +1121,11 @@ actions:
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
         SCOPE_TAG="env-wide"
-        monitors_id=($(curl -s "https://api.datadoghq.com/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
+        monitors_id=($(curl -s "https://api.${DD_SITE}/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
 
         ENVNAME="${env.envName}"
         for monitor_id in "${monitors_id[@]}"; do
-          curl -s "https://api.datadoghq.com/api/v1/monitor/$monitor_id/unmute?scope=envname:$ENVNAME" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
+          curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/unmute?scope=envname:$ENVNAME" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
         done
 
 
