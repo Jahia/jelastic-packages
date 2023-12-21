@@ -22,4 +22,9 @@ case "$_PROVIDE" in
         ;;
 esac
 
-eval rclone copy $log_path $include logsbucket:$logs_s3_bucket_name/$envName/$_ROLE/$nodeId/
+sendLogs(){
+    eval rclone copy $log_path $include logsbucket:$logs_s3_bucket_name/$envName/$_ROLE/$nodeId/
+}
+
+# we try twice if necessary
+sendLogs || (sleep 666; sendLogs)

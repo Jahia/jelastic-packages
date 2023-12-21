@@ -28,6 +28,7 @@ onInstall:
 
   # Regular actions
   - forceDatadogSite                         # PAAS-2742
+  - updateSendLogsCron                       # PAAS-2739
 
   # Actions that require a restart
   # (None)
@@ -69,6 +70,15 @@ actions:
       tagFile="/usr/local/bin/set_dd_tags.sh"
       if ! (grep -q "DD_SITE" $tagFile); then
         sed '/logs_enabled:/i echo "site: ${DD_SITE}"' -i $tagFile
+      fi
+
+  updateSendLogsCron:
+    cmd[cp]: |-
+      file_md5=f835639b2aa6af855ce38a1ead7790aa
+      file_path=/usr/local/bin/rclone-logs.sh
+      if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+        curl -fLSso $file_path ${globals.repoRootUrl}/assets/common/rclone-logs.sh || exit 1
+        chmod +x $file_path
       fi
 
 settings:
