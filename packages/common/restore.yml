@@ -818,8 +818,64 @@ actions:
           cat $output_file | tee -a ${globals.logsPath}
           exit=1
         fi
+
+        # needed for foreign restore:
+        #   - checks aliases name and rename them (delete and create in fact)
+        #   - fix the references to the original environment for the lifecycle_policy
+        while read alias_name index_name; do
+          updated_settings=""
+          new_alias_name="$(echo $alias_name | sed -r 's/.+__jc(-.+)/'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'\1/')"
+          echo "index $index_name: alias is $alias_name while it should be $new_alias_name" >> ${globals.logsPath}
+          return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -u $__secret__ec_admin_credentials \
+            -XDELETE "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index_name}/_alias/${alias_name}"
+          )
+          if [ $return_code -ne 200 ]; then
+            cat $output_file | tee -a ${globals.logsPath}
+            exit=1
+          else
+            echo "index $index_name: alias is $alias_name is now deleted" >> ${globals.logsPath}
+          fi
+
+          return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -u $__secret__ec_admin_credentials \
+            -XPOST "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index_name}/_alias/${new_alias_name}"
+          )
+          if [ $return_code -ne 200 ]; then
+            cat $output_file | tee -a ${globals.logsPath}
+            exit=1
+          else
+            echo "index $index_name: alias $new_alias_name is now created" >> ${globals.logsPath}
+          fi
+
+          return_code=$(curl -sS -o $output_file -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -u $__secret__ec_admin_credentials \
+            -XPUT "https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index_name}/_settings" \
+            -d'{
+                 "settings": {
+                   "index": {
+                     "lifecycle": {
+                         "name": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-unomi-rollover-policy",
+                         "rollover_alias": "'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'-'$(echo $index_name| sed -r "s/.+-(session|event)-[0-9]+/\1/")'"
+                     }
+                   }
+                 }
+               }'
+          )
+          if [ $return_code -ne 200 ]; then
+            cat $output_file | tee -a ${globals.logsPath}
+            exit=1
+          else
+            echo "index $index_name: lifecycle settings fixed" >> ${globals.logsPath}
+          fi
+        done < <(curl -s -u $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/aliases" | awk -v prefix=${UNOMI_ELASTICSEARCH_INDEXPREFIX} '$1 !~ prefix && $2 ~ prefix {print $1, $2}')
+
         rm -f $output_file
         exit $exit
+
     - if ("${response.out}" != ""):
         - return:
             type: error
