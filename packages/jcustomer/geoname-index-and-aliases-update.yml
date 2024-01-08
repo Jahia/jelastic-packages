@@ -9,6 +9,7 @@ description:
 
 mixins:
   - ../../mixins/common.yml
+  - ../../mixins/elasticsearch.yml
 
 onInstall:
   - ForEach(nodes.cp):
@@ -21,7 +22,7 @@ actions:
   updateGeonameIndexAndAliases:
     - cmd[${this}]: |-
         curl -flsSo allCountries.zip "http://download.geonames.org/export/dump/allCountries.zip" || exit 1
-        cmp -s allCountries.zip /opt/jcustomer/jcustomer/etc/allCountries.zip
+        cmp -s allCountries.zip /opt/jcustomer/jcustomer/allCountries.zip
         if [[ $? -eq 0 ]]; then
           rm -rf allCountries.zip
           echo "[INFO] Geoname index is up-to date"
@@ -45,8 +46,7 @@ actions:
             login=$(echo $creds | jq -r .login)
 
             index="global-geonameentry"
-            mv allCountries.zip /opt/jcustomer/jcustomer/etc
-            chown karaf: /opt/jcustomer/jcustomer/etc/allCountries.zip
+            mv allCountries.zip /opt/jcustomer/jcustomer/
             index_aliases=$(curl -fLSsu "$login:$password" "$es_endpoint/$index/_alias" | jq -r .[].aliases | jq keys[])
 
             for alias in $index_aliases; do
@@ -57,8 +57,26 @@ actions:
             curl -fLSsu "$login:$password" -XDELETE "$es_endpoint/$index" || exit 1
 
             curl -fLSsu "$login:$password" "$es_endpoint/$index" -H 'Content-Type:application/json' -s -XPUT -d '{
-              "settings" : {"index" : {"number_of_shards" : 1,"number_of_replicas" : 1}},
+              "settings" : {"index" : {"number_of_shards" : 1,"number_of_replicas" : 1},"analysis":{"analyzer":{"folding":{"filter":["lowercase","asciifolding"],"type":"custom","tokenizer":"keyword"}}}},
               "mappings": {
+                "dynamic_templates": [
+                  {
+                    "all": {
+                      "match": "*",
+                      "match_mapping_type": "string",
+                      "mapping": {
+                        "analyzer": "folding",
+                        "fields": {
+                          "keyword": {
+                            "ignore_above": 256,
+                            "type": "keyword"
+                          }
+                        },
+                        "type": "text"
+                      }
+                    }
+                  }
+                ],
                 "properties": {
                   "admin1Code": {
                     "type": "text",
@@ -134,5 +152,4 @@ actions:
                 echo "Failed to create geonameentry alias." && exit 1
               fi
             done
-        - api: environment.control.RestartNodeById
-          nodeId: ${this}
+        - populateGeonameIndex
