@@ -743,7 +743,7 @@ actions:
         if [ "$new_score" -gt "$current_score" ] && [ "$new_score" -gt "$ec_deployment_min_score" ]; then
           organization_id=$(echo $environment | jq -r .paas_organization_id)
           ec_deployment_name=$(echo $ec_deployment | jq -r .name)
-          papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}'
+          papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}' >> ${globals.logsPath}
 
           if [[ "${env.region}" != "aws-loim" ]]; then
             __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
