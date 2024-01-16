@@ -100,11 +100,21 @@ actions:
         target: ${this.target}
     - cmd[${this.target}]: |-
         __secret__unomi_root_password_b64="${this.__secret__unomi_root_password_b64}"
+        file=/etc/datadog-agent/conf.d/jcustomer_custom_metrics.yaml
         sed -i "s/\(password: \).*/\1$(echo $__secret__unomi_root_password_b64 | base64 -d | sed 's;\([\\\&\$]\);\\\1;g')/" /etc/datadog-agent/conf.d/jcustomer_status.yaml
         mkdir /etc/datadog-agent/conf.d/jelastic.d
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
         curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        if [ -f $file ]; then
+          mv $file $file.disabled
+        fi
         systemctl restart datadog-agent
+    - cmd[${nodes.cp.first.id}]: |-
+        file=/etc/datadog-agent/conf.d/jcustomer_custom_metrics.yaml
+        if [ -f $file.disabled ]; then
+          mv $file.disabled $file
+          systemctl restart datadog-agent
+        fi
 
   setupUnomi:
     # Parameters:

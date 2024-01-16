@@ -30,6 +30,7 @@ onInstall:
   - forceDatadogSite                         # PAAS-2742
   - updateSendLogsCron                       # PAAS-2739
   - getLogEventScript: cp                    # PAAS-2746 (action from mixins/common.yml)
+  - addCustomMetricsCheck                    # PAAS-2678
 
   # Actions that require a restart
   # (None)
@@ -81,6 +82,22 @@ actions:
         curl -fLSso $file_path ${globals.repoRootUrl}/assets/common/rclone-logs.sh || exit 1
         chmod +x $file_path
       fi
+
+  addCustomMetricsCheck:
+    - cmd[cp]: |-
+        conf_path=/etc/datadog-agent/conf.d/jcustomer_custom_metrics.yaml.disabled
+        check_path=/etc/datadog-agent/checks.d/jcustomer_custom_metrics.py
+        if [ ! -f $conf_path ]; then
+          curl -fLSso $check_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v28_assets/jcustomer_custom_metrics.py || exit 1
+          curl -fLSso $conf_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v28_assets/jcustomer_custom_metrics.yaml.disabled || exit 1
+          chown dd-agent:dd-agent $conf_path $check_path
+        fi
+    - cmd[${nodes.cp.first.id}]: |-
+        conf_path=/etc/datadog-agent/conf.d/jcustomer_custom_metrics.yaml
+        if [ -f $conf_path.disabled ]; then
+          mv $conf_path.disabled $conf_path
+          systemctl restart datadog-agent
+        fi
 
 settings:
   fields:
