@@ -218,21 +218,26 @@ actions:
     - cmd[${this}]: |-
         __secret__pat_token="${globals.__secret__pat_token}"
         NODE_NAME=${HOSTNAME/-*}
-        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
+        dd_dir=/etc/datadog-agent
+        dd_conf_dir=$dd_dir/conf.d
+        dd_jelastic_dir=$dd_conf_dir/jelastic.d
+        jahia_root_token_file=$dd_conf_dir/healthcheck_metric.d/jahia_root_token
+
+        echo "hostname: ${_ROLE}.${NODE_NAME#node}" >> $dd_dir/datadog.yaml
         chmod 644 /opt/tomcat/logs/catalina.out
-        mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
+        mkdir $dd_jelastic_dir /var/log/jelastic-packages
         chown tomcat:root /var/log/jelastic-packages
-        chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        chown dd-agent: $dd_jelastic_dir
+        curl -fLSso $dd_jelastic_dir/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         # Configure AS check and Healthcheck metric
-        sed -i "s|jahia_root_token_placeholder|$__secret__pat_token|g" /etc/datadog-agent/conf.d/augmented_search.yaml-disabled \
-          /etc/datadog-agent/conf.d/healthcheck_metric.d/healthcheck_metric.yaml
+        echo -n $__secret__pat_token > $jahia_root_token_file
         if [ "${globals.isAugSearchEnabled}" == "true" ]; then
-          mv /etc/datadog-agent/conf.d/augmented_search.yaml-disabled /etc/datadog-agent/conf.d/augmented_search.yaml
+          mv $dd_conf_dir/augmented_search.d/augmented_search.yaml-disabled $dd_conf_dir/augmented_search.d/augmented_search.yaml
         fi
         if [ "${_ROLE}" == "Processing" ]; then
-          mv /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml{-disabled,}
-          sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i /etc/datadog-agent/conf.d/jahia_local_revisions_discrepancies.yaml
+          mv $dd_conf_dir/jahia_local_revisions_discrepancies.yaml{-disabled,}
+          sed "s/__PASSWORD__/${DB_USER_DATADOG}/" -i $dd_conf_dir/jahia_local_revisions_discrepancies.yaml
+          mv $dd_conf_dir/jahia_custom_metrics.d/jahia_custom_metrics.yaml{-disabled,}
         fi
         /usr/local/bin/set_dd_tags.sh
     - if (nodes.sqldb.length > 1):
@@ -384,7 +389,7 @@ actions:
         target: ${this}
         checkName: strongswan_connections_status
     - cmd[${this}]: |-
-        if [ -f /etc/datadog-agent/conf.d/augmented_search.yaml-disabled ]; then
+        if [ -f /etc/datadog-agent/conf.d/augmented_search.d/augmented_search.yaml-disabled ]; then
           echo "disabled"
         fi
     - if ("${response.out}" != "disabled"):
