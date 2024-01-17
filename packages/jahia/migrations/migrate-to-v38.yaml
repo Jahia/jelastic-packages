@@ -31,10 +31,11 @@ onInstall:
   # (None)
 
   # Regular actions
-  - fixDatadogProductTag            # PAAS-2691
-  - forceDatadogSite                # PAAS-2742
-  - updateSendLogsCron              # PAAS-2739
+  - fixDatadogProductTag                             # PAAS-2691
+  - forceDatadogSite                                 # PAAS-2742
+  - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
+  - addCustomMetricsCheck                            # PAAS-2678
 
   # Actions that require a restart
   # (None)
@@ -123,6 +124,46 @@ actions:
         curl -fLSso $file_path ${globals.repoRootUrl}/assets/common/rclone-logs.sh || exit 1
         chmod +x $file_path
       fi
+
+  addCustomMetricsCheck:
+    - getPatTokenAndKey
+    - cmd[cp, proc]: |-
+        __secret__pat_token="${globals.__secret__pat_token}"
+        dd_dir=/etc/datadog-agent
+        dd_checks_dir=$dd_dir/checks.d
+        dd_conf_dir=$dd_dir/conf.d
+        as_conf_dir=$dd_conf_dir/augmented_search.d
+        healthcheck_conf_dir=$dd_conf_dir/healthcheck_metric.d
+        custom_metrics_conf_dir=$dd_conf_dir/jahia_custom_metrics.d
+        jahia_root_token_file=$dd_conf_dir/healthcheck_metric.d/jahia_root_token
+
+        [ -d $as_conf_dir ] || mkdir $as_conf_dir
+        [ -d $custom_metrics_conf_dir ] || mkdir $custom_metrics_conf_dir
+
+        if ! [ -f $jahia_root_token_file ]; then
+          echo -n $__secret__pat_token > $jahia_root_token_file
+          chown dd-agent: $jahia_root_token_file
+          chmod 640 $jahia_root_token_file
+        fi
+
+        [ -f $as_conf_dir/jahia_root_token ] || ln -s $jahia_root_token_file $as_conf_dir/jahia_root_token
+        [ -f $custom_metrics_conf_dir/jahia_root_token ] || ln -s $jahia_root_token_file $custom_metrics_conf_dir/jahia_root_token
+
+        for check in augmented_search healthcheck_metric jahia_custom_metrics; do
+          curl -fLSso $dd_checks_dir/$check.py ${globals.repoRootUrl}/packages/jahia/migrations/v38_assets/$check.py || exit 1
+          curl -fLSso $dd_conf_dir/$check.d/$check.yaml ${globals.repoRootUrl}/packages/jahia/migrations/v38_assets/$check.yaml || exit 1
+        done
+
+        [ -f $dd_conf_dir/augmented_search.yaml-disabled ] && mv $as_conf_dir/augmented_search.yaml $as_conf_dir/augmented_search.yaml-disabled
+        rm -f $dd_conf_dir/augmented_search.yaml $dd_conf_dir/augmented_search.yaml-disabled
+
+        curl -fLSso $custom_metrics_conf_dir/jahia_privileged_users_count.groovy ${globals.repoRootUrl}/packages/jahia/migrations/v38_assets/jahia_privileged_users_count.groovy || exit 1
+        if [[ "${_ROLE}" != "Processing" ]]; then
+          [ -f $custom_metrics_conf_dir/jahia_custom_metrics.yaml ] && mv $custom_metrics_conf_dir/jahia_custom_metrics.yaml $custom_metrics_conf_dir/jahia_custom_metrics.yaml-disabled
+        fi
+
+        chown dd-agent: -R $dd_checks_dir $as_conf_dir $healthcheck_conf_dir $custom_metrics_conf_dir
+        systemctl restart datadog-agent
 
 settings:
   fields:
