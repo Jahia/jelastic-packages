@@ -1,0 +1,7 @@
+[Unit]
+Description=Clean tomcat folder
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "find /opt/tomcat/temp/* -not -path '*/.*' -type f -mtime +7 -exec bash -c 'fuser -s {} || rm {}' \; \
+; find /opt/tomcat/temp/* -empty -not -path '*/.*' -type d -delete"
