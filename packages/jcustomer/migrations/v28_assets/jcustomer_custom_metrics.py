@@ -23,6 +23,7 @@ class CheckCustomMetrics(AgentCheck):
 
     def check(self, instance):
         self.count_event(instance)
+        self.disk_usage()
 
     def count_event(self, instance):
         index_pattern = '*-event-*'
@@ -39,6 +40,29 @@ class CheckCustomMetrics(AgentCheck):
             self.__set_error("jcustomer.event_count: An unexpected error occured")
 
         return
+
+    def disk_usage(self):
+        url = f'{self.es_endpoint}/_cat/indices'
+        params = {'bytes': 'b', 'format': 'json'}
+        try:
+            response = requests.get(url, auth=(self.es_username, self.es_password), params=params)
+            indices = response.json()
+        except ValueError as exception:
+            self.__set_error("jcustomer.disk_usage: Returned invalid json")
+            return
+        except RequestException as exception:
+            self.__set_error("jcustomer.disk_usage: Request failed")
+            return
+        except Exception as exception:
+            self.__set_error("jcustomer.disk_usage: An unexpected error occured")
+            return
+
+        pri_store_size_sum = 0
+        for index in indices:
+            if index['index'] != "global-geonameentry":
+                pri_store_size_sum += int(index['pri.store.size'])
+
+        self.gauge("customer_disk_usage", pri_store_size_sum)
 
     def __set_error(self, error):
         self.log.error(error)
