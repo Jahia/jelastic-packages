@@ -165,6 +165,36 @@ actions:
         chown dd-agent: -R $dd_checks_dir $as_conf_dir $healthcheck_conf_dir $custom_metrics_conf_dir
         systemctl restart datadog-agent
 
+  # We overwrite the checkJahiaDatadogCustomChecks action because we update
+  # augmentedsearch's custom check and move the conf file to a different folder.
+  # It should be deleted for migration-v39
+  checkJahiaDatadogCustomChecks:
+    - if (nodes.sqldb.length == 3):
+        - checkDatadogAgentCheck:
+            target: ${this}
+            checkName: proxysql_backend_missing
+        - checkDatadogAgentCheck:
+            target: ${this}
+            checkName: proxysql_connections_discrepancies
+    - else:
+        - checkDatadogAgentCheck:
+            target: ${this}
+            checkName: proxysql
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: jahia_node_not_in_haproxy_pool
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: strongswan_connections_status
+    - cmd[${this}]: |-
+        if find /etc/datadog-agent/conf.d -type f -name "augmented_search.yaml-disabled" | grep -q augmented_search.yaml-disabled; then
+          echo "disabled"
+        fi
+    - if ("${response.out}" != "disabled"):
+      - checkDatadogAgentCheck:
+          target: ${this}
+          checkName: augmented_search
+
 settings:
   fields:
     - type: toggle
