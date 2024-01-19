@@ -35,7 +35,7 @@ onInstall:
   - forceDatadogSite                                 # PAAS-2742
   - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
-  - addCustomMetricsCheck                            # PAAS-2678
+  - addConsumptionMetricsCheck                       # PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
 
   # Actions that require a restart
@@ -126,7 +126,60 @@ actions:
         chmod +x $file_path
       fi
 
-  addCustomMetricsCheck:
+  addESCredentialsAsEnvvar:
+    - getPatTokenAndKey
+    - cmd [proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
+        response=$(curl -XPOST -sfL \
+          http://localhost:8080/modules/graphql \
+          -H "Authorization: APIToken $__secret__API_TOKEN" \
+          -H "Content-Type: application/json" \
+          -H 'Origin: http://localhost:8080' \
+          -d '{"query": "{ jcr { nodeByPath(path: \"/settings/databaseConnector/jahia-cloud_augmented-search\") { property(name: \"dc:password\") { decryptedValue } } } }"}')
+        if [ $? -ne 0 ]; then
+          echo "The curl command returned a non-zero code, aborting" >&2
+          exit 1
+        fi
+        password=$(echo $response | jq -r .data.jcr.nodeByPath.property.decryptedValue)
+        if [ "$password" = "null" ]; then
+          echo "The GraphQL query did not return the ES password, aborting" >&2
+          exit 1
+        fi
+        echo $password
+    - set:
+        esPassword: ${response.out}
+    - getPapiInfoAll
+    - cmd [proc]: |-
+        set -euo pipefail
+        __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
+        export PAPI_TOKEN="$__secret__PAPI_TOKEN"
+        export PAPI_HOSTNAME="${globals.papiHostname}"
+        export PAPI_ENV_ID="${globals.papiEnvId}"
+        export PAPI_API_VERSION="${globals.papiApiVersion}"
+        environment=$(papi.py -X GET "paas-environment/$PAPI_ENV_ID")
+        ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
+        ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
+        es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
+        echo $es_endpoint
+    - set:
+        esHostname: ${response.out}
+    - if (env.region == "aws-loim"):
+        set:
+          esSsl: 'false'
+    - else:
+        set:
+          esSsl: 'true'
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        JAHIA_ELASTICSEARCH_ADDRESSES: ${this.esHostname}
+        JAHIA_ELASTICSEARCH_USERNAME: ${env.envName}
+        JAHIA_ELASTICSEARCH_PASSWORD: ${this.esPassword}
+        JAHIA_ELASTICSEARCH_SSL_ENABLE: ${this.esSsl}
+
+  addConsumptionMetricsCheck:
+    - isAugSearchEnabled
+    - if (${globals.isAugSearchEnabled}):
+        - addESCredentialsAsEnvvar
     - getPatTokenAndKey
     - cmd[cp, proc]: |-
         __secret__pat_token="${globals.__secret__pat_token}"

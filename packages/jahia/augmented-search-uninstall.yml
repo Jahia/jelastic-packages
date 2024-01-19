@@ -33,3 +33,10 @@ actions:
           mv $check_conf_path_enabled $check_conf_path
           systemctl restart datadog-agent
         fi
+    - env.control.RemoveContainerEnvVars [cp, proc]:
+      vars:
+        - JAHIA_ELASTICSEARCH_ADDRESSES
+        - JAHIA_ELASTICSEARCH_USERNAME
+        - JAHIA_ELASTICSEARCH_PASSWORD
+        - JAHIA_ELASTICSEARCH_SSL_ENABLE
+

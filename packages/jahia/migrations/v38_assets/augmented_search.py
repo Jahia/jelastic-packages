@@ -1,3 +1,4 @@
+import os
 import requests
 
 # the following try/except block will make the custom check compatible with any Agent version
@@ -20,6 +21,12 @@ class CheckAugmentedSearchStatus(AgentCheck):
 
     CONF_FOLDER = "/etc/datadog-agent/conf.d/augmented_search.d"
     JAHIA_ROOT_TOKEN_FILE = f"{CONF_FOLDER}/jahia_root_token"
+
+    es_username = os.environ["JAHIA_ELASTICSEARCH_USERNAME"]
+    es_password = os.environ["JAHIA_ELASTICSEARCH_PASSWORD"]
+    # Fix for LOIM to handle http instead of https
+    protocol = "https://" if os.getenv('JAHIA_ELASTICSEARCH_SSL_ENABLE') != "false" else "http://"
+    es_endpoint = protocol + os.environ["JAHIA_ELASTICSEARCH_ADDRESSES"]
 
     def check(self, instance):
         try:
@@ -181,6 +188,29 @@ class CheckAugmentedSearchStatus(AgentCheck):
                 AgentCheck.CRITICAL,
                 message=message
             )
+
+    def count_languages(self):
+        url = self.es_endpoint + "/_cat/indices"
+        params = {"format": "json"}
+
+        try:
+            response = requests.get(url, auth=(self.es_username, self.es_password), params=params)
+            indices = response.json()
+        except ValueError as exception:
+            self.__set_error(f"{__NAMESPACE__}.count_languages: Returned invalid json")
+        except RequestException as exception:
+            self.__set_error(f"{__NAMESPACE__}.count_languages: Request failed")
+        except Exception as exception:
+            self.__set_error(f"{__NAMESPACE__}.count_languages: An unexpected error occured")
+
+        languages = [index["index"].split("__")[-2] for index in indices]
+        try:
+            languages.remove("file")
+        except ValueError:
+            pass
+
+        self.gauge("languages_count", len(set(languages)))
+
 
     def __send_post_request(self, url, headers, data, check_name):
         try:
