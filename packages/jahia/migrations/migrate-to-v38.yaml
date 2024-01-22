@@ -36,6 +36,7 @@ onInstall:
   - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
   - addCustomMetricsCheck                            # PAAS-2678
+  - addTomcatTempCleanup                             # PAAS-2392
 
   # Actions that require a restart
   # (None)
@@ -164,6 +165,15 @@ actions:
 
         chown dd-agent: -R $dd_checks_dir $as_conf_dir $healthcheck_conf_dir $custom_metrics_conf_dir
         systemctl restart datadog-agent
+
+  addTomcatTempCleanup:
+    cmd[cp, proc]: |-
+      filePath=/etc/systemd/system/tomcat_tmp_cleanup
+      if ! [ -f $filePath.service ]; then
+        curl -fLSso $filePath.service ${globals.repoRootUrl}/packages/jahia/migrations/v38_assets/tomcat_tmp_cleanup.service || exit 1
+        curl -fLSso $filePath.timer ${globals.repoRootUrl}/packages/jahia/migrations/v38_assets/tomcat_tmp_cleanup.timer || exit 1
+        systemctl enable --now tomcat_tmp_cleanup.timer
+      fi
 
   # We overwrite the checkJahiaDatadogCustomChecks action because we update
   # augmentedsearch's custom check and move the conf file to a different folder.
