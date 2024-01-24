@@ -9,6 +9,7 @@ description:
 
 globals:
   __secret__elasticsearch_password: ${fn.password(20)}
+  esConnectionName: jahia-cloud_augmented-search
 
 mixins:
   - ../../mixins/common.yml
@@ -93,6 +94,7 @@ actions:
 
   setupESConnector:
     - cmd[proc]: |-
+        set -euo pipefail
         __secret__API_TOKEN="${globals.__secret__pat_token}"
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
@@ -104,8 +106,10 @@ actions:
         ec_deployment_id=$(echo $environment | jq -r .ec_deployment_id)
         ec_deployment=$(papi.py -X GET "ec-deployment/$ec_deployment_id")
         es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint | sed 's/https:\/\/\(.*\):.*/\1/g')
-        es_connection_name="jahia-cloud_augmented-search"
-
+        echo $es_endpoint
+    - set:
+        esEndpoint: ${response.out}
+    - cmd [proc]: |-
         get_current_es_connection() {
           curl -fLSs http://localhost:8080/modules/graphql \
             -H "Authorization: APIToken $__secret__API_TOKEN" \
@@ -119,7 +123,7 @@ actions:
         payload_add_es() {
         cat << EOF
         {
-          "id": "$es_connection_name",
+          "id": "${globals.esConnectionName}",
           "isConnected": true,
           "host": "$es_endpoint",
           "port": "443",
@@ -200,7 +204,7 @@ actions:
         if [ "$current_es_connection" = "null" ]; then
           echo "No ES connection found in AS module"
           add_es
-        elif [ "$current_es_connection" = "$es_connection_name" ]; then
+        elif [ "$current_es_connection" = "${globals.esConnectionName}" ]; then
           echo "Connection already configured, we recreate it"
           # to be absolutely sure that you can remove the connection,
           # first check whether any sites are registered in AS and remove them if necessary
@@ -230,10 +234,22 @@ actions:
 
         result=$(curl_set_as_conn)
         if [ "$result" != "Successful" ]; then
-          echo "Failed to use the $es_connection_name connection for AS"
+          echo "Failed to use the ${globals.esConnectionName} connection for AS"
           exit 1
         fi
         echo "AS is now using the new ES connection"
+    - if (env.region == "aws-loim"):
+        set:
+          esSsl: 'false'
+    - else:
+        set:
+          esSsl: 'true'
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        JAHIA_ELASTICSEARCH_ADDRESSES: ${this.esEndpoint}
+        JAHIA_ELASTICSEARCH_USERNAME: ${env.envName}
+        JAHIA_ELASTICSEARCH_PASSWORD: ${globals.__secret__elasticsearch_password}
+        JAHIA_ELASTICSEARCH_SSL_ENABLE: ${this.esSsl}
 
   setupModules:
     - setupAugSearch
