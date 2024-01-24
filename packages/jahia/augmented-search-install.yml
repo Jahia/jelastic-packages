@@ -125,7 +125,7 @@ actions:
         {
           "id": "${globals.esConnectionName}",
           "isConnected": true,
-          "host": "$es_endpoint",
+          "host": "${this.esEndpoint}",
           "port": "443",
           "user": "${env.envName}",
           "password": "$__secret__elasticsearch_password",
