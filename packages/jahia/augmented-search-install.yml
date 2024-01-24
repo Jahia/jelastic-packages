@@ -95,7 +95,6 @@ actions:
   setupESConnector:
     - cmd[proc]: |-
         set -euo pipefail
-        __secret__API_TOKEN="${globals.__secret__pat_token}"
         __secret__PAPI_TOKEN="${globals.__secret__papiToken}"
         export PAPI_TOKEN="$__secret__PAPI_TOKEN"
         export PAPI_HOSTNAME="${globals.papiHostname}"
@@ -110,6 +109,7 @@ actions:
     - set:
         esEndpoint: ${response.out}
     - cmd [proc]: |-
+        __secret__API_TOKEN="${globals.__secret__pat_token}"
         get_current_es_connection() {
           curl -fLSs http://localhost:8080/modules/graphql \
             -H "Authorization: APIToken $__secret__API_TOKEN" \
