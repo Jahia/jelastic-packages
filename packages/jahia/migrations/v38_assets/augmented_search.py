@@ -42,6 +42,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
 
         self.check_as_status(instance)
         self.check_as_connection(instance)
+        self.count_languages()
 
     def check_as_status(self, instance):
         AS_PROBE_NAME = "Augmented Search"
