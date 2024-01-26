@@ -20,6 +20,8 @@ onBeforeScaleIn[cp]:
       - removeBrowsingNodeFromHaproxy:
           nodeId: ${@i.id}
           reload: true
+      - cmd[${@i.id}]: |-
+          service tomcat stop
 
 onAfterScaleIn[cp]:
   - refreshProxysqlInstancesList
@@ -421,8 +423,6 @@ onBeforeScaleIn:
     - muteDatadogHost:
         target: ${@i.id}
         duration: 2880 # 48h
-    - cmd[${@i.id}]: |-
-        service tomcat stop
 
 onBeforeDelete:
   - setGlobalRepoRootUrl
