@@ -35,6 +35,7 @@ onInstall:
   - forceDatadogSite                                 # PAAS-2742
   - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
+  - updateCurl                                       # PAAS-2746
   - addConsumptionMetricsCheck                       # PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
 
@@ -257,6 +258,16 @@ actions:
       - checkDatadogAgentCheck:
           target: ${this}
           checkName: augmented_search
+
+  updateCurl:
+    - cmd[*]: |-
+        if [[ $(curl --version | awk '$1=="curl" {print $2}') != "8.2.1" ]]; then
+          CURL_VERSION=8.2.1-4.0.cf.rhel7.x86_64
+          curl -fLSso /root/curl-${CURL_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/curl-${CURL_VERSION}.rpm"
+          curl -fLSso /root/libcurl-${CURL_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/libcurl-${CURL_VERSION}.rpm"
+          yum -y localinstall /root/curl-${CURL_VERSION}.rpm /root/libcurl-${CURL_VERSION}.rpm
+          rm -f /root/*.rpm
+        fi
 
 settings:
   fields:
