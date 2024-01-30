@@ -36,7 +36,7 @@ onInstall:
   - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
   - updateCurl                                       # PAAS-2746
-  - addConsumptionMetricsCheck                       # PAAS-2678, PAAS-2688
+  - addConsumptionMetricsCheck                       # PAAS-2658, PAAS-2677, PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
 
   # Actions that require a restart
@@ -218,6 +218,26 @@ actions:
         fi
 
         chown dd-agent: -R $dd_checks_dir $as_conf_dir $healthcheck_conf_dir $custom_metrics_conf_dir
+        systemctl restart datadog-agent
+    - cmd [storage]: |-
+        dd_dir=/etc/datadog-agent
+        dd_checks_dir=$dd_dir/checks.d
+        check_name=storage_jahia_custom_metrics
+        dd_conf_dir=$dd_dir/conf.d/${check_name}.d
+        sudoers=/etc/sudoers.d/jahia-rules
+
+        grep -q JAHIA_DD_AGENT_CHECK $sudoers || \
+          sed -e "/Cmnd_Alias JAHIA_MYSQL_SERVICE/a Cmnd_Alias JAHIA_DD_AGENT_CHECK = \/usr\/bin\/du" \
+              -e "/mysql ALL/a dd-agent ALL=NOPASSWD: JAHIA_DD_AGENT_CHECK" \
+              -i $sudoers
+
+        [ -d $dd_conf_dir ] || mkdir $dd_conf_dir
+        curl -fLSso $dd_checks_dir/${check_name}.py ${globals.repoRootUrl}/assets/storage/${check_name}.py || exit 1
+        curl -fLSso $dd_conf_dir/${check_name}.yaml-disabled ${globals.repoRootUrl}/assets/storage/${check_name}.yaml || exit 1
+        chown dd-agent: -R $dd_checks_dir $dd_conf_dir
+    - cmd [${nodes.storage.first.id}]: |-
+        conf_file=/etc/datadog-agent/conf.d/storage_jahia_custom_metrics.d/storage_jahia_custom_metrics.yaml
+        [ -f $conf_file ] || mv ${conf_file}-disabled $conf_file
         systemctl restart datadog-agent
 
   addTomcatTempCleanup:

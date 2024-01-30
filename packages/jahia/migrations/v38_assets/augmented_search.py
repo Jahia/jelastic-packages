@@ -28,6 +28,8 @@ class CheckAugmentedSearchStatus(AgentCheck):
     protocol = "https://" if os.getenv('JAHIA_ELASTICSEARCH_SSL_ENABLE') != "false" else "http://"
     es_endpoint = protocol + os.environ["JAHIA_ELASTICSEARCH_ADDRESSES"]
 
+    INDICES_SIZE_METRIC_NAME = "customer_disk_usage.augmented_search"
+
     def check(self, instance):
         try:
             with open(self.JAHIA_ROOT_TOKEN_FILE, 'r') as jahia_root_token_file:
@@ -44,6 +46,16 @@ class CheckAugmentedSearchStatus(AgentCheck):
         self.check_as_connection(instance)
         if os.environ['_ROLE'] == "Processing":
             self.count_languages()
+
+        # We update the namespace so it is the same as the other custom metrics, that is "jahia"
+        # instead of "augmented_search" so we have all of them in the same place
+        namespace = self.__NAMESPACE__
+        self.__NAMESPACE__ = "jahia"
+
+        self.get_as_indices_size()
+
+        # And now we set the namespace back to "augmented_search" for next checks
+        self.__NAMESPACE__ = namespace
 
     def check_as_status(self, instance):
         AS_PROBE_NAME = "Augmented Search"
@@ -213,6 +225,27 @@ class CheckAugmentedSearchStatus(AgentCheck):
 
         self.gauge("languages_count", len(set(languages)))
 
+    def get_as_indices_size(self):
+        metric_name = f"{self.__NAMESPACE__}.{self.INDICES_SIZE_METRIC_NAME}"
+
+        url = self.es_endpoint + "/_cat/indices"
+        params = {'bytes': 'b', 'format': 'json'}
+        try:
+            response = requests.get(url, auth=(self.es_username, self.es_password), params=params)
+            indices = response.json()
+        except ValueError as exception:
+            self.log.error(metric_name + ": Returned invalid json")
+            return
+        except RequestException as exception:
+            self.log.error(metric_name + ": Request failed")
+            return
+        except Exception as exception:
+            self.log.error(metric_name + ": An unexpected error occured")
+            return
+
+        total_size = sum([int(index['pri.store.size']) for index in indices])
+
+        self.gauge(self.INDICES_SIZE_METRIC_NAME, total_size)
 
     def __send_post_request(self, url, headers, data, check_name):
         try:
