@@ -34,7 +34,7 @@ onInstall:
   - addCustomMetricsCheck                    # PAAS-2678
 
   # Actions that require a restart
-  # (None)
+  - disableAPM                              # PAAS-2799
 
   # Actions that require a redeploy
   # (None)
@@ -109,6 +109,23 @@ actions:
           yum -y localinstall /root/curl-${CURL_VERSION}.rpm /root/libcurl-${CURL_VERSION}.rpm
           rm -f /root/*.rpm
         fi
+
+  disableAPM:
+    # Update default DATADOG_APM_ENABLED value to "false"
+    - cmd[cp]: |-
+        sed 's/DATADOG_APM_ENABLED:-true/DATADOG_APM_ENABLED:-false/' -i /usr/local/bin/set_dd_tags.sh
+        if ! (grep -q profile /opt/jcustomer/jcustomer/bin/setenv);then
+          sed -i '/^MY_DIRNAME=/i source /etc/profile' /opt/jcustomer/jcustomer/bin/setenv
+        fi
+        sed -i 's/DATADOG_APM_ENABLED:-true/DATADOG_APM_ENABLED:-false/' /opt/jcustomer/jcustomer/bin/setenv
+    # disable APM if enabled
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: cp
+    - if ("${response.object.DATADOG_APM_ENABLED}" == "true"):
+        - env.control.AddContainerEnvVars[cp]:
+            vars: {"DATADOG_APM_ENABLED": "false"}
+        - setGlobals:
+            jCustomerRollingRestartNeeded: true
 
 settings:
   fields:
