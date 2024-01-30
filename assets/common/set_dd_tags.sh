@@ -12,6 +12,7 @@ echo "api_key: $DATADOGAPIKEY"
 echo "hostname: $(echo $_ROLE| tr [A-Z] [a-z] |sed 's/_//g')."$(hostname | sed 's/^[[:alpha:]]\+\([[:digit:]]\+\).*/\1/' | tr [A-Z] [a-z])
 echo "site: ${DD_SITE}"
 echo "logs_enabled: true"
+echo "log_level: WARN"
 echo "logs_config:"
 echo "  processing_rules:"
 echo "    - type: mask_sequences"

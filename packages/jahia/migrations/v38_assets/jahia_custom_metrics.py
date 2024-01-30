@@ -1,6 +1,7 @@
-import requests
 import os
 import pwd
+from pymysql import cursors as mysql_cursors, connect as mysql_connect
+import requests
 
 # the following try/except block will make the custom check compatible with any Agent version
 try:
@@ -26,6 +27,8 @@ class CheckCustomMetrics(AgentCheck):
         "file_path": f"{WORK_FOLDER}/jahia_privileged_users_count",
     }
 
+    DB_SIZE_METRIC_NAME = "customer_disk_usage.database"
+
     def check(self, instance):
         with open(self.JAHIA_ROOT_TOKEN_FILE, 'r') as jahia_root_token_file:
             self.jahia_root_token = jahia_root_token_file.read()
@@ -40,6 +43,7 @@ class CheckCustomMetrics(AgentCheck):
             pass
 
         self.__get_jahia_privileged_users_count()
+        self.__get_db_size()
 
     def __get_jahia_privileged_users_count(self):
         prov_api_url = "http://127.0.0.1/modules/api/provisioning"
@@ -71,3 +75,25 @@ class CheckCustomMetrics(AgentCheck):
                 )
         except FileNotFoundError:
             self.log.error("The groovy script to count Jahia privileged users failed, no file was generated")
+
+    def __get_db_size(self):
+        db_config = {
+            "host": "localhost",
+            "user": os.environ['DB_USER'],
+            "password": os.environ['DB_PASSWORD'],
+            "port": 6033,
+            "database": "jahia",
+            "connect_timeout": 5,
+        }
+        query = 'SELECT SUM(DATA_LENGTH + INDEX_LENGTH) FROM information_schema.TABLES WHERE TABLE_SCHEMA="jahia"'
+
+        try:
+            conn = mysql_connect(**db_config)
+            with conn.cursor() as c:
+                c.execute(query)
+                res = c.fetchone()[0]
+        except Exception as e:
+            self.log.error("An error occured when trying to query the database: " + str(e))
+            return
+
+        self.gauge(self.DB_SIZE_METRIC_NAME, res)

@@ -1974,19 +1974,41 @@ actions:
     - setGlobalRepoRootUrl
     - installLatestDatadogAgent: ${this}
     - cmd[${this}]: |-
+        dd_dir=/etc/datadog-agent
+        dd_conf_file=$dd_dir/datadog.yaml
+        dd_checks_dir=$dd_dir/checks.d
+        custom_metrics_check_name=storage_jahia_custom_metrics
+        custom_metrics_check_dir=$dd_dir/conf.d/${custom_metrics_check_name}.d
         NODE_NAME=${HOSTNAME/-*}
-        echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> /etc/datadog-agent/datadog.yaml
-        sed -i 's/# logs_enabled: false/logs_enabled: true/' /etc/datadog-agent/datadog.yaml
-        echo "tags:" >> /etc/datadog-agent/datadog.yaml
-        echo " - product:jahia" >> /etc/datadog-agent/datadog.yaml
-        echo " - version:${DX_VERSION}" >> /etc/datadog-agent/datadog.yaml
-        echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
-        echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
-        echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
+
+        echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> $dd_conf_file
+        sed -i 's/# logs_enabled: false/logs_enabled: true/' $dd_conf_file
+        echo "tags:" >> $dd_conf_file
+        echo " - product:jahia" >> $dd_conf_file
+        echo " - version:${DX_VERSION}" >> $dd_conf_file
+        echo " - envname:${env.envName}" >> $dd_conf_file
+        echo " - provide:${_PROVIDE}" >> $dd_conf_file
+        echo " - role:${_ROLE}" >> $dd_conf_file
+
         curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
         curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
-    - if (nodes.sqldb.length > 1):
+
+        sed \
+            -e "/Cmnd_Alias JAHIA_MYSQL_SERVICE/a Cmnd_Alias JAHIA_DD_AGENT_CHECK = \/usr\/bin\/du" \
+            -e "/mysql ALL/a dd-agent ALL=NOPASSWD: JAHIA_DD_AGENT_CHECK" \
+            /etc/sudoers.d/jahia-rules
+
+        [ -d $custom_metrics_check_dir ] || mkdir $custom_metrics_check_dir
+        curl -fLSso $dd_checks_dir/${custom_metrics_check_name}.py ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.py || exit 1
+        curl -fLSso $custom_metrics_check_dir/${custom_metrics_check_name}.yaml-disabled ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.yaml || exit 1
+        chown dd-agent: -R $dd_checks_dir $custom_metrics_check_dir
+    - if ("${this}" == "${nodes.storage.first.id}") || ("${this}" == "storage"):
+        - cmd [${nodes.storage.first.id}]: |-
+            conf_file=/etc/datadog-agent/conf.d/storage_jahia_custom_metrics.d/storage_jahia_custom_metrics.yaml
+            [ -f $conf_file ] || mv ${conf_file}-disabled $conf_file
+            systemctl restart datadog-agent
+    - if (nodes.storage.length > 1):
         - forEach(nodes.storage):
             cmd[${@i.id}]: |-
               if [[ ${@i.id} = ${nodes.storage.first.id} ]]; then
