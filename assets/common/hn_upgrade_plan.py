@@ -36,8 +36,7 @@ def argparser():
                            default="",
                            help="(optional)hn list (comma separated) that should be excluded from the plan")
     args_list.add_argument("--max-group-size",
-                           nargs="?",
-                           const=0,
+                           default=0,
                            type=int,
                            help="(optional) the maximum size of a hn compatible group. 0 to disable")
 
