@@ -1979,6 +1979,7 @@ actions:
         dd_checks_dir=$dd_dir/checks.d
         custom_metrics_check_name=storage_jahia_custom_metrics
         custom_metrics_check_dir=$dd_dir/conf.d/${custom_metrics_check_name}.d
+        sudoers=/etc/sudoers.d/jahia-rules
         NODE_NAME=${HOSTNAME/-*}
 
         echo "hostname: $(echo $_ROLE| sed 's/_//g').${NODE_NAME#node}" >> $dd_conf_file
@@ -1994,10 +1995,10 @@ actions:
         curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
 
-        sed \
-            -e "/Cmnd_Alias JAHIA_MYSQL_SERVICE/a Cmnd_Alias JAHIA_DD_AGENT_CHECK = \/usr\/bin\/du" \
-            -e "/mysql ALL/a dd-agent ALL=NOPASSWD: JAHIA_DD_AGENT_CHECK" \
-            /etc/sudoers.d/jahia-rules
+        grep -q JAHIA_DD_AGENT_CHECK $sudoers || \
+          sed -e "/Cmnd_Alias JAHIA_MYSQL_SERVICE/a Cmnd_Alias JAHIA_DD_AGENT_CHECK = \/usr\/bin\/du" \
+              -e "/mysql ALL/a dd-agent ALL=NOPASSWD: JAHIA_DD_AGENT_CHECK" \
+              -i $sudoers
 
         [ -d $custom_metrics_check_dir ] || mkdir $custom_metrics_check_dir
         curl -fLSso $dd_checks_dir/${custom_metrics_check_name}.py ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.py || exit 1
