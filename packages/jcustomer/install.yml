@@ -81,7 +81,7 @@ onBeforeInstall: |
     nodeGroup: 'cp',
     startServiceOnCreation: false,
     env: {
-      DATADOG_APM_ENABLED: true,
+      DATADOG_APM_ENABLED: false,
       DATADOGAPIKEY: __secret__DATADOGAPIKEY,
       UNOMI_VERSION: unomiVersion,
       UNOMI_HTTP_PORT: '80',

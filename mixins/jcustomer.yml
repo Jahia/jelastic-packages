@@ -339,7 +339,7 @@ actions:
         sed -e '/APM_OPTS/d' -i $setenv
         echo 'APM_OPTS="-javaagent:'${JCUSTOMER_HOME}'/jcustomer/datadog/dd-java-agent.jar -Ddd.logs.injection=true -Ddd.service=jcustomer -Ddd.env='${env.envName}' -Ddd.profiling.enabled=true"' >> $setenv
         # Because cloudscripting interprets the bash form ${<variable name>:<something>} as its own placeholder, we have to use a trick
-        echo '${DATADOG_APM_ENABLED¤-true} && JAVA_OPTS+=" $APM_OPTS"' | sed 's/¤/:/' >> $setenv
+        echo '${DATADOG_APM_ENABLED¤-false} && JAVA_OPTS+=" $APM_OPTS"' | sed 's/¤/:/' >> $setenv
 
   onAfterRedeployJcustomerContainer:
     - createJelasticPackagesLogDir: ${this}
