@@ -46,16 +46,7 @@ class CheckAugmentedSearchStatus(AgentCheck):
         self.check_as_connection(instance)
         if os.environ['_ROLE'] == "Processing":
             self.count_languages()
-
-        # We update the namespace so it is the same as the other custom metrics, that is "jahia"
-        # instead of "augmented_search" so we have all of them in the same place
-        namespace = self.__NAMESPACE__
-        self.__NAMESPACE__ = "jahia"
-
-        self.get_as_indices_size()
-
-        # And now we set the namespace back to "augmented_search" for next checks
-        self.__NAMESPACE__ = namespace
+            self.get_as_indices_size()
 
     def check_as_status(self, instance):
         AS_PROBE_NAME = "Augmented Search"
@@ -227,6 +218,10 @@ class CheckAugmentedSearchStatus(AgentCheck):
 
     def get_as_indices_size(self):
         metric_name = f"{self.__NAMESPACE__}.{self.INDICES_SIZE_METRIC_NAME}"
+        # We update the namespace so it is the same as the other custom metrics, that is "jahia"
+        # instead of "augmented_search" so we have all of them in the same place
+        namespace = self.__NAMESPACE__
+        self.__NAMESPACE__ = "jahia"
 
         url = self.es_endpoint + "/_cat/indices"
         params = {'bytes': 'b', 'format': 'json'}
@@ -246,6 +241,9 @@ class CheckAugmentedSearchStatus(AgentCheck):
         total_size = sum([int(index['pri.store.size']) for index in indices])
 
         self.gauge(self.INDICES_SIZE_METRIC_NAME, total_size)
+
+        # And now we set the namespace back to "augmented_search" for next checks
+        self.__NAMESPACE__ = namespace
 
     def __send_post_request(self, url, headers, data, check_name):
         try:
