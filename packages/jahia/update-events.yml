@@ -56,6 +56,7 @@ onAfterServiceScaleOut[cp]:
           unomiEnvName: ${globals.unomi_env_name}
 
 onBeforeRestartNode[cp]:
+  - backupKarafConfsDir: ${event.params.nodeId}
   - removeBrowsingNodeFromHaproxy:
       nodeId: ${event.params.nodeId}
       reload: true
@@ -72,6 +73,7 @@ onAfterRestartNode[cp]:
           reload: true
 
 onBeforeRestartNode[proc]:
+  - backupKarafConfsDir: ${event.params.nodeId}
   - removeProcNodeFromHaproxy:
       reload: true
   - queryShutdownEndpoint:
@@ -88,6 +90,7 @@ onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
       - forEach(nodes.cp):
+        - backupKarafConfsDir: ${@i.id}
         - removeBrowsingNodeFromHaproxy:
             nodeId: ${@i.id}
             reload: true
@@ -98,6 +101,7 @@ onBeforeRedeployContainer[cp]:
       - saveApplicationcontextFilesBeforeRedeploy: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
+      - backupKarafConfsDir: ${event.params.nodeId}
       - removeBrowsingNodeFromHaproxy:
           nodeId: ${event.params.nodeId}
           reload: true
@@ -130,6 +134,7 @@ onAfterRedeployContainer[cp]:
   - cleanJRLocalRevisionsTable
 
 onBeforeRedeployContainer[proc]:
+  - backupKarafConfsDir: proc
   - saveApplicationcontextFilesBeforeRedeploy: proc
   - removeProcNodeFromHaproxy:
       reload: true
@@ -295,6 +300,7 @@ onAfterRedeployContainer[storage]:
       - setupDatadogAgentStorage: ${event.params.nodeId}
 
 onBeforeStop:
+  - backupKarafConfsDir: cp, proc
   - muteDatadogSynthetics:
       duration: 2880 # 48h
   - muteDatadogHost:

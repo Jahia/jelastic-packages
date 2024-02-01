@@ -2160,3 +2160,11 @@ actions:
     - else:
         setGlobals:
           provisioning_api_call_success: false
+
+  backupKarafConfsDir:
+    - cmd[${this}]: |-
+        DST_FOLDER=/var/tmp/cloud/karaf_confs_history
+        SOURCE_FOLDER=/data/digital-factory-data/karaf/etc/
+        TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+        [ -d $DST_FOLDER ] || sudo -u tomcat mkdir -p $DST_FOLDER
+        sudo -u tomcat tar czf ${DST_FOLDER}/${TIMESTAMP}.tgz -C ${SOURCE_FOLDER} .
