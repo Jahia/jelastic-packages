@@ -38,6 +38,7 @@ onInstall:
   - updateCurl                                       # PAAS-2746
   - addConsumptionMetricsCheck                       # PAAS-2658, PAAS-2677, PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
+  - keepKarafConfsHistory                            # PAAS-2801
 
   # Actions that require a restart
   - disableAPM                                      # PAAS-2799
@@ -301,6 +302,12 @@ actions:
             vars: {"DATADOG_APM_ENABLED": "false"}
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  keepKarafConfsHistory:
+    - cmd[cp, proc]:
+        if ! (grep -q karaf_confs_history /etc/jelastic/redeploy.conf); then
+          echo "/var/tmp/cloud/karaf_confs_history" >> /etc/jelastic/redeploy.conf
+        fi
 
 settings:
   fields:
