@@ -39,12 +39,14 @@ onInstall:
         stopHaproxyService: ${globals.nodesDict.bl[0]}
 
     - if (globals.nodesDict.sqldb || globals.nodesDict.storage): # if database or storage nodes to stop
-        - if (nodes.sqldb.length == 1): # If not cluster, we stop all jahia because nodes will be broken
+        - if (nodes.sqldb.length == 1): # If not cluster, we stop all jahia nodes that are not part of the list or that are already stopped
             forEach(nodes.cp):
-              if ( ! ${globals.nodesDict.cp.contains([@i.id])}): # No idea why we have to use [] instead of ${} here. It's the way it works
-                # Stop jahia on browsings not mentionned in nodesToStop list
-                - appendActionLog: "Single db node case, stopping browsing node ${@i.id}"
-                - callStopJahiaAction: ${@i.id}
+              - isNodeRunning:
+                  nodeId: ${@i.id}
+              - if (${globals.isNodeRunning}): # No idea why we have to use [] instead of ${} here. It's the way it works
+                  # Stop jahia on browsings not mentionned in nodesToStop list
+                  - appendActionLog: "Single db node case, stopping browsing node ${@i.id}"
+                  - callStopJahiaAction: ${@i.id}
         - if (globals.nodesDict.sqldb):
             - if (nodes.sqldb.length > 1): # Cluster
                 switchGaleraMasterIfNeeded: ${globals.nodesDict.sqldb[0]}
