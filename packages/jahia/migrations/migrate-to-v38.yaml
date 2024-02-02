@@ -304,7 +304,7 @@ actions:
             jahiaRollingRestartNeeded: true
 
   keepKarafConfsHistory:
-    - cmd[cp, proc]:
+    - cmd[cp, proc]: |-
         if ! (grep -q karaf_confs_history /etc/jelastic/redeploy.conf); then
           echo "/var/tmp/cloud/karaf_confs_history" >> /etc/jelastic/redeploy.conf
         fi
