@@ -1304,3 +1304,55 @@ actions:
         awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST
     - setGlobals:
        envRole: ${response.out}
+
+  isNodeRunning:
+    # Checks if a node is running, meaning the whole CT, not just the service (for example tomcat or haproxy)
+    #
+    # Parameters:
+    # - nodeId
+    # - envName (optional, default: the current env)
+    # - globalVarName (optional, default: "isNodeRunning")
+    #
+    # Returns:
+    # - provider: the CloudProvider hosting the env
+    - if ("${this.globalVarName.print()}" == ""):
+        set:
+          globalVarName: isNodeRunning
+    - script: |-
+        var nodeId = ${this.nodeId}
+        if ("${this.envName.print()}" == "") {
+          var envName = "${env.envName}"
+        } else {
+          var envName = "${this.envName}"
+        }
+        if ("${this.globalVarName.print()}" == "") {
+          var globalVarName = "isNodeRunning"
+        } else {
+          var globalVarName = "${this.globalVarName}"
+        }
+        var resp = jelastic.env.control.GetEnvInfo(envName, session)
+        if (! resp.hasOwnProperty("nodes")) {
+          return {"result": 1, "error": "The GetEnvInfo API call failed, please check", "response": resp}
+        }
+        var isNodeRunning = true
+        var nodeFound = false
+        resp.nodes.forEach(
+          function (node) {
+            if (node.id == parseInt(nodeId)) {
+              nodeFound = true
+              if (node.status != 1) {
+                isNodeRunning = false
+              }
+            }
+          }
+        )
+        if (! nodeFound) {
+          return {"result": 1, "error": "Node " + nodeId + " was not found for " + envName + " environment, please check"}
+        }
+        res = {"result": 0}
+        res.onAfterReturn = {
+          setGlobals: {
+            ${this.globalVarName}: isNodeRunning
+          }
+        }
+        return res

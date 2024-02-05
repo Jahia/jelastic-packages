@@ -34,11 +34,13 @@ onInstall:
                 callCheckGaleraClusterHealthAction
         - if (globals.nodesDict.storage):
             - startNode: ${globals.nodesDict.storage[0]}
-        - if (nodes.sqldb.length == 1):
+        - if (nodes.sqldb.length == 1): # If not cluster, we start tomcat on all jahia nodes that are not part of the list or that are stopped
             forEach(nodes.cp):
-              if ( ! ${globals.nodesDict.cp.contains([@i.id])}): # No idea why we have to use [] instead of ${} here. It's the way it works
-                startJahia: ${@i.id}
-                callStartupJahiaHealthCheckAction: ${@i.id}
+              - isNodeRunning:
+                  nodeId: ${@i.id}
+              - if (${globals.isNodeRunning}): # No idea why we have to use [] instead of ${} here. It's the way it works
+                  startJahia: ${@i.id}
+                  callStartupJahiaHealthCheckAction: ${@i.id}
 
     - if (globals.nodesDict.bl): # Haproxy
         startHaproxyNode: ${globals.nodesDict.bl[0]}
@@ -48,15 +50,23 @@ onInstall:
           - startNode: ${@i}
 
     - if (globals.nodesDict.proc): # Processing
-        - startNode: ${globals.nodesDict.proc[0]}
-        - callAddProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}
-        -  callStartupJahiaHealthCheckAction: ${globals.nodesDict.proc[0]}
+        - canStartJahiaNodes
+        - if (${globals.canStartJahiaNodes}):
+            - startNode: ${globals.nodesDict.proc[0]}
+            - callAddProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}
+            - callStartupJahiaHealthCheckAction: ${globals.nodesDict.proc[0]}
+        - else:
+            log: The processing node (#${nodes.proc.first.id}) cannot be started because the storage and/or the sqldb node is/are stopped
 
     - if (globals.nodesDict.cp): # Browsing(s)
-        forEach (globals.nodesDict.cp):
-          - startNode: ${@i}
-          - callAddBrowsingNodeFromHaproxyAction: ${@i}
-          - callStartupJahiaHealthCheckAction: ${@i}
+        - canStartJahiaNodes
+        - if (${globals.canStartJahiaNodes}):
+            forEach (globals.nodesDict.cp):
+              - startNode: ${@i}
+              - callAddBrowsingNodeFromHaproxyAction: ${@i}
+              - callStartupJahiaHealthCheckAction: ${@i}
+        - else:
+            log: The browsing nodes (${globals.nodesDict.cp}) cannot be started because the storage and/or the sqldb node is/are stopped
 
   - else: # Jcustomer
     - if (globals.nodesDict.cp): # jCustomer(s)
@@ -166,11 +176,35 @@ actions:
           target: ${this}
           maxDuration: 30
 
+  canStartJahiaNodes:
+    - setGlobals:
+        canStartJahiaNodes: true
+    - if (nodes.sqldb.length == 1): # If not cluster, we stop all jahia nodes that are not part of the list or that are already stopped
+        - isNodeRunning:
+            nodeId: ${nodes.sqldb.first.id}
+            globalVarName: isSqldbNodeRunning
+        - isNodeRunning:
+            nodeId: ${nodes.storage.first.id}
+            globalVarName: isStorageNodeRunning
+        - if (! ${globals.isSqldbNodeRunning}) || (! ${globals.isStorageNodeRunning}):
+            - setGlobals:
+                canStartJahiaNodes: false
+
   startJahia:
     - appendActionLog: "Starting tomcat on node ${this}"
     - if (! ${settings.dryRun}):
-        cmd[${this}]: |-
-          service tomcat start
+        - cmd[${this}]: |-
+            timeout=300
+            counter=$timeout
+            until mount -v | grep -qiE "nfs|glusterfs"; do
+              if [[ $counter == 0 ]]; then
+                echo "Timeout reached, the datastore FS is still not mounted after ${timeout}s, please check" >&2
+                exit 1
+              fi
+              sleep 5
+              (( counter-=5 ))
+            done
+            service tomcat start
 
   callCheckJcustomerHealthWhenStartingAction:
     - appendActionLog: "Checking jCustomer health on node ${this}"
