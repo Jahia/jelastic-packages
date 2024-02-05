@@ -38,15 +38,21 @@ onInstall:
     - if (globals.nodesDict.bl): # Haproxy
         stopHaproxyService: ${globals.nodesDict.bl[0]}
 
-    - if (globals.nodesDict.sqldb || globals.nodesDict.storage): # if database or storage nodes to stop
-        - if (nodes.sqldb.length == 1): # If not cluster, we stop all jahia nodes that are not part of the list or that are already stopped
-            forEach(nodes.cp):
-              - isNodeRunning:
-                  nodeId: ${@i.id}
-              - if (${globals.isNodeRunning}): # No idea why we have to use [] instead of ${} here. It's the way it works
-                  # Stop jahia on browsings not mentionned in nodesToStop list
-                  - appendActionLog: "Single db node case, stopping browsing node ${@i.id}"
-                  - callStopJahiaAction: ${@i.id}
+    - if (globals.nodesDict.sqldb || globals.nodesDict.storage):
+        # If the environment has a single storage and/or DB node, we need to stop tomcat on all
+        # running Jahia nodes before stopping this node to avoid errors
+        - if (nodes.sqldb.length == 1):
+            - isNodeRunning:
+                nodeId: ${nodes.proc.first.id}
+            - if (${globals.isNodeRunning}):
+                - appendActionLog: "Single DB and/or storage node case, stopping processing node #${nodes.proc.first.id}"
+                - callStopJahiaAction: ${nodes.proc.first.id}
+            - forEach(nodes.cp):
+                - isNodeRunning:
+                    nodeId: ${@i.id}
+                - if (${globals.isNodeRunning}):
+                    - appendActionLog: "Single DB and/or Storage node case, stopping browsing node #${@i.id}"
+                    - callStopJahiaAction: ${@i.id}
         - if (globals.nodesDict.sqldb):
             - if (nodes.sqldb.length > 1): # Cluster
                 switchGaleraMasterIfNeeded: ${globals.nodesDict.sqldb[0]}
