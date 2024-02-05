@@ -223,7 +223,7 @@ settings:
     - name: nodesToStart
       type: string
       caption: |-
-        Nodes id to stop with the following format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
+        Nodes id to start with the following format:  {"nodeGroup1": ["XXXX"], "nodeGroup2": ["YYYYY", "ZZZZ"]}
       required: true
     - name: dryRun
       type: checkbox
