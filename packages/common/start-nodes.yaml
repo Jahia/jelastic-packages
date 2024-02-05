@@ -34,13 +34,20 @@ onInstall:
                 callCheckGaleraClusterHealthAction
         - if (globals.nodesDict.storage):
             - startNode: ${globals.nodesDict.storage[0]}
-        - if (nodes.sqldb.length == 1): # If not cluster, we start tomcat on all jahia nodes that are not part of the list or that are stopped
-            forEach(nodes.cp):
-              - isNodeRunning:
-                  nodeId: ${@i.id}
-              - if (${globals.isNodeRunning}): # No idea why we have to use [] instead of ${} here. It's the way it works
-                  startJahia: ${@i.id}
-                  callStartupJahiaHealthCheckAction: ${@i.id}
+        # If the environment has a single storage and/or DB node, we need to start tomcat on all
+        # running Jahia nodes since it has been stopped during the stop-nodes process
+        - if (nodes.sqldb.length == 1):
+            - isNodeRunning:
+                nodeId: ${nodes.proc.first.id}
+            - if (${globals.isNodeRunning}):
+                startJahia: ${nodes.proc.first.id}
+                callStartupJahiaHealthCheckAction: ${nodes.proc.first.id}
+            - forEach(nodes.cp):
+                - isNodeRunning:
+                    nodeId: ${@i.id}
+                - if (${globals.isNodeRunning}):
+                    startJahia: ${@i.id}
+                    callStartupJahiaHealthCheckAction: ${@i.id}
 
     - if (globals.nodesDict.bl): # Haproxy
         startHaproxyNode: ${globals.nodesDict.bl[0]}
