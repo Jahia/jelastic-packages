@@ -26,62 +26,90 @@ onInstall:
   - getNodesAsList: ${settings.nodesToStart}
 
   - if (nodes.proc):  # Jahia
-    - if (globals.nodesDict.sqldb || globals.nodesDict.storage): # Database or storage
+    - set:
+        shouldStartAllJahiaNodes: false
+    - if (globals.nodesDict.sqldb || globals.nodesDict.storage): # Database and storage nodes first
         - if (globals.nodesDict.sqldb):
             - startNode: ${globals.nodesDict.sqldb[0]}
             - callCheckMariadbHealthAction: ${globals.nodesDict.sqldb[0]}
             - if (nodes.sqldb.length > 1):
                 callCheckGaleraClusterHealthAction
+            - callunmuteDatadogHostAction: ${globals.nodesDict.sqldb[0]}
         - if (globals.nodesDict.storage):
             - startNode: ${globals.nodesDict.storage[0]}
+            - callunmuteDatadogHostAction: ${globals.nodesDict.storage[0]}
         # If the environment has a single storage and/or DB node, we need to start tomcat on all
-        # running Jahia nodes since it has been stopped during the stop-nodes process
+        # running Jahia nodes (meaning Jahia nodes on different HNs that are not being upgraded at the same time)
         - if (nodes.sqldb.length == 1):
+            - set:
+                shouldStartAllJahiaNodes: true
+
+    - if (globals.nodesDict.bl): # Haproxy
+        - startHaproxyNode: ${globals.nodesDict.bl[0]}
+        - callunmuteDatadogHostAction: ${globals.nodesDict.bl[0]}
+
+    # First we make sure that both the storage and sqldb node are up and running since they
+    # could potentially be on different HNs and therefore not started
+    - canStartJahiaNodes
+    - if (${globals.canStartJahiaNodes}):
+        - set:
+            checkStartup: false
+        # Then we take care of the processing
+        # If it is in nodesDict, it means it is stopped and needs to be started
+        - if (globals.nodesDict.proc):
+            - startNode: ${nodes.proc.first.id}
+            - set:
+                checkStartup: true
+        # else it means it is on a different HN so we check if it needs to be started (if we started a single sqldb
+        # or storage node)
+        - elif (${this.shouldStartAllJahiaNodes}):
+            # We check if the node is running so we can start tomcat or if it is not,
+            # meaning it is most likely on a different HN that is being upgraded as well (so we shouldn't do anything)
             - isNodeRunning:
                 nodeId: ${nodes.proc.first.id}
             - if (${globals.isNodeRunning}):
-                startJahia: ${nodes.proc.first.id}
-                callStartupJahiaHealthCheckAction: ${nodes.proc.first.id}
-            - forEach(nodes.cp):
+                - startJahia: ${nodes.proc.first.id}
+                - set:
+                    checkStartup: true
+            - else:
+                appendActionLog: "Tomcat cannot be started on the processing node #${nodes.proc.first.id} because the node is stopped"
+        # If the whole node or the service (tomcat) has been started, we check the startup status, add it
+        # back to Haproxy and unmute the host on Datadog
+        - if (${this.checkStartup}):
+            - callStartupJahiaHealthCheckAction: ${nodes.proc.first.id}
+            - callAddProcNodeToHaproxyAction: ${nodes.proc.first.id}
+            - callunmuteDatadogHostAction: ${nodes.proc.first.id}
+        # Then we do the same thing for each browsing node
+        - forEach (nodes.cp):
+            - set:
+                checkStartup: false
+            - if (${globals.nodesDict.cp.contains([@i.id])}):
+                - startNode: ${@i.id}
+                - set:
+                    checkStartup: true
+            - elif (${this.shouldStartAllJahiaNodes}):
                 - isNodeRunning:
                     nodeId: ${@i.id}
                 - if (${globals.isNodeRunning}):
-                    startJahia: ${@i.id}
-                    callStartupJahiaHealthCheckAction: ${@i.id}
-
-    - if (globals.nodesDict.bl): # Haproxy
-        startHaproxyNode: ${globals.nodesDict.bl[0]}
-
-    - if (globals.nodesDict.storage): # Storage node(s)
-        forEach (globals.nodesDict.storage):
-          - startNode: ${@i}
-
-    - if (globals.nodesDict.proc): # Processing
-        - canStartJahiaNodes
-        - if (${globals.canStartJahiaNodes}):
-            - startNode: ${globals.nodesDict.proc[0]}
-            - callAddProcNodeFromHaproxyAction: ${globals.nodesDict.proc[0]}
-            - callStartupJahiaHealthCheckAction: ${globals.nodesDict.proc[0]}
-        - else:
-            log: The processing node (#${nodes.proc.first.id}) cannot be started because the storage and/or the sqldb node is/are stopped
-
-    - if (globals.nodesDict.cp): # Browsing(s)
-        - canStartJahiaNodes
-        - if (${globals.canStartJahiaNodes}):
-            forEach (globals.nodesDict.cp):
-              - startNode: ${@i}
-              - callAddBrowsingNodeFromHaproxyAction: ${@i}
-              - callStartupJahiaHealthCheckAction: ${@i}
-        - else:
-            log: The browsing nodes (${globals.nodesDict.cp}) cannot be started because the storage and/or the sqldb node is/are stopped
+                    - startJahia: ${@i.id}
+                    - set:
+                        checkStartup: true
+                - else:
+                    appendActionLog: "Tomcat cannot be started on the browsing node #${@i.id} because the node is stopped"
+            - if (${this.checkStartup}):
+                - callStartupJahiaHealthCheckAction: ${@i.id}
+                - callAddBrowsingNodeToHaproxyAction: ${@i.id}
+                - callunmuteDatadogHostAction: ${@i.id}
+    - else:
+        - if (globals.nodesDict.proc) || (globals.nodesDict.cp) || (${this.shouldStartAllJahiaNodes}):
+            appendActionLog: Jahia nodes cannot be started because the storage and/or the sqldb node is/are stopped
 
   - else: # Jcustomer
     - if (globals.nodesDict.cp): # jCustomer(s)
         forEach (globals.nodesDict.cp):
           - startNode: ${@i}
           - callCheckJcustomerHealthWhenStartingAction: ${@i}
-
-  - callunmuteDatadogHostAction
+          - callunmuteDatadogHostAction: ${@i}
 
   - return:
       type: success
@@ -142,19 +170,19 @@ actions:
               message: ${globals.output}
 
   callunmuteDatadogHostAction:
-    - appendActionLog: "Unmuting nodes ${globals.nodesList.join(,)}"
+    - appendActionLog: "Unmuting node(s) ${this}"
     - if (! ${settings.dryRun}):
         unmuteDatadogHost:
-          target: ${globals.nodesList.join(,)}
+          target: ${this}
 
-  callAddProcNodeFromHaproxyAction:
-    - appendActionLog: "Adding processing ${this} from haproxy pool"
+  callAddProcNodeToHaproxyAction:
+    - appendActionLog: "Adding processing ${this} to haproxy pool"
     - if (! ${settings.dryRun}):
         addProcNodeToHaproxy:
           reload: true
 
-  callAddBrowsingNodeFromHaproxyAction:
-    - appendActionLog: "Adding browsing ${this} from haproxy pool"
+  callAddBrowsingNodeToHaproxyAction:
+    - appendActionLog: "Adding browsing ${this} to haproxy pool"
     - forEach(nodes.cp):
         if (${@i.id} == ${this}):
           if (! ${settings.dryRun}):
@@ -168,7 +196,9 @@ actions:
     - if (! ${settings.dryRun}):
         - appendActionLog: "Checking galera cluster health on node ${this}"
         - if (! ${settings.dryRun}):
-            startupJahiaHealthCheck: ${this}
+            - startupJahiaHealthCheck: ${this}
+            - unmuteDatadogHost:
+                target: ${this}
 
   callCheckGaleraClusterHealthAction:
     - appendActionLog: "Checking galera cluster health on cluster nodes"
@@ -186,7 +216,7 @@ actions:
   canStartJahiaNodes:
     - setGlobals:
         canStartJahiaNodes: true
-    - if (nodes.sqldb.length == 1): # If not cluster, we stop all jahia nodes that are not part of the list or that are already stopped
+    - if (nodes.sqldb.length == 1): # If not cluster, we make sure that the storage and sqldb nodes are both running before starting tomcat
         - isNodeRunning:
             nodeId: ${nodes.sqldb.first.id}
             globalVarName: isSqldbNodeRunning
@@ -198,7 +228,7 @@ actions:
                 canStartJahiaNodes: false
 
   startJahia:
-    - appendActionLog: "Starting tomcat on node ${this}"
+    - appendActionLog: "Single DB and/or storage node environment, starting tomcat again on node #${this}"
     - if (! ${settings.dryRun}):
         - cmd[${this}]: |-
             timeout=300

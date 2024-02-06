@@ -146,7 +146,10 @@ actions:
   callStopJahiaAction:
     - appendActionLog: "Stopping jahia on node ${this}"
     - if (! ${settings.dryRun}):
-        stopJahia: ${this}
+        - muteDatadogHost:
+            target: ${this}
+            duration: 60
+        - stopJahia: ${this}
 
   stopHaproxyService:
     - appendActionLog: "Stopping haproxy on node ${this}"
