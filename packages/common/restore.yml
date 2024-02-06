@@ -745,7 +745,7 @@ actions:
           ec_deployment_name=$(echo $ec_deployment | jq -r .name)
           papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}' >> ${globals.logsPath}
 
-          if [[ "${env.region}" != "aws-loim" ]]; then
+          if [[ "${env.region}" != "aws-univ" ]]; then
             __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
 
             generate_payload() {

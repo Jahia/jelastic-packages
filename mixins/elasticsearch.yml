@@ -5,7 +5,7 @@
 actions:
   setupES:
     - getVaultData
-    - if (env.region == "aws-loim"):
+    - if (env.region == "aws-univ"):
         env.control.AddContainerEnvVars [cp]:
         vars:
           UNOMI_ELASTICSEARCH_SSL_ENABLE: 'false'
@@ -17,7 +17,7 @@ actions:
 
   setupES4AS:
     - getVaultData
-    - if (env.region != "aws-loim"):
+    - if (env.region != "aws-univ"):
       - runESCircleCIPipeline:
           workflow: terraform_apply
     - createESAccount4AS
@@ -473,7 +473,7 @@ actions:
 
         // If the deleted env is one of many mutualized envs, we don't delete the EC deployment.
         // Instead, we clean up indices, geonameentry alias, kibana role and es user related to the env.
-        if ((ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) || "${env.region}" == "aws-loim") {
+        if ((ec_deployment["mutualized"] && ec_deployment["paas_environments"].length > 1) || "${env.region}" == "aws-univ") {
             // Get ES credentials from PAPI
             getECDeploymentCreds = new HttpGet(papiBaseUrl + "ec-deployment/" + ecDeploymentId + "/credentials");
             getECDeploymentCreds.setHeader("X-PAPI-KEY", __secret__papiToken);
