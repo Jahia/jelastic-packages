@@ -368,6 +368,7 @@ onInstall:
   - updateEnvStatusInPapi:
       status: running
   - setEnvironmentAppId
+  - upgradeDxClusteringTo8109
   - if(env.region == "aws-univ"):
       - install:
           jps: "${baseUrl}/enable-tomcat-filtering.yaml"
