@@ -71,6 +71,7 @@ onAfterRestartNode[cp]:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
           reload: true
+      - checkKarafConfsChecksums: ${event.params.nodeId}
 
 onBeforeRestartNode[proc]:
   - backupKarafConfsDir: ${event.params.nodeId}
@@ -85,6 +86,7 @@ onAfterRestartNode[proc]:
   - startupJahiaHealthCheck: ${event.params.nodeId}
   - addProcNodeToHaproxy:
       reload: true
+  - checkKarafConfsChecksums: ${event.params.nodeId}
 
 onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
