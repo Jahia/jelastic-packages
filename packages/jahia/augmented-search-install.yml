@@ -238,7 +238,7 @@ actions:
           exit 1
         fi
         echo "AS is now using the new ES connection"
-    - if (env.region == "aws-loim"):
+    - if (env.region == "aws-univ"):
         set:
           esSsl: 'false'
     - else:
