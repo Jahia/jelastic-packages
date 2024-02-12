@@ -2168,3 +2168,24 @@ actions:
         TIMESTAMP=$(date +"%Y%m%d%H%M%S")
         [ -d $DST_FOLDER ] || sudo -u tomcat mkdir -p $DST_FOLDER
         sudo -u tomcat tar czf ${DST_FOLDER}/${TIMESTAMP}.tgz -C ${SOURCE_FOLDER} .
+
+  checkKarafConfsChecksums:
+    - cmd[${this}]: |-
+        out_file_prefix=/opt/tomcat/temp/karaf_configuration_files_checksum_
+        before_file=$out_file_prefix"onBeforeRestartNode"
+        after_file=$out_file_prefix"onAfterRestartNode"
+        cd /var/tmp/cloud/karaf_confs_history
+        # perform md5sums from the last file saved in backupKarafConfsDir action. Format output and store it in a tmp file
+        tar xf $(ls -1t /var/tmp/cloud/karaf_confs_history| head -1) --to-command 'sh -c "md5sum | sed \"s#-#/data/digital-factory-data/karaf/etc/\$(echo \$TAR_REALNAME | sed \"s%^..%%\" )#\""' > $before_file
+        find /data/digital-factory-data/karaf/etc/ -type f -exec md5sum "{}" + > $after_file
+
+        if ! $(cmp -s $before_file $after_file); then
+          diff_output=$(diff -W1000 -y --suppress-common-lines $before_file $after_file)
+          output="$(date +"%Y-%m-%dT%H:%M:%S") The following files changed at jahia restart: "
+          while IFS= read -r diff; do
+            file=$(echo $diff |awk '{print $NF}' | xargs basename)
+            output=$output" "$file
+            echo $output
+          done<<<"$diff_output"
+          echo $output  >> /var/log/jelastic-packages/karafConfigFilescheck.log
+        fi
