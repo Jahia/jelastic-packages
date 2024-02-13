@@ -2181,11 +2181,11 @@ actions:
 
         if ! $(cmp -s $before_file $after_file); then
           diff_output=$(diff -W1000 -y --suppress-common-lines $before_file $after_file)
-          output="$(date +"%Y-%m-%dT%H:%M:%S") The following files changed at jahia restart: "
+          output="{\"level\": \"ERROR\", \"message\": \"$(date +"%Y-%m-%dT%H:%M:%S") - Errors detected in karaf configuration files after restart. Please check the state of the following configuration files: "
           while IFS= read -r diff; do
             file=$(echo $diff |awk '{print $NF}' | xargs basename)
             output=$output" "$file
             echo $output
           done<<<"$diff_output"
-          echo $output  >> /var/log/jelastic-packages/karafConfigFilescheck.log
+          echo "$output\"}"  >> /var/log/jelastic-packages/karafConfigFilescheck.log
         fi
