@@ -39,6 +39,7 @@ onInstall:
   - addConsumptionMetricsCheck                       # PAAS-2658, PAAS-2677, PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
   - keepKarafConfsHistory                            # PAAS-2801
+  - fixProxySQLServiceOverrideConf                   # PAAS-2819
 
   # Actions that require a restart
   - disableAPM                                      # PAAS-2799
@@ -308,6 +309,11 @@ actions:
         if ! (grep -q karaf_confs_history /etc/jelastic/redeploy.conf); then
           echo "/var/tmp/cloud/karaf_confs_history" >> /etc/jelastic/redeploy.conf
         fi
+
+  fixProxySQLServiceOverrideConf:
+    - cmd [cp, proc]: |-
+        sed "s;ExecStartPost=touch;ExecStartPost=/usr/bin/touch;" -i /etc/systemd/system/proxysql.service.d/override.conf
+        systemctl daemon-reload
 
 settings:
   fields:
