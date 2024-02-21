@@ -156,6 +156,7 @@ actions:
             echo "The curl command returned a non-zero code, aborting" >&2
             exit 1
           fi
+          password=$(echo $response | jq -r .data.jcr.nodeByPath.property.decryptedValue)
           if [ "$password" = "null" ]; then
             echo "The GraphQL query did not return the ES password, aborting" >&2
             exit 1
