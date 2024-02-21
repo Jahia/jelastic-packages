@@ -138,7 +138,7 @@ actions:
           -H "Authorization: APIToken $__secret__API_TOKEN" \
           -H "Content-Type: application/json" \
           -H 'Origin: http://localhost:8080' \
-          -d '{"query": "{ jcr { nodeByPath(path: \"/settings/databaseConnector/jahia-cloud_augmented-search\") { property(name: \"dc:password\") { decryptedValue } } } }"}')
+          -d '{"query": "{ jcr { nodeByPath(path: \"/settings/databaseConnector/jahia-cloudaugmented-search\") { property(name: \"dc:password\") { decryptedValue } } } }"}')
         if [ $? -ne 0 ]; then
           echo "The curl command returned a non-zero code, aborting" >&2
           exit 1
