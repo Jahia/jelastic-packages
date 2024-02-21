@@ -36,7 +36,6 @@ onInstall:
   - updateSendLogsCron                               # PAAS-2739
   - getLogEventScript: bl, proc, cp, sqldb, storage  # PAAS-2746 (action from mixins/common.yml)
   - updateCurl                                       # PAAS-2746
-  - addConsumptionMetricsCheck                       # PAAS-2658, PAAS-2677, PAAS-2678, PAAS-2688
   - addTomcatTempCleanup                             # PAAS-2392
   - keepKarafConfsHistory                            # PAAS-2801
   - fixProxySQLServiceOverrideConf                   # PAAS-2819
