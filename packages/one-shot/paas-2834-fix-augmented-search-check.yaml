@@ -1,0 +1,13 @@
+---
+type: update
+version: 1.5.2
+name: Fix augmented-search check
+id: paas-2834-fix-augmented-search-check
+
+onInstall:
+  - cmd[proc, cp]: |-
+      f=/etc/datadog-agent/checks.d/augmented_search.py
+      if ! (sed -n 198p $f | grep -q __as_); then
+        sed '198s,indices,indices/*__as_*,' -i $f
+        systemctl restart datadog-agent
+      fi

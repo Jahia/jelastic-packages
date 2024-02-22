@@ -40,6 +40,7 @@ onInstall:
   - addTomcatTempCleanup                             # PAAS-2392
   - keepKarafConfsHistory                            # PAAS-2801
   - fixProxySQLServiceOverrideConf                   # PAAS-2819
+  - fixAugSearchLanguageCount                        # PAAS-2834
 
   # Actions that require a restart
   - disableAPM                                      # PAAS-2799
@@ -328,6 +329,14 @@ actions:
     - cmd [cp, proc]: |-
         sed "s;ExecStartPost=touch;ExecStartPost=/usr/bin/touch;" -i /etc/systemd/system/proxysql.service.d/override.conf
         systemctl daemon-reload
+
+  fixAugSearchLanguageCount:
+    - cmd[proc, cp]: |-
+        f=/etc/datadog-agent/checks.d/augmented_search.py
+        if ! (sed -n 198p $f | grep -q __as_); then
+          sed '198s,indices,indices/*__as_*,' -i $f
+          systemctl restart datadog-agent
+        fi
 
 settings:
   fields:
