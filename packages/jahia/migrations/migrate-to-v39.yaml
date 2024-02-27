@@ -34,6 +34,7 @@ onInstall:
   - fixAugSearchLanguageCount                        # PAAS-2834
 
   # Actions that require a restart
+  - forceConsoleLogsToUTC                            # PAAS-2821
 
   # Actions that require a redeploy
   # (None)
@@ -101,6 +102,29 @@ actions:
           sed '198s,indices,indices/*__as_*,' -i $f
           systemctl restart datadog-agent
         fi
+
+  forceConsoleLogsToUTC:
+    # In case the timezone is already defined, use it
+    - cmd[proc]: |-
+        conf=/opt/tomcat/conf/variables.conf
+        timezone=$(grep -o 'user\.timezone=[^ ]*' $conf | awk -F '=' '{print $2}')
+        echo $timezone
+    - if ("${response.out}" != ""):
+      - env.control.AddContainerEnvVars[cp, proc]:
+              vars: {"jahia_cfg_timezone": "${response.out}"}
+      - cmd[cp, proc]: |-
+          sed -i '/user\.timezone/d' /opt/tomcat/conf/variables.conf
+    - cmd[proc, cp]: |-
+        log4j_conf=/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
+        if ! grep -qE "^\s*JAVA_OPTS\s*=.*user.timezone" $tomcat_env; then
+          sed -i 's;^\s*\(JAVA_OPTS\s*=.*\)"$;\1 -Duser.timezone=${jahia_cfg_timezone:-UTC}";' $tomcat_env
+          sed -i 's|%d: %-5p \[%c{1}\] - %encode{%.-2000m}{CRLF}%n%sxThrowable|%d{yyyy-MM-dd HH:mm:ss,SSS}{UTC}: %-5p [%c{1}] - %encode{%.-2000m}{CRLF}%n%sxThrowable|' $log4j_conf
+          echo restart
+        fi
+    - if ("${response.out}" != ""):
+        setGlobals:
+          jahiaRollingRestartNeeded: true
 
 settings:
   fields:
