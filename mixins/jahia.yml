@@ -43,6 +43,7 @@ globals:
     -XshowSettings:vm
     -Dkaraf.handle.sigterm=false
     -Xmn1G
+    -Duser.timezone=${jahia_cfg_timezone:-UTC}
 
 actions:
   #################
