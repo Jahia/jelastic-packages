@@ -1,0 +1,13 @@
+---
+type: update
+version: 1.5.2
+name: Refine tomcat temp cleanup process
+id: paas-2836-refine-tomcat-temp-cleanup
+
+onInstall:
+  - cmd[proc, cp]: |-
+      service_file=/etc/systemd/system/tomcat_tmp_cleanup.service
+      if ! (grep -q jahia-jsps $service_file); then
+        sed -i 's|-type|-not -path '\''*/jahia-jsps/*'\'' &|g' $service_file
+        systemctl daemon-reload
+      fi
