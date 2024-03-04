@@ -43,7 +43,7 @@ globals:
     -XshowSettings:vm
     -Dkaraf.handle.sigterm=false
     -Xmn1G
-    -Duser.timezone=${jahia_cfg_timezone:-UTC}
+    -Duser.timezone=${jahia_cfg_timezone}
 
 actions:
   #################
@@ -128,6 +128,7 @@ actions:
     - initJahiaDatabase
     - log: "## Determine JDK version for good _JAVA_OPTIONS envvar"
     - cmd[proc, cp]: |-
+        tomcat_env=/opt/tomcat/conf/tomcat-env.sh
         case "$($JAVA_HOME/bin/java -version 2>&1 | awk 'NR==1 {print gensub("(\"|_.*)", "", "g", $3)}')" in
           1.8*)
               j_opts='${globals.java_opts}'
@@ -136,7 +137,8 @@ actions:
               j_opts='${globals.java_opts} -Xlog:gc:file=/opt/tomcat/logs/gc.log:time,uptime,level,pid,tid,tags'
               ;;
         esac
-        sed -e '2isource /etc/profile' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i /opt/tomcat/conf/tomcat-env.sh
+        sed -e '2isource /etc/profile' -e "s#\(^JAVA_OPTS=.*\)\(\"$\)#\1 ${j_opts}\2#" -i $tomcat_env
+        sed -i "s/jahia_cfg_timezone/jahia_cfg_timezone:-UTC/" $tomcat_env
     - setJahiaPropertiesEnvvars
     - copyApp: proc, cp
     - setJahiaUserFeedbacksConfig
