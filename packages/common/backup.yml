@@ -305,7 +305,7 @@ actions:
         }
         getLock
         # metadata files are always on eu-west-1
-        AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --envversion '${globals.envVersion}' --displayname '${env.displayName}' --size $size $esversionParameter 2>>${globals.logsPath} || exit 1
+        AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a addmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} ${globals.argTimestamp} -m ${settings.backtype} --envversion '${globals.envVersion}' --displayname "${env.displayName}" --size $size $esversionParameter 2>>${globals.logsPath} || exit 1
         rclone delete backup:${meta_bucket_name}/${lockfile} ${force_region} 2>&1
     - if ("${response.errOut}" != ""):
         - return:
@@ -366,7 +366,7 @@ actions:
             if [ ! -z "$backup_name" ]; then # Just makes sure we are NEVER going to purge an entire bucket
               timestamp=$(echo "$backup_name"|sed 's/.*_\(.*\)_auto/\1/')
               # metadata files are always on eu-west-1
-              AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname '${env.displayName}' 2>>${globals.logsPath} || exit 1
+              AWS_DEFAULT_REGION="eu-west-1" python3 backrest.py -a delmeta --bucketname ${globals.bucketName} --backupname ${settings.backup_name} -t $timestamp -m ${settings.backtype} --displayname "${env.displayName}" 2>>${globals.logsPath} || exit 1
               rclone purge backup:${globals.bucketName}/$backup_name 2>&1
             fi
           done <<<"$(cat /tmp/backups_to_rotate)"
