@@ -37,6 +37,9 @@ onInstall:
   # Actions that require a restart
   - forceConsoleLogsToUTC                            # PAAS-2821
 
+  # This action must be executed last because it contains a rolling restart
+  - upgradeDxClusteringTo8109                        # PAAS-2805 (action from mixins/jahia.yml)
+
   # Actions that require a redeploy
   # (None)
 
