@@ -18,6 +18,7 @@ globals:
 
 onInstall:
   ### Pre-migration actions
+  - checkEnvProvides: jahia
   - checkEnvVersion: ${globals.version}
   - if(!${settings.disable_checks}):
       - preChecks

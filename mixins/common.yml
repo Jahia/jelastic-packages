@@ -1356,3 +1356,17 @@ actions:
           }
         }
         return res
+
+  checkEnvProvides:
+    # Checks if the cp's _PROVIDE envvar match the action's placeholder
+    - script: |-
+        resp = jelastic.env.control.GetContainerEnvVarsByGroup('${env.envName}', session, nodegroup='cp')
+        if(resp.object._PROVIDE == "${this}") {
+          result = 0
+          msg = "${env.envName} provides a " + resp.object._PROVIDE
+          }
+        else {
+          result = 666
+          msg = "${env.envName} doesn't provides a ${this} but a " + resp.object._PROVIDE
+          }
+        return {"result": result, "msg": msg}
