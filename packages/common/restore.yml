@@ -637,6 +637,8 @@ actions:
     - cmd [cp]: service tomcat start
 
     - startupJahiaHealthCheck: cp
+    # Upgrade dx-clustering module if needed
+    - upgradeDxClusteringTo8109
 
   restoreElasticsearch:
     - script: |-
