@@ -2230,14 +2230,18 @@ actions:
             # Uninstall old repo and module version
             - callProvisioningAPI:
                 target: proc
-                payload: '- karafCommand: feature:uninstall -r -v dx-clustering'
+                payload:
+                  - karafCommand: feature:uninstall -r -v dx-clustering
+                    timeout: "5000"
             - if (! ${globals.provisioning_api_call_success}):
                 return:
                 type: error
                 message: "Failed to uninstall dx-clustering on processing node"
             - callProvisioningAPI:
                 target: proc
-                payload: '- karafCommand: feature:repo-remove dx-clustering-${globals.runningVersion}'
+                payload:
+                  - karafCommand: feature:repo-remove dx-clustering-${globals.runningVersion}
+                    timeout: "5000"
             - if (! ${globals.provisioning_api_call_success}):
                 return:
                 type: error
@@ -2245,14 +2249,18 @@ actions:
             - forEach(nodes.cp):
                 - callProvisioningAPI:
                     target: ${@i.id}
-                    payload: '- karafCommand: feature:uninstall -r -v dx-clustering'
+                    payload:
+                      - karafCommand: feature:uninstall -r -v dx-clustering
+                        timeout: "5000"
                 - if (! ${globals.provisioning_api_call_success}):
                     return:
                     type: error
                     message: "Failed to uninstall dx-clustering on browsing node ${@i.id}"
                 - callProvisioningAPI:
                     target: ${@i.id}
-                    payload: '- karafCommand: feature:repo-remove dx-clustering-${globals.runningVersion}'
+                    payload:
+                      - karafCommand: feature:repo-remove dx-clustering-${globals.runningVersion}
+                        timeout: "5000"
                 - if (! ${globals.provisioning_api_call_success}):
                     return:
                     type: error
@@ -2263,14 +2271,18 @@ actions:
             # Install the new repo and module version
             - callProvisioningAPI:
                 target: proc
-                payload: '- karafCommand: "feature:repo-add mvn:org.jahia.bundles/dx-clustering/8.1.0.9/xml/features"'
+                payload:
+                  - karafCommand: "feature:repo-add mvn:org.jahia.bundles/dx-clustering/8.1.0.9/xml/features"
+                    timeout: "5000"
             - if (! ${globals.provisioning_api_call_success}):
                 return:
                 type: error
                 message: "Failed to add repository on processing node"
             - callProvisioningAPI:
                 target: proc
-                payload: '- karafCommand: feature:install -r -v dx-clustering'
+                payload:
+                  - karafCommand: feature:install -r -v dx-clustering
+                    timeout: "5000"
             - if (! ${globals.provisioning_api_call_success}):
                 return:
                 type: error
@@ -2278,14 +2290,18 @@ actions:
             - forEach(nodes.cp):
                 - callProvisioningAPI:
                     target: ${@i.id}
-                    payload: '- karafCommand: "feature:repo-add mvn:org.jahia.bundles/dx-clustering/8.1.0.9/xml/features"'
+                    payload:
+                      - karafCommand: "feature:repo-add mvn:org.jahia.bundles/dx-clustering/8.1.0.9/xml/features"
+                        timeout: "5000"
                 - if (! ${globals.provisioning_api_call_success}):
                     return:
                     type: error
                     message: "Failed to add repository on browsing node ${@i.id}"
                 - callProvisioningAPI:
                     target: ${@i.id}
-                    payload: '- karafCommand: feature:install -r -v dx-clustering'
+                    payload:
+                      - karafCommand: feature:install -r -v dx-clustering
+                        timeout: "5000"
                 - if (! ${globals.provisioning_api_call_success}):
                     return:
                     type: error
