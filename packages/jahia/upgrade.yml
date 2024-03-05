@@ -96,6 +96,9 @@ onInstall:
       operation: upgrade
       checkVersion: false
 
+  # Update dx-clustering if needed
+  - upgradeDxClusteringTo8109
+
   # Re-enable tomcat filtering if needed
   - if(globals.tomcatFiltering):
       - install:
