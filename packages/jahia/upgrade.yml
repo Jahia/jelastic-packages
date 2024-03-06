@@ -13,6 +13,7 @@ mixins:
   - ../../mixins/haproxy.yml
 
 onInstall:
+  - setGlobalRepoRootUrl
   - getJahiaVersion
   - setGlobals:
       initialVersion: ${globals.jahiaVersion}
@@ -57,7 +58,6 @@ onInstall:
       - setGlobals:
           tomcatFiltering: true
   - if(globals.tomcatFiltering):
-      - setGlobalRepoRootUrl
       - install:
           jps: "${globals.repoRootUrl}/packages/jahia/disable-tomcat-filtering.yaml"
           settings:
