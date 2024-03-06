@@ -1,0 +1,33 @@
+---
+type: update
+version: 1.5.2
+name: Update graphql-dxm-provider module
+id: update-graphql-dxm-provider
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - checkModule:
+      moduleSymname: graphql-dxm-provider
+  - isVersionStrictlyHigher:
+      a: ${settings.targetVersion}
+      b: ${globals.runningVersion}
+      res: canUpdate
+  - if (${globals.canUpdate}):
+      - disableHaproxyHealthcheck
+      - installOrUpgradeModules:
+          modules: graphql-dxm-provider/${settings.targetVersion}
+      - checkJahiaHealth: "cp, proc"
+      - enableHaproxyHealthcheck
+  - else:
+
+settings:
+  fields:
+    - name: targetVersion
+      type: string
+      caption: Target Version
+      vtype: text
+      required: true
