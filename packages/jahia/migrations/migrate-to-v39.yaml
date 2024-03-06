@@ -33,6 +33,7 @@ onInstall:
 
   # Regular actions
   - fixAugSearchLanguageCount                        # PAAS-2834
+  - improveJahiaPrivilegedUsersCountScript           # PAAS-2838
 
   # Actions that require a restart
   - forceConsoleLogsToUTC                            # PAAS-2821
@@ -130,6 +131,16 @@ actions:
     - if ("${response.out}" != ""):
         setGlobals:
           jahiaRollingRestartNeeded: true
+
+  improveJahiaPrivilegedUsersCountScript:
+    - cmd[proc, cp]: |-
+        f=/etc/datadog-agent/conf.d/jahia_custom_metrics.d/jahia_privileged_users_count.groovy
+        if ! grep -q "contains" $f; then
+          sed 's,instanceof JCRGroupNode,instanceof JCRGroupNode \&\& \!members.contains(member),' -i $f
+          echo restart
+        fi
+    - if ("${response.out}" == "restart"):
+        - cmd [proc]: systemctl restart datadog-agent
 
 settings:
   fields:
