@@ -122,7 +122,8 @@ actions:
         log4j_conf=/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml
         tomcat_env=/opt/tomcat/conf/tomcat-env.sh
         if ! grep -qE "^\s*JAVA_OPTS\s*=.*user.timezone" $tomcat_env; then
-          sed -i 's;^\s*\(JAVA_OPTS\s*=.*\)"$;\1 -Duser.timezone=${jahia_cfg_timezone:-UTC}";' $tomcat_env
+          sed -i 's;^\s*\(JAVA_OPTS\s*=.*\)"$;\1 -Duser.timezone=${jahia_cfg_timezone}";' $tomcat_env
+          sed -i "s/jahia_cfg_timezone/jahia_cfg_timezone:-UTC/" $tomcat_env
           sed -i 's|%d: %-5p \[%c{1}\] - %encode{%.-2000m}{CRLF}%n%sxThrowable|%d{yyyy-MM-dd HH:mm:ss,SSS}{UTC}: %-5p [%c{1}] - %encode{%.-2000m}{CRLF}%n%sxThrowable|' $log4j_conf
           echo restart
         fi
