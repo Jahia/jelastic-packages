@@ -27,7 +27,7 @@ onInstall:
       - if ("${globals.runningVersion}" != "${settings.targetVersion}"):
         - return:
             type: error
-            message: "The upgrade of graphql-dxm-provider did not return any error but the running version of the module is still ${globals.runningVersion}. Please make sure that the provided version (${targetVersion}) exists and check logs for errors"
+            message: "The upgrade of graphql-dxm-provider did not return any error but the running version of the module is still ${globals.runningVersion}. Please make sure that the provided version (${settings.targetVersion}) exists and check logs for errors"
   - else:
       - log: The provided version (${settings.targetVersion}) is not superior to the currently running version (${globals.runningVersion}), nothing to do
 
