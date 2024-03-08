@@ -154,6 +154,8 @@ actions:
             f_name=/tmp/pax-web-jsp-7.3.7-jahia2.jar
             url=https://devtools.jahia.com/nexus/service/local/repositories/thirdparty-releases/content/org/ops4j/pax/web/pax-web-jsp/7.3.7-jahia2/pax-web-jsp-7.3.7-jahia2.jar
             curl -fSsLo ${f_name} ${url} || exit 1
+            sed "s;pax-web-jsp/7.3.7;pax-web-jsp/7.3.7-jahia2;g" \
+              -i /opt/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-standard/$DX_VERSION/dx-standard-$DX_VERSION-features.xml
             ${globals.karafConsole} update org.ops4j.pax.web.pax-web-jsp file:/tmp/pax-web-jsp-7.3.7-jahia2.jar
         - disableKarafLogin: proc, cp
         - setGlobals:
