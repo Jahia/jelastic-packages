@@ -37,10 +37,10 @@ onInstall:
 
   # Actions that require a restart
   - forceConsoleLogsToUTC                            # PAAS-2821
-  - fixPaxwebjsp                                     # PAAS-2841
 
   # This action must be executed last because it contains a rolling restart
   - upgradeDxClusteringTo8109                        # PAAS-2805 (action from mixins/jahia.yml)
+  - fixPaxwebjsp                                     # PAAS-2841
 
   # Actions that require a redeploy
   # (None)
