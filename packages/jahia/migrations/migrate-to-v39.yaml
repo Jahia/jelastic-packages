@@ -34,6 +34,7 @@ onInstall:
   # Regular actions
   - fixAugSearchLanguageCount                        # PAAS-2834
   - improveJahiaPrivilegedUsersCountScript           # PAAS-2838
+  - installLatestDatadogAgent: "*"                   # PAAS-2820
 
   # Actions that require a restart
   - forceConsoleLogsToUTC                            # PAAS-2821

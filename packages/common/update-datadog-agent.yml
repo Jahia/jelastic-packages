@@ -9,4 +9,4 @@ mixins:
   - "../../mixins/common.yml"
 
 onInstall:
-  - updateDatadogAgentToLatest
+  - installLatestDatadogAgent
