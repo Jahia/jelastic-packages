@@ -35,13 +35,13 @@ onInstall:
   - fixAugSearchLanguageCount                        # PAAS-2834
   - improveJahiaPrivilegedUsersCountScript           # PAAS-2838
   - installLatestDatadogAgent: "*"                   # PAAS-2820
+  - fixPaxwebjsp                                     # PAAS-2841
 
   # Actions that require a restart
   - forceConsoleLogsToUTC                            # PAAS-2821
 
   # This action must be executed last because it contains a rolling restart
   - upgradeDxClusteringTo8109                        # PAAS-2805 (action from mixins/jahia.yml)
-  - fixPaxwebjsp                                     # PAAS-2841
 
   # Actions that require a redeploy
   # (None)
@@ -145,22 +145,8 @@ actions:
         - cmd [proc]: systemctl restart datadog-agent
 
   fixPaxwebjsp:
-    - cmd[proc]: |-
-        unzip -p /data/digital-factory-data/bundles-deployed/bundle108/*/bundle.jar META-INF/MANIFEST.MF \
-          | awk -v RS='\r?\n' '/^Bundle-Version:/ {print $2}'
-    - if ("${response.out}" == "7.3.7"):
-        - enableKarafLogin: proc, cp
-        - cmd[proc,cp]: |-
-            # Download new version
-            f_name=/tmp/pax-web-jsp-7.3.7-jahia2.jar
-            url=https://devtools.jahia.com/nexus/service/local/repositories/thirdparty-releases/content/org/ops4j/pax/web/pax-web-jsp/7.3.7-jahia2/pax-web-jsp-7.3.7-jahia2.jar
-            curl -fSsLo ${f_name} ${url} || exit 1
-            sed "s;pax-web-jsp/7.3.7;pax-web-jsp/7.3.7-jahia2;g" \
-              -i /opt/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-standard/$DX_VERSION/dx-standard-$DX_VERSION-features.xml
-            ${globals.karafConsole} update org.ops4j.pax.web.pax-web-jsp file:/tmp/pax-web-jsp-7.3.7-jahia2.jar
-        - disableKarafLogin: proc, cp
-        - setGlobals:
-            jahiaRollingRestartNeeded: true
+      - cmd[proc,cp]: |-
+          sed "s;pax-web-jsp/7.3.7</bundle>;pax-web-jsp/7.3.7-jahia2</bundle>;g" -i /opt/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-standard/$DX_VERSION/dx-standard-$DX_VERSION-features.xml
 
 settings:
   fields:
