@@ -7,6 +7,7 @@ import json
 import requests
 import datetime
 from http import HTTPStatus
+from multiprocessing import Pool
 from os import environ, path
 from pylastic import Jelastic
 from check_before_hn_upgrade import check_hardwarenodes, \
@@ -21,6 +22,10 @@ logger = logging.getLogger()
 
 
 class Hardware_node_upgrade():
+    STOP_NODES_THREADS_NB = 5
+    STOP_NODES_PACKAGE = "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/stop-nodes.yaml"
+    START_NODES_THREADS_NB = 3
+    START_NODES_PACKAGE = "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/start-nodes.yaml"
 
     def __init__(self, jelastic_session, jelastic_hn_hostname, datadog_hn_hostname, region, recover_file_path,
                  recover_state, dry_run, jserver, dd_app_key, dd_api_key, papi_hostname, papi_token,
@@ -64,7 +69,10 @@ class Hardware_node_upgrade():
             self.persist_running_containers(self.recover_file_path, running_containers)
 
         if not self.skip_stop:
-            self.stop_nodes(running_containers)
+            pool = Pool(self.STOP_NODES_THREADS_NB)
+            pool.map(self.stop_nodes, running_containers.items())
+            pool.close()
+            pool.join()
 
         jelastic_session.signOut()
 
@@ -77,8 +85,12 @@ class Hardware_node_upgrade():
         # Need to re-signup. Don't know why but session seems to expire between first signIn
         # and maitenance disabling. So I added the signout after stop_nodes to re-signIn here
         jelastic_session.signIn()
-        self.start_nodes(running_containers)
+        pool = Pool(self.START_NODES_THREADS_NB)
+        pool.map(self.start_nodes, running_containers.items())
+        pool.close()
+        pool.join()
         jelastic_session.signOut()
+
         self.ask_to_disable_maintenance_mode()
         jelastic_session.signIn()
         self.set_hn_status(hn_infos, "ACTIVE")
@@ -184,33 +196,31 @@ class Hardware_node_upgrade():
         return organization["jelastic_login"]
 
     def stop_nodes(self, running_containers):
-        package = \
-            "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/stop-nodes.yaml"
-        for envname, containers in running_containers.items():
-            logger.info("Stopping the following containers for " + envname + ": " + str(containers))
-            settings = {"nodesToStop": json.dumps(containers), "dryRun": self.dry_run}
-            res = json.loads(self.run_jelastic_package(settings, package, envname))
-            if res["response"]["result"] != 0:
-                a = res["response"]["action"]
-                e = res["response"]["error"]
-                errormsg = f'The package returned an error in {a} action: {e}'
-                logger.error(errormsg)
-                self.errors_list.append(errormsg)
-                exit(1)
+        envname = running_containers[0]
+        containers = running_containers[1]
+        logger.info("Stopping the following containers for " + envname + ": " + str(containers))
+        settings = {"nodesToStop": json.dumps(containers), "dryRun": self.dry_run}
+        res = json.loads(self.run_jelastic_package(settings, self.STOP_NODES_PACKAGE, envname))
+        if res["response"]["result"] != 0:
+            a = res["response"]["action"]
+            e = res["response"]["error"]
+            errormsg = f'The package returned an error in {a} action: {e}'
+            logger.error(errormsg)
+            self.errors_list.append(errormsg)
+            exit(1)
 
     def start_nodes(self, running_containers):
-        package = \
-            "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/start-nodes.yaml"
-        for envname, containers in running_containers.items():
-            logger.info("Starting the following containers for " + envname + ": " + str(containers))
-            settings = {"nodesToStart": containers, "dryRun": self.dry_run}
-            res = json.loads(self.run_jelastic_package(settings, package, envname))
-            if res["response"]["result"] != 0:
-                a = res["response"]["action"]
-                e = res["response"]["error"]
-                errormsg = f'The package returned an error in {a} action: {e}'
-                logger.error(errormsg)
-                self.errors_list.append(errormsg)
+        envname = running_containers[0]
+        containers = running_containers[1]
+        logger.info("Starting the following containers for " + envname + ": " + str(containers))
+        settings = {"nodesToStart": containers, "dryRun": self.dry_run}
+        res = json.loads(self.run_jelastic_package(settings, self.START_NODES_PACKAGE, envname))
+        if res["response"]["result"] != 0:
+            a = res["response"]["action"]
+            e = res["response"]["error"]
+            errormsg = f'The package returned an error in {a} action: {e}'
+            logger.error(errormsg)
+            self.errors_list.append(errormsg)
 
     def run_jelastic_package(self, settings, package, envname):
         jelastic_login = self.get_jelastic_login_from_envname(envname)
