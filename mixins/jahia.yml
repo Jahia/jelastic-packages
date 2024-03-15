@@ -2053,21 +2053,28 @@ actions:
     # Parameters:
     # - operation: type of operation performed
     # - checkVersion: if true, add versions to validation
-    - enableKarafLogin: "proc, cp"
-    - cmd [proc]: date +"%Y-%m-%dT%H:%M:%S"
-    - set:
-        nowDate: ${response.out}
+    - script: |-
+        res = {"result": 0}
+        res.onAfterReturn = {
+          set: {
+            nowDate: new Date().toISOString()
+          }
+        }
+        return res
     - if (${this.checkVersion}):
-      - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $6, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $4, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+      - callProvisioningAPI:
+          target: "proc, cp"
+          payload:
+            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$6 \$7}" > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate} 
     - else:
-      - cmd[cp, proc]: |-
-          ${globals.karafConsole} cluster:bundle-list -s default | awk -F ' │' 'NR > 3 { print $2, $7 }' > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-          ${globals.karafConsole} bundle:list -s | awk -F ' │' 'NR > 3 { print $2, $5 }' > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+       - callProvisioningAPI:
+          target: "proc, cp"
+          payload:
+            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$7}" > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR>3 {print \$2 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - cmd[cp, proc]: |-
         sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
-    - disableKarafLogin: "proc, cp"
 
   checkModulesAfterOperation:
     # Parameters:
