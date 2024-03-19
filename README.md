@@ -749,6 +749,8 @@ This script prepares a Hardware Node to be upgraded. It does the following actio
 | _--state-file-path_                 | The path of the state file used to save the list of nodes and their status                                                                                                                           |
 | _--recover-state_                   | If this parameter is set, the state file won't be created/updated (useful if the script has been stopped before restarting the nodes during a previous run for instance and the file already exists) |
 | _--skip-stop_                       | If this parameter is set, the script won't check the cluster state nor stop nodes on the HN. It can't be used if --recover-state is not set                                                          |
+| _--stop_nodes_threads_nb_           | The number of environments processed in parallel when stopping nodes (default: 4)                                                                                                                    |
+| _--start_nodes_threads_nb_          | The number of environments processed in parallel when starting nodes (default: 2)                                                                                                                    |
 
 ##### common/lib_aws.py
 
