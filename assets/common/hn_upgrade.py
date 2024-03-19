@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
-import atexit
 import argparse
 import logging
 import json
 import requests
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
-from multiprocessing import Pool
 from os import environ, path
 from pylastic import Jelastic
 from check_before_hn_upgrade import check_hardwarenodes, \
@@ -22,14 +21,12 @@ logger = logging.getLogger()
 
 
 class Hardware_node_upgrade():
-    STOP_NODES_THREADS_NB = 5
     STOP_NODES_PACKAGE = "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/stop-nodes.yaml"
-    START_NODES_THREADS_NB = 3
     START_NODES_PACKAGE = "https://raw.githubusercontent.com/Jahia/jelastic-packages/main/packages/common/start-nodes.yaml"
 
     def __init__(self, jelastic_session, jelastic_hn_hostname, datadog_hn_hostname, region, recover_file_path,
                  recover_state, dry_run, jserver, dd_app_key, dd_api_key, papi_hostname, papi_token,
-                 skip_stop):
+                 skip_stop, stop_nodes_threads_nb, start_nodes_threads_nb):
         self.jelastic_session = jelastic_session
         self.jelastic_hardware_node_hostname = jelastic_hn_hostname
         self.datadog_hardware_node_hostname = datadog_hn_hostname
@@ -43,6 +40,8 @@ class Hardware_node_upgrade():
         self.papi_hostname = papi_hostname
         self.papi_token = papi_token
         self.skip_stop = skip_stop
+        self.stop_nodes_threads_nb = stop_nodes_threads_nb
+        self.start_nodes_threads_nb = start_nodes_threads_nb
         self.errors_list = []
 
     def start_hn_upgrade(self):
@@ -69,12 +68,8 @@ class Hardware_node_upgrade():
             self.persist_running_containers(self.recover_file_path, running_containers)
 
         if not self.skip_stop:
-            pool = Pool(self.STOP_NODES_THREADS_NB)
-            pool.map(self.stop_nodes, running_containers.items())
-            pool.close()
-            pool.join()
-
-        jelastic_session.signOut()
+            with ThreadPoolExecutor(self.stop_nodes_threads_nb) as pool:
+                pool.map(self.stop_nodes, running_containers.items())
 
         self.mute_hardware_node(self.datadog_hardware_node_hostname)
         self.wait_for_system_upgrade_to_be_done()
@@ -82,17 +77,10 @@ class Hardware_node_upgrade():
         if self.recover_state:
             running_containers = self.retrieve_running_containers(self.recover_file_path)
 
-        # Need to re-signup. Don't know why but session seems to expire between first signIn
-        # and maitenance disabling. So I added the signout after stop_nodes to re-signIn here
-        jelastic_session.signIn()
-        pool = Pool(self.START_NODES_THREADS_NB)
-        pool.map(self.start_nodes, running_containers.items())
-        pool.close()
-        pool.join()
-        jelastic_session.signOut()
+        with ThreadPoolExecutor(self.start_nodes_threads_nb) as pool:
+            pool.map(self.start_nodes, running_containers.items())
 
         self.ask_to_disable_maintenance_mode()
-        jelastic_session.signIn()
         self.set_hn_status(hn_infos, "ACTIVE")
         self.unmute_hardware_node(self.datadog_hardware_node_hostname)
 
@@ -128,6 +116,7 @@ class Hardware_node_upgrade():
         if self.dry_run:
             return
 
+        jelastic_session.signIn()
         url = self.jelastic_session.hostname + "/1.0/administration/cluster/rest/edithdnode"
         # According to the documentation, all parameters are optional (even id...)
         # But as the api throw an error when one of the following is missing,
@@ -198,40 +187,54 @@ class Hardware_node_upgrade():
     def stop_nodes(self, running_containers):
         envname = running_containers[0]
         containers = running_containers[1]
-        logger.info("Stopping the following containers for " + envname + ": " + str(containers))
+        logger.info(f'Stopping the following containers for {envname} environment:{str(containers)}')
         settings = {"nodesToStop": json.dumps(containers), "dryRun": self.dry_run}
-        res = json.loads(self.run_jelastic_package(settings, self.STOP_NODES_PACKAGE, envname))
-        if res["response"]["result"] != 0:
-            a = res["response"]["action"]
-            e = res["response"]["error"]
-            errormsg = f'The package returned an error in {a} action: {e}'
+        success, action, error = self.run_jelastic_package(settings, self.STOP_NODES_PACKAGE, envname)
+        if not success:
+            errormsg = f'The package returned an error in {action} action for {envname} environment: {error}'
             logger.error(errormsg)
             self.errors_list.append(errormsg)
-            exit(1)
+        else:
+            logger.info(f'The following containers were successfully stopped for {envname} environment: {str(containers)}')
 
     def start_nodes(self, running_containers):
         envname = running_containers[0]
         containers = running_containers[1]
-        logger.info("Starting the following containers for " + envname + ": " + str(containers))
+        logger.info(f'Starting the following containers for {envname} environment:{str(containers)}')
         settings = {"nodesToStart": containers, "dryRun": self.dry_run}
-        res = json.loads(self.run_jelastic_package(settings, self.START_NODES_PACKAGE, envname))
-        if res["response"]["result"] != 0:
-            a = res["response"]["action"]
-            e = res["response"]["error"]
-            errormsg = f'The package returned an error in {a} action: {e}'
+        success, action, error = self.run_jelastic_package(settings, self.START_NODES_PACKAGE, envname)
+        if not success:
+            errormsg = f'The package returned an error in {action} action for {envname} environment: {error}'
             logger.error(errormsg)
             self.errors_list.append(errormsg)
+        else:
+            logger.info(f'The following containers were successfully started for {envname} environment: {str(containers)}')
 
     def run_jelastic_package(self, settings, package, envname):
         jelastic_login = self.get_jelastic_login_from_envname(envname)
-        juser_token = jelastic_session.sysAdminSignAsUser(jelastic_login)
+        try:
+            jelastic_session.signIn()
+        except Exception as e:
+            return False, "jelastic.signIn", str(e)
+        try:
+            juser_token = jelastic_session.sysAdminSignAsUser(jelastic_login)
+        except Exception as e:
+            return False, "jelastic.signInAsUser", str(e)
         juser_sess = Jelastic(hostname=self.jserver,
                               login=jelastic_login,
                               session=juser_token)
-        res = juser_sess.devScriptEval(package, envname, settings=settings)
-        logger.info(res)
-        juser_sess.signOut()
-        return res.text
+        try:
+            res = juser_sess.devScriptEval(package, envname, settings=settings)
+        except Exception as e:
+            return False, "jelastic.devScriptEval", str(e)
+
+        logger.debug(res)
+
+        res = json.loads(res.text)["response"]
+        if res["result"] != 0:
+            return False, res["action"], res["error"]
+
+        return True, None, None
 
     def mute_hardware_node(self, hn_hostname):
         logger.info("Muting " + hn_hostname + " in datadog")
@@ -391,6 +394,15 @@ def argparser():
                            dest="skip_stop",
                            help="If this parameter is set, the script won't check the cluster state and stop nodes on the HN. It can't be used if --recover-state is not set. It's meant to be used if the script was unintentially exited during the upgrade, of if starting some nodes failed")
 
+    args_list.add_argument("--stop-nodes-threads-nb",
+                           dest="stop_nodes_threads_nb",
+                           default=4,
+                           help="The number of stop-nodes packages running in parallel (default: 4)")
+    args_list.add_argument("--start-nodes-threads-nb",
+                           dest="start_nodes_threads_nb",
+                           default=2,
+                           help="The number of start-nodes packages running in parallel (default: 2)")
+
     args = parser.parse_args()
 
     MANDATORY_VARIABLES = ["jelastic_hn_hostname", "datadog_hn_hostname", "juser", "jpassword",
@@ -434,10 +446,11 @@ if __name__ == "__main__":
         args.dd_api_key,
         args.papi_hostname,
         args.papi_token,
-        args.skip_stop
+        args.skip_stop,
+        int(args.stop_nodes_threads_nb),
+        int(args.start_nodes_threads_nb)
     )
 
-    atexit.register(hn_upgrade.replay_errors)
     hn_upgrade.start_hn_upgrade()
 
     jelastic_session.signOut()
