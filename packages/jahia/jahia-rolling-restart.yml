@@ -6,6 +6,7 @@ name: Jahia nodes rolling restart
 description: Rolling restart all Jahia nodes (cp & proc)
 
 mixins:
+  - ../../mixins/common.yml
   - ../../mixins/jahia.yml
 
 onInstall:
