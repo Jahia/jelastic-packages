@@ -315,6 +315,7 @@ class Hardware_node_upgrade():
         self.replay_errors()
         val = ""
         while val not in ["yes", "abort"]:
+            print("︙ ⚠⚠⚠ Validate that the OS template update is over in /tmp/template_update.log on the HN before continuing ⚠⚠⚠")
             val = input("Disable maintenance on the hardware node[yes/abort]\n")
         if val == "abort":
             logger.info("Aborting without disabling maintenance mode...")
