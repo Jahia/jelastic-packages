@@ -852,12 +852,13 @@ actions:
               continue
             else
               # Alias of the original env, we need to create a similar alias for the current env
+              rename_alias=false
               new_alias_index_name=$(echo $index_name | sed -r 's/.+__jc(-.+)/'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'\1/')
             fi
           fi
 
           new_alias_name="$(echo $alias_name | sed -r 's/.+__jc(-.+)/'${UNOMI_ELASTICSEARCH_INDEXPREFIX}'\1/')"
-          if (rename_alias); then
+          if $rename_alias; then
             echo "index $index_name: alias is $alias_name while it should be $new_alias_name" >> ${globals.logsPath}
             return_code=$(curl -sS -o $output_file -w '%{http_code}' \
               -H 'Content-Type: application/json' \
