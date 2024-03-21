@@ -1366,6 +1366,11 @@ actions:
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
     - startupJahiaHealthCheck: ${nodes.proc.first.id}
+    - callProvisioningAPI:
+        target: proc
+        payload:
+          - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
+          - karafCommand: "cluster:bundle-start default distributed-sessions server-availability-manager"
 
   browsingNodesBulkRedeploy:
     # Parameters:
@@ -1376,6 +1381,10 @@ actions:
       useExistingVolumes: false
       skipReinstall: false
       envName: ${env.envName}
+    - callProvisioningAPI:
+        target: cp
+        payload:
+          - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
 
   browsingNodesRollingRedeploy:
     # Parameters:
@@ -1394,6 +1403,10 @@ actions:
           useExistingVolumes: ${this.useExistingVolumes}
           skipReinstall: false
           envName: ${env.envName}
+        - callProvisioningAPI:
+            target: ${@i.id}
+            payload:
+              - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
 
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-
@@ -2066,7 +2079,7 @@ actions:
           target: "proc, cp"
           payload:
             - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$6 \$7}" > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate} 
+            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - else:
        - callProvisioningAPI:
           target: "proc, cp"
