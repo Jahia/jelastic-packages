@@ -147,20 +147,25 @@ def split_into_groups(hn_links, max_group_size):
         Split hns into compatible groups
     """
     groups = []
-    i = 0
     while not is_optimized(hn_links):
         less_linked = get_less_linked_hn(hn_links)
         logger.debug("Less linked: " + less_linked)
         group = [less_linked]
-        max_size = len(hn_links[less_linked]) if max_group_size == 0 else max_group_size - 1
-
-        for elem in hn_links[less_linked][0:max_size]:
+        max_size = len(hn_links[less_linked]) if max_group_size == 0 else max_group_size
+        for elem in hn_links[less_linked]:
+            compatible = True
+            for elem_in_group in group:
+                if elem not in hn_links[elem_in_group]:
+                    compatible = False
+                    break
+            if not compatible:
+                continue
             group.append(elem)
+            if len(group) >= max_size:
+                break
 
         groups.append(group)
         hn_links = clear_hn(hn_links, less_linked, max_size)
-        i += 1
-
     for hn, linked in hn_links.items():
         groups.append([hn])
 
