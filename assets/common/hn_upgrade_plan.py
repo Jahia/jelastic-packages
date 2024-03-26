@@ -114,13 +114,13 @@ def get_less_linked_hn(hn_links):
     return less_linked
 
 
-def clear_hn(hn_links, hn_to_del, max_group_size):
+def clear_hn(hn_links, hn_to_del, group):
     """
         Remove all occurences of an HN and the hn linked to him from the hn_links dict
     """
     cleaned_hn_links = {}
     linked = hn_links[hn_to_del]
-    linked_to_del = hn_links[hn_to_del][0:max_group_size]
+    linked_to_del = group
     for hn, linked in hn_links.items():
         if hn == hn_to_del or hn in linked_to_del:  # ignore the hn to del and those linked
             continue
@@ -165,7 +165,7 @@ def split_into_groups(hn_links, max_group_size):
                 break
 
         groups.append(group)
-        hn_links = clear_hn(hn_links, less_linked, max_size)
+        hn_links = clear_hn(hn_links, less_linked, group)
     for hn, linked in hn_links.items():
         groups.append([hn])
 
