@@ -1,0 +1,57 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2883 - Apply spring-web custom patch
+id: paas-2883-apply-spring-web-custom-patch
+description:
+  short: Update sprint-web lib to fix security issue https://academy.jahia.com/cms/render/default/customer-center/jahia/patches/security-patch-march-2024
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - checkIfNeeded: proc
+  - if("${response.out}" == "TOPATCH"):
+      - removeProcNodeFromHaproxy:
+          reload: true
+      - queryShutdownEndpoint:
+          target: ${nodes.proc.first.id}
+      - installPatch: ${nodes.proc.first.id}
+      - addProcNodeToHaproxy:
+          reload: true
+
+  - foreach (nodes.cp):
+      - checkIfNeeded: ${@i.id}
+      - if("${response.out}" == "TOPATCH"):
+          - removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
+          - queryShutdownEndpoint:
+              target: ${@i.id}
+          - installPatch: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
+actions:
+  checkIfNeeded:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-3.2.18.jahia4_OSGI.jar"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+        else
+          echo "TOPATCH"
+        fi
+  installPatch:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-3.2.18.jahia4_OSGI.jar"
+        patch_url="https://downloads.jahia.com/downloads/jahia/security-patches/2024-03/spring-web-3.2.18.jahia4_OSGI.jar"
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-*.jar
+        curl -fLSso $patch_file $patch_url || exit 1
+        chmod 644 $patch_file
+        chown tomcat: $patch_file
+        systemctl start tomcat
+    - startupJahiaHealthCheck: ${this}
