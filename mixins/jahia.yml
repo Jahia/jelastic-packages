@@ -149,6 +149,8 @@ actions:
     - cmd [proc]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
         mv ${file}-disabled $file
+    - cmd[proc, cp]: |-
+        systemctl restart proxysql
     - api: env.control.ExecDockerRunCmd
       nodeId: ${nodes.proc.first.id}
     - checkPatGroovyScriptExecution
