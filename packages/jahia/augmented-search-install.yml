@@ -30,51 +30,21 @@ onInstall:
 actions:
   determineModulesVersions:
     - getJahiaVersion
-    - isVersionBetween:
-        lower: 8.0.0.0
-        lower_may_equal: true
-        version: ${globals.jahiaVersion}
-        higher: 8.1.0.0
-        higher_may_equal: false
-        res: jahia80
-    - if(globals.jahia80):
-        return:
-          type: error
-          message: "Jahia v8.0 aren't compatible, this is Jahia v${globals.jahiaVersion}"
-    - else:  # if jahia 8.1+
-        - setGlobals:
-            db_connector_ver: 1.5.0
-            es_connector_ver: 3.2.0
-            augsearch_ver: 3.5.0
-        - isVersionStrictlyLower:
-            a: ${globals.jahiaVersion}
-            b: 8.1.1.0
-            res: jahia810
-        - if(globals.jahia810):
-            - setGlobals:  # if jahia 8.1.0
-                graphql_ver: 2.8.1
-                jahia_admin_ver: 1.5.0
-        - isVersionStrictlyLower:
-            a: ${globals.jahiaVersion}
-            b: 8.1.2.0
-            res: lessjahia812
-        - if(globals.lessjahia812):
-            - setGlobals:  # if jahia < 8.1.2 jContent has to be upgraded
-                jcontent_ver: 2.7.0
+    - setGlobals:
+        db_connector_ver: 1.5.0
+        es_connector_ver: 3.2.0
+        augsearch_ver: 3.6.0
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.1.3.0
+        res: lessjahia813
+    - if(globals.lessjahia813):
+        - setGlobals:  # if jahia < 8.1.3
+            augsearch_ver: 3.4.2
 
   installModules:
     - cmd[proc, cp]: |-
         rm -f /data/digital-factory-data/karaf/etc/org.jahia.modules.augmentedsearch.cfg
-    - if(globals.jahia810):  # if jahia 8.1.0 then graphql-dxm-provider and jahia-administration must be upgraded
-        - disableHaproxyHealthcheck  # upgrading graphql temporarily break the healthcheck
-        - installOrUpgradeModules:
-            modules: graphql-dxm-provider/${globals.graphql_ver}
-        - enableHaproxyHealthcheck
-        - installOrUpgradeModules:
-            modules: jahia-administration/${globals.jahia_admin_ver}
-    - if(globals.lessjahia812):
-        - installOrUpgradeModules:
-            modules: jcontent/${globals.jcontent_ver}
     - installOrUpgradeModules:
         modules: database-connector/${globals.db_connector_ver}, elasticsearch-connector/${globals.es_connector_ver}, augmented-search/${globals.augsearch_ver}
 
