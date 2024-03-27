@@ -808,7 +808,7 @@ actions:
 
         # Check if we restore a backup of an existing env present on the same EC deployment
         # If so, aliases will be excluded from restore to prevent conflicts errors
-        prefix=$(curl -s -u $__secret__ec_admin_credentials -XGET "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/creve-charogne-rgorain/${timestamp}_manual"|jq .snapshots[0].indices[0] -r | sed 's/\(.*__jc\).*/\1/')
+        prefix=$(curl -s -u $__secret__ec_admin_credentials -XGET "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_snapshot/${env.shortdomain}/${timestamp}_manual"|jq .snapshots[0].indices[0] -r | sed 's/\(.*__jc\).*/\1/')
         existing_index=$(curl -su $__secret__ec_admin_credentials "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?format=json"| jq --arg prefix $prefix '.[] | select(.index | contains($prefix))|.index' -r)
         if [ "$existing_index" == "" ]; then
           include_aliases=true
