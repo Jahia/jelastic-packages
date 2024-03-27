@@ -47,6 +47,7 @@ actions:
         fi
   installPatch:
     - cmd[${this}]: |-
+        systemctl stop tomcat
         patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-3.2.18.jahia4_OSGI.jar"
         patch_url="https://downloads.jahia.com/downloads/jahia/security-patches/2024-03/spring-web-3.2.18.jahia4_OSGI.jar"
         rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-*.jar
