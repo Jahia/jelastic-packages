@@ -24,6 +24,10 @@ globals:
 onInstall:
   - getNodesListsAndCheckData
   - muteNodesInDatadog
+  - muteEnvWideMonitors:
+      duration: 60
+  - muteMonitorsImpactedByOtherNodes:
+      duration: 60
 
   - if (nodes.proc):  # Jahia
     - if (globals.nodesDict.proc): # Processing

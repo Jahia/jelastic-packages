@@ -111,6 +111,9 @@ onInstall:
           - callCheckJcustomerHealthWhenStartingAction: ${@i}
           - callunmuteDatadogHostAction: ${@i}
 
+  - unmuteMonitorsImpactedByOtherNodes
+  - unmuteEnvWideMonitors
+
   - return:
       type: success
       message: ${globals.output}

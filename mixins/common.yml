@@ -793,7 +793,6 @@ actions:
     - setGlobals:
         bucketName: ${response.out}
 
-
   muteDatadogHost:
     # Parameters:
     #  - target: target node group or id
@@ -1098,13 +1097,34 @@ actions:
   muteEnvWideMonitors:
     # Parameters:
     #  - duration: mute duration in minutes. Optional, default 2880 (48h)
+    muteMonitorsByTags:
+      duration: ${this.duration}
+      tag: env-wide
+
+  unmuteEnvWideMonitors:
+    unmuteMonitorsByTags:
+      tag: env-wide
+
+  muteMonitorsImpactedByOtherNodes:
+    muteMonitorsByTags:
+      duration: ${this.duration}
+      tag: impacted-by-other-nodes
+
+  unmuteMonitorsImpactedByOtherNodes:
+    unmuteMonitorsByTags:
+      tag: impacted-by-other-nodes
+
+  muteMonitorsByTags:
+    # Parameters:
+    #  - duration: mute duration in minutes. Optional, default 2880 (48h)
+    #  - tag: the tag of monitors to mute
     - getVaultData
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
-        SCOPE_TAG="env-wide"
+        SCOPE_TAG="${this.tag}"
         monitors_id=($(curl -s "https://api.${DD_SITE}/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
         MUTE_END=$(date -d "+${this.duration:2880}min" +%s)
 
@@ -1113,21 +1133,22 @@ actions:
           curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/mute?scope=envname:$ENVNAME&end=$MUTE_END" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
         done
 
-  unmuteEnvWideMonitors:
+  unmuteMonitorsByTags:
+    # Parameters:
+    #  - tag: the tag of monitors to unmute
     - getVaultData
     - vaultSecretReadKeyB64:
         secretPath: "paas/customers/${globals.organizationName}/common/datadog"
         secretKey: "datadog_app_key"
     - cmd[${nodes.cp.first.id}]: |-
         __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
-        SCOPE_TAG="env-wide"
+        SCOPE_TAG="${this.tag}"
         monitors_id=($(curl -s "https://api.${DD_SITE}/api/v1/monitor/search?query=tag%3A%22$SCOPE_TAG%22" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" | jq '.monitors[] | .id'))
 
         ENVNAME="${env.envName}"
         for monitor_id in "${monitors_id[@]}"; do
           curl -s "https://api.${DD_SITE}/api/v1/monitor/$monitor_id/unmute?scope=envname:$ENVNAME" -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" -H "DD-API-KEY: $DATADOGAPIKEY" -XPOST
         done
-
 
   setupRclone:
     - setGlobalRepoRootUrl
