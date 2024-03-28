@@ -11,10 +11,11 @@ mixins:
   - ../../mixins/common.yml
 
 onInstall:
-  - ForEach(nodes.cp):
-      - checkDatadogAgentCheck:
-          target: ${@i.id}
-          checkName: jcustomer_status
+  - if(!${settings.disable_checks}):
+      - ForEach(nodes.cp):
+          - checkDatadogAgentCheck:
+              target: ${@i.id}
+              checkName: jcustomer_status
   - ForEach(nodes.cp):
       - updateGeoliteDatabase: ${@i.id}
 
@@ -33,3 +34,9 @@ actions:
     - if ("${response.out}" != ""):
         - api: environment.control.RestartNodeById
           nodeId: ${this}
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable jcustomer status check
