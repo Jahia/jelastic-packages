@@ -12,6 +12,9 @@ mixins:
   - "../../mixins/haproxy.yml"
 
 onInstall:
+  - dumpModules:
+      operation: patch-spring-web
+      checkVersion: false
   - checkIfNeeded: proc
   - if("${response.out}" == "TOPATCH"):
       - removeProcNodeFromHaproxy:
@@ -35,6 +38,9 @@ onInstall:
               nodeId: ${@i.id}
               nodeIp: ${@i.intIP}
               reload: true
+  - checkModulesAfterOperation:
+      operation: patch-spring-web
+      checkVersion: false
 
 actions:
   checkIfNeeded:
