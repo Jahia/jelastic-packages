@@ -111,8 +111,11 @@ onInstall:
           - callCheckJcustomerHealthWhenStartingAction: ${@i}
           - callunmuteDatadogHostAction: ${@i}
 
-  - unmuteMonitorsImpactedByOtherNodes
-  - unmuteEnvWideMonitors
+  # As some monitors takes up to 5 minutes to recover, we set a 5 min dowtime instead of unmuting
+  - muteEnvWideMonitors:
+      duration: 5
+  - muteMonitorsImpactedByOtherNodes:
+      duration: 5
 
   - return:
       type: success
