@@ -747,63 +747,61 @@ actions:
           ec_deployment_name=$(echo $ec_deployment | jq -r .name)
           papi.py -X PUT "ec-deployment/$ec_deployment_id" -d '{"score":'$new_score'}' >> ${globals.logsPath}
 
-          if [[ "${env.region}" != "aws-univ" ]]; then
-            __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
+          __secret__CCToken=$(echo -n ${this.__secret__circleCiToken} | base64 -d)
 
-            generate_payload() {
-            if [[ "${globals.cloud_conf.ec.tag}" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
-              branch_or_tag="tag"
-            else
-              branch_or_tag="branch"
-            fi
-            cat << EOF
-        {
-          "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
-          "parameters": {
-            "workflow": "terraform_apply",
-            "env": "$JEL_ENV_ROLE",
-            "papi_organization_id": $organization_id,
-            "papi_instance_id": $ec_deployment_id,
-            "papi_instance_name": "$ec_deployment_name"
-          }
-        }
-        EOF
-            }
-
-            response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
-                          -H "Circle-Token: $__secret__CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
-            if [ $? -ne 0 ]; then
-              echo "Pipeline trigger failed: $response"
-              exit 1
-            fi
-
-            pipelineId=$(echo $response | jq -r .id)
-            sleep 1  # it seems to take a few milliseconds for the pipeline to really be created in CCI...
-            response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
-            if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
-              echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
-              exit 1
-            fi
-
-            # Wait for max 10 minutes for EC deployment update to finish then restore the snapshot anyways
-            timeout=600 # 10 minutes
-            sleep_interval=20
-            workflow_status="running"
-            while [ "$workflow_status" = "running" ]; do
-              sleep $sleep_interval
-              response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
-              if [ $? -eq 0 ]; then
-                new_workflow_status=$(echo $response | jq -r '.items[0].status')
-                if [ "$new_workflow_status" != "null" ]; then
-                  workflow_status=$new_workflow_status
-                fi
-              fi
-              if [ $timeout -lt 1 ]; then
-                break
-              fi
-              ((timeout-=$sleep_interval))
-            done
+          generate_payload() {
+          if [[ "${globals.cloud_conf.ec.tag}" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            branch_or_tag="tag"
+          else
+            branch_or_tag="branch"
           fi
+          cat << EOF
+          {
+            "$branch_or_tag": "${globals.cloud_conf.ec.tag}",
+            "parameters": {
+              "workflow": "terraform_apply",
+              "env": "$JEL_ENV_ROLE",
+              "papi_organization_id": $organization_id,
+              "papi_instance_id": $ec_deployment_id,
+              "papi_instance_name": "$ec_deployment_name"
+            }
+          }
+        EOF
+          }
+
+          response=$(curl -fLSs -XPOST "https://circleci.com/api/v2/project/github/Jahia/cloud-ec-infra/pipeline" \
+                        -H "Circle-Token: $__secret__CCToken" --header 'content-type: application/json' --data "$(generate_payload)")
+          if [ $? -ne 0 ]; then
+            echo "Pipeline trigger failed: $response"
+            exit 1
+          fi
+
+          pipelineId=$(echo $response | jq -r .id)
+          sleep 1  # it seems to take a few milliseconds for the pipeline to really be created in CCI...
+          response=$(curl -LSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
+          if [ "$(echo $response | jq -r '.items[0].status')" == "null" ]; then
+            echo "No workflow created on CircleCI, aborting. Pipeline ID: $pipelineId. Response: $response" >&2
+            exit 1
+          fi
+
+          # Wait for max 10 minutes for EC deployment update to finish then restore the snapshot anyways
+          timeout=600 # 10 minutes
+          sleep_interval=20
+          workflow_status="running"
+          while [ "$workflow_status" = "running" ]; do
+            sleep $sleep_interval
+            response=$(curl -fLSs "https://circleci.com/api/v2/pipeline/$pipelineId/workflow" -H "Circle-Token: $__secret__CCToken")
+            if [ $? -eq 0 ]; then
+              new_workflow_status=$(echo $response | jq -r '.items[0].status')
+              if [ "$new_workflow_status" != "null" ]; then
+                workflow_status=$new_workflow_status
+              fi
+            fi
+            if [ $timeout -lt 1 ]; then
+              break
+            fi
+            ((timeout-=$sleep_interval))
+          done
         fi
 
         # Check if we restore a backup of an existing env present on the same EC deployment
