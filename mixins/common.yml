@@ -439,8 +439,12 @@ actions:
     - setGlobalRepoRootUrl
     - cmd [${this}]: |-
         if [ ! -f /usr/local/bin/papi.py ]; then
-          python3 -m pip install --upgrade pip
-          python3 -m pip install requests
+          if grep -q 'AlmaLinux' /etc/os-release; then
+            yum -y install python3-requests
+          else
+            python3 -m pip install --upgrade pip
+            python3 -m pip install requests
+          fi
           curl --retry 6 -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
           chmod 755 /usr/local/bin/papi.py
         fi

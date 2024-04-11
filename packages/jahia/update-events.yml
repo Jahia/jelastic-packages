@@ -172,10 +172,6 @@ onAfterRedeployContainer[bl]:
       - installRequiredPackages:
           target: ${event.params.nodeGroup}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeGroup}
-          python_major_version: 3
-          python_minor_version: 8
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -187,10 +183,6 @@ onAfterRedeployContainer[bl]:
       - installRequiredPackages:
           target: ${event.params.nodeId}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeId}
-          python_major_version: 3
-          python_minor_version: 8
       - setupDatadogAgentHaproxy: ${event.params.nodeId}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -208,10 +200,6 @@ onAfterScaleOut[bl]:
       - installRequiredPackages:
           target: ${@i.id}
           packages: "jq rclone"
-      - installPython:
-          target: ${@i.id}
-          python_major_version: 3
-          python_minor_version: 8
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
