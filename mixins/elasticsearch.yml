@@ -317,9 +317,6 @@ actions:
 
         es_endpoint=$(echo $ec_deployment | jq -r .es_endpoint)
 
-        sed -i "s,curl.*9200,curl -u \\\"\${UNOMI_ELASTICSEARCH_USERNAME}:\${UNOMI_ELASTICSEARCH_PASSWORD}\\\" \\\"https://\${UNOMI_ELASTICSEARCH_ADDRESSES}\\\",g" /etc/systemd/system/karaf.service
-        systemctl daemon-reload
-
         es_hostname=$(echo $es_endpoint | sed 's,https\?\:\/\/,,g')
         echo "$es_hostname"
 
