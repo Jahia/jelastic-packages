@@ -297,6 +297,7 @@ onBeforeInstall: |
 
   node_storage = {
     "nodeType": "storage",
+    "tag": "2.0-10.5-almalinux-9"
     "cloulets": glusterFSCloudlets,
     "count": ${settings.sqldbNodeCount},
     "nodeGroup": "storage",
@@ -329,8 +330,11 @@ onInstall:
   - installRequiredPackages:
       target: "bl, sqldb, storage"
       packages: "jq rclone"
+  - installRequiredPackages:
+      target: storage
+      packages: "python3-pip"
   - installPython:
-      target: "bl, sqldb, storage"
+      target: "bl, sqldb"
       python_major_version: 3
       python_minor_version: 8
   - setJournaldLimit
