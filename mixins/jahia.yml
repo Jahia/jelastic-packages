@@ -233,7 +233,7 @@ actions:
         mkdir $dd_jelastic_dir /var/log/jelastic-packages
         chown tomcat:root /var/log/jelastic-packages
         chown dd-agent: $dd_jelastic_dir
-        curl -fLSso $dd_jelastic_dir/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        curl --retry 6 -fLSso $dd_jelastic_dir/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
         # Configure AS check and Healthcheck metric
         echo -n $__secret__pat_token > $jahia_root_token_file
         if [ "${globals.isAugSearchEnabled}" == "true" ]; then
@@ -2009,8 +2009,8 @@ actions:
         echo " - provide:${_PROVIDE}" >> $dd_conf_file
         echo " - role:${_ROLE}" >> $dd_conf_file
 
-        curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
-        curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
+        curl --retry 6 -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
+        curl --retry 6 -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
 
         grep -q JAHIA_DD_AGENT_CHECK $sudoers || \
@@ -2019,8 +2019,8 @@ actions:
               -i $sudoers
 
         [ -d $custom_metrics_check_dir ] || mkdir $custom_metrics_check_dir
-        curl -fLSso $dd_checks_dir/${custom_metrics_check_name}.py ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.py || exit 1
-        curl -fLSso $custom_metrics_check_dir/${custom_metrics_check_name}.yaml-disabled ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.yaml || exit 1
+        curl --retry 6 -fLSso $dd_checks_dir/${custom_metrics_check_name}.py ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.py || exit 1
+        curl --retry 6 -fLSso $custom_metrics_check_dir/${custom_metrics_check_name}.yaml-disabled ${globals.repoRootUrl}/assets/storage/${custom_metrics_check_name}.yaml || exit 1
         chown dd-agent: -R $dd_checks_dir $custom_metrics_check_dir
     - if ("${this}" == "${nodes.storage.first.id}") || ("${this}" == "storage"):
         - cmd [${nodes.storage.first.id}]: |-

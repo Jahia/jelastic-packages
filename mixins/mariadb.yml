@@ -25,14 +25,14 @@ actions:
         sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
-        curl -fLSso /etc/mysql/conf.d/mysql.cnf ${globals.repoRootUrl}/assets/database/mysql.cnf || exit 1
+        curl --retry 6 -fLSso /etc/mysql/conf.d/mysql.cnf ${globals.repoRootUrl}/assets/database/mysql.cnf || exit 1
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
         echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
-        curl -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
-        curl --create-dirs -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
+        curl --retry 6 -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
+        curl --retry 6 --create-dirs -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
-        curl -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
+        curl --retry 6 -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -121,16 +121,16 @@ actions:
         echo "       extra_performance_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       schema_size_metrics: true" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
         echo "       disable_innodb_metrics: false" >> /etc/datadog-agent/conf.d/mysql.d/conf.yaml
-        curl -fLSso /etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
+        curl --retry 6 -fLSso /etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py ${globals.repoRootUrl}/assets/database/check_galera_wsrep_ready_status.py || exit 1
         chown dd-agent: /etc/datadog-agent/checks.d/check_galera_wsrep_ready_status.py
         ln -s /etc/datadog-agent/conf.d/mysql.d/conf.yaml /etc/datadog-agent/conf.d/check_galera_wsrep_ready_status.yaml
         chown -h dd-agent: /etc/datadog-agent/conf.d/check_galera_wsrep_ready_status.yaml
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown mysql:root /var/log/jelastic-packages
         chown dd-agent: /etc/datadog-agent/conf.d/jelastic.d
-        curl -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
-        curl -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
-        curl -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
+        curl --retry 6 -fLSso /etc/datadog-agent/conf.d/jelastic.d/conf.yaml ${globals.repoRootUrl}/assets/common/dd_agent_jelastic_package_conf.yml || exit 1
+        curl --retry 6 -fLSso /usr/local/bin/set_dd_tags.sh ${globals.repoRootUrl}/assets/common/set_dd_tags.sh || exit 1
+        curl --retry 6 -fLSso /etc/cron.d/set_dd_tags_cron ${globals.repoRootUrl}/assets/common/set_dd_tags_cron || exit 1
         chmod u+x /usr/local/bin/set_dd_tags.sh
         chmod 644 /var/log/mysql/mysqld.log
         chmod 644 /var/log/mysql/slow-queries.log  > /dev/null 2>&1
