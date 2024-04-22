@@ -21,7 +21,7 @@ actions:
     - log: "## Set Jelastic user as root on ${this}"
     - cmd [${this}]: sed -i 's;^jelastic:.*;jelastic:x:0:0::/root:/bin/bash;' /etc/passwd
       user: root
-    - cmd [${this}]: curl -fLSso /etc/sudoers.d/jahia-rules ${globals.repoRootUrl}/assets/common/sudoers-file || exit 1
+    - cmd [${this}]: curl --retry 6 -fLSso /etc/sudoers.d/jahia-rules ${globals.repoRootUrl}/assets/common/sudoers-file || exit 1
 
   setJournaldLimit:
     - cmd[*]: |-
@@ -77,7 +77,7 @@ actions:
   getLogEventScript:
     - setGlobalRepoRootUrl
     - cmd[${this}]: |-
-        curl -fLSso /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh || exit 1
+        curl --retry 6 -fLSso /usr/local/bin/log_event.sh ${globals.repoRootUrl}/assets/common/log_events.sh || exit 1
         chmod u+x /usr/local/bin/log_event.sh
       user: root
 
@@ -106,7 +106,7 @@ actions:
           if [ -s $metadata_file ]; then
             eval $(grep "^JEL_ENV_ROLE=" /metadata_from_HOST)
             file="${JEL_ENV_ROLE}.conf.json"
-            r=$(curl -LsSo /tmp/$file -w '%{http_code}' ${globals.repoRootUrl}/conf/$file)
+            r=$(curl --retry 6 -LsSo /tmp/$file -w '%{http_code}' ${globals.repoRootUrl}/conf/$file)
             if [ $r -eq 200 ]; then
               cat /tmp/$file && rm -f /tmp/$file
               exit 0
@@ -423,7 +423,7 @@ actions:
           echo "python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} already installed, nothing to do"
           exit 0
         fi
-        curl -fLSso /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm" || exit 1
+        curl --retry 6 -fLSso /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm" || exit 1
         rpm -ivh /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm || exit 1
         cd /usr/bin
         ln -s /usr/local/bin/python${PYTHON_MAJOR_VERSION} python${PYTHON_MAJOR_VERSION}
@@ -441,7 +441,7 @@ actions:
         if [ ! -f /usr/local/bin/papi.py ]; then
           python3 -m pip install --upgrade pip
           python3 -m pip install requests
-          curl -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
+          curl --retry 6 -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
           chmod 755 /usr/local/bin/papi.py
         fi
       user: root
@@ -1167,14 +1167,14 @@ actions:
     # Parameters
     # target: the node/nodeGroup to setup
     - cmd[*]: |-
-        curl -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
-        curl -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
+        curl --retry 6 -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
+        curl --retry 6 -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
         chmod +x /usr/local/bin/rclone-logs.sh
         rclone_dir=/root/.config/rclone
         rclone_conf=$rclone_dir/rclone.conf
         if [ ! -f $rclone_conf ]; then
           mkdir -p $rclone_dir
-          curl -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
+          curl --retry 6 -fSsLo $rclone_conf ${globals.repoRootUrl}/assets/common/rclone.conf
         fi
 
   setupLogsRCloneConfig:
