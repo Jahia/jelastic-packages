@@ -1,0 +1,131 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v30
+id: migrate-jcustomer-env-v30
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+  - "../../../mixins/haproxy.yml"
+
+globals:
+  version: 30
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvProvides: unomi
+  - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # Regular actions
+  - addHaproxyNodes                 # PAAS-2442
+
+  # Actions that require a restart
+  # (None)
+
+  # Actions that require a redeploy
+  # (None)
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  preChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  postChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+
+  addHaproxyNodes:
+  - cmd [${nodes.cp.first.id}]: echo $DATADOGAPIKEY
+  - setGlobals:
+      datadogApiKey: ${response.out}
+  - addNodes:
+    - displayName: Haproxy
+      nodeGroup: bl
+      nodeType: haproxy
+      tag: 2.8.9-almalinux-9
+      cloudlets: 6
+  - if (nodes.cp.length > 1):
+    - addNodes:
+      - displayName: Haproxy
+        nodeGroup: bl
+        nodeType: haproxy
+        tag: 2.8.9-almalinux-9
+        cloudlets: 6
+  - env.control.SetNodeGroupDisplayName [bl]:
+      displayName: Haproxy
+  - env.control.AddContainerEnvVars [bl]:
+      vars:
+        DATADOGAPIKEY: ${globals.datadogApiKey}
+        _PROVIDE: haproxy
+        _ROLE: reverse_proxy
+        envName: ${env.shortdomain}
+        envmode: development
+        haproxy_cfg_timeout_server: 5m
+  - env.control.AddContainerVolumes [bl]:
+      volumes: /etc/haproxy
+  - script: |
+      return jelastic.environment.security.AddRule(
+        '${env.envName}',
+        session,
+        {
+          "action": "ALLOW",
+          "direction": "INPUT",
+          "isEnabled": true,
+          "name": "SSL for jCustomer",
+          "ports": 9443,
+          "priority": 1040,
+          "protocol": "ALL",
+          "src": "ALL"
+        },
+        "bl"
+      )
+  - setJelasticUserAsRoot: bl
+  - installRequiredPackages:
+      target: bl
+      packages: "jq rclone"
+  - setJournaldLimit
+  - getLogEventScript: "cp, bl"
+  - installPapiScript: "cp, bl"
+  - addJCustomerCredentialsToHaproxy
+  - installHaproxy
+  - refreshUnomiAllowedIPs
+  - setupDatadogAgentHaproxy: bl
+
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: disable all checks

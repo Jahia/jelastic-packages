@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 29
+  jcustomer_env_version: 30
   unomi_version: ${settings.productVersion}
   __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -57,9 +57,9 @@ onBeforeInstall: |
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
-    "tag": "2.6.1",
+    "tag": "2.8.9-almalinux-9",
     "count": ${settings.haproxyNodeCount},
-    "cloudlets": 8,
+    "cloudlets": 6,
     "env": {
         "JELASTIC_PORTS": "9443",
         "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
@@ -158,10 +158,6 @@ onInstall:
   - installRequiredPackages:
       target: bl
       packages: "jq rclone"
-  - installPython:
-      target: bl
-      python_major_version: 3
-      python_minor_version: 8
   - getLogEventScript: "cp, bl"
   - installPapiScript: "cp, bl"
   - createJelasticPackagesLogDir: cp

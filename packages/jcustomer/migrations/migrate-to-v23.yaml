@@ -9,7 +9,6 @@ mixins:
   - "../../../mixins/common.yml"
   - "../../../mixins/jcustomer.yml"
   - "../../../mixins/elasticsearch.yml"
-  - "../../../mixins/haproxy.yml"
 
 globals:
   version: 23
@@ -28,7 +27,6 @@ onInstall:
   ### End pre-migration actions
 
   - preventJavaAutoRestart          # PAAS-2393
-  - addHaproxyNodes                 # PAAS-2333
 
   # Actions that require a restart:
 
@@ -75,64 +73,6 @@ actions:
           sed -i "/CAP_NET_BIND_SERVICE/a $new_line" $conf
           systemctl daemon-reload
         fi
-
-  addHaproxyNodes:
-  - cmd [${nodes.cp.first.id}]: echo $DATADOGAPIKEY
-  - setGlobals:
-      datadogApiKey: ${response.out}
-  - addNodes:
-    - displayName: Haproxy
-      nodeGroup: bl
-      nodeType: haproxy
-      tag: 2.6.1
-      cloudlets: 8
-    - displayName: Haproxy
-      nodeGroup: bl
-      nodeType: haproxy
-      tag: 2.6.1
-      cloudlets: 8
-  - env.control.SetNodeGroupDisplayName [bl]:
-      displayName: Haproxy
-  - env.control.AddContainerEnvVars [bl]:
-      vars:
-        DATADOGAPIKEY: ${globals.datadogApiKey}
-        _PROVIDE: haproxy
-        _ROLE: reverse_proxy
-        envName: ${env.shortdomain}
-        envmode: development
-        haproxy_cfg_timeout_server: 5m
-  - env.control.AddContainerVolumes [bl]:
-      volumes: /etc/haproxy
-  - script: |
-      return jelastic.environment.security.AddRule(
-        '${env.envName}',
-        session,
-        {
-          "action": "ALLOW",
-          "direction": "INPUT",
-          "isEnabled": true,
-          "name": "SSL for jCustomer",
-          "ports": 9443,
-          "priority": 1040,
-          "protocol": "ALL",
-          "src": "ALL"
-        },
-        "bl"
-      )
-  - setJelasticUserAsRoot: bl
-  - installRequiredPackages:
-      target: bl
-      packages: "jq rclone"
-  - installPython:
-      target: bl
-      python_major_version: 3
-      python_minor_version: 8
-  - setJournaldLimit
-  - getLogEventScript: "cp, bl"
-  - installPapiScript: "cp, bl"
-  - addJCustomerCredentialsToHaproxy
-  - installHaproxy
-  - setupDatadogAgentHaproxy: bl
 
 settings:
   fields:

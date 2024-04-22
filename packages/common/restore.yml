@@ -103,8 +103,6 @@ onInstall:
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
-      - if (nodes.bl):
-          - restoreHaproxy
   - unmuteDatadogHost:
       target: "*"
 

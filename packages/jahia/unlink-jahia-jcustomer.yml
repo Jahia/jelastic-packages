@@ -42,8 +42,6 @@ onInstall:
   - updateEnvLinkJahia
   - if (! ${globals.isUnomiEnvDeletion}):
     - updateEnvLinkJcustomer
-    # - refreshUnomiAllowedIPs:
-    #     unomiEnvName: ${globals.jCustomerEnv}
 
 actions:
   updateEnvLinkJahia:

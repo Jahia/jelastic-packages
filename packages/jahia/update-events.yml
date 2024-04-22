@@ -29,9 +29,6 @@ onAfterScaleIn[cp]:
   - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
-#   - if (${globals.unomi_env_linked}):
-#       - refreshUnomiAllowedIPs:
-#           unomiEnvName: ${globals.unomi_env_name}
 
 onAfterServiceScaleOut[cp]:
   - forEach(event.response.nodes):
@@ -51,9 +48,6 @@ onAfterServiceScaleOut[cp]:
   - cleanJRLocalRevisionsTable
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
-#   - if (${globals.unomi_env_linked}):
-#       - refreshUnomiAllowedIPs:
-#           unomiEnvName: ${globals.unomi_env_name}
 
 onBeforeRestartNode[cp]:
   - backupKarafConfsDir: ${event.params.nodeId}
@@ -431,12 +425,6 @@ onBeforeDelete:
   - if ("${globals.unomi_env_linked}" == "true"):
       - deleteEnvLinkJahia:
           jCustomerEnv: ${globals.unomi_env_name}
-    #   - if ("${response.link_removed}" == "true"):
-    #       - getEnvStatus:
-    #           envName: ${globals.unomi_env_name}
-    #       - if (${response.out} == 1):
-    #           refreshUnomiAllowedIPs:
-    #             unomiEnvName: ${globals.unomi_env_name}
       - removeKibanaDashboardAccountsAndSpace:
           jCustomerEnv: ${globals.unomi_env_name}
 

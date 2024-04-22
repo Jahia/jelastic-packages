@@ -91,11 +91,6 @@ onInstall:
           logAction: ${globals.logAction}
       - backupElasticsearch
       - backupJcustomer
-      - if (nodes.bl):  # Haproxy
-          - installBackupTools:
-              target: bl
-              logAction: ${globals.logAction}
-          - backupHaproxy
       - addMetadata: ${nodes.cp.first.id}
       - rotateBackups: ${nodes.cp.first.id}
       - rotateElasticsearchBackup

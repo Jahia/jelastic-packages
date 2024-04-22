@@ -13,6 +13,7 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/elasticsearch.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
 
 onBeforeScaleIn[cp]:
   - forEach(event.response.nodes):
@@ -93,10 +94,9 @@ onAfterRedeployContainer[bl]:
       - installRequiredPackages:
           target: ${event.params.nodeGroup}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeGroup}
-          python_major_version: 3
-          python_minor_version: 8
+      - createSslCert: ${event.params.nodeGroup}
+      - cmd[${event.params.nodeGroup]: |-
+          service haproxy restart
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -108,10 +108,9 @@ onAfterRedeployContainer[bl]:
       - installRequiredPackages:
           target: ${event.params.nodeId}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeId}
-          python_major_version: 3
-          python_minor_version: 8
+      - createSslCert: ${event.params.nodeId}
+      - cmd[${event.params.nodeId}]: |-
+          service haproxy restart
       - setupDatadogAgentHaproxy: ${event.params.nodeId}
       - environment.nodegroup.ApplyData [bl]:
           data:
@@ -129,10 +128,9 @@ onAfterScaleOut[bl]:
       - installRequiredPackages:
           target: ${@i.id}
           packages: "jq rclone"
-      - installPython:
-          target: ${@i.id}
-          python_major_version: 3
-          python_minor_version: 8
+      - createSslCert: ${@i.id}
+      - cmd[${@i.id}]: |-
+          service haproxy restart
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
