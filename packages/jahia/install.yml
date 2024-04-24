@@ -12,7 +12,7 @@ description:
     needs for sustainable growth.
 
 globals:
-  jahia_env_version: 40
+  jahia_env_version: 41
   db_user: jahia-db-${fn.random}
   __secret__db_pass: ${fn.password(20)}
   __secret__db_user_datadog: ${fn.password(20)}
@@ -61,7 +61,7 @@ onBeforeInstall: |
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
-    "tag": "2.7.8",
+    "tag": "2.8.9-almalinux-9",
     "count": ${settings.haproxyNodeCount},
     "cloudlets": 8,
     "env": {
@@ -330,7 +330,7 @@ onInstall:
       target: "bl, sqldb, storage"
       packages: "jq rclone"
   - installPython:
-      target: "bl, sqldb, storage"
+      target: "sqldb, storage"
       python_major_version: 3
       python_minor_version: 8
   - setJournaldLimit
