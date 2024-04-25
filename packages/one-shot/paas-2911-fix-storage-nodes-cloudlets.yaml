@@ -1,0 +1,79 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2911 - Fix storage nodes cloudlets
+id: paas-2911-fix-storage-node-cloudlets
+description:
+  short: Set the correct cloudlets values for storage nodes if needed
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  - determineWantedStorageCloudlets
+  - determineOperationType
+  - ${globals.operationType}
+
+actions:
+  determineWantedStorageCloudlets:
+    - if(${nodes.sqldb.first.flexibleCloudlets} == 20):
+        - setGlobals:
+            wantedStorageCloudlets: 6
+    - elif(${nodes.sqldb.first.flexibleCloudlets} == 48):
+        - setGlobals:
+            wantedStorageCloudlets: 8
+    - elif(${nodes.sqldb.first.flexibleCloudlets} == 64):
+        - setGlobals:
+            wantedStorageCloudlets: 10
+    - else:
+        - return:
+            type: error
+            message: "sqldb cloudlets isn't at an expected value (${nodes.sqldb.first.flexibleCloudlets})"
+
+  determineOperationType:
+    - if(${globals.wantedStorageCloudlets} >= ${nodes.storage.first.flexibleCloudlets}):
+        - if(${globals.wantedStorageCloudlets} == ${nodes.storage.first.flexibleCloudlets}):
+            - log: "storage nodes got the good Cloudlets values (${nodes.storage.first.flexibleCloudlets})"
+            - setGlobals:
+                operationType: nothing
+        - else:
+            - log: "storage nodes cloudlets (${nodes.storage.first.flexibleCloudlets}) need to be increase to ${globals.wantedStorageCloudlets}"
+            - setGlobals:
+                operationType: increase
+    - else:
+        - log: "storage nodes cloudlets (${nodes.storage.first.flexibleCloudlets}) need to be decrease to ${globals.wantedStorageCloudlets}, so restart of each storage node is needed"
+        - setGlobals:
+            operationType: decrease
+
+  nothing:
+    - return:
+        type: success
+        message: nothing to do here
+
+  increase:
+    - log: this is the increase operation
+    - api: environment.control.SetCloudletsCount
+      nodeType: storage
+      fixedCloudlets: 0
+      flexibleCloudlets: ${globals.wantedStorageCloudlets}
+
+  decrease:
+    - log: this is the decrease operation
+    - muteDatadogHost:
+        target: storage
+        duration: 6
+    - forEach(nodes.storage):
+        - api: environment.control.SetCloudletsCountById
+          nodeId: ${@i.id}
+          flexibleCloudlets: ${globals.wantedStorageCloudlets}
+          fixedCloudlet: 0
+        - log: "now waiting for 30s…"
+        - sleep: 30000
+    # For some mysterious reason, previous api call set fixedCloudlets to -1,
+    # the following call puts everything back in order.
+    - api: environment.control.SetCloudletsCount
+      nodeType: storage
+      fixedCloudlets: 0
+      flexibleCloudlets: ${globals.wantedStorageCloudlets}
+    - unmuteDatadogHost:
+        target: storage
