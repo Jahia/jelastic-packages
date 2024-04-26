@@ -45,8 +45,6 @@ onInstall:
   - environment.nodegroup.ApplyData[proc, cp]:
       data:
         envLink: ${settings.unomienv}
-  - refreshUnomiAllowedIPs:
-      unomiEnvName: ${settings.unomienv}
   - getKibanaEndpointOfJcustomer:
       jcustomerEnv: ${settings.unomienv}
   - set:

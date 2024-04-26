@@ -13,7 +13,7 @@ description:
     privacy rules (such as GDPR).
 
 globals:
-  jcustomer_env_version: 29
+  jcustomer_env_version: 30
   unomi_version: ${settings.productVersion}
   __secret__elasticsearch_password: ${fn.password(20)}
   workato_ips:
@@ -28,6 +28,7 @@ skipNodeEmails: true
 
 mixins:
   - ../../mixins/common.yml
+  - ../../mixins/haproxy.yml
   - ../../mixins/jcustomer.yml
   - ../../mixins/elasticsearch.yml
 
@@ -49,6 +50,30 @@ onBeforeInstall: |
     result: 0,
     nodes: []
   }
+
+  // HAProxy nodes
+
+  node_haproxy = {
+    "displayName": "Haproxy",
+    "nodeGroup": "bl",
+    "nodeType": "haproxy",
+    "tag": "2.8.9-almalinux-9",
+    "count": ${settings.haproxyNodeCount},
+    "cloudlets": 6,
+    "env": {
+        "JELASTIC_PORTS": "9443",
+        "DATADOGAPIKEY": __secret__DATADOGAPIKEY,
+        "_PROVIDE": "haproxy",
+        "_ROLE": "reverse_proxy",
+        "envName": "${settings.shortdomain}",
+        "envmode": envmode,
+        "haproxy_cfg_timeout_server": "5m"
+      },
+    "volumes": [
+        "/etc/haproxy"
+      ]
+  }
+  resp.nodes.push(node_haproxy)
 
   // jCustomer nodes
 
@@ -128,9 +153,13 @@ onInstall:
       data:
         productName: unomi
         productVersion: ${settings.productVersion}
+  - setJelasticUserAsRoot: bl
   - setJournaldLimit
-  - getLogEventScript: cp
-  - installPapiScript: cp
+  - installRequiredPackages:
+      target: bl
+      packages: "jq rclone"
+  - getLogEventScript: "cp, bl"
+  - installPapiScript: "cp, bl"
   - createJelasticPackagesLogDir: cp
   - addEnvMetadataToNodeGroup:
       __secret__vaultRoleId: ${settings.vaultRoleId}
@@ -141,18 +170,24 @@ onInstall:
       papiEnvId: ${settings.papiEnvId}
   - setCloudConf
   - setupES:
+      target: cp
       papiEnvId: ${settings.papiEnvId}
   - populateGeonameIndex
   - setJcustomerApiKey
   - configureDatadogAPM: cp
+  - refreshUnomiAllowedIPs:
+      unomiEnvName: ${env.shortdomain}
   - forEach(nodes.cp):
       - setupUnomi:
           nodeId: ${@i.id}
           __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
   - initRedeployConfig
+  - addJCustomerCredentialsToHaproxy
   - setupDatadogAgentUnomi:
       target: cp
       __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+  - installHaproxy
+  - setupDatadogAgentHaproxy: bl
   - setEnvVersion: ${globals.jcustomer_env_version}
   - install:
       jps: "${baseUrl}/update-events.yml"
@@ -169,6 +204,10 @@ settings:
       type: string
       caption: jCustomer Version
       required: true
+    - name: haproxyNodeCount
+      type: string
+      caption: Number of HAProxy nodes
+      default: 2
     - name: jCustomerNodeCount
       type: list
       caption: jCustomer node count

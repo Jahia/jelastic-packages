@@ -13,6 +13,13 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/elasticsearch.yml
   - ../../mixins/jahia.yml
+  - ../../mixins/haproxy.yml
+
+onBeforeScaleIn[cp]:
+  - forEach(event.response.nodes):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
 
 onBeforeServiceScaleOut[cp]:
   - saveUnomiRootPassword
@@ -26,8 +33,34 @@ onAfterServiceScaleOut[cp]:
       - setupDatadogAgentUnomi:
           target: ${@i.id}
           __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+  - resetHaproxyBackends
+
+onBeforeRestartNode[cp]:
+  removeBrowsingNodeFromHaproxy:
+    nodeId: ${event.params.nodeId}
+    reload: true
+
+onAfterRestartNode[cp]:
+  forEach(nodes.cp):
+    if ("${event.params.nodeId}" == "${@i.id}"):
+      - checkJcustomerHealthWhenStarting: ${@i.id}
+      - addBrowsingNodeToHaproxy:
+          nodeId: ${@i.id}
+          nodeIp: ${@i.intIP}
+          reload: true
 
 onBeforeRedeployContainer[cp]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - forEach(nodes.cp):
+          removeBrowsingNodeFromHaproxy:
+            nodeId: ${@i.id}
+            reload: true
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${event.params.nodeId}
+          reload: true
   - saveUnomiRootPassword
 
 onAfterRedeployContainer[cp]:
@@ -38,12 +71,69 @@ onAfterRedeployContainer[cp]:
           - setupUnomi:
               nodeId: ${@i.id}
               __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+      - checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
+      - resetHaproxyBackends
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - onAfterRedeployJcustomerContainer: ${event.params.nodeId}
       - setupUnomi:
           nodeId: ${event.params.nodeId}
           __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+      - forEach(nodes.cp):
+          if ("${event.params.nodeId}" == "${@i.id}"):
+            - checkJcustomerHealthWhenStarting: ${@i.id}
+            - addBrowsingNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+                reload: true
+
+onAfterRedeployContainer[bl]:
+  - if ('${event.params.nodeGroup:}'):
+      # Handle RedeployContainersByGroup
+      - setJelasticUserAsRoot: ${event.params.nodeGroup}
+      - installRequiredPackages:
+          target: ${event.params.nodeGroup}
+          packages: "jq rclone"
+      - createSslCert: ${event.params.nodeGroup}
+      - cmd[${event.params.nodeGroup]: |-
+          service haproxy restart
+      - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
+      - environment.nodegroup.ApplyData [bl]:
+          data:
+            productName: haproxy
+            productVersion: ${nodes.bl.first.version}
+  - elif ('${event.params.nodeId:}'):
+      # Handle RedeployContainerById
+      - setJelasticUserAsRoot: ${event.params.nodeId}
+      - installRequiredPackages:
+          target: ${event.params.nodeId}
+          packages: "jq rclone"
+      - createSslCert: ${event.params.nodeId}
+      - cmd[${event.params.nodeId}]: |-
+          service haproxy restart
+      - setupDatadogAgentHaproxy: ${event.params.nodeId}
+      - environment.nodegroup.ApplyData [bl]:
+          data:
+            productName: haproxy
+            productVersion: ${nodes.bl.first.version}
+
+onAfterScaleIn[bl]:
+  - env.control.AddContainerEnvVars[cp, proc]:
+    vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
+  - cmd[cp,proc]: service datadog-agent restart
+
+onAfterScaleOut[bl]:
+  - forEach(event.response.nodes):
+      - setJelasticUserAsRoot: ${@i.id}
+      - installRequiredPackages:
+          target: ${@i.id}
+          packages: "jq rclone"
+      - createSslCert: ${@i.id}
+      - cmd[${@i.id}]: |-
+          service haproxy restart
+  - env.control.AddContainerEnvVars[cp, proc]:
+    vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
+  - cmd[cp,proc]: service datadog-agent restart
 
 onBeforeDelete:
   - logEvent:
@@ -80,6 +170,7 @@ onAfterStart:
   - refreshUnomiAllowedIPs
   - updateS3LogsCredentials
   - checkJcustomerHealthWhenStarting: cp
+  - resetHaproxyBackends
   - unmuteDatadogHost:
       target: "*"
   - unmuteEnvWideMonitors
@@ -113,9 +204,6 @@ onBeforeRestartNode:
   - muteDatadogHost:
       target: ${event.params.nodeId}
       duration: 20
-
-onAfterRestartNode[cp]:
-  checkJcustomerHealthWhenStarting: ${event.params.nodeId}
 
 onAfterRestartNode:
   - logEvent:
