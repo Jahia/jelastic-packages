@@ -41,13 +41,22 @@ onBeforeRestartNode[cp]:
     reload: true
 
 onAfterRestartNode[cp]:
-  forEach(nodes.cp):
-    if ("${event.params.nodeId}" == "${@i.id}"):
-      - checkJcustomerHealthWhenStarting: ${@i.id}
-      - addBrowsingNodeToHaproxy:
-          nodeId: ${@i.id}
-          nodeIp: ${@i.intIP}
-          reload: true
+  - if ('${event.params.nodeGroup:}'):
+      forEach(nodes.cp):
+        - checkJcustomerHealthWhenStarting: ${@i.id}
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
+  - else:
+      forEach(nodes.cp):
+        if ("${event.params.nodeId}" == "${@i.id}"):
+          - checkJcustomerHealthWhenStarting: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
 
 onBeforeRedeployContainer[cp]:
   - if ('${event.params.nodeGroup:}'):
@@ -121,6 +130,7 @@ onAfterScaleIn[bl]:
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
+  - refreshUnomiAllowedIPs
 
 onAfterScaleOut[bl]:
   - forEach(event.response.nodes):
@@ -134,6 +144,7 @@ onAfterScaleOut[bl]:
   - env.control.AddContainerEnvVars[cp, proc]:
     vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
   - cmd[cp,proc]: service datadog-agent restart
+  - refreshUnomiAllowedIPs
 
 onBeforeDelete:
   - logEvent:
@@ -167,7 +178,6 @@ onAfterStart:
       target: ${nodes.cp.first.id}
       title: "$envName environment started"
       text: "$envName is started"
-  - refreshUnomiAllowedIPs
   - updateS3LogsCredentials
   - checkJcustomerHealthWhenStarting: cp
   - resetHaproxyBackends

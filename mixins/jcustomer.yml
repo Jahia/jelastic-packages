@@ -269,6 +269,7 @@ actions:
   refreshUnomiAllowedIPs:
     # Parameters:
     #   - unomiEnvName (optional, defaults to current envName)
+    #   - restart (optional, default to true) restart jcustomer nodes if true
     - setGlobalRepoRootUrl
     - if ('${this.unomiEnvName.print()}' == ''):
         set:
@@ -285,7 +286,7 @@ actions:
     - api: env.control.GetContainerEnvVarsByGroup
       envName: ${this.unomiEnvName}
       nodeGroup: cp
-    - if ("${response.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES}" != "${this.newIPList}"):
+    - if ("${response.object.UNOMI_THIRDPARTY_PROVIDER1_IPADDRESSES}" != "${this.newIPList}" && ${this.restart:true}):
         # Update envvar and restart if value changed
         - api: env.control.AddContainerEnvVars
           envName: ${this.unomiEnvName}

@@ -177,6 +177,7 @@ onInstall:
   - configureDatadogAPM: cp
   - refreshUnomiAllowedIPs:
       unomiEnvName: ${env.shortdomain}
+      restart: false
   - forEach(nodes.cp):
       - setupUnomi:
           nodeId: ${@i.id}
