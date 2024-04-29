@@ -22,15 +22,34 @@ onInstall:
 actions:
   updateGeoliteDatabase:
     - cmd[${this}]: |-
-        curl -fLSso GeoLite2-City.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=$MAXMIND_KEY&suffix=tar.gz" || exit 1
-        tar xzf GeoLite2-City.tar.gz
-        cmp -s GeoLite2-City_*/GeoLite2-City.mmdb /opt/jcustomer/jcustomer/etc/GeoLite2-City.mmdb
-        if [[ $? -eq 1 ]]; then
-          mv GeoLite2-City_*/GeoLite2-City.mmdb /opt/jcustomer/jcustomer/etc
-          chown karaf: /opt/jcustomer/jcustomer/etc/GeoLite2-City.mmdb
-          echo "[INFO] Restart Required"
+        __secret__aws_access_key=${settings.aws_access_key}
+        __secret__aws_secret_key=${settings.aws_secret_key}
+        if [ "$(sha256sum GeoLite2-City.tar.gz | awk '{print $1}')" = "${settings.geolite_sha256}" ]; then
+          echo "Geolite db is up to date. Nothing to do" >> /var/log/jelastic-packages/geolite-db-update.log
+          exit 0
         fi
-        rm -rf GeoLite2-City*
+
+        #### Add rclone section
+        rclone_conf_path=/root/.config/rclone/rclone.conf
+        if ! grep -q geolite $rclone_conf_path; then
+          echo """
+        [geolitefile]
+        type = s3
+        provider = AWS
+        env_auth = true
+        region = eu-west-1
+        no_check_bucket = true
+        server_side_encryption = aws:kms
+        acl = private
+          """ >> $rclone_conf_path
+        fi
+
+        export RCLONE_S3_ACCESS_KEY_ID="$__secret__aws_access_key"
+        export RCLONE_S3_SECRET_ACCESS_KEY="$__secret__aws_secret_key"
+        rclone copy geolitefile:paas-geolite-db/GeoLite2-City.tar.gz /root/
+        tar xzf GeoLite2-City.tar.gz -C /opt/jcustomer/jcustomer/etc/ --wildcards "*.mmdb" --strip-components 1
+        chown karaf: /opt/jcustomer/jcustomer/etc/GeoLite2-City.mmdb
+        echo "[INFO] Restart Required"
     - if ("${response.out}" != ""):
         - api: environment.control.RestartNodeById
           nodeId: ${this}
@@ -40,3 +59,12 @@ settings:
     - type: toggle
       name: disable_checks
       caption: disable jcustomer status check
+    - type: string
+      name: aws_access_key
+      caption: AWS access key
+    - type: string
+      name: aws_secret_key
+      caption: AWS secret key
+    - type: string
+      name: geolite_sha256
+      caption: Geolite db file sha256
