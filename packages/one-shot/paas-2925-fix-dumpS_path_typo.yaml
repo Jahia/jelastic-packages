@@ -1,0 +1,66 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2925 - Fix dumpS_path typo and duplication
+id: paas-2925-fix-dumps-path-typo-and-duplication
+description:
+  short: Fix DUMPS_PATH variable name type and its duplication
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+globals:
+  toRestart: []
+
+onInstall:
+  - fixDumpPath: ${nodes.proc.first.id}
+  - forEach(nodes.cp):
+      - fixDumpPath: ${@i.id}
+  - if(globals.toRestart.length > 0):
+      - log: "${globals.toRestart.length} node(s) have to be restarted"
+      - dumpModules:
+          operation: restart
+          checkVersion: true
+      - forEach(globals.toRestart):
+          - restart: ${@i}
+      - checkModulesAfterOperation:
+          operation: restart
+          checkVersion: true
+  - else:
+      - log: "no restart needed"
+
+actions:
+  restart:
+    - api: environment.control.RestartNodeById
+      nodeId: ${this}
+
+  pushToList:
+    - if (globals.toRestart.length == 0):
+        - script: |-
+            let d = [ "${this}" ]
+            return {"result": 0, onAfterReturn: {setGlobals: {toRestart: d}}}
+    - else:
+        - script: |-
+            let d = ${globals.toRestart.toJSON()}
+            d.push("${this}")
+            return {"result": 0, onAfterReturn: {setGlobals: {toRestart: d}}}
+
+  fixDumpPath:
+    - cmd[${this}]: |-
+        file=/opt/tomcat/bin/setenv.sh
+        tempfile=$(mktemp)
+        # fix the first typo if any and remove the duplication if any
+        sed -r -e 's/DUMP_PATH/DUMPS_PATH/' -e 's/\s+\S+DUMPS_PATH\S+//2' $file > $tempfile
+        if (cmp --silent $file $tempfile); then
+          echo "ok"
+          rm $tempfile
+        else
+          echo "nok"
+          chown tomcat:tomcat $tempfile
+          chmod +x $tempfile
+          mv $tempfile $file
+        fi
+    - if ("${response.out}" == "nok"):
+        - pushToList: ${this}
