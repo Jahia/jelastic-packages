@@ -78,6 +78,19 @@ actions:
     - setProxysqlCredsInDatadogConfig:
         target: "proc, cp"
     - setupDatadogAgentJahia: ${this}
+
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: jahia8plus
+    - if (${globals.jahia8plus}):
+        cmd[${this}]: |-
+          if ! grep -qE ACTIVE_JDK /opt/tomcat/bin/setenv.sh; then
+            echo 'JDK_JAVA_OPTIONS="--add-opens=java.base/java.net=ALL-UNNAMED"' >> /opt/tomcat/bin/setenv.sh
+            echo '[[ $ACTIVE_JDK == "graalvm" ]] && JDK_JAVA_OPTIONS="$JDK_JAVA_OPTIONS --add-opens=java.base/java.net=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.nodes=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.instrumentation=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.dsl=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.exception=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.frame=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.object=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.interop=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.strings=ALL-UNNAMED --add-exports org.graalvm.truffle/com.oracle.truffle.api.library=ALL-UNNAMED"' >> /opt/tomcat/bin/setenv.sh
+          fi
+
     - cmd[${this}]: |-
         sudo -u tomcat touch "/data/digital-factory-data/[persisted-configurations].dorestore"
         source /etc/locale.conf
