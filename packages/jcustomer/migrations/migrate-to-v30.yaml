@@ -30,6 +30,7 @@ onInstall:
 
   # Regular actions
   - addHaproxyNodes                 # PAAS-2442
+  - updateJcustomerStatusCheck      # PAAS-2517
 
   # Actions that require a restart
   # (None)
@@ -67,61 +68,72 @@ actions:
     - checkJcustomerDatadogCustomChecks: cp
 
   addHaproxyNodes:
-  - cmd [${nodes.cp.first.id}]: echo $DATADOGAPIKEY
-  - setGlobals:
-      datadogApiKey: ${response.out}
-  - addNodes:
-    - displayName: Haproxy
-      nodeGroup: bl
-      nodeType: haproxy
-      tag: 2.8.9-almalinux-9
-      cloudlets: 6
-  - if (nodes.cp.length > 1):
+    - cmd [${nodes.cp.first.id}]: echo $DATADOGAPIKEY
+    - setGlobals:
+        datadogApiKey: ${response.out}
     - addNodes:
       - displayName: Haproxy
         nodeGroup: bl
         nodeType: haproxy
         tag: 2.8.9-almalinux-9
         cloudlets: 6
-  - env.control.SetNodeGroupDisplayName [bl]:
-      displayName: Haproxy
-  - env.control.AddContainerEnvVars [bl]:
-      vars:
-        DATADOGAPIKEY: ${globals.datadogApiKey}
-        _PROVIDE: haproxy
-        _ROLE: reverse_proxy
-        envName: ${env.shortdomain}
-        envmode: development
-        haproxy_cfg_timeout_server: 5m
-  - env.control.AddContainerVolumes [bl]:
-      volumes: /etc/haproxy
-  - script: |
-      return jelastic.environment.security.AddRule(
-        '${env.envName}',
-        session,
-        {
-          "action": "ALLOW",
-          "direction": "INPUT",
-          "isEnabled": true,
-          "name": "SSL for jCustomer",
-          "ports": 9443,
-          "priority": 1040,
-          "protocol": "ALL",
-          "src": "ALL"
-        },
-        "bl"
-      )
-  - setJelasticUserAsRoot: bl
-  - installRequiredPackages:
-      target: bl
-      packages: "jq rclone"
-  - setJournaldLimit
-  - getLogEventScript: "cp, bl"
-  - installPapiScript: "cp, bl"
-  - addJCustomerCredentialsToHaproxy
-  - installHaproxy
-  - refreshUnomiAllowedIPs
-  - setupDatadogAgentHaproxy: bl
+    - if (nodes.cp.length > 1):
+      - addNodes:
+        - displayName: Haproxy
+          nodeGroup: bl
+          nodeType: haproxy
+          tag: 2.8.9-almalinux-9
+          cloudlets: 6
+    - env.control.SetNodeGroupDisplayName [bl]:
+        displayName: Haproxy
+    - env.control.AddContainerEnvVars [bl]:
+        vars:
+          DATADOGAPIKEY: ${globals.datadogApiKey}
+          _PROVIDE: haproxy
+          _ROLE: reverse_proxy
+          envName: ${env.shortdomain}
+          envmode: development
+          haproxy_cfg_timeout_server: 5m
+    - env.control.AddContainerVolumes [bl]:
+        volumes: /etc/haproxy
+    - script: |
+        return jelastic.environment.security.AddRule(
+          '${env.envName}',
+          session,
+          {
+            "action": "ALLOW",
+            "direction": "INPUT",
+            "isEnabled": true,
+            "name": "SSL for jCustomer",
+            "ports": 9443,
+            "priority": 1040,
+            "protocol": "ALL",
+            "src": "ALL"
+          },
+          "bl"
+        )
+    - setJelasticUserAsRoot: bl
+    - installRequiredPackages:
+        target: bl
+        packages: "jq rclone"
+    - setJournaldLimit
+    - getLogEventScript: "cp, bl"
+    - installPapiScript: "cp, bl"
+    - addJCustomerCredentialsToHaproxy
+    - installHaproxy
+    - refreshUnomiAllowedIPs
+    - setupDatadogAgentHaproxy: bl
+
+
+  updateJcustomerStatusCheck:
+    cmd[cp]: |-
+        md5="0fe9edbe3b8417d08c3fe2c88e5c8320"
+        file_path="/etc/datadog-agent/checks.d/jcustomer_status.py"
+        if ! (echo "$md5 $file_path" | md5sum --status -c); then
+          curl -fLSso $file_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/$(basename $file_path) || exit 1
+          chown chown dd-agent: $file_path
+          service datadog-agent restart
+        fi
 
 
 settings:
