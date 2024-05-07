@@ -131,7 +131,7 @@ actions:
         file_path="/etc/datadog-agent/checks.d/jcustomer_status.py"
         if ! (echo "$md5 $file_path" | md5sum --status -c); then
           curl -fLSso $file_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/$(basename $file_path) || exit 1
-          chown chown dd-agent: $file_path
+          chown dd-agent: $file_path
           service datadog-agent restart
         fi
 
