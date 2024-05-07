@@ -409,3 +409,6 @@ actions:
     - env.control.AddContainerEnvVars [bl]:
       vars:
         haproxy_cfg_jcustomer_root_credentials: ${response.out}
+    - cmd [bl]: |-
+        # Necessary to take credentials variable into account
+        service haproxy restart

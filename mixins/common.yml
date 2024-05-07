@@ -1155,22 +1155,27 @@ actions:
         done
 
   setupRclone:
+    # Parameters
+    # target: (optional) the node/nodeGroup to setup
     - setGlobalRepoRootUrl
     - fetchS3LogsBucketInfos
     - setS3LogsBucketName:
         s3LogsBucketName: ${globals.__secret__bucket_name}
-    - fetchRcloneFiles
+    - fetchRcloneFiles:
+        target: ${this.target:*}
     - setupLogsRCloneConfig:
         provider: ${globals.logs_bucket_provider}
         region: ${globals.s3_bucket_region}
         __secret__access_key: ${globals.__secret__access_key}
         __secret__secret_key: ${globals.__secret__secret_key}
         __secret__aes256_key: ${globals.__secret__aes256_key}
+        target: ${this.target:*}
+
 
   fetchRcloneFiles:
     # Parameters
-    # target: the node/nodeGroup to setup
-    - cmd[*]: |-
+    # target: (optional) the node/nodeGroup to setup
+    - cmd[${this.target:*}]: |-
         curl --retry 6 -fSsLo /etc/cron.d/rclone-cron ${globals.repoRootUrl}/assets/common/rclone-cron
         curl --retry 6 -fSsLo /usr/local/bin/rclone-logs.sh ${globals.repoRootUrl}/assets/common/rclone-logs.sh
         chmod +x /usr/local/bin/rclone-logs.sh
@@ -1190,7 +1195,8 @@ actions:
     #     - __secret__secret_key: the secret key used by rclone
     #   - Optional:
     #     - __secret__aes256_key: the aes256 key used by rclone to encrypt/decrypt data when region is OVH
-    - cmd[*]: |-
+    #     - target: the node/nodeGroup to execute commands on
+    - cmd[${this.target:*}]: |-
         rclone_conf=/root/.config/rclone/rclone.conf
         provider="${this.provider}"
         region="${this.region}"
