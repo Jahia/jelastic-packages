@@ -15,7 +15,7 @@ __version__ = "1.0.0"
 
 class CheckNumberBrowsingRemaining(AgentCheck):
     __NAMESPACE__ = "haproxy"
-    SERVICE_CHECK_NAME = "number_browsing_remaining"
+    SERVICE_CHECK_NAME = "number_NODE_TYPE_PLACEHOLDER_remaining"
     BROWSING_BACKEND_NAME = 'BK_NAME_PLACEHOLDER'
 
     def check(self, instance):
@@ -33,13 +33,13 @@ class CheckNumberBrowsingRemaining(AgentCheck):
                     self.service_check(
                         self.SERVICE_CHECK_NAME,
                         AgentCheck.CRITICAL,
-                        message='Not enough Browsing nodes are running.'
+                        message='Not enough NODE_TYPE_PLACEHOLDER nodes are running.'
                     )
                     return
             self.service_check(
                 self.SERVICE_CHECK_NAME,
                 AgentCheck.OK,
-                message='Enough browsing nodes are running.'
+                message='Enough NODE_TYPE_PLACEHOLDER nodes are running.'
             )
             return
         except Exception:
