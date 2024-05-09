@@ -170,12 +170,18 @@ actions:
         echo " - envname:${env.envName}" >> /etc/datadog-agent/datadog.yaml
         echo " - provide:${_PROVIDE}" >> /etc/datadog-agent/datadog.yaml
         echo " - role:${_ROLE}" >> /etc/datadog-agent/datadog.yaml
-        one_remaining_node_script_name=haproxy_one_remaining_browsing.py
+        one_remaining_node_script_name=haproxy_one_remaining_cp_node.py
         one_remaining_node_script=/etc/datadog-agent/checks.d/$one_remaining_node_script_name
         curl --retry 6 -fLSso $one_remaining_node_script ${globals.repoRootUrl}/assets/haproxy/$one_remaining_node_script_name
         sed -i "s/BK_NAME_PLACEHOLDER/bk_${nodes.cp.first.nodeType}/" $one_remaining_node_script
+        if [ "${nodes.sqldb.first.id:}" == "" ]; then
+          cp_node_name=jcustomer
+        else
+          cp_node_name=browsing
+        fi
+        sed -i "s/NODE_TYPE_PLACEHOLDER/$cp_node_name/" $one_remaining_node_script
         chown dd-agent:dd-agent $one_remaining_node_script
-        ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_browsing.yaml
+        ln -s /etc/datadog-agent/conf.d/haproxy.d/conf.yaml /etc/datadog-agent/conf.d/haproxy_one_remaining_cp_node.yaml
         curl --retry 6 -fLSso /etc/datadog-agent/conf.d/haproxy.d/conf.yaml ${globals.repoRootUrl}/assets/haproxy/dd_agent_haproxy_conf.yml || exit 1
         mkdir /etc/datadog-agent/conf.d/jelastic.d /var/log/jelastic-packages
         chown haproxy:root /var/log/jelastic-packages
@@ -211,7 +217,7 @@ actions:
         checkName: haproxy
     - checkDatadogAgentCheck:
         target: ${this}
-        checkName: haproxy_one_remaining_browsing
+        checkName: haproxy_one_remaining_cp_node
     - checkDatadogAgentCheck:
         target: ${this}
         checkName: process
