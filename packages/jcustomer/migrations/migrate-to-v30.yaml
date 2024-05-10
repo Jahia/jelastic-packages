@@ -31,6 +31,7 @@ onInstall:
   # Regular actions
   - addHaproxyNodes                 # PAAS-2442
   - updateJcustomerStatusCheck      # PAAS-2517
+  - addJcustomerNotInHaproxyCheck   # PAAS-2520
 
   # Actions that require a restart
   # (None)
@@ -136,6 +137,27 @@ actions:
           chown dd-agent: $file_path
           service datadog-agent restart
         fi
+
+  addJcustomerNotInHaproxyCheck:
+    cmd[cp]: |-
+      DD_PATH="/etc/datadog-agent"
+      CHECK_NAME="jcustomer_node_not_in_haproxy"
+      restart_dd=0
+      if [ ! -f ${DD_PATH}/conf.d/${CHECK_NAME}.yaml ]; then
+        file_path="${DD_PATH}/conf.d/${CHECK_NAME}.yaml"
+        curl -fLSso $file_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/${CHECK_NAME}.yaml || exit 1
+        chown dd-agent: $file_path
+        ((restart_dd++))
+      fi
+      if [ ! -f ${DD_PATH}/checks.d/${CHECK_NAME}.py ]; then
+        file_path="${DD_PATH}/checks.d/${CHECK_NAME}.py"
+        curl -fLSso $file_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/${CHECK_NAME}.py || exit 2
+        chown dd-agent: $file_path
+        ((restart_dd++))
+      fi
+      if (( restart_dd > 0 )); then
+        systemctl restart datadog-agent
+      fi
 
 
 settings:
