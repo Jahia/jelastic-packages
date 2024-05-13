@@ -118,6 +118,8 @@ actions:
       - installRequiredPackages:
           target: bl
           packages: "jq rclone"
+      - env.control.AddContainerEnvVars[cp]:
+        vars: {"HAPROXY_NODES_COUNT": "${nodes.bl.length}"}
       - setJournaldLimit
       - getLogEventScript: "cp, bl"
       - installPapiScript: "cp, bl"
