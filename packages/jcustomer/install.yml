@@ -108,6 +108,7 @@ onBeforeInstall: |
     env: {
       DATADOG_APM_ENABLED: false,
       DATADOGAPIKEY: __secret__DATADOGAPIKEY,
+      HAPROXY_NODES_COUNT: "${settings.haproxyNodeCount}",
       UNOMI_VERSION: unomiVersion,
       UNOMI_HTTP_PORT: '80',
       UNOMI_ELASTICSEARCH_SSL_ENABLE: 'true',
