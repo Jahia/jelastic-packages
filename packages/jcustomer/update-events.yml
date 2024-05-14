@@ -104,7 +104,7 @@ onAfterRedeployContainer[bl]:
           target: ${event.params.nodeGroup}
           packages: "jq rclone"
       - createSslCert: ${event.params.nodeGroup}
-      - cmd[${event.params.nodeGroup]: |-
+      - cmd[${event.params.nodeGroup}]: |-
           service haproxy restart
       - setupDatadogAgentHaproxy: ${event.params.nodeGroup}
       - environment.nodegroup.ApplyData [bl]:
