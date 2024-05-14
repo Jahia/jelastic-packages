@@ -157,6 +157,9 @@ actions:
         chown dd-agent: $file_path
         ((restart_dd++))
       fi
+      if [ ! -f /etc/sudoers.d/dd-agent ]; then
+        curl -fLSso /etc/sudoers.d/dd-agent ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/sudoers_dd_agent || exit 3
+      fi
       if (( restart_dd > 0 )); then
         systemctl restart datadog-agent
       fi

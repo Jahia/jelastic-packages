@@ -17,7 +17,14 @@ class CheckNodeInHaproxyPool(AgentCheck):
     __NAMESPACE__ = "jcustomer"
     SERVICE_CHECK_NAME = "jcustomer_node_not_in_haproxy_pool"
     IP = socket.gethostbyname(socket.getfqdn())  # get the local ip
-    HAPROXY_NODES_COUNT = int(os.environ["HAPROXY_NODES_COUNT"])
+
+    envvars = {}
+    with open('/.jelenv') as jelenv:
+        for l in jelenv:
+            n, v = l.partition('=')[::2]
+            envvars[n.strip()] = v
+    HAPROXY_NODES_COUNT = int(envvars["HAPROXY_NODES_COUNT"])
+
     # the following command:
     #   * runs a tcpdump for 10s
     #     * this tcpdump list for http GET request on port 80 with the local ip as destination
@@ -25,7 +32,7 @@ class CheckNodeInHaproxyPool(AgentCheck):
     #     * it detect the client IP
     #     * if the request user "user-agent: HAProxy", it add an index (based on the client IP) on the "a" array and print its length
     #   * and we just keep the last awk output line
-    CMD = f"timeout --preserve-status 10 tcpdump -s0 -ntAql 'dst host {IP} and dst port 80 and tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420'" \
+    CMD = f"sudo -T 10 tcpdump -s0 -ntAql 'dst host {IP} and dst port 80 and tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420'" \
           + """| awk '$1=="IP" {ip=gensub(/\.[0-9]+$/, "", 1, $2)}; $1=="user-agent:" && $2=="HAProxy" {a[ip]; print length(a)}' | tail -n1"""
 
     def check(self, instance):
