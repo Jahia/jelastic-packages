@@ -1725,7 +1725,7 @@ actions:
   #######################
   getJexperienceVersion:
     # Get jExperience version to install according to jCustomer env version:
-    # - jCustomer 1.x ==> jExperience 2.10.1 & jExperienceDashboards 0.3.0
+    # - jCustomer 1.x ==> jExperience 2.10.2 & jExperienceDashboards 0.3.0
     # - jCustomer 2.x ==> jExperience 3.3.1 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of jCustomer environment
@@ -1747,7 +1747,7 @@ actions:
             jexperienceDashboardsVersion: 1.0.0
     - else:
         - setGlobals:
-            jexperienceVersion: 2.10.1
+            jexperienceVersion: 2.10.2
             jexperienceDashboardsVersion: 0.3.0
 
   getEnvLinkedJcustomer:
