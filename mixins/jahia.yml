@@ -1051,7 +1051,7 @@ actions:
     - else:
       - if ("${this.moduleVersion.print()}"):
         - script: |
-            return {"result": 0, "isVersionInstalled": ${globals.installedVersions}.split(",").includes(${this.moduleVersion})}
+            return {"result": 0, "isVersionInstalled": "${globals.installed_versions}".split(",").includes("${this.moduleVersion}")}
         - if (! ${response.isVersionInstalled}):
           - log: ${this.moduleSymname}/${this.moduleVersion} is not installed, nothing to do
           - set:
