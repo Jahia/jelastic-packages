@@ -2367,3 +2367,59 @@ actions:
                   msg='Error while trying to refresh SAM module, please try again manually'
                   echo $msg > /var/log/jelastic-packages/refreshSamModule.log
                 fi
+
+  switchDatastoreGarbageCollectionToTimer:
+  # This action is linked to the transition of datastore garbage collection management from a jahia job to a systemd timer.
+  # It should be used as long as backups without this change are potentially restorable.
+    - cmd[proc]: |-
+        if (systemctl is-active -q run_datastore_gc.timer); then
+            # timer is already in use, so we do nothing
+            exit 0
+        fi
+
+        # We update applicationcontext-custom.xml in order to:
+        #   * delete a already existing DataStoreGarbageCollectorJob bean
+        #   * recreate the whole DataStoreGarbageCollectorJob bean as we want
+        #     * be first creating as element "tempElement"
+        #     * then rename "tempElement" to "bean"
+        #     * and finally, move the new element into "beans" element
+        #     (all this is to avoid dealing with a silly xpath all the way because of the namespace)
+        #   * try to keep the global 4 spaces indentations and the indentation used in this xml file
+        #     (at least as well as possible) 
+        # All of this is working, trust me bro.
+        temp_file=$(mktemp)
+        custom_file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-custom.xml
+        xmlstarlet edit $global_opt -N x=http://www.springframework.org/schema/beans \
+            -d '//x:bean[@id="DataStoreGarbageCollectorJob"]' \
+            -s '/' -t elem -n 'tempElement' \
+                -i '/tempElement' -t attr -n 'id' -v 'DataStoreGarbageCollectorJob' \
+                -i '/tempElement' -t attr -n 'parent' -v 'jobSchedulingBean'  \
+                -i '/tempElement' -t attr -n 'lazy-init' -v 'true' \
+                    -s '/tempElement' -t elem -n 'property' \
+                        -i '/tempElement/property[1]' -t attr -n 'name' -v 'jobDetail' \
+                        -s '/tempElement/property[1]' -t elem -n 'bean' \
+                            -i '/tempElement/property[1]/bean' -t attr -n 'class' -v 'org.springframework.scheduling.quartz.JobDetailBean' \
+                            -s '/tempElement/property[1]/bean' -t elem -n 'property' \
+                                -i '/tempElement/property[1]/bean/property[1]' -t attr -n 'name' -v 'name' \
+                                -i '/tempElement/property[1]/bean/property[1]' -t attr -n 'value' -v 'DataStoreGarbageCollectorJob' \
+                            -s '/tempElement/property[1]/bean' -t elem -n 'property' \
+                                -i '/tempElement/property[1]/bean/property[2]' -t attr -n 'name' -v 'jobClass' \
+                                -i '/tempElement/property[1]/bean/property[2]' -t attr -n 'value' -v 'org.jahia.services.scheduler.DataStoreGarbageCollectorJob' \
+                            -s '/tempElement/property[1]/bean' -t elem -n 'property' \
+                                -i '/tempElement/property[1]/bean/property[3]' -t attr -n 'name' -v 'group' \
+                                -i '/tempElement/property[1]/bean/property[3]' -t attr -n 'value' -v 'Maintenance' \
+                            -s '/tempElement/property[1]/bean' -t elem -n 'property' \
+                                -i '/tempElement/property[1]/bean/property[4]' -t attr -n 'name' -v 'description' \
+                                -i '/tempElement/property[1]/bean/property[4]' -t attr -n 'value' -v 'Runs JCR DataStore Garbage Collector that deletes no longer used entries' \
+            -r /tempElement -v bean \
+            -m /bean x:beans \
+            $custom_file \
+                | xmlstarlet format -s 4 \
+                | sed -r 's,\s+(x(mlns|si)\S+),\n       \1,2g' \
+                | sed -r -e '/xsi:schemaLocation=/s,\s+, ,2g' -e '/xsi:schemaLocation=/s,((\shttp\S+){2}"),\n                          \1,' \
+                > $temp_file
+        chown tomcat: $temp_file
+        mv $temp_file $custom_file
+
+        # We enable and start the timer
+        systemctl enable --now run_datastore_gc.timer

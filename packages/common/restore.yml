@@ -461,6 +461,7 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring Jahia (configuration)"
+    - switchDatastoreGarbageCollectionToTimer
     # Content History purge job should only be enabled on the processing node
     - cmd [cp]: |-
         file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-purge-jobs.xml
