@@ -221,7 +221,7 @@ actions:
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
 
         # disable useless datastore garbage collection timer on browsing
-        [[ $_ROLE == Browsing ]] && systemctl disable --now run_datastore_gc.timer
+        [[ $_ROLE == Browsing ]] && systemctl disable --now run_datastore_gc.timer || true
 
     - if ("${response.errOut}" != ""):
         - return:
