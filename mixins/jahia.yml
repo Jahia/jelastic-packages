@@ -220,6 +220,9 @@ actions:
         grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false -Ddd.profiling.disabled.events=jdk.OldObjectSample"' >>  ${tomcat_env}
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
 
+        # disable useless datastore garbage collection timer on browsing
+        [[ $_ROLE == Browsing ]] && systemctl disable --now run_datastore_gc.timer
+
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -2372,11 +2375,6 @@ actions:
   # This action is linked to the transition of datastore garbage collection management from a jahia job to a systemd timer.
   # It should be used as long as backups without this change are potentially restorable.
     - cmd[proc]: |-
-        if (systemctl is-active -q run_datastore_gc.timer); then
-            # timer is already in use, so we do nothing
-            exit 0
-        fi
-
         # We update applicationcontext-custom.xml in order to:
         #   * delete a already existing DataStoreGarbageCollectorJob bean
         #   * recreate the whole DataStoreGarbageCollectorJob bean as we want

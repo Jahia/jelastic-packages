@@ -168,6 +168,8 @@ actions:
         - switchDatastoreGarbageCollectionToTimer
         - api: environment.control.RestartNodeById
           nodeId: ${nodes.proc.first.id}
+        - cmd[proc]: |-
+            systemctl start run_datastore_gc
 
 
 settings:
