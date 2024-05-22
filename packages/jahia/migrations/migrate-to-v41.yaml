@@ -69,11 +69,22 @@ actions:
     install:
       jps: "${baseUrl}../update-events.yml"
 
+  checkHaproxyDatadogCustomChecksOld:
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: haproxy
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: haproxy_one_remaining_browsing
+    - checkDatadogAgentCheck:
+        target: ${this}
+        checkName: process
+
   preChecks:
     - checkJahiaHealth: "cp, proc"
     - checkJahiaDatadogCustomChecks: "cp, proc"
     - checkHaproxyHealth: bl
-    - checkHaproxyDatadogCustomChecks: bl
+    - checkHaproxyDatadogCustomChecksOld: bl # !!!! Use the new check for next release !!!!
     - checkMariadbHealth:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
