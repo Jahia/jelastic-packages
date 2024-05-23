@@ -32,13 +32,13 @@ onInstall:
   # (None)
 
   # Regular actions
+  - removeOldModuleVersions   # PAAS-2926
 
   # Actions that require a restart
   - switchDatastoreGC2Timer   # PAAS-2905 (require proc's tomcat restart)
 
   # Actions that require a redeploy
   - upgradeHaproxy            # PAAS-2860
-  - removeOldModuleVersions   # PAAS-2926
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -147,22 +147,26 @@ actions:
             return:
               type: error
               message: "Error, unknown jahia version ${globals.jahiaVersion}"
-
-        - enableKarafLogin: "cp, proc"
-        - cmd[cp, proc]: |-
-            for module in "provisioning" "jcrcommands"; do
-              current_versions=$(${globals.karafConsole} cluster:bundle-list -s default |grep $module | awk '{print $10 }')
-              if ! (echo $current_versions | grep -q ${this.version}); then
-                echo "$module/${this.version} is missing and will be installed"
-                ${globals.karafConsole} bundle:install -l 30 mvn:org.jahia.bundles/org.jahia.bundles.$module/${this.version}
-                ${globals.karafConsole} bundle:start org.jahia.bundles.$module/${this.version}
-              fi
-              if (echo $current_versions | grep -q ${globals.jahiaVersion}); then
-                echo "$module/${globals.jahiaVersion} is present and will be unstalled."
-                ${globals.karafConsole} bundle:uninstall org.jahia.bundles.$module/${globals.jahiaVersion}
-              fi
-            done
-        - disableKarafLogin: "cp, proc"
+        - set:
+            nodes:
+              - cp
+              - proc
+        - forEach(${this.nodes}):
+          - enableKarafLogin: ${@i}
+          - cmd[${@i}]: |-
+              for module in "provisioning" "jcrcommands"; do
+                current_versions=$(${globals.karafConsole} cluster:bundle-list -s default |grep $module | awk '{print $10 }')
+                if ! (echo $current_versions | grep -q ${this.version}); then
+                  echo "$module/${this.version} is missing and will be installed"
+                  ${globals.karafConsole} bundle:install -l 30 mvn:org.jahia.bundles/org.jahia.bundles.$module/${this.version}
+                  ${globals.karafConsole} bundle:start org.jahia.bundles.$module/${this.version}
+                fi
+                if (echo $current_versions | grep -q ${globals.jahiaVersion}); then
+                  echo "$module/${globals.jahiaVersion} is present and will be unstalled."
+                  ${globals.karafConsole} bundle:uninstall org.jahia.bundles.$module/${globals.jahiaVersion}
+                fi
+              done
+          - disableKarafLogin: ${@i}
 
   switchDatastoreGC2Timer:
     - cmd[proc]: |-
