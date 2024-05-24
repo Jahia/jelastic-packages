@@ -41,6 +41,15 @@ actions:
     - if(globals.lessjahia813):
         - setGlobals:  # if jahia < 8.1.3
             augsearch_ver: 3.4.2
+    - else:
+        - isVersionStrictlyHigher:
+            a: ${globals.jahiaVersion}
+            b: 8.2.0.0
+            res: jahia82Plus
+        - if(${globals.jahia82Plus}):
+            setGlobals:
+              db_connector_ver: 1.6.0
+              es_connector_ver: 3.3.0
 
   installModules:
     - cmd[proc, cp]: |-
