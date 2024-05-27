@@ -33,6 +33,7 @@ onInstall:
 
   # Regular actions
   - removeOldModuleVersions   # PAAS-2926
+  - updateJahiaOverride       # PAAS-2941
 
   # Actions that require a restart
   - switchDatastoreGC2Timer   # PAAS-2905 (require proc's tomcat restart)
@@ -185,6 +186,16 @@ actions:
           nodeId: ${nodes.proc.first.id}
         - cmd[proc]: |-
             systemctl start run_datastore_gc
+
+  updateJahiaOverride:
+    - cmd[cp, proc]: |-
+        file_md5=5953b707b79c45351883609d35481bba
+        file_path=/var/lib/jelastic/customizations/jahia_override.lib
+        file_url=${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/jahia_override.lib
+        if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+          curl -fLSso $file_path $file_url || exit 1
+          chmod +x $file_path
+        fi
 
 
 settings:

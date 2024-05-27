@@ -62,8 +62,6 @@ actions:
         fi
 
   onAfterRedeployJahiaContainer:
-    - cmd[${this}]:
-        - service tomcat stop
     - getMavenPath
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
@@ -99,7 +97,7 @@ actions:
           echo "This is an upgrade, processing's tomcat will not be restarted now"
         else
           echo "This is a regular redeploy, restart tomcat now"
-          sudo service tomcat start
+          systemctl start tomcat
         fi
 
     - script: |-
@@ -164,11 +162,12 @@ actions:
         mv ${file}-disabled $file
     - cmd[proc, cp]: |-
         systemctl restart proxysql
-    - api: env.control.ExecDockerRunCmd
-      nodeId: ${nodes.proc.first.id}
+    - cmd[proc]: |-
+        systemctl enable --now tomcat
     - checkPatGroovyScriptExecution
     - startupJahiaHealthCheck: proc
-    - env.control.ExecDockerRunCmd [${nodes.cp.join(id,)}]
+    - cmd[cp]: |-
+        systemctl enable --now tomcat
 
   setJahiaPropertiesEnvvars:
     - log: "## Setting jahia.properties envvars"
@@ -1379,7 +1378,7 @@ actions:
             echo "restore-module-state have been asked"
             ls -l /data/digital-factory-data/*.dorestore
             touch /data/digital-factory-data/modules/*
-            service tomcat start
+            systemctl start tomcat
         - setJahiaUserFeedbacksConfig
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
