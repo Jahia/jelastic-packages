@@ -29,7 +29,7 @@ onInstall:
   ### End pre-migration actions
 
   # Actions that update modules (needs to be done first)
-  # (None)
+  - updateAppshell            # PAAS-2939
 
   # Regular actions
   - removeOldModuleVersions   # PAAS-2926
@@ -200,6 +200,19 @@ actions:
           curl -fLSso $file_path $file_url || exit 1
           chmod +x $file_path
         fi
+
+  updateAppshell:
+    - getJahiaVersion
+    - isVersionBetween:
+            lower: 8.1.3.0
+            lower_may_equal: true
+            version: ${globals.jahiaVersion}
+            higher: 8.1.6.0
+            higher_may_equal: true
+            res: isBetween813and816
+    - if (${globals.isBetween813and816}):
+        installOrUpgradeModules:
+          modules: app-shell/2.9.0
 
   redeploySqldbToAlmalinux:
     - if(nodes.sqldb.length > 1):
