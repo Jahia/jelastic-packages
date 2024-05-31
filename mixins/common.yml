@@ -836,6 +836,87 @@ actions:
           -H "DD-API-KEY: $DATADOGAPIKEY" \
           -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY"
 
+  checkDatadogBrowserTests:
+    # Parameters:
+    #  - postCheck (boolean): this parameter should be true if the goal is to check browser tests
+    #    after a specific operation to valid if the ones that were working prior are still working.
+    #    Optional, default: false
+    - if ("${this.postCheck.print()}" == ""):
+        set:
+          postCheck: false
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/common/datadog"
+        secretKey: "datadog_app_key"
+    - cmd [proc]: |-
+        DD_HOSTNAME=$(awk '$1=="hostname:" {print $2}' /etc/datadog-agent/datadog.yaml)
+        __secret__DD_APP_KEY=$(echo -n "${globals.__secret__vaultSecretData}" | base64 -d)
+        file=/opt/tomcat/temp/browser_tests
+        # post_check should be true if we check browser tests after a specific operation
+        # to valid if the ones that were working are still working
+        post_check=${this.postCheck}
+
+        # If it is the initial check, we fetch the list of browser tests first
+        if ! $post_check; then
+          rm -f $file
+          resp=$(curl "https://api.${DD_SITE}/api/v1/synthetics/tests" \
+                      -fsS \
+                      -H "DD-API-KEY: $DATADOGAPIKEY" \
+                      -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY") || exit 1
+          $(echo $resp | jq -r 'has("tests")') || exit 2
+          tests=($(echo $resp | jq -r '[.tests[] | select(.type == "browser") | .public_id] | join(" ")'))
+        else # Otherwise we get the list from the file generated during the initial check
+          [ -f $file ] && tests=($(cat $file))
+        fi
+
+        # Nothing to do if there is no browser test (or working browser test in case of post-check)
+        if [ -z $tests ]; then
+          echo "No browser test was found, nothing to do."
+          exit 0
+        fi
+
+        # Then we trigger each browser test from the list and store the result_id to check it later
+        declare -A result_ids
+        for test_id in ${tests[@]}; do
+          resp=$(curl "https://api.${DD_SITE}/api/v1/synthetics/tests/trigger" \
+                      -fsS -XPOST \
+                      -H "Accept: application/json" \
+                      -H "Content-Type: application/json" \
+                      -H "DD-API-KEY: $DATADOGAPIKEY" \
+                      -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY" \
+                      -d '{"tests": [{"public_id": "'$test_id'"}]}') || exit 3
+          $(echo $resp | jq -r 'has("results")') || exit 4
+          result_ids["$test_id"]="$(echo $resp | jq -r '.results[0].result_id')"
+        done
+
+        # For each test we check the result using the corresponding result_id
+        for test_id in ${tests[@]}; do
+          timeout=300
+          until [ $timeout -le 0 ]; do
+            echo "Fetching result #${result_ids[$test_id]} for browser test #${test_id}..."
+            resp=$(curl "https://api.${DD_SITE}/api/v1/synthetics/tests/browser/${test_id}/results/${result_ids[$test_id]}" \
+                        -fs \
+                        -H "DD-API-KEY: $DATADOGAPIKEY" \
+                        -H "DD-APPLICATION-KEY: $__secret__DD_APP_KEY")
+            if [ "$(echo $resp | jq -r '.result.eventType')" = "finished" ]; then
+              passed=$(echo $resp | jq -r '.result.passed')
+              break
+            fi
+            sleep 10
+            ((timeout-=10))
+          done
+          if [ $timeout -le 0 ]; then
+            echo "Timeout when trying to get result #${result_ids[$test_id]} for browser test #$test_id, please check."
+            exit 5
+          fi
+          if ! $post_check && $passed; then
+            echo "$test_id" >> $file
+          elif $post_check && ! $passed; then
+            echo "Browser test #$test_id does not work anymore (result #${result_ids[$test_id]}), please check."
+            exit 6
+          fi
+        done
+
   getPapiInfoAll:
     - getVaultData
     - vaultSecretReadKeyB64:

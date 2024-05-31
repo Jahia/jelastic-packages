@@ -90,6 +90,7 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - checkDatadogBrowserTests
     - dumpModules:
         operation: migration
         checkVersion: true
@@ -103,6 +104,8 @@ actions:
         target: sqldb
     - checkGaleraClusterHealth: sqldb
     - checkMariadbDatadogCustomChecks: sqldb
+    - checkDatadogBrowserTests:
+        postCheck: true
     - checkModulesAfterOperation:
         operation: migration
         ignoredModules: ${globals.ignoredModules}
