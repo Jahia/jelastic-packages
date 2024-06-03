@@ -29,6 +29,7 @@ onInstall:
           def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session);
           if (tokenDetails) {
             service.deleteToken(tokenDetails.key, session);
+            session.save();
           }
           service.tokenBuilder(\"/users/root\", \"Jahia Cloud Token\", session)
             .setToken(\"$__secret__pat_token\")
