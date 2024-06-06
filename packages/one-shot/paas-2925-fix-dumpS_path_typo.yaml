@@ -62,5 +62,8 @@ actions:
           chmod +x $tempfile
           mv $tempfile $file
         fi
+        # PAAS-2940 addition: set /var/tmp/cloud ownership to tomcat
+        # (still exit 0 even if already with the good ownership)
+        chown tomcat:tomcat /var/tmp/cloud
     - if ("${response.out}" == "nok"):
         - pushToList: ${this}
