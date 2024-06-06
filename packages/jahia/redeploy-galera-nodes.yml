@@ -22,5 +22,5 @@ settings:
       type: string
       nodeType: mariadb-dockerized
       caption: MariaDB target Docker tag
-      default: 10.4.13
+      default: 10.11.7-almalinux-9
       required: false

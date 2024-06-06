@@ -417,23 +417,27 @@ actions:
     #  - python_major_version: major version of Python to install
     #  - python_minor_version: minor version of Python to install
     - cmd [${this.target}]: |-
-        PYTHON_MAJOR_VERSION=${this.python_major_version}
-        PYTHON_MINOR_VERSION=${this.python_minor_version}
-        if rpm -q --quiet python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}; then
-          echo "python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} already installed, nothing to do"
-          exit 0
+        if [ -f /etc/almalinux-release ]; then
+          yum install -y python3-pip
+        else
+          PYTHON_MAJOR_VERSION=${this.python_major_version}
+          PYTHON_MINOR_VERSION=${this.python_minor_version}
+          if rpm -q --quiet python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}; then
+            echo "python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} already installed, nothing to do"
+            exit 0
+          fi
+          curl --retry 6 -fLSso /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm" || exit 1
+          rpm -ivh /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm || exit 1
+          cd /usr/bin
+          ln -s /usr/local/bin/python${PYTHON_MAJOR_VERSION} python${PYTHON_MAJOR_VERSION}
+          python3 -m ensurepip --upgrade || exit 1
+          cd /usr/local/bin
+          rm -f /usr/local/bin/pip /usr/local/bin/pip${PYTHON_MAJOR_VERSION}
+          ln -s pip${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} pip
+          ln -s pip${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} pip${PYTHON_MAJOR_VERSION}
+          pip install --upgrade pip || exit 1
+          rm -f /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm
         fi
-        curl --retry 6 -fLSso /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm "http://paas-rpms.s3.amazonaws.com/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm" || exit 1
-        rpm -ivh /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm || exit 1
-        cd /usr/bin
-        ln -s /usr/local/bin/python${PYTHON_MAJOR_VERSION} python${PYTHON_MAJOR_VERSION}
-        python3 -m ensurepip --upgrade || exit 1
-        cd /usr/local/bin
-        rm -f /usr/local/bin/pip /usr/local/bin/pip${PYTHON_MAJOR_VERSION}
-        ln -s pip${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} pip
-        ln -s pip${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION} pip${PYTHON_MAJOR_VERSION}
-        pip install --upgrade pip || exit 1
-        rm -f /root/python-${PYTHON_MAJOR_VERSION}.${PYTHON_MINOR_VERSION}.rpm
 
   installPapiScript:
     - setGlobalRepoRootUrl
