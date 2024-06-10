@@ -32,15 +32,16 @@ onInstall:
   # (None)
 
   # Regular actions
-  - removeOldModuleVersions   # PAAS-2926
-  - updateJahiaOverride       # PAAS-2941
+  - removeOldModuleVersions        # PAAS-2926
+  - updateJahiaOverride            # PAAS-2941
 
   # Actions that require a restart
-  - switchDatastoreGC2Timer   # PAAS-2905 (require proc's tomcat restart)
+  - switchDatastoreGC2Timer        # PAAS-2905 (require proc's tomcat restart)
 
   # Actions that require a redeploy
-  - upgradeHaproxy            # PAAS-2860
-  - redeploySqldbToAlmalinux  # PAAS-2932
+  - upgradeHaproxy                 # PAAS-2860
+  - redeploySqldbToAlmalinux       # PAAS-2932
+  - redeployJahiaNodesToAlmalinux  # PAAS-2912
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -219,6 +220,10 @@ actions:
         - unmuteDatadogHost:
             target: "*"
         - unmuteEnvWideMonitors
+
+  redeployJahiaNodesToAlmalinux:
+    - install:
+        jps: "${baseUrl}../jahia-rolling-redeploy.yml"
 
 settings:
   fields:
