@@ -269,7 +269,7 @@ onBeforeInstall: |
   node_mariadb = {
     "nodeType": "${globals.dbnodeType}",
     "nodeGroup": "sqldb",
-    "tag": "10.4.13",
+    "tag": "10.11.7-almalinux-9",
     "count": ${settings.sqldbNodeCount},
     "cloudlets": mariadbCloudlets,
     "isSLBAccessEnabled": false,

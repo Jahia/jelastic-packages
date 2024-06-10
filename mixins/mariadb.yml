@@ -19,20 +19,26 @@ actions:
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        mkdir /etc/systemd/system/{mysql,mariadb}.service.d
-        echo -e "[Service]\nLimitNOFILE=524290" | tee /etc/systemd/system/{mysql,mariadb}.service.d/override.conf
+        systemctl stop mysql
+        sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
+        sleep 3  # be sure that the daemon is launched
+        # allow root user to authenticate
+        mysql -e "flush privileges; alter user root@localhost identified via unix_socket; flush privileges;"
+        pkill 'mysqld_safe|mariadbd'
+        sleep 3  # be sure that the daemon is stopped
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
-        sudo -u mysql mysql -e "alter user root@localhost identified via unix_socket;"
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
         curl --retry 6 -fLSso /etc/mysql/conf.d/mysql.cnf ${globals.repoRootUrl}/assets/database/mysql.cnf || exit 1
-        mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
         echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
         curl --retry 6 -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
+        chmod 644 /etc/logrotate.d/mysql
         curl --retry 6 --create-dirs -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
         curl --retry 6 -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
+        systemctl enable --now mysql 2> /dev/null
+        mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -383,10 +389,10 @@ actions:
             - redeployGaleraNode:
                 target: ${@i.id}
             - sleep:
-              - milliseconds: 15000
+                - milliseconds: 15000
         - else:
-          - setGlobals:
-              origMasterId: ${@i.id}
+            - setGlobals:
+                origMasterId: ${@i.id}
 
     - script: |-
         masterIndex = "${globals.galeraMasterIndex}".slice(-1);

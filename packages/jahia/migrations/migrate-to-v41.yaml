@@ -40,6 +40,7 @@ onInstall:
 
   # Actions that require a redeploy
   - upgradeHaproxy            # PAAS-2860
+  - redeploySqldbToAlmalinux  # PAAS-2932
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -200,6 +201,24 @@ actions:
           chmod +x $file_path
         fi
 
+  redeploySqldbToAlmalinux:
+    - if(nodes.sqldb.length > 1):
+        - install:
+            jps: "${baseUrl}../redeploy-galera-nodes.yml"
+    - else:
+        - setGlobals:
+            targetDockerTag: 10.11.7-almalinux-9
+        - getGaleraNodeNameIndex: ${nodes.sqldb.first.id}
+        - muteDatadogHost:
+            target: "*"
+            duration: 60
+        - muteEnvWideMonitors
+        - stopJahia: cp, proc
+        - redeployGaleraNode:
+            target: ${nodes.sqldb.first.id}
+        - unmuteDatadogHost:
+            target: "*"
+        - unmuteEnvWideMonitors
 
 settings:
   fields:
