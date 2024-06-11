@@ -31,16 +31,6 @@ onInstall:
   # Actions that update modules (needs to be done first)
   # (None)
 
-  # Regular actions
-  - removeOldModuleVersions   # PAAS-2926
-  - updateJahiaOverride       # PAAS-2941
-
-  # Actions that require a restart
-  - switchDatastoreGC2Timer   # PAAS-2905 (require proc's tomcat restart)
-
-  # Actions that require a redeploy
-  - upgradeHaproxy            # PAAS-2860
-  - redeploySqldbToAlmalinux  # PAAS-2932
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
