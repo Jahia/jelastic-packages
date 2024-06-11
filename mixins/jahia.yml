@@ -221,6 +221,9 @@ actions:
 
         # disable useless datastore garbage collection timer on browsing
         [[ $_ROLE == Browsing ]] && systemctl disable --now run_datastore_gc.timer 2> /dev/null || true
+        if [[ ${DX_VERSION:0:4} != 8.1. ]]; then
+          echo 'CATALINA_OPTS="$CATALINA_OPTS -Djavax.xml.validation.SchemaFactory:http://www.w3.org/2001/XMLSchema=com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory"' >> ${tomcat_env}
+        fi
 
     - if ("${response.errOut}" != ""):
         - return:
@@ -1728,7 +1731,9 @@ actions:
   getJexperienceVersion:
     # Get jExperience version to install according to jCustomer env version:
     # - jCustomer 1.x ==> jExperience 2.10.2 & jExperienceDashboards 0.3.0
-    # - jCustomer 2.x ==> jExperience 3.3.1 & jExperienceDashboards 1.0.0
+    # - jCustomer 2.x ==>
+    #       - < jahia 8.2 jExperience 3.3.1 & jExperienceDashboards 1.0.0
+    #       - >= jahia 8.2 jExperience 3.4.0 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of jCustomer environment
     # Returns:
@@ -1743,11 +1748,25 @@ actions:
         a: ${this.unomiVersion}
         b: 2.0.0
         res: isHigherOrEqual200
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: jahia82Plus
     - if( ${globals.isHigherOrEqual200} ):
-        - setGlobals:
-            jexperienceVersion: 3.3.1
-            jexperienceDashboardsVersion: 1.0.0
+        - if(${globals.jahia82Plus}):
+            setGlobals:
+              jexperienceVersion: 3.4.0
+              jexperienceDashboardsVersion: 1.0.0
+        - else:
+            setGlobals:
+              jexperienceVersion: 3.3.1
+              jexperienceDashboardsVersion: 1.0.0
     - else:
+        - if(${globals.jahia82Plus}):
+            return:
+              type: error
+              message: jahia 8.2 is not compatible with jcustomer 1
         - setGlobals:
             jexperienceVersion: 2.10.2
             jexperienceDashboardsVersion: 0.3.0
@@ -1836,8 +1855,16 @@ actions:
         b: 8.1.3.0
         res: isHigherOrEqualThan8130
     - if(${globals.isHigherOrEqualThan8130}):
-        set:
-          kibanaDashboardProviderVersion: 1.2.0
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.2.0.0
+            res: jahia82Plus
+        - if(${globals.jahia82Plus}):
+            set:
+              kibanaDashboardProviderVersion: 1.3.0
+        - else:
+            set:
+              kibanaDashboardProviderVersion: 1.2.0
     - else:
         set:
           kibanaDashboardProviderVersion: 1.1.0
@@ -2382,7 +2409,7 @@ actions:
         #     * and finally, move the new element into "beans" element
         #     (all this is to avoid dealing with a silly xpath all the way because of the namespace)
         #   * try to keep the global 4 spaces indentations and the indentation used in this xml file
-        #     (at least as well as possible) 
+        #     (at least as well as possible)
         # All of this is working, trust me bro.
         temp_file=$(mktemp)
         custom_file=/opt/tomcat/conf/digital-factory-config/jahia/applicationcontext-custom.xml
