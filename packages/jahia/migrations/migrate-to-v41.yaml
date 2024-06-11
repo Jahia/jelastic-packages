@@ -30,7 +30,9 @@ onInstall:
 
   # Actions that update modules (needs to be done first)
   # (None)
-
+  - cmd["proc"]: |-
+      sleep 120
+      echo "done"
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
