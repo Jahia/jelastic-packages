@@ -26,7 +26,7 @@ onInstall:
       echo """
         org.jahia.services.content.JCRTemplate.getInstance().doExecuteWithSystemSession({ session ->
           def service = org.jahia.osgi.BundleUtils.getOsgiService(\"org.jahia.modules.apitokens.TokenService\");
-          def tokenDetails = service.getTokenDetails(\"/users/root\", \"Jahia Cloud Token\", session);
+          def tokenDetails = service.getTokenDetails(\"/users/root\", \"jahia-cloud-token_admin_${env.envName}\", session);
           if (tokenDetails) {
             service.deleteToken(tokenDetails.key, session);
             session.save();
