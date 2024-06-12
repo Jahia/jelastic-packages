@@ -941,7 +941,7 @@ actions:
         HAPROXY_CUSTOMER_ERROR_PAGES_DIR=$HAPROXY_CONF_DIR/$HAPROXY_CUSTOMER_ERROR_PAGES_DIR_NAME
 
         cd jelastic_backup
-        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . || exit 1
+        rclone copy backup:${globals.bucketName}/${globals.backupName}/haproxy.tar.gz . 2>&1 || exit 1
         rm -f $HAPROXY_CUSTOMER_CONF_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_DIR/* $HAPROXY_CUSTOMER_ERROR_PAGES_CONF 2>/dev/null
         tar -xzf $BACKUP_FILE
 
