@@ -21,11 +21,13 @@ actions:
     - cmd[sqldb]: |-
         systemctl stop mysql
         sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
-        sleep 3  # be sure that the daemon is launched
+        sleep 5  # be sure that the daemon is launched
         # allow root user to authenticate
-        mysql -e "flush privileges; alter user root@localhost identified via unix_socket; flush privileges;"
+        for u in root mysql; do
+          mysql -e "flush privileges; alter user ${u}@localhost identified via unix_socket; flush privileges;"
+        done
         pkill 'mysqld_safe|mariadbd'
-        sleep 3  # be sure that the daemon is stopped
+        sleep 5  # be sure that the daemon is stopped
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
@@ -250,7 +252,7 @@ actions:
         [ -f /var/lib/mysql/grastate.dat ] && rm -f /var/lib/mysql/grastate.dat
         [ -f /var/lib/mysql/gvwstate.dat ] && rm -f /var/lib/mysql/gvwstate.dat
         [ -f /var/lib/mysql/galera.cache ] && rm -f /var/lib/mysql/galera.cache
-        /etc/init.d/mysql stop; pkill -9 mysql; /etc/init.d/mysql start
+        (/etc/init.d/mysql stop; pkill -9 mysql; /etc/init.d/mysql start) 2> /dev/null
     - if ("${response.errOut}" != ""):
         - return:
             type: error
