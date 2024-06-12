@@ -297,7 +297,7 @@ onBeforeInstall: |
 
   node_storage = {
     "nodeType": "storage",
-    "cloulets": glusterFSCloudlets,
+    "cloudlets": glusterFSCloudlets,
     "count": ${settings.sqldbNodeCount},
     "nodeGroup": "storage",
     "displayName": "Storage",
