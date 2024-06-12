@@ -200,7 +200,8 @@ actions:
           | rclone rcat backup:${globals.bucketName}/${globals.backupName}/datastore.tar \
                    --s3-chunk-size 48M \
                    --log-file=${globals.logsPath} \
-                   --log-level DEBUG
+                   --log-level DEBUG \
+                   2>&1
 
         if (($?)); then
           echo "Something went wrong with tar or rclone, we clean the bucket" >> ${globals.logsPath}
