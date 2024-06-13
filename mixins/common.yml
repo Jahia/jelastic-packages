@@ -333,13 +333,10 @@ actions:
   installBackupTools:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
-        if [ -f /etc/almalinux-release ]; then
-          yum install -y python3-boto3
-        else
+        if [ ! -f /etc/almalinux-release ]; then
           python3 -m pip install --upgrade pip
           python3 -m pip install --upgrade boto3
         fi
-
         [ -d jelastic_backup ] || mkdir jelastic_backup
         cd jelastic_backup
         for file in backrest.py lib_aws.py revisionNode.py; do
