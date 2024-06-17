@@ -222,7 +222,9 @@ actions:
         # disable useless datastore garbage collection timer on browsing
         [[ $_ROLE == Browsing ]] && systemctl disable --now run_datastore_gc.timer 2> /dev/null || true
         if [ "$(echo $DX_VERSION | awk '{print substr($NF,0,4) }')" != "8.1." ]; then
-          echo 'CATALINA_OPTS="$CATALINA_OPTS -Djavax.xml.validation.SchemaFactory:http://www.w3.org/2001/XMLSchema=com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory"' >> ${tomcat_env}
+          p1='-Djavax.xml.validation.SchemaFactory:http://www.w3.org/2001/XMLSchema=com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory'
+          p2='-Djavax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl'
+          echo 'CATALINA_OPTS="$CATALINA_OPTS '$p1' '$p2'"' >> ${tomcat_env}
         fi
 
     - if ("${response.errOut}" != ""):
