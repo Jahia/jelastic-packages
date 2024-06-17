@@ -220,7 +220,7 @@ actions:
         grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false -Ddd.profiling.disabled.events=jdk.OldObjectSample"' >>  ${tomcat_env}
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
 
-        if [[ ${DX_VERSION:0:4} != 8.1. ]]; then
+        if [ "$(echo $DX_VERSION | awk '{print substr($NF,0,4) }')" != "8.1." ]; then
           echo 'CATALINA_OPTS="$CATALINA_OPTS -Djavax.xml.validation.SchemaFactory:http://www.w3.org/2001/XMLSchema=com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory"' >> ${tomcat_env}
         fi
 
