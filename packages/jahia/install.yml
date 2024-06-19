@@ -81,7 +81,7 @@ onBeforeInstall: |
 
   // Browsing nodes
 
-  var jahiaDockerTag = "${settings.productVersion}";
+  var jahiaDockerTag = "8.2.0.3_paas2876";
   if ("${settings.dockerTagSuffix}" != "") {
     jahiaDockerTag += "_${settings.dockerTagSuffix}"
   }
