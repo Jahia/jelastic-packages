@@ -219,8 +219,8 @@ actions:
         # Datadog APM
         grep -q '^APM_OPTS=*' ${tomcat_env} || echo 'APM_OPTS="-Ddd.profiling.enabled=true -XX:FlightRecorderOptions=stackdepth=256 -Ddd.logs.injection=true -javaagent:/opt/tomcat/datadog/dd-java-agent.jar -Ddd.service=jahia -Ddd.env=${env.domain} -Ddd.trace.classes.exclude=org.jahia.modules.forms.dsl.*,org.jahia.modules.databaseConnector.dsl.* -Ddd.resolver.use.loadclass=false -Ddd.profiling.disabled.events=jdk.OldObjectSample"' >>  ${tomcat_env}
         grep -q '^$DATADOG_APM_ENABLED*' ${tomcat_env} || echo '$DATADOG_APM_ENABLED && JAVA_OPTS+=" $APM_OPTS"' >> ${tomcat_env}
-
-        if [ "$(echo $DX_VERSION | awk '{print substr($NF,0,4) }')" != "8.1." ]; then
+        version=$(ls /opt/tomcat/webapps/ROOT/WEB-INF/karaf/system/org/jahia/features/dx-core/)
+        if [ "$(echo $version | awk '{print substr($NF,0,4) }')" != "8.1." ] && ! grep -q "XMLSchemaFactory" ${tomcat_env}; then
           p1='-Djavax.xml.validation.SchemaFactory:http://www.w3.org/2001/XMLSchema=com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory'
           p2='-Djavax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl'
           echo 'CATALINA_OPTS="$CATALINA_OPTS '$p1' '$p2'"' >> ${tomcat_env}
