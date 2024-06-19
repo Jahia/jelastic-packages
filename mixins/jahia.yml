@@ -314,6 +314,7 @@ actions:
     - getPatTokenAndKey
     - cmd [${this.target}]: |-
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
+        log_file=/opt/tomcat/logs/catalina.out
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
           echo "[ERROR] Tomcat process not found, please check." >&2
           exit 1
@@ -329,7 +330,17 @@ actions:
           exit 2
         fi
 
-        startup_line=$(grep -n "s t a r t i n g" /opt/tomcat/logs/catalina.out | tail -n1 | cut -d":" -f1)
+        timeout 60 bash -c '
+          until grep -q "s t a r t i n g" $0; do
+            sleep 1
+          done
+        ' $log_file
+        if (($?)); then
+          echo "[ERROR] Jahia won't start, it seems there is a problem with tomcat instance, please check." >&2
+          exit 2
+        fi
+
+        startup_line=$(grep -n "s t a r t i n g" $log_file | tail -n1 | cut -d":" -f1)
         timeout=$(date --date="+$HEALTHCHECK_DURATION minutes" +%s)
         hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
 
@@ -352,7 +363,7 @@ actions:
           fi
 
           # Then we check Jahia startup status, all
-          tail -n +${startup_line} /opt/tomcat/logs/catalina.out | grep -q "Server startup in"
+          tail -n +${startup_line} $log_file | grep -q "Server startup in"
           if [ $? -eq 0 ]; then
             if [ $jahia_running_timeout -eq 1 ]; then
               for module in graphql-dxm-provider server-availability-manager
