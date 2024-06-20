@@ -289,17 +289,8 @@ actions:
         fi
 
   populateGeonameIndex:
-    cmd[${nodes.cp.first.id}]: |-
-      indexed_documents=$(curl -su $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD https://$UNOMI_ELASTICSEARCH_ADDRESSES/$UNOMI_ELASTICSEARCH_INDEXPREFIX-geonameentry/_count |jq -r .count)
-      if [ "$indexed_documents" != "" ] && [ $indexed_documents -gt 0 ]; then
-        echo "Nothing to do, index is already populated"
-        exit 0
-      fi
-
-      pip install elasticsearch
-      unzip /opt/jcustomer/jcustomer/allCountries.zip -d /tmp/
-      nohup python3 /usr/local/bin/geonames_loader.py /tmp/allCountries.txt > /var/log/jelastic-packages/populateGeonameIndex 2>&1 &
-      exit 0
+    - cmd[${nodes.cp.first.id}]: |-
+        systemctl start populateGeonameIndex
 
   setESEndpointInJcustomerConfig:
     - if ("HideThisLine" && "${globals.__secret__papiToken.print()}" == ""):
