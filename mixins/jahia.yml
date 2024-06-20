@@ -1585,7 +1585,7 @@ actions:
   checkPatGroovyScriptExecution:
     - cmd[proc]: |-
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
-        jahia_running_timeout=360 # 6 minutes
+        jahia_running_timeout=600 # 6 minutes
         sleep_interval=5
 
         while [ -f $groovy_file_path ]; do
