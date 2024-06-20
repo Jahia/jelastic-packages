@@ -32,8 +32,9 @@ onInstall:
   - updateAppshell            # PAAS-2939
 
   # Regular actions
-  - removeOldModuleVersions   # PAAS-2926
-  - updateJahiaOverride       # PAAS-2941
+  - removeOldModuleVersions           # PAAS-2926
+  - updateJahiaOverride               # PAAS-2941
+  - updateJahiaPrivilegedUsersGroovy  # PAAS-2906
 
   # Actions that require a restart
   - switchDatastoreGC2Timer   # PAAS-2905 (require proc's tomcat restart)
@@ -232,6 +233,17 @@ actions:
         - unmuteDatadogHost:
             target: "*"
         - unmuteEnvWideMonitors
+
+  updateJahiaPrivilegedUsersGroovy:
+    - cmd[cp, proc]: |-
+        file_md5=87e844f88baf0925e86decc7c5f21bba
+        file_path=/etc/datadog-agent/conf.d/jahia_custom_metrics.d/jahia_privileged_users_count.groovy
+        file_url=${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/jahia_privileged_users_count.groovy
+        if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+          curl --retry 6 -fLSso $file_path $file_url || exit 1
+          chown dd-agent: $file_path
+          [[ $_ROLE == Processing ]] && systemctl restart datadog-agent
+        fi
 
 settings:
   fields:
