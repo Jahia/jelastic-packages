@@ -5,6 +5,10 @@ import org.jahia.services.content.decorator.JCRGroupNode
 import org.jahia.services.content.decorator.JCRUserNode
 import org.jahia.services.usermanager.JahiaGroupManagerService
 
+def logFile = new File("/tmp/jahia_custom_metrics/jahia_privileged_users_count")
+// wipe the file in case it already exist
+logFile.text = ""
+
 static def collectMembers(JCRGroupNode groupNode, Set<String> members, Set<String> checkedGroups, JCRSessionWrapper session,def log, def startTime) {
     if (checkedGroups.contains(groupNode.getPath())) {
         return members
@@ -34,5 +38,7 @@ JCRTemplate.getInstance().doExecuteWithSystemSession {session ->
     for (String member : members) {
        // log.info(" - {}", member)
     }
+logFile.append(members.size())
+logFile.setWritable(true, false);
 log.info("{}s - members : {}", (System.currentTimeMillis() - startTime) / 1000.0, members.size())
 }
