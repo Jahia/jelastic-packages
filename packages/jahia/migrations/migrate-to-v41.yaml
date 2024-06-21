@@ -236,7 +236,7 @@ actions:
 
   updateJahiaPrivilegedUsersGroovy:
     - cmd[cp, proc]: |-
-        file_md5=87e844f88baf0925e86decc7c5f21bba
+        file_md5=0cfa80bdf3083adc0ff93628b5bd1bf4
         file_path=/etc/datadog-agent/conf.d/jahia_custom_metrics.d/jahia_privileged_users_count.groovy
         file_url=${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/jahia_privileged_users_count.groovy
         if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
