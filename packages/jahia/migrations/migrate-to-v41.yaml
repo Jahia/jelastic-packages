@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 41
-  ignoredModules: ""
+  ignoredModules: "app-shell"
 
 onInstall:
   ### Pre-migration actions
