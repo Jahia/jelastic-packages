@@ -320,6 +320,8 @@ actions:
           exit 1
         fi
 
+        echo "[INFO] tomcat process PID: $tomcat_pid"
+
         timeout 60 bash -c '
           until [ -f /var/log/tomcat/jahia.log ]; do
             sleep 0.5
@@ -349,6 +351,7 @@ actions:
 
         while [ $(date +%s) -lt $timeout ]; do
           # First we test if Jahia is up with a curl request.
+          echo "[INFO] Trying to send a healthcheck request..."
           if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
             status=$(echo $curl_resp | jq -r ".status.health")
             if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
@@ -358,16 +361,19 @@ actions:
 
           # If it isn't, we first check tomcat process status
           if ! ps --pid $tomcat_pid > /dev/null; then
-            echo "[ERROR] Tomcat process no more running, please check." >&2
+            echo "[ERROR] Tomcat process not running anymore, please check." >&2
             exit 3
           fi
 
           # Then we check Jahia startup status, all
           tail -n +${startup_line} $log_file | grep -q "Server startup in"
           if [ $? -eq 0 ]; then
-            if [ $jahia_running_timeout -eq 1 ]; then
+            if [ $jahia_running_timeout -gt 1 ]; then
+              echo "[WARNING] Jahia is started but the healthcheck is still down, waiting $((jahia_running_timeout-1)) more minute(s) before restarting modules"
+            elif [ $jahia_running_timeout -eq 1 ]; then
               for module in graphql-dxm-provider server-availability-manager
               do
+                echo "[INFO] refreshing and restarting $module module..."
                 curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
                   "localhost/modules/api/bundles/$module/_refresh"
                 curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
@@ -375,9 +381,8 @@ actions:
                 curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
                   "localhost/modules/api/bundles/$module/_start"
               done
-            fi
-            if [ $jahia_running_timeout -eq 0 ]; then
-              echo "[ERROR] Tomcat startup is finished but healthcheck failed, please check." >&2
+            else
+              echo "[ERROR] Jahia startup is finished but healthcheck still fails, please check." >&2
               exit 4
             fi
             ((jahia_running_timeout-=1))
