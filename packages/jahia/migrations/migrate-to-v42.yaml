@@ -138,6 +138,10 @@ actions:
         - stopJahia: cp, proc
         - redeployGaleraNode:
             target: ${nodes.sqldb.first.id}
+        - api: environment.control.RestartNodeById
+          nodeId: ${nodes.proc.first.id}
+        - api: environment.control.RestartNodeById
+          nodeId: ${nodes.cp.first.id}
         - unmuteDatadogHost:
             target: "*"
         - unmuteEnvWideMonitors
