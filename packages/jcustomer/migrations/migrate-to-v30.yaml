@@ -37,7 +37,7 @@ onInstall:
   # (None)
 
   # Actions that require a redeploy
-  # (None)
+  - jCustomerToAlmaLinux
 
   - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
       install:
@@ -163,6 +163,20 @@ actions:
       if (( restart_dd > 0 )); then
         systemctl restart datadog-agent
       fi
+
+  jCustomerToAlmaLinux:
+    forEach (nodes.cp):
+      - cmd[${@i.id}]: |-
+          if [ ! -f /etc/almalinux-release ]; then
+            echo "Redeploy"
+          fi
+      - if ("${response.out}" == "Redeploy"):
+          - api: environment.control.RedeployContainerById
+            nodeId: ${@i.id}
+            tag: ${nodes.cp.first.customitem.dockerTag}
+            useExistingVolumes: true
+            skipReinstall: false
+            envName: ${env.envName}
 
 
 settings:
