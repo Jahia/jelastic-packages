@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 41
-  ignoredModules: "app-shell"
+  ignoredModules: "app-shell,distributed-sessions"
 
 onInstall:
   ### Pre-migration actions
@@ -30,6 +30,7 @@ onInstall:
 
   # Actions that update modules (needs to be done first)
   - updateAppshell            # PAAS-2939
+  - updateDistributedSession  # PAAS-2972
 
   # Regular actions
   - removeOldModuleVersions           # PAAS-2926
@@ -204,6 +205,23 @@ actions:
           chown dd-agent: $file_path
           [[ $_ROLE == Processing ]] && systemctl restart datadog-agent || true
         fi
+
+  updateDistributedSession:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.5.0
+        res: isHigherOrEqualThan815
+    - checkModule:
+        moduleSymname: distributed-sessions
+    - if (${globals.isHigherOrEqualThan815}):
+        - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "3.5.0"):
+            - installOrUpgradeModules:
+                modules: distributed-sessions/3.5.0
+    - else:
+        if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "3.4.1"):
+          - installOrUpgradeModules:
+              modules: distributed-sessions/3.4.1
 
 settings:
   fields:
