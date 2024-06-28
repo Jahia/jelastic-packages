@@ -108,14 +108,14 @@ actions:
           echo "Redeploy"
         fi
     - if ("${response.out}" == "Redeploy"):
-        procRedeploy:
-          upgradeJahia: false
-          targetDockerTag: ${this.currentDockerTag}
+        ## Remove locale from redeploy.conf
+        - cmd[proc, cp]: |-
+            conf=/etc/jelastic/redeploy.conf
+            sed -i '/\/usr\/lib\/locale/d' $conf
+        - procRedeploy:
+            upgradeJahia: false
+            targetDockerTag: ${this.currentDockerTag}
 
-    ## Remove locale from redeploy.conf
-    - cmd[proc, cp]: |-
-        conf=/etc/jelastic/redeploy.conf
-        sed -i '/\/usr\/lib\/locale/d' $conf
     - forEach (nodes.cp):
         - cmd[${@i.id}]: |-
             if [ ! -f /etc/almalinux-release ]; then
@@ -132,10 +132,11 @@ actions:
                 target: ${@i.id}
                 payload:
                   - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
-             ## Add the locale back to redeploy.conf
-            - cmd[${@i.id}]: |-
-                conf=/etc/jelastic/redeploy.conf
-                echo "/usr/lib/locale/" >> $conf
+
+      ## Add the locale back to redeploy.conf
+    - cmd[proc,cp]: |-
+        conf=/etc/jelastic/redeploy.conf
+        echo "/usr/lib/locale/" >> $conf
 
     - checkModulesAfterOperation:
         operation: redeploy
