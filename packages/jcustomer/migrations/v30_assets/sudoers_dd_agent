@@ -1,2 +1,3 @@
 Defaults user_command_timeouts
+Defaults command_timeout = 10s
 dd-agent ALL=NOPASSWD: /usr/sbin/tcpdump
