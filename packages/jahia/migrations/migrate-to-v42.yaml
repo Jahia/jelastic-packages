@@ -110,7 +110,7 @@ actions:
     - setGlobals:
         haproxyVersion: "2.8.9-almalinux-9"
     - foreach (nodes.bl):
-      - if ("${nodes.bl.first.version}" != "${globals.haproxyVersion}"):
+      - if ("${@i.id.version}" != "${globals.haproxyVersion}"):
         - api: environment.control.RedeployContainerById
           nodeId: ${@i.id}
           tag: ${globals.haproxyVersion}
