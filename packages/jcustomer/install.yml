@@ -116,6 +116,10 @@ nodes: definedInOnBeforeInstall
 
 # --Events --
 onInstall:
+  - cmd[*]: |-
+      find /etc/yum.repos.d/ -type f -name '*.repo' -exec sed -i -e 's,\(mirrorlist=http://mirrorlist.centos.org\),#\1,' -e 's,#baseurl=http://mirror.centos.org,baseurl=http://archive.kernel.org/centos-vault,' {} \;
+    user: root
+
   - if("HideThisLine" && "${settings.rootPassword}"):
       setGlobals:
         __secret__unomi_root_password_b64: ${settings.rootPassword.toBase64()}
