@@ -34,6 +34,8 @@ actions:
 
   daemonControl:
     - cmd[cp, proc]: |-
+        sed -i '/ExecStartPre/d' /etc/systemd/system/strongswan.service.d/override.conf ; echo 'ExecStartPre=/usr/bin/bash -c "/usr/bin/sed -i -E \"s/(^\s+leftid=@).*/\1$(/usr/bin/hostname)/\" /etc/strongswan/ipsec.conf"' >> /etc/systemd/system/strongswan.service.d/override.conf
+
         mv  /etc/systemd/system/strongswan.service.d /etc/systemd/system/strongswan-starter.service.d
         systemctl ${settings.ipsec_should_be} --now strongswan-starter
         if [ "${settings.ipsec_should_be}" == "disable" ]; then
