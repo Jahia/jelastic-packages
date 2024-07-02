@@ -400,6 +400,10 @@ onBeforeRedeployContainer:
 
 onAfterRedeployContainer:
   - if ('${event.params.nodeGroup:}'):
+      - cmd[${event.params.nodeGroup:}]: |-
+          find /etc/yum.repos.d/ -type f -name '*.repo' -exec sed -i -e 's,\(mirrorlist=http://mirrorlist.centos.org\),#\1,' -e 's,#baseurl=http://mirror.centos.org,baseurl=http://archive.kernel.org/centos-vault,' {} \;
+        user: root
+
       - fetchRcloneFiles: ${event.params.nodeGroup}
       # Handle RedeployContainersByGroup
       - getLogEventScript: ${event.params.nodeGroup}
@@ -411,6 +415,9 @@ onAfterRedeployContainer:
           target: ${event.params.nodeGroup}
       - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
+      - cmd[${event.params.nodeId:}]: |-
+          find /etc/yum.repos.d/ -type f -name '*.repo' -exec sed -i -e 's,\(mirrorlist=http://mirrorlist.centos.org\),#\1,' -e 's,#baseurl=http://mirror.centos.org,baseurl=http://archive.kernel.org/centos-vault,' {} \;
+        user: root
       - fetchRcloneFiles: ${event.params.nodeId}
       # Handle RedeployContainerById
       - getLogEventScript: ${event.params.nodeId}
