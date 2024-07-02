@@ -34,7 +34,8 @@ actions:
 
   daemonControl:
     - cmd[cp, proc]: |-
-        systemctl ${settings.ipsec_should_be} --now strongswan
+        mv  /etc/systemd/system/strongswan.service.d /etc/systemd/system/strongswan-starter.service.d
+        systemctl ${settings.ipsec_should_be} --now strongswan-starter
         if [ "${settings.ipsec_should_be}" == "disable" ]; then
           rm -v ${globals.ipsec_conf_dir}/*.conf
           sed -i '2,$d' ${globals.ipsec_secrets_file}
@@ -48,7 +49,7 @@ actions:
         to_start=false
         reload_secret=false
         reload_all=false
-        if systemctl is-active strongswan; then
+        if systemctl is-active strongswan-starter; then
           ipsec_is_active=true
         else
           ipsec_is_active=false
@@ -121,7 +122,7 @@ actions:
         fi
 
         # reloading doesn't work as expected so we (re)start the whole daemon
-          systemctl restart strongswan
+          systemctl restart strongswan-starter
 
         # check connection is alive, rollback if needed
         sleep 5  # little wait to be sure
@@ -136,9 +137,9 @@ actions:
             fi
           done
           if ! $ipsec_is_active; then
-            systemctl stop strongswan
+            systemctl stop strongswan-starter
           else
-            systemctl restart strongswan
+            systemctl restart strongswan-starter
           fi
           echo "[INFO] Reverting to previous configuration"
           exit 1

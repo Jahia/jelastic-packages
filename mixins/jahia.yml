@@ -111,8 +111,8 @@ actions:
 
     - if ("${globals.strongswanServiceStatus}" == "enable"):
         - cmd[${this}]: |-
-            systemctl enable strongswan.service
-            systemctl start strongswan.service
+            systemctl enable strongswan-starter.service
+            systemctl start strongswan-starter.service
 
   stopJahia:
     cmd[${this}]: "service tomcat stop"
