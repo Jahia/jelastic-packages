@@ -34,7 +34,12 @@ actions:
 
   daemonControl:
     - cmd[cp, proc]: |-
-        systemctl ${settings.ipsec_should_be} --now strongswan
+        if [ -f /etc/almalinux-release ]; then
+          strongswan_service=strongswan-starter
+        else
+          strongswan_service=strongswan
+        fi
+        systemctl ${settings.ipsec_should_be} --now $strongswan_service
         if [ "${settings.ipsec_should_be}" == "disable" ]; then
           rm -v ${globals.ipsec_conf_dir}/*.conf
           sed -i '2,$d' ${globals.ipsec_secrets_file}
@@ -42,13 +47,18 @@ actions:
 
   setIPsecConf:
     - cmd [${this}]: |-
+        if [ -f /etc/almalinux-release ]; then
+          strongswan_service=strongswan-starter
+        else
+          strongswan_service=strongswan
+        fi
         confname="conn-1"
         confdir=${globals.ipsec_conf_dir}
         secretsfile=${globals.ipsec_secrets_file}
         to_start=false
         reload_secret=false
         reload_all=false
-        if systemctl is-active strongswan; then
+        if systemctl is-active $strongswan_service; then
           ipsec_is_active=true
         else
           ipsec_is_active=false
@@ -121,7 +131,7 @@ actions:
         fi
 
         # reloading doesn't work as expected so we (re)start the whole daemon
-          systemctl restart strongswan
+          systemctl restart $strongswan_service
 
         # check connection is alive, rollback if needed
         sleep 5  # little wait to be sure
@@ -136,9 +146,9 @@ actions:
             fi
           done
           if ! $ipsec_is_active; then
-            systemctl stop strongswan
+            systemctl stop $strongswan_service
           else
-            systemctl restart strongswan
+            systemctl restart $strongswan_service
           fi
           echo "[INFO] Reverting to previous configuration"
           exit 1
