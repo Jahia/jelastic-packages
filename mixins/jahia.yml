@@ -111,8 +111,14 @@ actions:
 
     - if ("${globals.strongswanServiceStatus}" == "enable"):
         - cmd[${this}]: |-
-            systemctl enable strongswan.service
-            systemctl start strongswan.service
+            if [ -f /etc/almalinux-release ]; then
+              strongswan_service=strongswan-starter
+            else
+              strongswan_service=strongswan
+            fi
+
+            systemctl enable $strongswan_service.service
+            systemctl start $strongswan_service.service
 
   stopJahia:
     cmd[${this}]: "service tomcat stop"
