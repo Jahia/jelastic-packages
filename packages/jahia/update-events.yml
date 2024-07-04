@@ -146,6 +146,7 @@ onAfterRedeployContainer[proc]:
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
       - cmd [proc]: |-
+          source /etc/locale.conf
           echo $JAHIA_UPGRADE
       - if ('${response.out}' == ''):
           - startupJahiaHealthCheck: ${event.params.nodeGroup}
