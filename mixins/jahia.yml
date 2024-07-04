@@ -353,7 +353,7 @@ actions:
         hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
 
         # Number of minutes allowed for healthcheck to be completed once tomcat startup is finished
-        jahia_running_timeout=5
+        jahia_running_timeout=20
 
         while [ $(date +%s) -lt $timeout ]; do
           # First we test if Jahia is up with a curl request.
