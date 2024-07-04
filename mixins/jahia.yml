@@ -353,7 +353,7 @@ actions:
         hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
 
         # Number of minutes allowed for healthcheck to be completed once tomcat startup is finished
-        jahia_running_timeout=20
+        jahia_running_timeout=5
 
         while [ $(date +%s) -lt $timeout ]; do
           # First we test if Jahia is up with a curl request.
@@ -1610,14 +1610,14 @@ actions:
   checkPatGroovyScriptExecution:
     - cmd[proc]: |-
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
-        jahia_running_timeout=360 # 6 minutes
+        jahia_running_timeout=1200 # 20 minutes
         sleep_interval=5
 
         while [ -f $groovy_file_path ]; do
           sleep $sleep_interval;
           ((jahia_running_timeout-=sleep_interval))
           if [ $jahia_running_timeout -eq 0 ]; then
-            echo "[ERROR] $groovy_file_path is still not executed after 360 seconds"
+            echo "[ERROR] $groovy_file_path is still not executed after $jahia_running_timeout seconds"
             exit 1
           fi
         done
