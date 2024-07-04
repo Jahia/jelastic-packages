@@ -994,7 +994,28 @@ actions:
         tar -xf database.tar 2>>${globals.logsPath}
         rm -f database.tar
         sudo -u mysql mariabackup --decompress --parallel=2 --remove-original --target-dir . 2>>${globals.logsPath} || exit 1
-        sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
+
+        # now some magic in case of restore from a previous mariadb 10.x version
+        db_version=$(rpm -qi MariaDB-server | awk '$1=="Version" {match($NF, /^[0-9]+\.[0-9]+/, v); print v[0]}')
+        echo "node's MariaDB version is $db_version" >> ${globals.logsPath}
+        backup_version=$(awk '$1=="server_version" {match($NF, /^[0-9]+\.[0-9]+/, v); print v[0]}' /var/lib/mysql/xtrabackup_info)
+        echo "backup's MariaDB version is $backup_version" >> ${globals.logsPath}
+        if [[ $db_version != $backup_version ]]; then
+          # The backup isn't from the same installed mariadb server version.
+          # We will install docker and use a $backup_version MariaDB image
+          echo "backup's MariaDB version and node's MariaDB version are not the same, we need to prepare the restored files using a mariadb:$backup_version image" >> ${globals.logsPath}
+          dnf install -y yum-utils
+          yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce docker-ce-cli containerd.io
+          systemctl start docker
+          docker run --rm -v /var/lib/mysql/:/var/lib/mysql:rw --entrypoint=mariabackup mariadb:${backup_version} --prepare --target-dir /var/lib/mysql 2>>${globals.logsPath} 
+          systemctl stop docker
+          chown -R mysql:mysql /var/lib/mysql
+          dnf remove -y docker-ce docker-ce-cli containerd.io yum-utils
+          rm -rf /etc/yum.repos.d/docker-ce.repo /var/lib/docker
+        else
+          sudo -u mysql mariabackup --prepare --target-dir . 2>>${globals.logsPath} || exit 1
+        fi
 
     - if (nodes.sqldb.length > 1):
         - cmd[sqldb]: |-
