@@ -1,0 +1,64 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-2993 - Apply spring-web custom patch
+id: paas-2993-apply-spring-web-custom-patch
+description:
+  short: Update spring-web lib to fix security issue
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+  - "../../mixins/haproxy.yml"
+
+onInstall:
+  - dumpModules:
+      operation: patch-spring-web
+      checkVersion: false
+  - checkIfNeeded: proc
+  - if("${response.out}" == "TOPATCH"):
+      - removeProcNodeFromHaproxy:
+          reload: true
+      - queryShutdownEndpoint:
+          target: ${nodes.proc.first.id}
+      - installPatch: ${nodes.proc.first.id}
+      - addProcNodeToHaproxy:
+          reload: true
+
+  - foreach (nodes.cp):
+      - checkIfNeeded: ${@i.id}
+      - if("${response.out}" == "TOPATCH"):
+          - removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
+          - queryShutdownEndpoint:
+              target: ${@i.id}
+          - installPatch: ${@i.id}
+          - addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+  - checkModulesAfterOperation:
+      operation: patch-spring-web
+      checkVersion: false
+
+actions:
+  checkIfNeeded:
+    - cmd[${this}]: |-
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-3.2.18.jahia5_OSGI.jar"
+        if [ -f $patch_file ]; then
+          echo "[INFO] Patch is already there. Nothing to do."
+        else
+          echo "TOPATCH"
+        fi
+  installPatch:
+    - cmd[${this}]: |-
+        systemctl stop tomcat
+        patch_file="/opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-3.2.18.jahia5_OSGI.jar"
+        patch_url="https://downloads.jahia.com/downloads/jahia/security-patches/2024-03/spring-web-3.2.18.jahia5_OSGI.jar"
+        rm -f /opt/tomcat/webapps/ROOT/WEB-INF/lib/spring-web-*.jar
+        curl -fLSso $patch_file $patch_url || exit 1
+        chmod 644 $patch_file
+        chown tomcat: $patch_file
+        systemctl start tomcat
+    - startupJahiaHealthCheck: ${this}
