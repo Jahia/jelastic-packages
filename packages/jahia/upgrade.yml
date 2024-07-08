@@ -15,6 +15,7 @@ mixins:
 onInstall:
   - setGlobalRepoRootUrl
   - getJahiaVersion
+  - getEnvVersion  # we will have to do some special stuff based on envVersion
   - setGlobals:
       initialVersion: ${globals.jahiaVersion}
   # Check if target version is consistent (higher than current version)
@@ -66,11 +67,39 @@ onInstall:
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [cp, proc]:
       - service tomcat stop
+  # if envVersion < 41, then we will have to do some special stuff
+  - if(${globals.envVersion} < 41):
+      # we need to update the jahia_override.lib file before the redeploy
+      - cmd[cp, proc]: |-
+          file_md5=5953b707b79c45351883609d35481bba
+          file_path=/var/lib/jelastic/customizations/jahia_override.lib
+          file_url=${globals.repoRootUrl}/assets/jahia/jahia_override.lib
+          if ! (echo "$file_md5 $file_path" | md5sum --status -c); then
+            curl -fLSso $file_path $file_url || exit 1
+            chmod +x $file_path
+          fi
+      # we need to remove /usr/lib/locale from redeploy.conf
+      - cmd[proc,cp]: |-
+          [ -f /etc/almalinux-release ] && exit 0
+          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
+      # we need to set the JAHIA_UPGRADE envvar in a different way
+      - env.control.AddContainerEnvVars[proc]:
+        vars:
+          JAHIA_UPGRADE: "true"
   - procRedeploy:
       upgradeJahia: true
       targetDockerTag: ${this.targetDockerTag}
   - browsingNodesBulkRedeploy:
       targetDockerTag: ${this.targetDockerTag}
+  # if envVersion < 41, then we will have to do some special stuff
+  - if(${globals.envVersion} < 41):
+      # we need to put back /usr/lib/locale in redeploy.conf
+      - cmd[proc,cp]: |-
+          grep -qxF "/usr/lib/locale/" /etc/jelastic/redeploy.conf || echo "/usr/lib/locale/" >> /etc/jelastic/redeploy.conf
+      # we can remove the previously JAHIA_UPGRADE set in /.jelenv
+      - env.control.RemoveContainerEnvVars[proc]:
+        vars:
+          - JAHIA_UPGRADE
 
   # Update jExperience if needed
   - if ("${globals.jexperienceStatus}" == "started"):

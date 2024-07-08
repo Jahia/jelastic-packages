@@ -1,0 +1,53 @@
+#!/bin/bash
+
+include extendperm;
+$PROGRAM 'systemctl';
+$PROGRAM 'grep';
+
+if [ "x$action" != "xservice" ] ; then return 0; fi
+
+[ -f /.jelenv ] && . /etc/profile
+
+function doRestart(){
+    local result=0 message="Ok";
+    serviceToRestart="tomcat";
+    referenceFile=/mem_on_tomcat_start
+    if [ -s ${referenceFile} ]; then
+        TotalMem=$(free -m | awk 'NR==2 {print $2}')
+        LastMem=$(cat ${referenceFile})
+        if [[ $TotalMem > $LastMem ]]; then
+            writeJSONResponseOut "result=>${result}" "message=>'Do not restart tomcat after cloudlet increase'" && return 0;
+        fi
+    fi
+    stopService "$serviceToRestart ">> "$ACTIONS_LOG" 2>&1;
+    result=$?;
+    if [[ "${result}" -eq "0" ]]
+    then
+        startService "$serviceToRestart" >> "$ACTIONS_LOG" 2>&1;
+        result=$?;
+        if [[ "${result}" -eq "0" ]]
+        then
+            [ -n "$FIREWALL_ENABLED" -a "${FIREWALL_ENABLED+xxx}" = "xxx" ] && [ "${FIREWALL_ENABLED}" -eq "1" ] && [ "$USER" == "root" ] && {
+                local msg=$( doAction "firewall" "Start" )  || message="Failed to apply firewall rules";
+            }
+        else
+            message="Failed to start $1";
+        fi
+    else
+        message="Failed to stop $1";
+    fi
+    if [[ "${result}" -ne "0" ]]; then
+        local resultMessage="result ${result} "
+        result="4182" #Pre-defined error code for non-successul restart
+    fi
+    writeJSONResponseOut "result=>${result}" "message=>${resultMessage}${message}";
+    return 0;
+}
+
+function doEnable(){
+    # exactly the same as the jelastic function except enableService's third arg which is 1 instead of 0
+    # in order to enable but not start the tomcat service
+    [ ! -z "$1" ] && SERVICE=$1;
+    include sendmailextip ; isFunction "SendmailExtIp" && SendmailExtIp ;
+    enableService "$SERVICE" 2345 1 >> "$ACTIONS_LOG"  2>&1 ; writeJSONResponseOut "result=>$?" "message=>Service been started with code $?";
+}
