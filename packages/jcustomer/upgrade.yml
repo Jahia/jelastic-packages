@@ -22,6 +22,7 @@ onInstall:
       - return:
           type: error
           message: "Target version must be higher than current version."
+  - getEnvVersion  # we will have to do some special stuff based on envVersion
 
   # Mute monitors
   - muteEnvWideMonitors
@@ -44,6 +45,13 @@ onInstall:
       data:
         productVersion: ${settings.targetVersion}
 
+  # if envVersion < 30, then we will have to do some special stuff
+  - if(${globals.envVersion} < 30):
+      # we need to remove /usr/lib/locale from redeploy.conf
+      - cmd[cp]: |-
+          [ -f /etc/almalinux-release ] && exit 0
+          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
+
   - api: environment.control.RedeployContainersByGroup
     nodeGroup: cp
     tag: ${this.targetDockerTag}
@@ -51,6 +59,11 @@ onInstall:
     skipReinstall: false
     isSequential: false
     envName: ${env.envName}
+
+  - if(${globals.envVersion} < 30):
+      # we need to put back /usr/lib/locale in redeploy.conf
+      - cmd[cp]: |-
+          grep -qxF "/usr/lib/locale/" /etc/jelastic/redeploy.conf || echo "/usr/lib/locale/" >> /etc/jelastic/redeploy.conf
 
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
