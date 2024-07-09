@@ -392,7 +392,7 @@ case "$mode" in
   if [[ ! -x /usr/bin/mariabackup ]]; then
     yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm 2>&1 && \
     yum install -y MariaDB-backup socat 2>&1
-    yum https://repo.percona.com/percona/yum/release/7/RPMS/x86_64/qpress-11-3.el7.x86_64.rpm 2>&1
+    yum -y localinstall https://repo.percona.com/percona/yum/release/7/RPMS/x86_64/qpress-11-3.el7.x86_64.rpm 2>&1
     if [ $? -ne 0 ]; then
       echo "An error occured when installing MariaDB-backup, aborting"
       exit 1
