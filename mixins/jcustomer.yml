@@ -108,7 +108,13 @@ actions:
         if [ -f $file ]; then
           mv $file $file.disabled
         fi
-        systemctl restart datadog-agent
+        # Launch "set_dd_tags" script
+        output="$(/usr/local/bin/set_dd_tags.sh)"
+        # Force agent restart in case "set_dd_tags" didn't already do it
+        if [ "$output" = "Tags are up to date, exiting." ]; then
+          echo "Force datadog-agent restart"
+          systemctl restart datadog-agent
+        fi
     - cmd[${nodes.cp.first.id}]: |-
         file=/etc/datadog-agent/conf.d/jcustomer_custom_metrics.yaml
         if [ -f $file.disabled ]; then
