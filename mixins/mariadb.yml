@@ -19,7 +19,7 @@ actions:
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        systemctl stop mysql
+        service mysql stop
         sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
         sleep 5  # be sure that the daemon is launched
         # allow root user to authenticate
@@ -39,7 +39,8 @@ actions:
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
         curl --retry 6 -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
-        systemctl enable --now mysql 2> /dev/null
+        chkconfig mysql on 2> /dev/null
+        service mysql start
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
     - if ("${response.errOut}" != ""):
         - return:
@@ -232,6 +233,7 @@ actions:
       - log: "Stopping MariaDB on node ${@i.id}..."
       - cmd[${@i.id}]: |-
           service mysql stop || exit 1
+          chkconfig mysql off
           cat /var/lib/mysql/grastate.dat || true
 
   setupSeeds:

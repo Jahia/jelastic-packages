@@ -226,7 +226,8 @@ onAfterRedeployContainer[sqldb]:
           target: ${event.params.nodeGroup}
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeGroup}]: |-
-          systemctl enable --now mysql
+          chkconfig mysql on
+          service mysql start
       - setupDatadogAgentSql: ${event.params.nodeGroup}
       - mysqlService:
           target: ${event.params.nodeGroup}
@@ -238,7 +239,8 @@ onAfterRedeployContainer[sqldb]:
           target: ${event.params.nodeId}
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeId}]: |-
-          systemctl enable --now mysql
+          chkconfig mysql on
+          service mysql start
       - setupDatadogAgentSql: ${event.params.nodeId}
       - mysqlService:
           target: ${event.params.nodeId}
@@ -300,13 +302,17 @@ onBeforeStop:
       text: "$envName is going to stop"
 
 onAfterStart:
+  - cmd[sqldb]: |-
+      chkconfig mysql on
+      for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
+        [ -f $f ] && rm -f $f
+      done
+      service mysql start
   - startupJahiaHealthCheck: cp, proc
-
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if ( ! ${globals.unomi_env_linked}):
       removeAndCleanJexperience
-
   - resetHaproxyBackends
   - updateEnvStatusInPapi:
       status: running
