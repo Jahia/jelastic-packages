@@ -1381,6 +1381,27 @@ actions:
         # started later on anyway
         exit 0
 
+  refreshSAM:
+    # Parameter:
+    #   - target: nodegroup or nodeId
+    - log: "refresh server-availability-manager on ${this.target}"
+    - set:
+        lineNumberFile: /tmp/last_line_catalina_out
+    - cmd [${this.target}]: |-
+        wc -l /opt/tomcat/logs/catalina.out | awk '{print $1}' > ${this.lineNumberFile}
+    - callProvisioningAPI:
+        target: ${this.target}
+        payload:
+          - karafCommand: "bundle:refresh server-availability-manager"
+    - cmd [${this.target}]: |-
+        pattern="Received event STARTED for bundle server-availability-manager"
+        log_file=/opt/tomcat/logs/catalina.out
+        line_nb=$(cat ${this.lineNumberFile})
+        timeout 60s grep -q "$pattern" <(tail -n +$line_nb -f $log_file) || \
+          { echo "timed out" && exit 0; }
+    - if ("${response.out}" == "timed out"):
+        - log: "[WARNING] Timeout reached when waiting for server-availability-manager startup"
+
   procRedeploy:
     # Parameters:
     #   - upgradeJahia: true or false
@@ -1412,10 +1433,12 @@ actions:
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
     - startupJahiaHealthCheck: ${nodes.proc.first.id}
+    - refreshSAM:
+        target: proc
     - callProvisioningAPI:
         target: proc
         payload:
-          - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
+          - karafCommand: "bundle:refresh distributed-sessions"
           - karafCommand: "cluster:bundle-start default distributed-sessions server-availability-manager"
 
   browsingNodesBulkRedeploy:
@@ -1427,10 +1450,12 @@ actions:
       useExistingVolumes: false
       skipReinstall: false
       envName: ${env.envName}
+    - refreshSAM:
+        target: cp
     - callProvisioningAPI:
         target: cp
         payload:
-          - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
+          - karafCommand: "bundle:refresh distributed-sessions"
 
   browsingNodesRollingRedeploy:
     # Parameters:
@@ -1449,10 +1474,12 @@ actions:
           useExistingVolumes: ${this.useExistingVolumes}
           skipReinstall: false
           envName: ${env.envName}
+        - refreshSAM:
+            target: ${@i.id}
         - callProvisioningAPI:
             target: ${@i.id}
             payload:
-              - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
+              - karafCommand: "bundle:refresh distributed-sessions"
 
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-

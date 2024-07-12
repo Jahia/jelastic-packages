@@ -124,10 +124,12 @@ actions:
               useExistingVolumes: true
               skipReinstall: false
               envName: ${env.envName}
+            - refreshSAM:
+                target: ${@i.id}
             - callProvisioningAPI:
                 target: ${@i.id}
                 payload:
-                  - karafCommand: "bundle:refresh distributed-sessions server-availability-manager"
+                  - karafCommand: "bundle:refresh distributed-sessions"
 
     - checkModulesAfterOperation:
         operation: redeploy
