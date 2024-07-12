@@ -1189,7 +1189,7 @@ actions:
     # Parameters:
     #  - duration: mute duration in minutes. Optional, default 2880 (48h)
     muteMonitorsByTags:
-      duration: ${this.duration}
+      duration: ${this.duration:2880}
       tag: env-wide
 
   unmuteEnvWideMonitors:
@@ -1198,7 +1198,7 @@ actions:
 
   muteMonitorsImpactedByOtherNodes:
     muteMonitorsByTags:
-      duration: ${this.duration}
+      duration: ${this.duration:2880}
       tag: impacted-by-other-nodes
 
   unmuteMonitorsImpactedByOtherNodes:
