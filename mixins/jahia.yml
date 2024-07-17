@@ -873,6 +873,7 @@ actions:
     #   - modules: a comma separated list of "<module>/<version>" to install. Examples:
     #              - "distributed-session/3.4.0"
     #              - "augmented-search/3.3.2, jexperience/3.3.0"
+    #   - forceUpdate: boolean to force the module update (defaults to false)
     - set:
         provisioningFile: /opt/tomcat/temp/install_modules_provisioning_${fn.random}.yaml
         mavenRepository: devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise
@@ -901,6 +902,9 @@ actions:
         }
         $1 != "" {
           printf("  - \"mvn:org.jahia.modules/%s\"\n", $1)
+        }
+        END {
+          print("  forceUpdate: ${this.forceUpdate:false}")
         }
         ' <<<'${this.modules}' > ${this.provisioningFile}
     - callProvisioningAPI:
