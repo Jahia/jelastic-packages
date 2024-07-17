@@ -1,0 +1,18 @@
+---
+type: update
+version: 1.5.2
+name: Update jExperience module
+id: update-jexperience
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - getEnvLinkedJcustomer:
+      envName: ${env.envName}
+  - getJexperienceVersion:
+      unomi_env_name: ${globals.unomi_env_name}
+  - installOrUpgradeModules:
+      modules: jexperience/${globals.jexperienceVersion}, jexperience-dashboards/${globals.jexperienceDashboardsVersion}
+
