@@ -1,7 +1,7 @@
 ---
 type: update
 version: 1.5.2
-name: Unomi - Upgrade
+name: Unomi - Upgrade to v2
 id: unomi-upgrade-to-v2
 
 mixins:
@@ -38,8 +38,8 @@ onInstall:
 
   - cmd[${nodes.cp.first.id}]: |-
       setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-      tmpenv=/opt/jcustomer/jcustomer-2.4.0/bin/setenv
-      mkdir -p /opt/jcustomer/jcustomer-2.4.0/bin && cp $setenv $tmpenv
+      tmpenv=/opt/jcustomer/jcustomer-${settings.targetVersion}/bin/setenv
+      mkdir -p /opt/jcustomer/jcustomer-${settings.targetVersion}/bin && cp $setenv $tmpenv
       sed -i 's/KARAF_OPTS="-Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoMigrate=1.6.0 -Dunomi.autoStart=true"/' $tmpenv
       echo $tmpenv >> /etc/jelastic/redeploy.conf
 
@@ -62,15 +62,15 @@ onInstall:
         upgradeJcustomerOnNode: ${@i.id}
 
   - env.control.AddContainerEnvVars[cp]:
-    vars: {"UNOMI_VERSION": "2.4.0"}
+    vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
 
 
   - environment.nodegroup.ApplyData[cp]:
       data:
-        productVersion: "2.4.0"
+        productVersion: "${settings.targetVersion}"
 
   - updateProductVersionInPapi:
-      version: "2.4.0"
+      version: "${settings.targetVersion}"
       product: "unomi"
 
   - unmuteEnvWideMonitors
@@ -86,13 +86,13 @@ onInstall:
   - forEach(response.envs):
       install:
         envName: ${@i}
-        jps: "${globals.repoRootUrl}/packages/one-shot/paas-2426-upgrade-jexperience-to-3-3-0.yaml"
+        jps: "${globals.repoRootUrl}/packages/jahia/update-jexperience.yaml"
 
 actions:
   upgradeJcustomerOnNode:
     api: environment.control.RedeployContainerById
     nodeId: ${this}
-    tag: 2.4.0
+    tag: ${settings.targetVersion}
     useExistingVolumes: true
     skipReinstall: false
     isSequential: false
@@ -100,6 +100,11 @@ actions:
 
 settings:
   fields:
+    - name: targetVersion
+      type: string
+      caption: Target Version
+      vtype: text
+      required: true
     - type: toggle
       name: skip_backup
       caption: Skip backup step
