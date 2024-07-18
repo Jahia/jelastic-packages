@@ -152,7 +152,7 @@ actions:
           # remove replicas on indices in order to save memory,
           # put them in read only (to allow clone),
           # clone them,
-          # get mappings,
+          # get mappings, aliases and lifecycle policy
           # and delete them
           log "${index}" "decrease replica to 0..."
           curl -su $ec_auth \
@@ -174,6 +174,16 @@ actions:
                -H "content-type: application/json" \
                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_mappings \
                | jq '.[]' > /tmp/${index}_mappings.json
+          log "${index}" "get original lifecycle settings..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings/index.lifecycle*\
+               | jq '.[]' > /tmp/${index}_lifecycle.json
+          log "${index}" "get original aliases settings..."
+          curl -su $ec_auth \
+               -H "content-type: application/json" \
+               https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_alias\
+               | jq '.[]' > /tmp/${index}_alias.json
           log "${index}" "delete..."
           curl -su $ec_auth \
                -H "content-type: application/json" \
@@ -206,8 +216,13 @@ actions:
         EOF
 
         for index in $indices; do
-          # merge index settings and mapping in order to create the index creation payload
-          jq -s '.[0] * .[1]' /tmp/settings.json /tmp/${index}_mappings.json > /tmp/${index}_creation_payload.json
+          # Merge index settings and mappings in order to create the index creation payload
+          jq -s '.[0] * .[1] * .[2] * .[3]' \
+            /tmp/settings.json \
+            /tmp/${index}_lifecycle.json \
+            /tmp/${index}_alias.json \
+            /tmp/${index}_mappings.json \
+            > /tmp/${index}_creation_payload.json
 
           # create new indices without replicas (for faster reindex)
           # with "folding" analyser and mapping
