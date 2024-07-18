@@ -318,6 +318,8 @@ actions:
     - env.control.AddContainerEnvVars [cp, proc]:
       vars:
         JAHIA_ELASTICSEARCH_PASSWORD: ${globals.__secret__elasticsearch_password}
+    - cmd[cp, proc]: |-
+        systemctl restart datadog-agent
     - createESAccount4AS
     - reconfigureAS
     - installOrUpgradeASModules
