@@ -315,6 +315,9 @@ actions:
   prepareAugSearchRestore:
     - setGlobals:
         __secret__elasticsearch_password: ${fn.password(20)}
+    - env.control.AddContainerEnvVars [cp, proc]:
+      vars:
+        JAHIA_ELASTICSEARCH_PASSWORD: ${globals.__secret__elasticsearch_password}
     - createESAccount4AS
     - reconfigureAS
     - installOrUpgradeASModules
@@ -1008,7 +1011,7 @@ actions:
           yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
           dnf install -y docker-ce docker-ce-cli containerd.io
           systemctl start docker
-          docker run --rm -v /var/lib/mysql/:/var/lib/mysql:rw --entrypoint=mariabackup mariadb:${backup_version} --prepare --target-dir /var/lib/mysql 2>>${globals.logsPath} 
+          docker run --rm -v /var/lib/mysql/:/var/lib/mysql:rw --entrypoint=mariabackup mariadb:${backup_version} --prepare --target-dir /var/lib/mysql 2>>${globals.logsPath}
           systemctl stop docker
           chown -R mysql:mysql /var/lib/mysql
           dnf remove -y docker-ce docker-ce-cli containerd.io yum-utils
