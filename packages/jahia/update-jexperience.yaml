@@ -15,5 +15,4 @@ onInstall:
       unomi_env_name: ${globals.unomi_env_name}
   - installOrUpgradeModules:
       modules: jexperience/${globals.jexperienceVersion}, jexperience-dashboards/${globals.jexperienceDashboardsVersion}
-      forceUpdate: true
 
