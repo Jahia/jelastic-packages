@@ -873,7 +873,6 @@ actions:
     #   - modules: a comma separated list of "<module>/<version>" to install. Examples:
     #              - "distributed-session/3.4.0"
     #              - "augmented-search/3.3.2, jexperience/3.3.0"
-    #   - forceUpdate: boolean to force the module update (defaults to false)
     - set:
         provisioningFile: /opt/tomcat/temp/install_modules_provisioning_${fn.random}.yaml
         mavenRepository: devtools.jahia.com/nexus/content/groups/enterprise@id=jahia-enterprise
@@ -902,9 +901,6 @@ actions:
         }
         $1 != "" {
           printf("  - \"mvn:org.jahia.modules/%s\"\n", $1)
-        }
-        END {
-          print("  forceUpdate: ${this.forceUpdate:false}")
         }
         ' <<<'${this.modules}' > ${this.provisioningFile}
     - callProvisioningAPI:
@@ -1788,9 +1784,7 @@ actions:
   getJexperienceVersion:
     # Get jExperience version to install according to jCustomer env version:
     # - jCustomer 1.x ==> jExperience 2.10.2 & jExperienceDashboards 0.3.0
-    # - jCustomer 2.x ==>
-    #       - < jahia 8.2 jExperience 3.3.1 & jExperienceDashboards 1.0.0
-    #       - >= jahia 8.2 jExperience 3.4.0 & jExperienceDashboards 1.0.0
+    # - jCustomer 2.x ==> jExperience 3.4.0 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of jCustomer environment
     # Returns:
@@ -1805,20 +1799,10 @@ actions:
         a: ${this.unomiVersion}
         b: 2.0.0
         res: isHigherOrEqual200
-    - getJahiaVersion
-    - isVersionHigherOrEqual:
-        a: ${globals.jahiaVersion}
-        b: 8.2.0.0
-        res: jahia82Plus
     - if( ${globals.isHigherOrEqual200} ):
-        - if(${globals.jahia82Plus}):
-            setGlobals:
-              jexperienceVersion: 3.4.0
-              jexperienceDashboardsVersion: 1.0.0
-        - else:
-            setGlobals:
-              jexperienceVersion: 3.3.1
-              jexperienceDashboardsVersion: 1.0.0
+        - setGlobals:
+            jexperienceVersion: 3.4.0
+            jexperienceDashboardsVersion: 1.0.0
     - else:
         - if(${globals.jahia82Plus}):
             return:

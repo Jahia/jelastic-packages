@@ -14,7 +14,6 @@ onInstall:
   - if ("${settings.action}" == "installOrUpgrade"):
     - installOrUpgradeModules:
         modules: ${settings.modulesToInstall}
-        forceUpdate: ${settings.forceUpdate}
   - elif ("${settings.action}" == "uninstall"):
     - uninstallModule:
         moduleSymname: ${settings.moduleSymname}
@@ -54,8 +53,3 @@ settings:
           tooltip: (this parameter is ignored if a specific version to uninstall is set)
           value: false
           required: false
-    - name: forceUpdate
-      type: checkbox
-      caption: Force update
-      default: false
-      required: false
