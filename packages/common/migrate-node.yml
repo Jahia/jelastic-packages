@@ -1,4 +1,12 @@
 ---
+
+################################################################
+# !!! This package has to be run with a privilege account  !!! #
+# !!! So unless you want to move node from such account    !!! #
+# !!! you should run this package with ansible or a script !!! #
+################################################################
+
+
 type: update
 version: 1.5.2
 name: migrate nodes
@@ -138,6 +146,8 @@ actions:
     - migrateNode
     - forEach(nodes.cp):
         if ("${settings.nodeId}" == "${@i.id}"):
+          - cmd["${settings.nodeId}"]: |-
+              service tomcat start
           - startupJahiaHealthCheck: ${settings.nodeId}
           - addBrowsingNodeToHaproxy:
               nodeId: ${@i.id}
@@ -154,6 +164,8 @@ actions:
     - cleanJRJJournalTable:
         batchSize: 10000
     - migrateNode
+    - cmd["${settings.nodeId}"]: |-
+        service tomcat start
     - startupJahiaHealthCheck: ${settings.nodeId}
     - addProcNodeToHaproxy:
         reload: true
