@@ -60,7 +60,8 @@ onBeforeRestartNode[cp]:
 onAfterRestartNode[cp]:
   forEach(nodes.cp):
     if ("${event.params.nodeId}" == "${@i.id}"):
-      - startupJahiaHealthCheck: ${event.params.nodeId}
+      - checkJahiaStartup:
+          target: ${event.params.nodeId}
       - addBrowsingNodeToHaproxy:
           nodeId: ${@i.id}
           nodeIp: ${@i.intIP}
@@ -77,7 +78,8 @@ onBeforeRestartNode[proc]:
       batchSize: 10000
 
 onAfterRestartNode[proc]:
-  - startupJahiaHealthCheck: ${event.params.nodeId}
+  - checkJahiaStartup:
+      target: ${event.params.nodeId}
   - addProcNodeToHaproxy:
       reload: true
   - checkKarafConfsChecksums: ${event.params.nodeId}
@@ -113,20 +115,11 @@ onAfterRedeployContainer[cp]:
       - setJelasticUserAsRoot: ${event.params.nodeGroup}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
-      - startupJahiaHealthCheck: ${event.params.nodeGroup}
-      - resetHaproxyBackends
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setJelasticUserAsRoot: ${event.params.nodeId}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
-      - forEach(nodes.cp):
-          if ("${event.params.nodeId}" == "${@i.id}"):
-            - startupJahiaHealthCheck: ${event.params.nodeId}
-            - addBrowsingNodeToHaproxy:
-                nodeId: ${@i.id}
-                nodeIp: ${@i.intIP}
-                reload: true
   - cleanJRLocalRevisionsTable
 
 onBeforeRedeployContainer[proc]:
@@ -145,19 +138,11 @@ onAfterRedeployContainer[proc]:
       - setJelasticUserAsRoot: ${event.params.nodeGroup}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeGroup}
       - onAfterRedeployJahiaContainer: ${event.params.nodeGroup}
-      - cmd [proc]: |-
-          source /etc/locale.conf
-          echo $JAHIA_UPGRADE
-      - if ('${response.out}' == ''):
-          - startupJahiaHealthCheck: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setJelasticUserAsRoot: ${event.params.nodeId}
       - restoreApplicationcontextFilesAfterRedeploy: ${event.params.nodeId}
       - onAfterRedeployJahiaContainer: ${event.params.nodeId}
-      - startupJahiaHealthCheck: ${event.params.nodeId}
-  - addProcNodeToHaproxy:
-      reload: true
   - cleanJRLocalRevisionsTable
 
 onAfterRedeployContainer[bl]:
@@ -308,7 +293,8 @@ onAfterStart:
         [ -f $f ] && rm -f $f
       done
       service mysql start
-  - startupJahiaHealthCheck: cp, proc
+  - checkJahiaStartup:
+      target: cp, proc
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if ( ! ${globals.unomi_env_linked}):

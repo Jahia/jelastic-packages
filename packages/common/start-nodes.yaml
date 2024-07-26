@@ -76,7 +76,7 @@ onInstall:
         # If the whole node or the service (tomcat) has been started, we check the startup status, add it
         # back to Haproxy and unmute the host on Datadog
         - if (${this.checkStartup}):
-            - callStartupJahiaHealthCheckAction: ${nodes.proc.first.id}
+            - callcheckJahiaStartupAction: ${nodes.proc.first.id}
             - callAddProcNodeToHaproxyAction: ${nodes.proc.first.id}
             - callunmuteDatadogHostAction: ${nodes.proc.first.id}
         # Then we do the same thing for each browsing node
@@ -97,7 +97,7 @@ onInstall:
                 - else:
                     appendActionLog: "Tomcat cannot be started on the browsing node #${@i.id} because the node is stopped"
             - if (${this.checkStartup}):
-                - callStartupJahiaHealthCheckAction: ${@i.id}
+                - callcheckJahiaStartupAction: ${@i.id}
                 - callAddBrowsingNodeToHaproxyAction: ${@i.id}
                 - callunmuteDatadogHostAction: ${@i.id}
     - else:
@@ -197,12 +197,13 @@ actions:
               nodeIp: ${@i.intIP}
               reload: true
 
-  callStartupJahiaHealthCheckAction:
+  callcheckJahiaStartupAction:
     - appendActionLog: "Checking jahia health on node ${this}"
     - if (! ${settings.dryRun}):
         - appendActionLog: "Checking galera cluster health on node ${this}"
         - if (! ${settings.dryRun}):
-            - startupJahiaHealthCheck: ${this}
+            - checkJahiaStartup:
+                target: ${this}
             - unmuteDatadogHost:
                 target: ${this}
 

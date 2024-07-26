@@ -170,10 +170,15 @@ actions:
         systemctl restart proxysql
     - cmd[proc]: |-
         systemctl enable --now tomcat
+    - checkJahiaStartup:
+        target: proc
+        checkJahiaHealthcheck: false
     - checkPatGroovyScriptExecution
-    - startupJahiaHealthCheck: proc
-    - cmd[cp]: |-
-        systemctl enable --now tomcat
+    - checkJahiaStartup:
+        target: proc
+        checkTomcatStartup: false
+        checkJahiaStartup: false
+    - cmd [cp]: systemctl enable --now tomcat
 
   setJahiaPropertiesEnvvars:
     - log: "## Setting jahia.properties envvars"
@@ -306,118 +311,103 @@ actions:
           EOF
           systemctl restart rsyslog crond datadog-agent
 
-  startupJahiaHealthCheck:
-    # Two arguments:
-    #   - target: Mandatory, the target nodeId or nodeGroup. If the duration is not specified, the target
-    #     can be passed as a parameter directly after the action name, e.g.: startupJahiaHealthCheck: <target>
-    #   - duration: Optional, duration in seconds. Default value of 24 hours if not specified
-    # The .print() call surrounded by simple quotes is the only working way I found to test if the variable exists
-    - if ('${this.print()}' != ''):
-        set:
-          target: ${this}
-    - else:
-        set:
-    - getPatTokenAndKey
+  checkJahiaStartup:
+    # Parameters:
+    #   - target: Mandatory, the target nodeId or nodeGroup
+    #   - checkTomcatStartup: Optional, default "true". Checks the startup of Tomcat
+    #   - checkJahiaStartup: Optional, default "true". Checks the startup of Jahia
+    #   - checkJahiaHealthcheck: Optional, default "true". Checks if Jahia's healthcheck is GREEN or YELLOW
+    - set:
+        checkTomcatStartupVar: true
+        checkJahiaStartupVar: true
+        checkJahiaHealthcheckVar: true
+    - if ("${this.checkTomcatStartup}" == "false"):
+        - set:
+            checkTomcatStartupVar: false
+    - if ("${this.checkJahiaStartup}" == "false"):
+        - set:
+            checkJahiaStartupVar: false
+    - if ("${this.checkJahiaHealthcheck}" == "false"):
+        - set:
+            checkJahiaHealthcheckVar: false
+    - if (${this.checkJahiaHealthcheckVar}):
+        - getPatTokenAndKey
     - cmd [${this.target}]: |-
-        __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         log_file=/opt/tomcat/logs/catalina.out
-        if ! tomcat_pid=$(pgrep -u tomcat -f java); then
-          echo "[ERROR] Tomcat process not found, please check." >&2
-          exit 1
+
+        timeout 15s bash -c 'until tomcat_pid=$(pgrep -u tomcat -f java); do sleep 1; done'
+        tomcat_pid=$(pgrep -u tomcat -f java)
+        if ${this.checkTomcatStartupVar}; then
+          echo "[INFO] Checking Tomcat startup..."
+          if [ -z $tomcat_pid ]; then
+            echo "[ERROR] Tomcat process not found, please check." >&2
+            exit 1
+          fi
+
+          line_number=$(grep -n "NOTE: Picked up JDK_JAVA_OPTIONS:" $log_file | tail -n1 | cut -d":" -f1)
+          timeout 60s grep -q "org.jahia.bin.listeners.LoggingConfigListener.initLog4jLocation" <(tail -n +$line_number -f $log_file)
+          if (($?)); then
+            echo "[ERROR] Tomcat still not started after 60s, please check." >&2
+            exit 2
+          fi
+          echo "[INFO] Tomcat startup is finished"
         fi
 
         echo "[INFO] tomcat process PID: $tomcat_pid"
 
-        timeout 60 bash -c '
-          until [ -f /var/log/tomcat/jahia.log ]; do
-            sleep 0.5
-          done
-        '
-        if (($?)); then
-          echo "[ERROR] Jahia log file not found, it seems there is a problem with tomcat instance, please check." >&2
-          exit 2
+        if ${this.checkJahiaStartupVar}; then
+          echo "[INFO] Checking Jahia startup..."
+          line_number=$(grep -n "org.jahia.bin.listeners.LoggingConfigListener.initLog4jLocation" $log_file | tail -n1 | cut -d":" -f1)
+          timeout 60s grep -q "s t a r t i n g" <(tail -n +$line_number -f $log_file)
+          if (($?)); then
+            echo "[ERROR] Jahia won't start, it seems there is a problem with tomcat instance, please check." >&2
+            exit 4
+          fi
+
+          timeout ${HEALTHCHECK_DURATION}m grep -Eq "Jahia [0-9.]+ is now ready." <(tail -n +$line_number -f $log_file)
+          if (($?)); then
+            echo "[ERROR] Jahia startup still not finished after ${HEALTHCHECK_DURATION} minutes, please check." >&2
+            exit 5
+          fi
+
+          timeout 60s bash -c 'until curl -fSs -m 1 http://127.0.0.1:8080/ping.jsp | grep -q PONG; do sleep 1; done'
+          if (($?)); then
+            echo "[ERROR] Jahia is not accessible on 127.0.0.1:8080, please check." >&2
+            exit 6
+          fi
+          echo "[INFO] Jahia startup is finished"
         fi
 
-        timeout 60 bash -c '
-          until grep -q "s t a r t i n g" $0; do
-            sleep 1
-          done
-        ' $log_file
-        if (($?)); then
-          echo "[ERROR] Jahia won't start, it seems there is a problem with tomcat instance, please check." >&2
-          exit 2
-        fi
-
-        startup_line=$(grep -n "s t a r t i n g" $log_file | tail -n1 | cut -d":" -f1)
-        timeout=$(date --date="+$HEALTHCHECK_DURATION minutes" +%s)
-        hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
-
-        # Number of minutes allowed for healthcheck to be completed once tomcat startup is finished
-        jahia_running_timeout=5
-
-        while [ $(date +%s) -lt $timeout ]; do
-          # First we test if Jahia is up with a curl request.
-          echo "[INFO] Trying to send a healthcheck request..."
-          if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
-            status=$(echo $curl_resp | jq -r ".status.health")
-            if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
-              exit 0
+        if ${this.checkJahiaHealthcheckVar}; then
+          echo "[INFO] Checking Jahia healthcheck..."
+          hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
+          bundles_api_url="http://127.0.0.1:8080/modules/api/bundles"
+          __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
+          run_healthcheck() {
+            if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
+              status=$(echo $curl_resp | jq -r ".status.health")
+              if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
+                echo "[INFO] Jahia healthcheck is $status, startup sucessfully finished"
+                exit 0
+              fi
             fi
-          fi
+          }
 
-          # If it isn't, we first check tomcat process status
-          if ! ps --pid $tomcat_pid > /dev/null; then
-            echo "[ERROR] Tomcat process not running anymore, please check." >&2
-            exit 3
-          fi
+          run_healthcheck
+          for module in graphql-dxm-provider server-availability-manager; do
+            echo "[INFO] Refreshing and restarting $module module..."
+            curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
+              "$bundles_api_url/$module/_refresh"
+            curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
+              "$bundles_api_url/$module/_stop"
+            curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
+              "$bundles_api_url/$module/_start"
+          done
+          run_healthcheck
 
-          # Then we check Jahia startup status, all
-          tail -n +${startup_line} $log_file | grep -q "Server startup in"
-          if [ $? -eq 0 ]; then
-            if [ $jahia_running_timeout -gt 1 ]; then
-              echo "[WARNING] Jahia is started but the healthcheck is still down, waiting $((jahia_running_timeout-1)) more minute(s) before restarting modules"
-            elif [ $jahia_running_timeout -eq 1 ]; then
-              for module in graphql-dxm-provider server-availability-manager
-              do
-                echo "[INFO] refreshing and restarting $module module..."
-                curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
-                  "localhost/modules/api/bundles/$module/_refresh"
-                curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
-                  "localhost/modules/api/bundles/$module/_stop"
-                curl -SsH "Authorization: APIToken $__secret__jahia_cfg_healthcheck_token" -XPOST -d "" \
-                  "localhost/modules/api/bundles/$module/_start"
-              done
-            else
-              echo "[ERROR] Jahia startup is finished but healthcheck still fails, please check." >&2
-              exit 4
-            fi
-            ((jahia_running_timeout-=1))
-          fi
-
-          sleep 60
-        done
-
-        echo "[ERROR] Timeout, the Tomcat process is still running but Jahia is not started yet" >&2
-        exit 5
-
-  checkJahiaHealth:
-    - getPatTokenAndKey
-    - cmd [${this}]: |-
-        __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
-        if ! tomcat_pid=$(pgrep -u tomcat -f java); then
-          echo "[ERROR] Tomcat process not found, please check" >&2
-          exit 1
+          echo "[ERROR] The Jahia healthcheck is not GREEN/YELLOW, please check"
+          exit 7
         fi
-
-        hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
-
-        if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
-          status=$(echo $curl_resp | jq -r ".status.health")
-          if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
-            exit 0
-          fi
-        fi
-        echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
 
   checkJahiaDatadogCustomChecks:
     - if (nodes.sqldb.length == 3):
@@ -1432,7 +1422,11 @@ actions:
         - setJahiaUserFeedbacksConfig
     - cmd [proc]:
         - sed '/JAHIA_UPGRADE/d' -i /etc/locale.conf
-    - startupJahiaHealthCheck: ${nodes.proc.first.id}
+    - checkJahiaStartup:
+        target: ${nodes.proc.first.id}
+        checkJahiaHealthcheck: false
+    - addProcNodeToHaproxy:
+          reload: true
     - refreshSAM:
         target: proc
     - callProvisioningAPI:
@@ -1440,6 +1434,10 @@ actions:
         payload:
           - karafCommand: "bundle:refresh distributed-sessions"
           - karafCommand: "cluster:bundle-start default distributed-sessions server-availability-manager"
+    - checkJahiaStartup:
+        target: ${nodes.proc.first.id}
+        checkTomcatStartup: false
+        checkJahiaStartup: false
 
   browsingNodesBulkRedeploy:
     # Parameters:
@@ -1450,12 +1448,20 @@ actions:
       useExistingVolumes: false
       skipReinstall: false
       envName: ${env.envName}
+    - checkJahiaStartup:
+        target: cp
+        checkJahiaHealthcheck: false
     - refreshSAM:
         target: cp
     - callProvisioningAPI:
         target: cp
         payload:
           - karafCommand: "bundle:refresh distributed-sessions"
+    - checkJahiaStartup:
+        target: cp
+        checkTomcatStartup: false
+        checkJahiaStartup: false
+    - resetHaproxyBackends
 
   browsingNodesRollingRedeploy:
     # Parameters:
@@ -1474,12 +1480,23 @@ actions:
           useExistingVolumes: ${this.useExistingVolumes}
           skipReinstall: false
           envName: ${env.envName}
+        - checkJahiaStartup:
+            target: ${@i.id}
+            checkJahiaHealthcheck: false
         - refreshSAM:
             target: ${@i.id}
         - callProvisioningAPI:
             target: ${@i.id}
             payload:
               - karafCommand: "bundle:refresh distributed-sessions"
+        - checkJahiaStartup:
+            target: ${@i.id}
+            checkTomcatStartup: false
+            checkJahiaStartup: false
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
 
   cleanJRLocalRevisionsTable:
     - cmd [${nodes.sqldb.first.id}]: |-
@@ -1637,14 +1654,14 @@ actions:
   checkPatGroovyScriptExecution:
     - cmd[proc]: |-
         groovy_file_path=/data/digital-factory-data/patches/groovy/pat.groovy
-        jahia_running_timeout=1200 # 20 minutes
-        sleep_interval=5
+        timeout=300 # 5 minutes
+        sleep_interval=2
 
         while [ -f $groovy_file_path ]; do
           sleep $sleep_interval;
-          ((jahia_running_timeout-=sleep_interval))
-          if [ $jahia_running_timeout -eq 0 ]; then
-            echo "[ERROR] $groovy_file_path is still not executed after $jahia_running_timeout seconds"
+          ((timeout-=sleep_interval))
+          if [ $timeout -eq 0 ]; then
+            echo "[ERROR] $groovy_file_path is still not executed after $timeout seconds"
             exit 1
           fi
         done

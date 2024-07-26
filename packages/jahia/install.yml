@@ -367,7 +367,8 @@ onInstall:
   - setCloudConf
   - install:
       jps: "${baseUrl}/update-events.yml"
-  - startupJahiaHealthCheck: cp
+  - checkJahiaStartup:
+      target: cp
   - setJelEnvRoleInNodeGroupData
   - updateEnvStatusInPapi:
       status: running

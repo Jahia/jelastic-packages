@@ -20,7 +20,10 @@ onInstall:
       - disableHaproxyHealthcheck
       - installOrUpgradeModules:
           modules: graphql-dxm-provider/${settings.targetVersion}
-      - checkJahiaHealth: "cp, proc"
+      - checkJahiaStartup:
+          target: "cp, proc"
+          checkTomcatStartup: false
+          checkJahiaStartup: false
       - enableHaproxyHealthcheck
       - checkModule:
           moduleSymname: graphql-dxm-provider

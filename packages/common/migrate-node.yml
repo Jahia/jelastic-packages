@@ -138,7 +138,8 @@ actions:
     - migrateNode
     - forEach(nodes.cp):
         if ("${settings.nodeId}" == "${@i.id}"):
-          - startupJahiaHealthCheck: ${settings.nodeId}
+          - checkJahiaStartup:
+              target: ${settings.nodeId}
           - addBrowsingNodeToHaproxy:
               nodeId: ${@i.id}
               nodeIp: ${@i.intIP}
@@ -154,7 +155,8 @@ actions:
     - cleanJRJJournalTable:
         batchSize: 10000
     - migrateNode
-    - startupJahiaHealthCheck: ${settings.nodeId}
+    - checkJahiaStartup:
+        target: ${settings.nodeId}
     - addProcNodeToHaproxy:
         reload: true
     - checkKarafConfsChecksums: ${settings.nodeId}
@@ -210,13 +212,15 @@ actions:
   startAllJahiaNodes:
     - cmd[proc]: |-
         service tomcat start
-    - startupJahiaHealthCheck: proc
+    - checkJahiaStartup:
+        target: proc
     - addProcNodeToHaproxy:
         reload: true
     - cmd[cp]: |-
         service tomcat start
     - forEach(nodes.cp):
-        - startupJahiaHealthCheck: ${@i.id}
+        - checkJahiaStartup:
+            target: ${@i.id}
         - addBrowsingNodeToHaproxy:
             nodeId: ${@i.id}
             nodeIp: ${@i.intIP}

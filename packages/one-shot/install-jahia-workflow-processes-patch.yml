@@ -68,5 +68,7 @@ actions:
         curl -fLSso $patch_file $patch || exit 1
         chmod 644 $patch_file
         sudo service tomcat start
-    - startupJahiaHealthCheck: ${this}
-        
+    - checkJahiaStartup:
+        target: "cp, proc"
+        checkTomcatStartup: false
+        checkJahiaStartup: false
