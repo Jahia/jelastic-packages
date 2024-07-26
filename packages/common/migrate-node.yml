@@ -1,4 +1,12 @@
 ---
+
+################################################################
+# !!! This package has to be run with a privilege account  !!! #
+# !!! So unless you want to move node from such account    !!! #
+# !!! you should run this package with ansible or a script !!! #
+################################################################
+
+
 type: update
 version: 1.5.2
 name: migrate nodes
@@ -17,29 +25,6 @@ mixins:
   - ../../mixins/jcustomer.yml
   - ../../mixins/haproxy.yml
   - ../../mixins/mariadb.yml
-
-onBeforeInit: |
-      hns = jelastic.administration.cluster.gethdnodes("cluster", session).array;
-      list = [];
-      setting = {
-        "type": "list",
-        "caption": "HN",
-        "name": "destination",
-        "required": true,
-        "values": []
-      };
-      hns.forEach(
-        function(hn) {
-          if (hn["status"] != "INFRASTRUCTURE_NODE") {
-            setting.values.push({"caption": hn["hostname"], "value": hn["id"]});
-          }
-        }
-      );
-      resp = { result: 0, settings: {fields: []} };
-      resp.settings.fields.push(setting);
-      resp.settings.fields.push({"type": "string", "caption": "Id of the node to migrate", "required": true, "name": "nodeId"});
-      return resp
-
 
 onInstall:
   - checkCompatibilityAndDetermineNodeAndEnvType
@@ -138,6 +123,8 @@ actions:
     - migrateNode
     - forEach(nodes.cp):
         if ("${settings.nodeId}" == "${@i.id}"):
+          - cmd["${settings.nodeId}"]: |-
+              service tomcat start
           - startupJahiaHealthCheck: ${settings.nodeId}
           - addBrowsingNodeToHaproxy:
               nodeId: ${@i.id}
@@ -154,6 +141,8 @@ actions:
     - cleanJRJJournalTable:
         batchSize: 10000
     - migrateNode
+    - cmd["${settings.nodeId}"]: |-
+        service tomcat start
     - startupJahiaHealthCheck: ${settings.nodeId}
     - addProcNodeToHaproxy:
         reload: true
@@ -243,3 +232,14 @@ actions:
               nodeIp: ${@i.intIP}
               reload: true
 
+settings:
+  fields:
+    - name: destination
+      type: string
+      caption: Id of the dest hn # Value can be obtained on jca by selecting a hn and checking its id it the URL
+      required: true
+    - name: nodeId
+      type: string
+      caption: Id of the node to migrate
+      vtype: string
+      required: true
