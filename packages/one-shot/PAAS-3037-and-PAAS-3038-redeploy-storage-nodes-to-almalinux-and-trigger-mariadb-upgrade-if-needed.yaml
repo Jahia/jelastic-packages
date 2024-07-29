@@ -1,14 +1,18 @@
 ---
 type: update
 version: 1.5.2
-name: PAAS-3037 - redeploy storage nodes to almalinux
-id: paas-3037-redeploy-storage-nodes-to-almalinux
+name: PAAS-3037 and PAAS-3038 - redeploy storage nodes to almalinux and trigger mariadb-upgrade if needed
+id: paas-3037-and-paas-3038-redeploy-storage-nodes-to-almalinux-and-trigger-mariadb-upgrade-if-needed
 
 mixins:
   - "../../mixins/common.yml"
   - "../../mixins/jahia.yml"
 
 onInstall:
+  - foreach(nodes.sqldb):
+      - cmd[${@i.id}]: |-
+          mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || true
+
   - setGlobals:
       needRedeploy: false
       storageOSVersion: "2.0-10.5-almalinux-9"

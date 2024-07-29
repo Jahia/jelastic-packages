@@ -141,6 +141,9 @@ actions:
         - getGaleraNodeNameIndex: ${nodes.sqldb.first.id}
         - redeployGaleraNode:
             target: ${nodes.sqldb.first.id}
+      - foreach(nodes.sqldb):
+          - cmd[${@i.id}]: |-
+              mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || true
 
   upgradeStorage:
     - setGlobals:
