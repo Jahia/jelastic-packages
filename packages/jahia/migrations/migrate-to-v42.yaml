@@ -115,7 +115,7 @@ actions:
     - setGlobals:
         haproxyVersion: "2.8.9-almalinux-9"
     - foreach (nodes.bl):
-      - if ("${@i.id.version}" != "${globals.haproxyVersion}"):
+      - if ("${@i.version}" != "${globals.haproxyVersion}"):
         - api: environment.control.RedeployContainerById
           nodeId: ${@i.id}
           tag: ${globals.haproxyVersion}
@@ -149,7 +149,7 @@ actions:
     - setGlobals:
         storageOSVersion: "2.0-10.5-almalinux-9"
     - foreach (nodes.storage):
-      - if ("${@i.id.version}" != "${globals.storageOSVersion}"):
+      - if ("${@i.version}" != "${globals.storageOSVersion}"):
         - api: environment.control.RedeployContainerById
           nodeId: ${@i.id}
           tag: ${globals.storageOSVersion}
