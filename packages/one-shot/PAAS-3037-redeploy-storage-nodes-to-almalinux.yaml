@@ -1,0 +1,56 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3037 - redeploy storage nodes to almalinux
+id: paas-3037-redeploy-storage-nodes-to-almalinux
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - setGlobals:
+      needRedeploy: false
+      storageOSVersion: "2.0-10.5-almalinux-9"
+
+  - foreach (nodes.storage):
+      if ("${@i.id.version}" != "${globals.storageOSVersion}"):
+        set:
+          needRedeploy: true
+
+  - if (${globals.needRedeploy}):
+      - if (nodes.storage.length > 1):
+          stopJahiaNodes
+      - upgradeStorage
+      - if (nodes.storage.length > 1):
+          startJahiaNodes
+
+actions:
+  upgradeStorage:
+    - setGlobals:
+        storageOSVersion: "2.0-10.5-almalinux-9"
+    - foreach (nodes.storage):
+      - if ("${@i.id.version}" != "${globals.storageOSVersion}"):
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${globals.storageOSVersion}
+          useExistingVolumes: true
+          skipReinstall: false
+          envName: ${env.envName}
+
+  stopJahiaNodes:
+    - muteDatadogHost:
+        target: "*"
+        duration: 60
+    - muteEnvWideMonitors
+    - stopJahia: cp, proc
+
+  startJahiaNodes:
+    - api: environment.control.RestartNodeById
+      nodeId: ${nodes.proc.first.id}
+    - foreach (nodes.cp):
+        - api: environment.control.RestartNodeById
+          nodeId: ${@i.id}
+    - unmuteDatadogHost:
+        target: "*"
+    - unmuteEnvWideMonitors
