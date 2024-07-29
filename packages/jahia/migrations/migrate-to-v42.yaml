@@ -34,7 +34,12 @@ onInstall:
 
   # Actions that require a redeploy
   - upgradeHaproxy            # PAAS-2860
+  - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
+      stopJahiaNodes
   - upgradeSqldb              # PAAS-2932
+  - upgradeStorage            # PAAS-3037
+  - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
+      startJahiaNodes
 
   # Redeploy and restart actions:
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
@@ -134,21 +139,37 @@ actions:
         - setGlobals:
             targetDockerTag: ${globals.sqlDbVersion}
         - getGaleraNodeNameIndex: ${nodes.sqldb.first.id}
-        - muteDatadogHost:
-            target: "*"
-            duration: 60
-        - muteEnvWideMonitors
-        - stopJahia: cp, proc
         - redeployGaleraNode:
             target: ${nodes.sqldb.first.id}
+
+  upgradeStorage:
+    - setGlobals:
+        storageOSVersion: "2.0-10.5-almalinux-9"
+    - foreach (nodes.storage):
+      - if ("${@i.id.version}" != "${globals.storageOSVersion}"):
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${globals.storageOSVersion}
+          useExistingVolumes: true
+          skipReinstall: false
+          envName: ${env.envName}
+
+  stopJahiaNodes:
+    - muteDatadogHost:
+        target: "*"
+        duration: 60
+    - muteEnvWideMonitors
+    - stopJahia: cp, proc
+
+  startJahiaNodes:
+    - api: environment.control.RestartNodeById
+      nodeId: ${nodes.proc.first.id}
+    - foreach (nodes.cp):
         - api: environment.control.RestartNodeById
-          nodeId: ${nodes.proc.first.id}
-        - foreach (nodes.cp):
-            - api: environment.control.RestartNodeById
-              nodeId: ${@i.id}
-        - unmuteDatadogHost:
-            target: "*"
-        - unmuteEnvWideMonitors
+          nodeId: ${@i.id}
+    - unmuteDatadogHost:
+        target: "*"
+    - unmuteEnvWideMonitors
 
 settings:
   fields:
