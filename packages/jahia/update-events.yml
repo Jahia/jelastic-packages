@@ -302,12 +302,7 @@ onBeforeStop:
       text: "$envName is going to stop"
 
 onAfterStart:
-  - cmd[sqldb]: |-
-      chkconfig mysql on
-      for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
-        [ -f $f ] && rm -f $f
-      done
-      service mysql start
+  - startGaleraNode: sqldb
   - startupJahiaHealthCheck: cp, proc
   - getEnvLinkedJcustomer:
       envName: ${env.envName}

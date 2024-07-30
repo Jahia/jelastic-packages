@@ -233,7 +233,6 @@ actions:
       - log: "Stopping MariaDB on node ${@i.id}..."
       - cmd[${@i.id}]: |-
           service mysql stop || exit 1
-          chkconfig mysql off
           cat /var/lib/mysql/grastate.dat || true
 
   setupSeeds:
@@ -276,6 +275,7 @@ actions:
   stopGaleraNode:
     cmd[${this}]: |-
       service mysql stop || exit 1
+      chkconfig mysql off
       if [ -f /var/lib/mysql/grastate.dat ]; then
         cat /var/lib/mysql/grastate.dat
       else
@@ -285,6 +285,7 @@ actions:
 
   startGaleraNode:
     cmd[${this}]: |-
+      chkconfig mysql on
       service mysql start
       rc=$?
       mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
