@@ -13,21 +13,22 @@ onInstall:
       - cmd[${@i.id}]: |-
           mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || true
 
-  - setGlobals:
-      needRedeploy: false
-      storageOSVersion: "2.0-10.5-almalinux-9"
+  - if (!${settings.skipGluster:true}) || (nodes.storage.length == 1):
+      - setGlobals:
+          needRedeploy: false
+          storageOSVersion: "2.0-10.5-almalinux-9"
 
-  - foreach (nodes.storage):
-      if ("${@i.version}" != "${globals.storageOSVersion}"):
-        setGlobals:
-          needRedeploy: true
+      - foreach (nodes.storage):
+          if ("${@i.version}" != "${globals.storageOSVersion}"):
+            setGlobals:
+              needRedeploy: true
 
-  - if (${globals.needRedeploy}):
-      - if (nodes.storage.length > 1):
-          stopJahiaNodes
-      - upgradeStorage
-      - if (nodes.storage.length > 1):
-          startJahiaNodes
+      - if (${globals.needRedeploy}):
+          - if (nodes.storage.length == 1):
+              stopJahiaNodes
+          - upgradeStorage
+          - if (nodes.storage.length == 1):
+              startJahiaNodes
 
 actions:
   upgradeStorage:
@@ -58,3 +59,10 @@ actions:
     - unmuteDatadogHost:
         target: "*"
     - unmuteEnvWideMonitors
+
+settings:
+  fields:
+    - type: toggle
+      name: skipGluster
+      default: true
+      caption: Skip storage nodes redeployment if glusterfs cluster
