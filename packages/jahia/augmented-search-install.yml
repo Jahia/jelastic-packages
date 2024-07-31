@@ -63,16 +63,14 @@ actions:
           augsearch: enable
 
   setupAugSearch:
-    - callProvisioningAPI:
-        target: proc
-        payload:
-          - editConfiguration: "org.jahia.modules.augmentedsearch"
-            properties:
-              org.jahia.modules.augmentedsearch.prefix: "as"
-              org.jahia.modules.augmentedsearch.numberOfShards: "1"
-              org.jahia.modules.augmentedsearch.numberOfReplicas: "1"
-              org.jahia.modules.augmentedsearch.minHeapPerShardInMb: "10"
-    - if (! ${globals.provisioning_api_call_success}):
+    - updateModuleKarafConfig:
+        servicePid: "org.jahia.modules.augmentedsearch"
+        properties:
+          org.jahia.modules.augmentedsearch.prefix: "as"
+          org.jahia.modules.augmentedsearch.numberOfShards: "1"
+          org.jahia.modules.augmentedsearch.numberOfReplicas: "1"
+          org.jahia.modules.augmentedsearch.minHeapPerShardInMb: "10"
+    - if (! ${globals.updateModuleKarafConfig_success}):
         return:
         type: error
         message: "Failed to update AS configuration"
