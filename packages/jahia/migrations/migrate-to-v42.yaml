@@ -37,7 +37,8 @@ onInstall:
   - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
       stopJahiaNodes
   - upgradeSqldb              # PAAS-2932
-  - upgradeStorage            # PAAS-3037
+  - if (nodes.storage.length == 1):
+      upgradeStorage            # PAAS-3037
   - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
       startJahiaNodes
 
