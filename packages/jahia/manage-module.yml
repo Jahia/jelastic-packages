@@ -36,7 +36,7 @@ settings:
         installOrUpgrade:
         - name: modulesToInstall
           type: string
-          caption: Comma separated list of one or more "<module>/<version>" to install
+          caption: Comma separated list of one or more "module/version" to install
           tooltip: "Example: \"augmented-search/3.3.2, jexperience/3.3.0\""
         uninstall:
         - name: moduleSymname
