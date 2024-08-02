@@ -233,8 +233,10 @@ actions:
       - log: "Stopping MariaDB on node ${@i.id}..."
       - cmd[${@i.id}]: |-
           service mysql stop || exit 1
-          chkconfig mysql off
           cat /var/lib/mysql/grastate.dat || true
+      - if (nodes.sqldb.length > 1):
+          cmd[${@i.id}]: |-
+            chkconfig mysql off
 
   setupSeeds:
     script: |

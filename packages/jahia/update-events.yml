@@ -294,6 +294,9 @@ onBeforeStop:
   - cleanJRJJournalTable:
       batchSize: 10000
   - stopGalera
+  - if (nodes.sqldb.length > 1):
+      cmd[cp, proc]: |-
+        systemctl disable tomcat
   - updateEnvStatusInPapi:
       status: stopped
   - logEvent:
@@ -302,13 +305,29 @@ onBeforeStop:
       text: "$envName is going to stop"
 
 onAfterStart:
-  - cmd[sqldb]: |-
-      chkconfig mysql on
-      for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
-        [ -f $f ] && rm -f $f
-      done
-      service mysql start
-  - startupJahiaHealthCheck: cp, proc
+  - if (nodes.sqldb.length > 1):
+      - cmd[sqldb]: |-
+          chkconfig mysql on
+          for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
+            [ -f $f ] && rm -f $f
+          done
+          exit 0
+      - startGaleraNode: ${nodes.sqldb.master.id}
+      - forEach(i:nodes.sqldb):
+          if (${@i.id} != ${nodes.sqldb.master.id}):
+            - cmd[${@i.id}]: |-
+                echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
+            - startGaleraNode: ${@i.id}
+
+      - cmd[proc]: |-
+          systemctl enable --now tomcat
+      - startupJahiaHealthCheck: proc
+      - cmd[cp]: |-
+          systemctl enable --now tomcat
+      - startupJahiaHealthCheck: cp
+  - else:
+      startupJahiaHealthCheck: proc, cp
+
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if ( ! ${globals.unomi_env_linked}):
