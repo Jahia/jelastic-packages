@@ -2163,14 +2163,14 @@ actions:
       - callProvisioningAPI:
           target: "proc, cp"
           payload:
-            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$6 \$7}" > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$6 \$7}" | shell:exec sort -k3 > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" | shell:exec sort -k3 > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - else:
        - callProvisioningAPI:
           target: "proc, cp"
           payload:
-            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$7}" > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
-            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR>3 {print \$2 \$5}" > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+            - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$7}" | shell:exec sort -k2 > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+            - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR>3 {print \$2 \$5}" | shell:exec sort -k2 > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
     - cmd[cp, proc]: |-
         sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
 
