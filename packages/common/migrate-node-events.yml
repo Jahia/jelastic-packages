@@ -1,0 +1,225 @@
+---
+
+################################################################
+# !!! This package has to be run with a privilege account  !!! #
+# !!! So unless you want to move node from such account    !!! #
+# !!! you should run this package with ansible or a script !!! #
+################################################################
+
+
+type: update
+version: 1.5.2
+name: migrate nodes
+logo: ../../assets/common/jahia-logo-70x70.png
+id: migrate-node
+description:
+  short: Jahia Cloud - migrate node
+  text: migrate node from an HN to another
+
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - checkCompatibilityAndDetermineNodeAndEnvType
+  - if ("${settings.step}" == "pre"):
+    - logEvent:
+        target: ${settings.nodeId}
+        title: "Migrating node ${settings.nodeId}"
+        text: "${settings.nodeId} node is going to be migrated"
+    - muteDatadogHost:
+        target: ${settings.nodeId}
+        duration: 60
+
+  - if ("${globals.envType}" == "jahia"):
+    - if ("${globals.nodeType}" == "cp"):
+        browsingNode
+    - elif ("${globals.nodeType}" == "proc"):
+        procNode
+    - elif ("${globals.nodeType}" == "sqldb"):
+        dbNode
+    - elif ("${globals.nodeType}" == "storage"):
+        storageNode
+  - else: # jCustomer env
+    - if ("${globals.nodeType}" == "cp"):
+        jcustomerNode
+
+  - if ("${settings.step}" == "post"):
+    - logEvent:
+        target: ${settings.nodeId}
+        title: "Node ${settings.nodeId} migrated"
+        text: "Node ${settings.nodeId} has migrated"
+    - unmuteDatadogHost:
+        target: ${settings.nodeId}
+
+
+actions:
+  checkCompatibilityAndDetermineNodeAndEnvType:
+    script: |-
+        nodeId = ${settings.nodeId};
+        envType = "jcustomer";
+        nodeType = ""
+        nodeInEnv = false;
+        envInfos =  jelastic.env.control.GetEnvInfo('${env.envName}', session);
+        nodes = envInfos["nodes"];
+        nodes.forEach(
+          function(node) {
+            if (node["nodeGroup"] == "proc")
+              envType = "jahia";
+            if (node["id"] == nodeId) {
+              nodeType = node["nodeGroup"];
+              nodeInEnv = true;
+            }
+          }
+        );
+        if (!nodeInEnv) {
+              return {"result": 1, "errOut": "Can't find node in ${env.envName}"}
+        }
+        if (nodeType == "") {
+              return {"result": 1, "errOut": "Can't determine node type"}
+        }
+        setglobals = {setGlobals: {envType: envType, nodeType: nodeType}}
+        return {"result": 0, onAfterReturn: setglobals}
+
+  browsingNode:
+    - if ("${settings.step}" == "pre"):
+      - backupKarafConfsDir: ${settings.nodeId}
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${settings.nodeId}
+          reload: true
+      - queryShutdownEndpoint:
+          target: ${settings.nodeId}
+    - elif ("${settings.step}" == "post"):
+      - forEach(nodes.cp):
+          if ("${settings.nodeId}" == "${@i.id}"):
+            - cmd["${settings.nodeId}"]: |-
+                service tomcat start
+            - startupJahiaHealthCheck: ${settings.nodeId}
+            - addBrowsingNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+                reload: true
+            - checkKarafConfsChecksums: ${settings.nodeId}
+
+  procNode:
+    - if ("${settings.step}" == "pre"):
+      - backupKarafConfsDir: ${settings.nodeId}
+      - removeProcNodeFromHaproxy:
+          reload: true
+      - queryShutdownEndpoint:
+          target: ${settings.nodeId}
+      - cleanJRJJournalTable:
+          batchSize: 10000
+    - if ("${settings.step}" == "post"):
+      - cmd["${settings.nodeId}"]: |-
+          service tomcat start
+      - startupJahiaHealthCheck: ${settings.nodeId}
+      - addProcNodeToHaproxy:
+          reload: true
+      - checkKarafConfsChecksums: ${settings.nodeId}
+
+  dbNode:
+    - if ("${settings.step}" == "pre"):
+      - if (nodes.sqldb.length > 1):
+          - getGaleraMaster
+          - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
+              - getGaleraNodeNameIndex: ${@i.id}
+              - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+                - log: "Setting cloudlets on MariaDB node ${@i.id}..."
+                - setDonorNode:
+                    target : ${@i.id}
+                - setCloudlets: ${@i.id}
+              - else:
+                - setGlobals:
+                    origMasterId: ${@i.id}
+
+          - script: |-
+              masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+              newMasterIndex = ((masterIndex + 1) % 3) + 1
+              return {'result':0, 'newMasterIndex': newMasterIndex}
+
+          - proxysqlSwitchMaster:
+              target: ${response.newMasterIndex}
+
+          - setDonorNode:
+              target: ${globals.origMasterId}
+      - else:
+          stopAllJahiaNodes
+    - if ("${settings.step}" == "post"):
+      - checkMariadbHealth:
+          target: ${this}
+          maxDuration: 300
+      - if (nodes.sqldb.length > 1):
+          checkGaleraClusterHealth: ${this}
+      - else:
+          startAllJahiaNodes
+
+  stopAllJahiaNodes:
+    - backupKarafConfsDir: cp, proc
+    - removeProcNodeFromHaproxy:
+        reload: true
+    - forEach(nodes.cp):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+    - queryShutdownEndpoint:
+        target: cp, proc
+    - cmd[cp, proc]: |-
+        service tomcat stop
+
+  startAllJahiaNodes:
+    - cmd[proc]: |-
+        service tomcat start
+    - startupJahiaHealthCheck: proc
+    - addProcNodeToHaproxy:
+        reload: true
+    - cmd[cp]: |-
+        service tomcat start
+    - forEach(nodes.cp):
+        - startupJahiaHealthCheck: ${@i.id}
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
+    - checkKarafConfsChecksums: proc, cp
+
+  storageNode:
+    - if ("${settings.step}" == "post"):
+        if (nodes.storage.length == 1):
+          stopAllJahiaNodes
+    - if ("${settings.step}" == "post"):
+        if (nodes.sqldb.length == 1):
+          startAllJahiaNodes
+
+  jcustomerNode:
+    - if ("${settings.step}" == "post"):
+        removeBrowsingNodeFromHaproxy:
+          nodeId: ${settings.nodeId}
+          reload: true
+    - if ("${settings.step}" == "post"):
+        forEach(nodes.cp):
+          if ("${settings.nodeId}" == "${@i.id}"):
+            - checkJcustomerHealthWhenStarting: ${@i.id}
+            - addBrowsingNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+                reload: true
+
+settings:
+  fields:
+    - name: step
+      type: string
+      caption: pre or post migration step.
+      required: true
+      default: post
+    - name: nodeId
+      type: string
+      caption: Id of the node to migrate
+      vtype: string
+      required: true
