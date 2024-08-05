@@ -716,6 +716,92 @@ actions:
         return {"result": 1, errOut: "Can't get Jahia version"}
     - log: "Jahia is v${globals.jahiaVersion}"
 
+  updateModuleKarafConfig:
+    # Update a module's configuration by:
+    # * update configuration on processing
+    # * checking that the new conf is well applied on each browsing (and force the sync if not)
+    # Parameters:
+    # - servicePid: the service.pid of the module on which to change the configuration
+    # - properties: list of propertie(s) and value(s) to set
+    # Returns:
+    # - globals.updateModuleKarafConfig_success: boolean
+
+    - setGlobals:
+        updateModuleKarafConfig_success: false 
+    # we start by updating the processing conf
+    # (the call to "callProvisioningAPI" is done that way in order to keep the json format of "this.properties")
+    - script: |-
+        params = {"target": "proc", "payload": [{"editConfiguration": "${this.servicePid}", "properties": ${this.properties} }]}
+        return {"result": 0, "onAfterReturn": {callProvisioningAPI: params}}
+    # generate a list containing browsing IDs and a few other variables
+    - script: |-
+        nodesId = []
+        cpNodes = ${nodes.cp}
+        for (node in cpNodes) {
+          nodesId.push(cpNodes[node].id)
+        }
+        maxTryCount = 10
+        tryCount = Array.from({ length: maxTryCount }, (value, index) => index)  // generate a list of maxTryCount length
+        return {"result": 0, "onAfterReturn": {set: {"nodesToCheck": nodesId, "tryCount": tryCount, "tempFile": "/tmp/${fn.uuid}"}}}
+    # once the conf has been applied to the proc, we retrieve the hash of all its properties
+    - callProvisioningAPI:
+        target: proc
+        payload:
+          - karafCommand: config:list "(service.pid=*${this.servicePid}*)" > ${this.tempFile}
+    - cmd[proc]: |-
+        md5sum ${this.tempFile} | awk '{print $1}'
+        rm ${this.tempFile}
+    - set:
+        hash: ${response.out}
+    # from here or will test (to the maximum count of elements in "this.tryCount") whether the conf is also applied to browsing by hash comparison
+    - forEach(this.tryCount):
+      - set:
+          ok_in_a_row: 0
+      - log: "nodesToCheck = ${this.nodesToCheck.toJSON()}"
+      # here we iterate on browsing(s)
+      - forEach(this.nodesToCheck):
+        - callProvisioningAPI:
+            target: ${@i}
+            payload:
+              - karafCommand: config:list "(service.pid=*${this.servicePid}*)" > ${this.tempFile}
+        - cmd[${@i}]: |-
+            md5sum ${this.tempFile} | awk '{print $1}'
+            rm ${this.tempFile}
+        - if("${response.out}" == "${this.hash}"):
+            # hash are equal, so the conf is applied
+            - log: "${@@i} is ok"
+            # we remove this "ok" node from the list of node to check
+            - script: |-
+                ok_in_a_row = ${this.ok_in_a_row}
+                nodesToCheck = ${this.nodesToCheck.toJSON()}
+                index = ${@@i} - ok_in_a_row
+                switch (index + 1) {
+                  case 1:
+                    nodesToCheck.shift(); break;
+                  case nodesToCheck.length:
+                    nodesToCheck.pop(); break;
+                  default:
+                    nodesToCheck.splice(index, index);
+                }
+                return {"result": 0, "onAfterReturn": {set: {"nodesToCheck": nodesToCheck, "ok_in_a_row": ok_in_a_row + 1}}}
+        - else:
+            # new conf isn't applied here, so we force a "cluster:sync" of configurations
+            # this node will be retested on the next "tryCount" iteration
+            - log: "${@@i} isn't sync, we force it"
+            - callProvisioningAPI:
+                target: ${@i}
+                payload:
+                  - karafCommand: cluster:sync -c
+    # once tryCount loop is over
+    - if(${this.nodesToCheck.length} > 0):
+        - return:
+            type: error
+            message: "The following nodes still don't have the new configuration : ${this.nodesToCheck.toJSON()}"
+    - else:
+        - log: "new configuration is present on all nodes"
+        - setGlobals:
+            updateModuleKarafConfig_success: true 
+
   checkModule:
     # Checks the state of a module using the provisioning API (or fallback to the digital-factory-data/bundles-deployed folder if failed).
     # First we check the state of the module, uninstalled, installed or started. Then, if installed or started,
