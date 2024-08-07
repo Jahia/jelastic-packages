@@ -297,6 +297,7 @@ onBeforeStop:
   - if (nodes.sqldb.length > 1):
       cmd[cp, proc]: |-
         systemctl disable tomcat
+        systemctl disable proxysql
   - updateEnvStatusInPapi:
       status: stopped
   - logEvent:
@@ -320,9 +321,11 @@ onAfterStart:
             - startGaleraNode: ${@i.id}
 
       - cmd[proc]: |-
+          systemctl enable --now proxysql
           systemctl enable --now tomcat
       - startupJahiaHealthCheck: proc
       - cmd[cp]: |-
+          systemctl enable --now proxysql
           systemctl enable --now tomcat
       - startupJahiaHealthCheck: cp
   - else:
