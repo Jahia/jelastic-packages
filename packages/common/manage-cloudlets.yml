@@ -1,0 +1,253 @@
+---
+type: update
+version: 1.5.2
+name: manage cloudlets
+logo: ../../assets/common/jahia-logo-70x70.png
+id: manage-cloudlets
+description:
+  short: Jahia Cloud - manage cloudlets
+  text: Manage cloudlets of a node
+
+ssl: true
+skipNodeEmails: true
+
+mixins:
+  - ../../mixins/common.yml
+  - ../../mixins/jahia.yml
+  - ../../mixins/jcustomer.yml
+  - ../../mixins/haproxy.yml
+  - ../../mixins/mariadb.yml
+
+onInstall:
+  - checkCompatibilityAndGetNodeInfos
+  - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+      - forEach(globals.nodesId):
+          - logEvent:
+              target: ${@i}
+              title: "Restarting node ${@i}"
+              text: "${@i} node is going to be restarted"
+          - muteDatadogHost:
+              target: ${@i}
+              duration: 60
+
+  - if ("${globals.envType}" == "jahia"):
+    - if ("${settings.nodeGroup}" == "bl"):
+        forEach(nodes.bl):
+          setCloudlets: ${@i.id}
+    - elif ("${settings.nodeGroup}" == "cp"):
+        browsingNodes
+    - elif ("${settings.nodeGroup}" == "proc"):
+        procNode
+    - elif ("${settings.nodeGroup}" == "sqldb"):
+        dbNodes
+    - elif ("${settings.nodeGroup}" == "storage"):
+        storageNodes
+  - else: # jCustomer env
+    - if ("${settings.nodeGroup}" == "bl"):
+        forEach(nodes.bl):
+          setCloudlets: ${@i.id}
+    - elif ("${settings.nodeGroup}" == "cp"):
+        jcustomerNodes
+
+  - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+      - forEach(globals.nodesId):
+          - logEvent:
+              target: ${@i}
+              title: "Node ${@i} restarted"
+              text: "Node ${@i} has restarted"
+          - unmuteDatadogHost:
+              target: ${@i}
+
+actions:
+  checkCompatibilityAndGetNodeInfos:
+    script: |-
+      nodeGroup = "${settings.nodeGroup}";
+      envType = "jcustomer";
+      nodeType = ""
+      nodeGroupInEnv = false;
+      nodes =  jelastic.env.control.GetEnvInfo('${env.envName}', session)["nodes"];
+      cloudlets = "";
+      nodesId = [];
+      nodes.forEach(
+        function(node) {
+          if (node["nodeGroup"] == "proc")
+            envType = "jahia";
+          if (node["nodeGroup"] == nodeGroup) {
+            nodeGroupInEnv = true;
+            cloudlets = node["fixedCloudlets"];
+            nodesId.push(node["id"]);
+          }
+        }
+      );
+      if (!nodeGroupInEnv) {
+            return {"result": 1, "errOut": "Can't find node in ${env.envName}"}
+      }
+
+      setglobals = {setGlobals: {envType: envType, nodesId: nodesId, cloudletsIncrease: (cloudlets < ${settings.cloudlets}) }}
+      return {"result": 0, onAfterReturn: setglobals}
+
+  setCloudlets:
+    - script: |
+        return api.env.control.SetCloudletsCountById(
+          "${env.envName}",
+          session,
+          ${this},
+          ${settings.cloudlets},
+          ${settings.cloudlets},
+        )
+
+  browsingNodes:
+    - forEach(nodes.cp):
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            - backupKarafConfsDir: ${@i.id}
+            - removeBrowsingNodeFromHaproxy:
+                nodeId: ${@i.id}
+                reload: true
+            - queryShutdownEndpoint:
+                target: ${@i.id}
+        - setCloudlets: ${@i.id}
+        - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
+            cmd[${@i.id}]: |-
+              service tomcat restart
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            - startupJahiaHealthCheck: ${@i.id}
+            - addBrowsingNodeToHaproxy:
+                nodeId: ${@i.id}
+                nodeIp: ${@i.intIP}
+                reload: true
+            - checkKarafConfsChecksums: ${@i.id}
+
+  procNode:
+    - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+        - backupKarafConfsDir: proc
+        - removeProcNodeFromHaproxy:
+            reload: true
+        - queryShutdownEndpoint:
+            target: proc
+        - cleanJRJJournalTable:
+            batchSize: 10000
+    - setCloudlets: ${nodes.proc.first.id}
+    - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
+        cmd[proc]: |-
+          service tomcat restart
+    - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+        - startupJahiaHealthCheck: proc
+        - addProcNodeToHaproxy:
+            reload: true
+        - checkKarafConfsChecksums: proc
+
+  dbNodes:
+    - if (nodes.sqldb.length > 1):
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            - getGaleraMaster
+            - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
+                - getGaleraNodeNameIndex: ${@i.id}
+                - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+                  - log: "Setting cloudlets on MariaDB node ${@i.id}..."
+                  - setDonorNode:
+                      target : ${@i.id}
+                  - setCloudlets: ${@i.id}
+                  - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
+                      cmd[${@i.id}]: |-
+                        service mysql restart
+                - else:
+                  - setGlobals:
+                      origMasterId: ${@i.id}
+
+            - script: |-
+                masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+                newMasterIndex = ((masterIndex + 1) % 3) + 1
+                return {'result':0, 'newMasterIndex': newMasterIndex}
+
+            - proxysqlSwitchMaster:
+                target: ${response.newMasterIndex}
+
+            - setDonorNode:
+                target: ${globals.origMasterId}
+            - setCloudlets: ${globals.origMasterId}
+            - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
+                cmd[${response.newMasterIndex}]: |-
+                  service mysql restart
+        - else:
+            - forEach(nodes.sqldb):
+                setCloudlets: ${@i.id}
+    - else:
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            stopAllJahiaNodes
+        - setCloudlets: ${nodes.sqldb.first.id}
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            - checkMariadbHealth:
+                target: ${nodes.sqldb.first.id}
+                maxDuration: 300
+            - startAllJahiaNodes
+
+
+  stopAllJahiaNodes:
+    - backupKarafConfsDir: cp, proc
+    - removeProcNodeFromHaproxy:
+        reload: true
+    - forEach(nodes.cp):
+      - removeBrowsingNodeFromHaproxy:
+          nodeId: ${@i.id}
+          reload: true
+    - queryShutdownEndpoint:
+        target: cp, proc
+    - cmd[cp, proc]: |-
+        service tomcat stop
+
+  startAllJahiaNodes:
+    - cmd[proc]: |-
+        service tomcat start
+    - startupJahiaHealthCheck: proc
+    - addProcNodeToHaproxy:
+        reload: true
+    - cmd[cp]: |-
+        service tomcat start
+    - forEach(nodes.cp):
+        - startupJahiaHealthCheck: ${@i.id}
+        - addBrowsingNodeToHaproxy:
+            nodeId: ${@i.id}
+            nodeIp: ${@i.intIP}
+            reload: true
+    - checkKarafConfsChecksums: proc, cp
+
+  storageNodes:
+    - if (nodes.storage.length == 1) && (!${globals.cloudletsIncrease}):
+        stopAllJahiaNodes
+    - forEach(nodes.storage):
+        setCloudlets: ${@i.id}
+    - if (nodes.storage.length == 1) && (!${globals.cloudletsIncrease}):
+        startAllJahiaNodes
+
+  jcustomerNodes:
+    - forEach(nodes.cp):
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            removeBrowsingNodeFromHaproxy:
+              nodeId: ${@i.id}
+              reload: true
+        - setCloudlets: ${@i.id}
+        - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
+            cmd[${@i.id}]: |-
+              service karaf restart
+        - if (!${globals.cloudletsIncrease}) || (${settings.forceRestart}):
+            checkJcustomerHealthWhenStarting: ${@i.id}
+            addBrowsingNodeToHaproxy:
+              nodeId: ${@i.id}
+              nodeIp: ${@i.intIP}
+              reload: true
+
+settings:
+  fields:
+    - name: cloudlets
+      type: string
+      caption: New cloudlets value
+      required: true
+    - name: forceRestart
+      type: toggle
+      caption: Force the restart in case of a cloudlet increase. Not applicable in case of deacrease because node will be restarted anyway. Only taken into account for cp/proc/db nodes
+      default: false
+    - name: nodeGroup
+      type: string
+      caption: Name of the node group to set cloudlets on
+      vtype: string
+      required: true
