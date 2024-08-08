@@ -1,10 +1,8 @@
 ---
 
-################################################################
-# !!! This package has to be run with a privilege account  !!! #
-# !!! So unless you want to move node from such account    !!! #
-# !!! you should run this package with ansible or a script !!! #
-################################################################
+####################################################################################
+# !!! This package is made to be used by assets/common/migrate-node.py script  !!! #
+####################################################################################
 
 
 type: update
@@ -98,8 +96,6 @@ actions:
     - elif ("${settings.step}" == "post"):
       - forEach(nodes.cp):
           if ("${settings.nodeId}" == "${@i.id}"):
-            - cmd["${settings.nodeId}"]: |-
-                service tomcat start
             - startupJahiaHealthCheck: ${settings.nodeId}
             - addBrowsingNodeToHaproxy:
                 nodeId: ${@i.id}
@@ -117,8 +113,6 @@ actions:
       - cleanJRJJournalTable:
           batchSize: 10000
     - if ("${settings.step}" == "post"):
-      - cmd["${settings.nodeId}"]: |-
-          service tomcat start
       - startupJahiaHealthCheck: ${settings.nodeId}
       - addProcNodeToHaproxy:
           reload: true
