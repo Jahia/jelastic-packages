@@ -11,7 +11,7 @@ from check_before_hn_upgrade import get_hardware_nodes, \
     get_jahia_cloud_envnames_from_papi
 from hn_upgrade import Hardware_node_upgrade
 
-logging.getLogger().setLevel(logging.WARN)
+logging.getLogger().setLevel(logging.INFO)
 
 RED_COLOR = "\033[0;31m"
 YELLOW_COLOR = "\033[0;33m"
@@ -92,7 +92,7 @@ def check_if_db_master_node(envname, node_index, jelastic_user_session):
         Return True if the db node is the current cluster "master", False otherwise
     """
     url = jelastic_user_session.hostname + "/1.0/environment/control/rest/execcmdbygroup"
-    command = "mysql -NB -u admin -p$(awk '$1=="password:" {print $2}' /etc/datadog-agent/conf.d/proxysql.d/conf.yaml) -P 6032 -h 127.0.0.1 " \
+    command = "mysql -NB -u admin -p$(awk '$1==\\\"password:\\\" {print $2}' /etc/datadog-agent/conf.d/proxysql.d/conf.yaml) -P 6032 -h 127.0.0.1 " \
               "-e \\\"SELECT hostname FROM runtime_mysql_servers ORDER BY weight DESC LIMIT 1\\\""
     params = {
         'session': jelastic_user_session.session,
@@ -146,7 +146,7 @@ def get_containers_infos_on_hn(
     organizations_envs = {}
     # The class is only used to get organization names so we only need to provide papi variables
     hn_upgrade = Hardware_node_upgrade(None, None, None, None, None, None, None, None, None, None,
-                                       papi_hostname, papi_token, False)
+                                       papi_hostname, papi_token, False, 0, 0)
     for container in hardware_node_containers:
         # Ignore weird jelastic containers
         if "envName" not in container or \
