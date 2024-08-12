@@ -721,6 +721,20 @@ This is particularly useful before running the Hardware Node upgrade script.
 | _--papi-token_    | Papi admin token. Optional if the `PAPI_TOKEN` environment variable is defined            |
 | _--papi-hostname_ | Papi hostname. Optional if the `PAPI_HOSTNAME` environment variable is defined            |
 
+##### common/hn_nodes_list.py
+
+This script is used to list all the nodes running on a Hardware Node (not including VAP nodes).
+
+| parameter                           | comment                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| _--jelastic-hardware-node-hostname_ | The HN hostname. Optional if the `JELASTIC_HARDWARE_NODE_HOSTNAME` environment variable is defined |
+| _--juser_                           | The Jelastic admin user. Optional if the `JELASTIC_USER` environment variable is defined           |
+| _--jpassword_                       | The Jelastic user's password. Optional if the `JELASTIC_PASSWORD` environment variable is defined  |
+| _--jserver_                         | The Jelastic cluster's DNS. Optional if the `JELASTIC_SERVER` environment variable is defined      |
+| _--region_                          | The Jelastic region to check. Optional if the `JELASTIC_REGION` environment variable is defined    |
+| _--papi-token_                      | Papi admin token. Optional if the `PAPI_TOKEN` environment variable is defined                     |
+| _--papi-hostname_                   | Papi hostname. Optional if the `PAPI_HOSTNAME` environment variable is defined                     |
+
 ##### common/hn_upgrade.py.py
 
 This script prepares a Hardware Node to be upgraded. It does the following actions:
@@ -751,6 +765,24 @@ This script prepares a Hardware Node to be upgraded. It does the following actio
 | _--skip-stop_                       | If this parameter is set, the script won't check the cluster state nor stop nodes on the HN. It can't be used if --recover-state is not set                                                          |
 | _--stop_nodes_threads_nb_           | The number of environments processed in parallel when stopping nodes (default: 4)                                                                                                                    |
 | _--start_nodes_threads_nb_          | The number of environments processed in parallel when starting nodes (default: 2)                                                                                                                    |
+
+##### common/hn_upgrade_plan.py
+
+This script is used to return a list of groups containing HNs that can be upgraded synchronously because
+they host clustered nodes for Jahia/jCustomer environments and VAP nodes (core nodes, SLBs...).
+
+This is very useful to paralelize upgrade of all HNs from a same region and save time since it's quite a
+long operation.
+
+| parameter               | comment                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| _--juser_               | The Jelastic admin user. Optional if the `JELASTIC_USER` environment variable is defined          |
+| _--jpassword_           | The Jelastic user's password. Optional if the `JELASTIC_PASSWORD` environment variable is defined |
+| _--jserver_             | The Jelastic cluster's DNS. Optional if the `JELASTIC_SERVER` environment variable is defined     |
+| _--region_              | The Jelastic region to check. Optional if the `JELASTIC_REGION` environment variable is defined   |
+| _--exclude_             | A comma separated list of HNs that should be excluded from the plan (optional)                    |
+| _--max-group-size_      | The maximum number of HNs per group, 0 to disable (optional, default value is 0)                  |
+| _--include-infra-nodes_ | To include INFRASTRUCTURE nodes to the groups (optional, default value is False)                  |
 
 ##### common/lib_aws.py
 

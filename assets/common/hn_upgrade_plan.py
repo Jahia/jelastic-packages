@@ -34,11 +34,15 @@ def argparser():
                            help="Jelastic region name, can be set with JELASTIC_REGION env var")
     args_list.add_argument("--exclude",
                            default="",
-                           help="(optional)hn list (comma separated) that should be excluded from the plan")
+                           help="(Optional, empty by default) Comma separated list of HNs that should be excluded from the plan")
     args_list.add_argument("--max-group-size",
                            default=0,
                            type=int,
-                           help="(optional) the maximum size of a hn compatible group. 0 to disable")
+                           help="(Optional, disabled by default) The maximum number of HNs per group. 0 to disable")
+    args_list.add_argument("--include-infra-nodes",
+                           default=False,
+                           action='store_true',
+                           help="(Optional, disabled by default) If you want to include the INFRASTRUCTURE nodes")
 
     return parser.parse_args()
 
@@ -58,12 +62,12 @@ def get_envs_containers_list(jel_session, hn_list):
     return envs
 
 
-def get_hn_list(jel_session, region, hns_to_exclude):
+def get_hn_list(jel_session, region, hns_to_exclude, include_infra_nodes):
     hn_list = []
     all_hardware_nodes = get_hardware_nodes(jel_session)
     for hardware_node in all_hardware_nodes:
         if hardware_node["hardwareNodeGroup"] == region and \
-           hardware_node["status"] != "INFRASTRUCTURE_NODE":
+        (include_infra_nodes or hardware_node["status"] != "INFRASTRUCTURE_NODE"):
             hardware_node["hostname"] = hardware_node["hostname"].split(".")[0]
             if hardware_node["hostname"] not in hns_to_exclude:
                 hn_list.append(hardware_node)
@@ -72,7 +76,7 @@ def get_hn_list(jel_session, region, hns_to_exclude):
 
 def generate_hn_links_dict(hn_list):
     """
-        Returns a dict containing all hns at the following format
+        Returns a dict containing all hns with the following format
             hn1: [hn2, .., hnX],
             ...
             hnX: [hn1, .., hnX-1],
@@ -87,9 +91,21 @@ def generate_hn_links_dict(hn_list):
     return hn_links
 
 
-def invalidate_links(hn_links, environments):
+def unlink_hns(hn_links, hn_list):
     """
-        When two hns that cannot be  upgraded at the same time, remove link betwen them
+        Unlink two HNs that cannot be upgraded simultaneously
+    """
+    for hn in hn_list:
+        for hn_dest in hn_list:
+            if hn_dest in hn_links[hn]:
+                hn_links[hn].remove(hn_dest)
+                hn_links[hn_dest].remove(hn)
+
+
+def invalidate_links_for_environments(hn_links, environments):
+    """
+        Unlink HNs that cannot be upgraded simultaneously because they
+        host nodes from the same environment's nodegroup
     """
     for env_name, node_groups in environments.items():
         for node_group, hns in node_groups.items():
@@ -97,11 +113,17 @@ def invalidate_links(hn_links, environments):
                 continue  # If single node in node group, skip
 
             logger.debug("Invalidate " + str(hns) + " for " + env_name)
-            for hn in hns:
-                for hn_dest in hns:
-                    if hn_dest in hn_links[hn]:
-                        hn_links[hn].remove(hn_dest)
-                        hn_links[hn_dest].remove(hn)
+            unlink_hns(hn_links, hns)
+
+
+def invalidate_links_for_core_nodes(hn_links, hn_list):
+    """
+        Unlink HNs that cannot be upgraded simultaneously because they
+        are "core nodes" (PAAS-2945)
+    """
+    hns = [hn['hostname'] for hn in hn_list if 'virtualNetIp' in hn]
+    logger.debug("Invalidate " + str(hns) + " because they are core nodes")
+    unlink_hns(hn_links, hns)
 
 
 def get_less_linked_hn(hn_links):
@@ -182,11 +204,13 @@ if __name__ == "__main__":
         password=args.jpassword,
     )
     jel_session.signIn()
-    hn_list = get_hn_list(jel_session, args.region, hns_to_exclude)
-    generate_envs = get_envs_containers_list(jel_session, hn_list)
 
+    hn_list = get_hn_list(jel_session, args.region, hns_to_exclude, args.include_infra_nodes)
     hn_links = generate_hn_links_dict(hn_list)
-    invalidate_links(hn_links, generate_envs)
+    envs_conainers = get_envs_containers_list(jel_session, hn_list)
+
+    invalidate_links_for_core_nodes(hn_links, hn_list)
+    invalidate_links_for_environments(hn_links, envs_conainers)
 
     print("hns count:" + str(len(hn_list)))
     print("List of hns groups:")
