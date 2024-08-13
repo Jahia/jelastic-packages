@@ -1,0 +1,28 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3037 - redeploy glusterfs storage nodes to almalinux
+id: paas-3037-redeploy-glusterfs-storage-nodes-to-almalinux
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jahia.yml"
+
+onInstall:
+  - if (nodes.storage.length > 1):
+      - setGlobals:
+          storageOSVersion: "2.0-10.5-almalinux-9"
+
+      - setGlobalRepoRootUrl
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/migrations/v42_assets/replication-logic.jps"
+
+      - foreach (nodes.storage):
+          if ("${@i.version}" != "${globals.storageOSVersion}"):
+            - api: environment.control.RedeployContainerById
+              nodeId: ${@i.id}
+              tag: ${globals.storageOSVersion}
+              useExistingVolumes: true
+              skipReinstall: false
+              envName: ${env.envName}
+            - sleep: 30000
