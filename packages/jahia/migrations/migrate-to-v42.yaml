@@ -37,8 +37,7 @@ onInstall:
   - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
       stopJahiaNodes
   - upgradeSqldb              # PAAS-2932
-  - if (nodes.storage.length == 1):
-      upgradeStorage            # PAAS-3037
+  - upgradeStorage            # PAAS-3037
   - if (nodes.sqldb.length == 1) || (nodes.storage.length == 1):
       startJahiaNodes
 
@@ -149,6 +148,9 @@ actions:
   upgradeStorage:
     - setGlobals:
         storageOSVersion: "2.0-10.5-almalinux-9"
+    - if (nodes.storage.length > 1):
+        install:
+          jps: "${globals.repoRootUrl}/packages/jahia/migrations/v42_assets/replication-logic.jps"
     - foreach (nodes.storage):
       - if ("${@i.version}" != "${globals.storageOSVersion}"):
         - api: environment.control.RedeployContainerById
@@ -157,6 +159,7 @@ actions:
           useExistingVolumes: true
           skipReinstall: false
           envName: ${env.envName}
+        - sleep: 30
 
   stopJahiaNodes:
     - muteDatadogHost:
