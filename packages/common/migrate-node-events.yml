@@ -184,7 +184,7 @@ actions:
     - checkKarafConfsChecksums: proc, cp
 
   storageNode:
-    - if ("${settings.step}" == "post"):
+    - if ("${settings.step}" == "pre"):
         if (nodes.storage.length == 1):
           stopAllJahiaNodes
     - if ("${settings.step}" == "post"):
@@ -192,7 +192,7 @@ actions:
           startAllJahiaNodes
 
   jcustomerNode:
-    - if ("${settings.step}" == "post"):
+    - if ("${settings.step}" == "pre"):
         removeBrowsingNodeFromHaproxy:
           nodeId: ${settings.nodeId}
           reload: true
