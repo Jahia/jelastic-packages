@@ -122,27 +122,18 @@ actions:
     - if ("${settings.step}" == "pre"):
       - if (nodes.sqldb.length > 1):
           - getGaleraMaster
-          - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
-              - getGaleraNodeNameIndex: ${@i.id}
-              - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
-                - log: "Setting cloudlets on MariaDB node ${@i.id}..."
-                - setDonorNode:
-                    target : ${@i.id}
-                - setCloudlets: ${@i.id}
-              - else:
-                - setGlobals:
-                    origMasterId: ${@i.id}
+          - getGaleraNodeNameIndex: ${settings.nodeId}
+          - if ("${globals.galeraNodeNameIndex}" == "${globals.galeraMasterIndex}"):
+              - script: |-
+                  masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+                  newMasterIndex = ((masterIndex + 1) % 3) + 1
+                  return {'result':0, 'newMasterIndex': newMasterIndex}
 
-          - script: |-
-              masterIndex = "${globals.galeraMasterIndex}".slice(-1);
-              newMasterIndex = ((masterIndex + 1) % 3) + 1
-              return {'result':0, 'newMasterIndex': newMasterIndex}
+              - proxysqlSwitchMaster:
+                  target: ${response.newMasterIndex}
 
-          - proxysqlSwitchMaster:
-              target: ${response.newMasterIndex}
-
-          - setDonorNode:
-              target: ${globals.origMasterId}
+              - setDonorNode:
+                  target: ${settings.nodeId}
       - else:
           stopAllJahiaNodes
     - if ("${settings.step}" == "post"):
