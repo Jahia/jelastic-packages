@@ -215,7 +215,8 @@ actions:
     - if (nodes.storage.length == 1) && (!${globals.cloudletsIncrease}):
         stopAllJahiaNodes
     - forEach(nodes.storage):
-        setCloudlets: ${@i.id}
+        - setCloudlets: ${@i.id}
+        - sleep: 30000
     - if (nodes.storage.length == 1) && (!${globals.cloudletsIncrease}):
         startAllJahiaNodes
 
