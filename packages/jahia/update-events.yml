@@ -313,12 +313,14 @@ onAfterStart:
             [ -f $f ] && rm -f $f
           done
           exit 0
-      - startGaleraNode: ${nodes.sqldb.master.id}
       - forEach(i:nodes.sqldb):
-          if (${@i.id} != ${nodes.sqldb.master.id}):
-            - cmd[${@i.id}]: |-
-                echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
-            - startGaleraNode: ${@i.id}
+          - if (${@i.id} != ${nodes.sqldb.first.id}):
+              cmd[${@i.id}]: |-
+                sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 0/' /var/lib/mysql/grastate.dat
+          - else:
+              cmd[${@i.id}]: |-
+                sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
+          - startGaleraNode: ${@i.id}
 
       - cmd[proc]: |-
           systemctl enable --now proxysql
