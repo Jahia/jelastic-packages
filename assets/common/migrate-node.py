@@ -35,20 +35,20 @@ def argparser():
     jel_stuff.add_argument("-m", "--user-mail",
                            dest="user_mail",
                            required=True,
-                           help="User owning the node to migrate mail")
+                           help="E-mail address of the Jelastic user owning the node to migrate")
     jel_stuff.add_argument("-e", "--envname",
                            dest="envname",
                            required=True,
-                           help="Environment name owning the node to migrate")
+                           help="Name of the environment owning the node to migrate")
     jel_stuff.add_argument("-n", "--node-id",
                            dest="node_id",
                            required=True,
-                           help="Id of the node to migrate")
-    jel_stuff.add_argument("-d" ,"--dest-hn",
+                           help="ID of the node to migrate")
+    jel_stuff.add_argument("-d", "--dest-hn",
                            dest="dest_hn",
                            required=True,
-                           help="The hardware node to migrate the node to")
-    jel_stuff.add_argument("-t" ,"--tag",
+                           help="ID of the target hardware node (can be found in the JCA)")
+    jel_stuff.add_argument("-t", "--tag",
                            dest="tag",
                            default="main",
                            help="The tag/branch/commit to use. Default is main")
@@ -68,7 +68,7 @@ def migrate_nodes(admin_sess, node_id, dest_hn):
     resp = admin_sess.s.get(url, params=params)
 
     if json.loads(resp.text)['result'] != 0:
-        logging.error("Cannot migrate node. Error:" + str(resp.text))
+        logging.error("Cannot migrate node. Error: " + str(resp.text))
         exit(1)
 
 
@@ -81,8 +81,9 @@ def run_migration_events_package(juser_sess, tag, node_id, step="post"): # step 
     resp = juser_sess.devScriptEval(package, args.envname, settings=settings)
 
     if json.loads(resp.text)["response"]['result'] != 0:
-        logging.error("Failed to run " + step + " migration package. Error:" + str(resp.text))
+        logging.error("Failed to run " + step + " migration package. Error: " + str(resp.text))
         exit(1)
+
 
 if __name__ == "__main__":
     args = argparser()
