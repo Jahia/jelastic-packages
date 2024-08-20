@@ -824,7 +824,7 @@ actions:
         mostRecentInstalledVersion: ""
         installedVersionsCount: 0
     - set:
-        karafOutputFile: /tmp/check_modue_karaf_output_${fn.random}
+        karafOutputFile: /tmp/check_module_karaf_output_${fn.random}
     - cmd [proc]: |-
         rm -f ${this.karafOutputFile}
     - callProvisioningAPI:
@@ -2346,7 +2346,7 @@ actions:
         if [ $http_code -lt 200 ] || [ $http_code -gt 299 ]; then
           >&2 echo "Curl command returned wrong http code $http_code"
           >&2 cat $output_file
-          rm $output_file
+          rm -f $output_file
         fi
     - if ("${response.errOut}" == ""):
         setGlobals:
