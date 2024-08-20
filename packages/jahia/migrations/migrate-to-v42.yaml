@@ -146,11 +146,9 @@ actions:
               mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || true
 
   upgradeStorage:
+    # This action has been edited POST migration. There was a condition preventing redeploy on glusterFS cluster nodes (more details in https://jira.jahia.org/browse/PAAS-3059)
     - setGlobals:
         storageOSVersion: "2.0-10.5-almalinux-9"
-    - if (nodes.storage.length > 1):
-        install:
-          jps: "${globals.repoRootUrl}/packages/jahia/migrations/v42_assets/replication-logic.jps"
     - foreach (nodes.storage):
       - if ("${@i.version}" != "${globals.storageOSVersion}"):
         - api: environment.control.RedeployContainerById
@@ -159,7 +157,7 @@ actions:
           useExistingVolumes: true
           skipReinstall: false
           envName: ${env.envName}
-        - sleep: 30
+        - sleep: 30000
 
   stopJahiaNodes:
     - muteDatadogHost:

@@ -13,10 +13,6 @@ onInstall:
       - setGlobals:
           storageOSVersion: "2.0-10.5-almalinux-9"
 
-      - setGlobalRepoRootUrl
-      - install:
-          jps: "${globals.repoRootUrl}/packages/jahia/migrations/v42_assets/replication-logic.jps"
-
       - foreach (nodes.storage):
           if ("${@i.version}" != "${globals.storageOSVersion}"):
             - api: environment.control.RedeployContainerById
