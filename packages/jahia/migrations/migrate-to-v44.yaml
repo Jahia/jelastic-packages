@@ -31,6 +31,7 @@ onInstall:
 
   # Regular actions
   - installTelnet                                     # PAAS-3055
+  - captureCookiesInHaproxy                           # PAAS-3036
   - addCustomSshConfForKarafConsole                   # PAAS-3008
 
   # Actions that require a restart
@@ -101,6 +102,15 @@ actions:
     - cmd[cp, proc]: |-
         if ! (rpm -q telnet) > /dev/null; then
           yum install -y telnet
+        fi
+
+  captureCookiesInHaproxy:
+    - cmd[bl]: |-
+        f=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        if ! (grep -q "capture request header" $f); then
+          sed -i '/capture response header/i\ \ \ \ capture cookie "SERVERID" len 20' $f
+          sed -i '/capture response header/i\ \ \ \ capture request header User-Agent len 500' $f
+          systemctl reload haproxy
         fi
 
   addCustomSshConfForKarafConsole:
