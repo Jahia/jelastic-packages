@@ -31,6 +31,7 @@ onInstall:
 
   # Regular actions
   - installTelnet                                     # PAAS-3055
+  - addCustomSshConfForKarafConsole                   # PAAS-3008
 
   # Actions that require a restart
 
@@ -100,6 +101,12 @@ actions:
     - cmd[cp, proc]: |-
         if ! (rpm -q telnet) > /dev/null; then
           yum install -y telnet
+        fi
+
+  addCustomSshConfForKarafConsole:
+    - cmd[cp, proc]: |-
+        if [ ! -f /root/karaf_openssl.cnf ]; then
+          curl -fLSso /root/karaf_openssl.cnf ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/karaf_openssl.cnf
         fi
 
 settings:
