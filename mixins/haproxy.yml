@@ -98,12 +98,8 @@ actions:
     - cmd[bl]: |-
         grep -q "${env.appid}-${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
         if [ $? -ne 0 ]; then
-          sed -i "/^backend bk_${nodes.cp.first.nodeType}$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 80" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
-          sed -i "/^backend bk_${nodes.cp.first.nodeType}\_https$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 9443 ssl verify none check-ssl" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
-        fi
-        # Add server cookie only if serving Jahia
-        if [ -n "$jahia_cfg_healthcheck_token" ]; then
-          sed -i "/server ${env.appid}-${this.nodeId}/s/$/ cookie s${this.nodeId}/" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+          sed -i "/^backend bk_${nodes.cp.first.nodeType}$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 80 cookie s${this.nodeId}" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
+          sed -i "/^backend bk_${nodes.cp.first.nodeType}\_https$/a\ \ \ \ server ${env.appid}-${this.nodeId} ${this.nodeIp} check port 9443 cookie s${this.nodeId} ssl verify none check-ssl" /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg;
         fi
     - if ('${this.reload.print()}' == 'true'):
         - cmd [bl]: service haproxy reload
