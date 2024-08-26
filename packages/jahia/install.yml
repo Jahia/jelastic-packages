@@ -92,14 +92,12 @@ onBeforeInstall: |
       var browsingXmx = "7680M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "3000M";
-      var glusterFSCloudlets = 10;
       break;
     case 'medium':
       var browsingCloudlets = 64;
       var browsingXmx = "5632M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "2500M";
-      var glusterFSCloudlets = 8;
       break;
     case 'small':
     default:
@@ -107,7 +105,6 @@ onBeforeInstall: |
       var browsingXmx = "2584M";
       var browsingMaxBytesLocalHeap = "500M";
       var browsingBigMaxBytesLocalHeap = "500M";
-      var glusterFSCloudlets = 6;
   }
 
   node_cp = {
@@ -290,16 +287,29 @@ onBeforeInstall: |
   }
   nodes.push(node_mariadb);
 
+  // Storage nodes
   var is_glusterfs = false
-  if (${settings.sqldbNodeCount} == 3) {
+  if (${settings.storageNodeCount} == 3) {
     is_glusterfs = true
+  }
+
+  switch ("${settings.storageNodeSize}") {
+    case 'large':
+      var glusterFSCloudlets = 10;
+      break;
+    case 'medium':
+      var glusterFSCloudlets = 8;
+      break;
+    case 'small':
+    default:
+      var glusterFSCloudlets = 6;
   }
 
   node_storage = {
     "nodeType": "storage",
     "tag":  "2.0-10.5-almalinux-9",
     "cloudlets": glusterFSCloudlets,
-    "count": ${settings.sqldbNodeCount},
+    "count": ${settings.storageNodeCount},
     "nodeGroup": "storage",
     "displayName": "Storage",
     "cluster": is_glusterfs,
@@ -420,6 +430,18 @@ settings:
     - name: sqldbNodeSize
       type: list
       caption: MariaDB node size
+      values:
+        small: small
+        medium: medium
+        large: large
+      default: small
+    - name: storageNodeCount
+      type: string
+      caption: Number of storage nodes
+      default: 1
+    - name: storageNodeSize
+      type: list
+      caption: Storage node size
       values:
         small: small
         medium: medium
