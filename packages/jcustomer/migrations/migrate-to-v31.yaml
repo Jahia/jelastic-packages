@@ -29,7 +29,7 @@ onInstall:
   ### End pre-migration actions
 
   # Regular actions
-  - updateHaproxyConfig                # PAAS-2962
+  - updateHaproxyCookieName                # PAAS-2962
 
   # Actions that require a restart
   # (None)
@@ -65,14 +65,11 @@ actions:
     - checkJcustomerHealth: cp
     - checkJcustomerDatadogCustomChecks: cp
 
-  updateHaproxyConfig:
+  updateHaproxyCookieName:
     - cmd[bl]: |-
         f=/etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
-        if ! (grep -q "stick-table" $f); then
-          sed -i '/cookie SERVERID/d' $f
-          sed -i 's/ cookie s[0-9]*//g' $f
-          sed -i '/option httpchk/i\ \ \ \ stick-table type string len 40 size 1m expire 1h' $f
-          sed -i '/option httpchk/i\ \ \ \ stick on cookie(wem-session-id)' $f
+        if ! (grep -q "JCSERVERID" $f); then
+          sed -i 's/SERVERID/JCSERVERID/g' $f
           systemctl reload haproxy
         fi
 
