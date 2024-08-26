@@ -619,7 +619,7 @@ actions:
             sed 's,\(sshRealm\s*=\s*\)jahia,\1karaf,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
             i=1
             it=66
-            until (ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only); do
+            until (OPENSSL_CONF=/root/karaf_openssl.cnf ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only); do
               echo "karaf ssh login not updated yet (iteration $i/$it)"
               if [ $i -ge $it ]; then
                 echo "Too long to start, something is wrong here... EXITING"
@@ -640,7 +640,7 @@ actions:
             return {"result": 0, "isEnable": isEnable}
         - setGlobals:
             isKarafLoginEnabled: ${response.isEnable}
-            karafConsole: "ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+            karafConsole: "OPENSSL_CONF=/root/karaf_openssl.cnf ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
   disableKarafLogin:
     - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
@@ -727,7 +727,7 @@ actions:
     # - globals.updateModuleKarafConfig_success: boolean
 
     - setGlobals:
-        updateModuleKarafConfig_success: false 
+        updateModuleKarafConfig_success: false
     # we start by updating the processing conf
     # (the call to "callProvisioningAPI" is done that way in order to keep the json format of "this.properties")
     - script: |-
@@ -800,7 +800,7 @@ actions:
     - else:
         - log: "new configuration is present on all nodes"
         - setGlobals:
-            updateModuleKarafConfig_success: true 
+            updateModuleKarafConfig_success: true
 
   checkModule:
     # Checks the state of a module using the provisioning API (or fallback to the digital-factory-data/bundles-deployed folder if failed).
