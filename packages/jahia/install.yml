@@ -162,7 +162,7 @@ onBeforeInstall: |
   } else {
     node_cp['image']  = dockerImage;
   }
-  if (${settings.sqldbNodeCount} == 3) {
+  if (${settings.storageNodeCount} == 3) {
     node_cp['volumeMounts']['/share']['protocol'] = "GLUSTER"
   }
   nodes.push(node_cp);
@@ -244,7 +244,7 @@ onBeforeInstall: |
   } else {
     node_proc['image']  = dockerImage;
   }
-  if (${settings.sqldbNodeCount} == 3) {
+  if (${settings.storageNodeCount} == 3) {
     node_proc['volumeMounts']['/share']['protocol'] = "GLUSTER"
   }
   nodes.push(node_proc);
