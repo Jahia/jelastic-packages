@@ -33,6 +33,7 @@ onInstall:
   - installTelnet                                     # PAAS-3055
   - addCustomSshConfForKarafConsole                   # PAAS-3008
   - updateStorageNodesCloudlets                       # PAAS-2673
+  - enablePageComposerForJahia82                      # PAAS-3012
 
   # Actions that require a restart
 
@@ -119,6 +120,21 @@ actions:
             cloudlets: 6
             nodeGroup: storage
             forceRestart: false
+
+  enablePageComposerForJahia82:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: isHigherOrEqual8200
+    - if( ${globals.isHigherOrEqual8200} ):
+        - callProvisioningAPI:
+            target: proc
+            payload:
+              - editConfiguration: "org.jahia.modules.jcontent"
+                properties:
+                  hideLegacyPageComposer: "false"
+                  showPageBuilder: "true"
 
 settings:
   fields:
