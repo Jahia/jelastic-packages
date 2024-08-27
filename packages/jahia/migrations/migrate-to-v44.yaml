@@ -111,8 +111,8 @@ actions:
         fi
 
   updateStorageNodesCloudlets:
-    - if(${nodes.sqldb.first.flexibleCloudlets} == 40) && (${nodes.cp.first.flexibleCloudlets} == 64):
-        # If small DB and medium browsing (so band 2)
+    - if(${nodes.sqldb.first.flexibleCloudlets} == 20) && (${nodes.storage.first.flexibleCloudlets} != 6):
+        # If small DB and not small storage node, we resize storage nodes to small
         - install:
           jps: "${globals.repoRootUrl}/packages/common/manage-cloudlets.yml"
           settings:
