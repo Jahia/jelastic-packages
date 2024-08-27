@@ -40,6 +40,7 @@ onInstall:
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
+  - restartTomcatOnOOM                                # PAAS-2842
 
   # Actions that require a redeploy
 
@@ -208,6 +209,18 @@ actions:
         else
           echo "no need to update java alternatives configuration here"
         fi
+
+  restartTomcatOnOOM:
+    - cmd[proc, cp]: |-
+        f=/opt/tomcat/conf/tomcat-env.sh
+        if ! grep -qE "^\s*JAVA_OPTS\s*=.*ExitOnOutOfMemoryError" $f; then
+          sed -i '/-XX:+ExitOnOutOfMemoryError/d' /opt/tomcat/conf/variables.conf
+          sed -i 's/HeapDumpOnOutOfMemoryError/& -XX:+ExitOnOutOfMemoryError/' $f
+          echo restart
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
 
 settings:
   fields:

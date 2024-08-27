@@ -37,6 +37,7 @@ globals:
     -XX:MaxTenuringThreshold=7
     -XX:MaxMetaspaceSize=512m
     -XX:+HeapDumpOnOutOfMemoryError
+    -XX:+ExitOnOutOfMemoryError
     -XX:HeapDumpPath=${DUMPS_PATH}/heap_dumps
     -XX:+PrintConcurrentLocks
     -XX:NativeMemoryTracking=summary
