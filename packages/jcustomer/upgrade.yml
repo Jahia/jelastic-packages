@@ -13,27 +13,40 @@ mixins:
 
 
 onInstall:
+  - setGlobals:
+      currentVersion: ${nodes.cp.first.customitem.nodeVersion}
+
   # Check if target version is consistent (higher than current version)
   - isVersionStrictlyHigher:
       a: "${settings.targetVersion}"
-      b: "${nodes.cp.first.customitem.nodeVersion}"
+      b: "${globals.currentVersion}"
       res: targetVersionIsConsistent
   - if (!${globals.targetVersionIsConsistent}):
       - return:
           type: error
-          message: "Target version must be higher than current version."
-  - getEnvVersion  # we will have to do some special stuff based on envVersion
+          message: "Target version must be higher than current version (v${globals.currentVersion})."
 
   # Mute monitors
   - muteEnvWideMonitors
 
   # If a Docker tag suffix is passed we need to append it to the jCustomer version
   - if ('${settings.jCustomerDockerTagSuffix.print()}' == ''):
-      - set:
+      - setGlobals:
           targetDockerTag: ${settings.targetVersion}
   - else:
-      - set:
+      - setGlobals:
           targetDockerTag: ${settings.targetVersion}_${settings.jCustomerDockerTagSuffix}
+
+  # Preparing the data migration that will happen during jCustomer startup
+  - env.control.AddContainerEnvVars[cp]:
+    vars:
+      UNOMI_MIGRATION_RECOVER_FROM_HISTORY: true
+  - cmd[${nodes.cp.first.id}]: |-
+      setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+      tmpenv=/opt/jcustomer/jcustomer-${settings.targetVersion}/bin/setenv
+      mkdir -p /opt/jcustomer/jcustomer-${settings.targetVersion}/bin && cp $setenv $tmpenv
+      sed -i 's/KARAF_OPTS="-Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoMigrate=${globals.currentVersion} -Dunomi.autoStart=true"/' $tmpenv
+      echo $tmpenv >> /etc/jelastic/redeploy.conf
 
   - cmd[cp]: |-
       service datadog-agent stop
@@ -45,25 +58,19 @@ onInstall:
       data:
         productVersion: ${settings.targetVersion}
 
-  # if envVersion < 30, then we will have to do some special stuff
-  - if(${globals.envVersion} < 30):
-      # we need to remove /usr/lib/locale from redeploy.conf
-      - cmd[cp]: |-
-          [ -f /etc/almalinux-release ] && exit 0
-          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
+  - upgradeJcustomerOnNode: ${nodes.cp.first.id}
 
-  - api: environment.control.RedeployContainersByGroup
-    nodeGroup: cp
-    tag: ${this.targetDockerTag}
-    useExistingVolumes: true
-    skipReinstall: false
-    isSequential: false
-    envName: ${env.envName}
+  # Remove modifications done for data migration
+  - env.control.RemoveContainerEnvVars[cp]:
+    vars: ["UNOMI_MIGRATION_RECOVER_FROM_HISTORY"]
+  - cmd[${nodes.cp.first.id}]: |-
+      setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
+      sed -i 's/export KARAF_OPTS="-Dunomi.autoMigrate=${globals.currentVersion} -Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoStart=true"/' $setenv
+      sed -i '/setenv/d' /etc/jelastic/redeploy.conf
 
-  - if(${globals.envVersion} < 30):
-      # we need to put back /usr/lib/locale in redeploy.conf
-      - cmd[cp]: |-
-          grep -qxF "/usr/lib/locale/" /etc/jelastic/redeploy.conf || echo "/usr/lib/locale/" >> /etc/jelastic/redeploy.conf
+  - forEach(nodes.cp):
+      if ("${@i.id}" != "${nodes.cp.first.id}"):
+        upgradeJcustomerOnNode: ${@i.id}
 
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
@@ -71,6 +78,18 @@ onInstall:
 
   # Unmute monitors
   - unmuteEnvWideMonitors
+
+
+actions:
+  upgradeJcustomerOnNode:
+    api: environment.control.RedeployContainerById
+    nodeId: ${this}
+    tag: ${globals.targetDockerTag}
+    useExistingVolumes: true
+    skipReinstall: false
+    isSequential: false
+    envName: ${env.envName}
+
 
 settings:
   fields:
