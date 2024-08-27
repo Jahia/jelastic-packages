@@ -1,0 +1,37 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Launch migration
+id: unomi-launch-migration
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - muteDatadogHost:
+      target: "*"
+      duration: 60
+  - muteEnvWideMonitors
+
+  - enablejCustomerKarafLogin: cp
+
+  - cmd[cp]: |-
+      ${globals.jCustomerKarafConsole} unomi:stop
+  - cmd[cp]: |-
+      ${globals.jCustomerKarafConsole} "unomi:migrate ${settings.version} true"
+  - cmd[cp]: |-
+      ${globals.jCustomerKarafConsole} unomi:start
+
+  - disablejCustomerKarafLogin: cp
+  - unmuteDatadogHost:
+      target: "*"
+  - unmuteEnvWideMonitors
+
+settings:
+  fields:
+    - name: version
+      type: string
+      caption: The orig version (example, migrate from 2.3.0 to 2.5.0,set 2.3.0)
+      vtype: text
+      required: true
