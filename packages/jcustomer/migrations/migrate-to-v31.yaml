@@ -31,6 +31,7 @@ onInstall:
   # Regular actions
   - updateHaproxyCookieName                # PAAS-2962
   - captureCookiesInHaproxy                # PAAS-3036
+  - addCustomSshConfForKarafConsole        # PAAS-3077
 
   # Actions that require a restart
   # (None)
@@ -81,6 +82,12 @@ actions:
           sed -i '/capture response header/i\ \ \ \ capture cookie "JCSERVERID" len 20' $f
           sed -i '/capture response header/i\ \ \ \ capture request header User-Agent len 500' $f
           systemctl reload haproxy
+        fi
+
+  addCustomSshConfForKarafConsole:
+    - cmd[cp]: |-
+        if [ ! -f /root/karaf_openssl.cnf ]; then
+          curl -fLSso /root/karaf_openssl.cnf ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/karaf_openssl.cnf
         fi
 
 settings:

@@ -353,7 +353,7 @@ actions:
             sed 's,\(sshRealm\s*=\s*\)jahia,\1karaf,' -i /opt/jcustomer/jcustomer/etc/org.apache.karaf.shell.cfg
             i=1
             it=66
-            until (ssh abricot@localhost -p 8102 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR unomi:version); do
+            until (OPENSSL_CONF=/root/karaf_openssl.cnf ssh abricot@localhost -p 8102 -i /tmp/abricot -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR unomi:version); do
               echo "karaf ssh login not updated yet (iteration $i/$it)"
               if [ $i -ge $it ]; then
                 echo "Too long to start, something is wrong here... EXITING"
@@ -374,7 +374,7 @@ actions:
             return {"result": 0, "isEnable": isEnable}
         - setGlobals:
             isjCustomerKarafLoginEnabled: ${response.isEnable}
-            jCustomerKarafConsole: "ssh abricot@localhost -p 8102 -i /tmp/abricot -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+            jCustomerKarafConsole: "OPENSSL_CONF=/root/karaf_openssl.cnf ssh abricot@localhost -p 8102 -i /tmp/abricot -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
   disablejCustomerKarafLogin:
     - isjCustomerKarafLoginEnabled: ${globals.isjCustomerKarafLoginEnabled}
