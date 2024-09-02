@@ -38,6 +38,7 @@ onInstall:
   - addClassesDumps                                   # PAAS-3033
 
   # Actions that require a restart
+  - setXmxRamRatio                                    # PAAS-2584
 
   # Actions that require a redeploy
 
@@ -147,7 +148,6 @@ actions:
                   hideLegacyPageComposer: "false"
                   showPageBuilder: "true"
 
-
   addClassesDumps:
     - cmd [cp, proc]: |-
         md5="9d2ffbd28c43fd45f79194bd1b7bacd4"
@@ -159,6 +159,43 @@ actions:
         fi
       user: root
 
+  setXmxRamRatio:
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: proc
+    - if ("${nodes.proc.first.flexibleCloudlets}" == "80") && ("${response.object.XMX}" != "6144M"):
+        setXmx:
+          Xmx: 6144M
+          nodeGroup: proc
+    - elif ("${nodes.proc.first.flexibleCloudlets}" == "60") && ("${response.object.XMX}" != "4915M"):
+        setXmx:
+          Xmx: 4915M
+          nodeGroup: proc
+    - elif ("${nodes.proc.first.flexibleCloudlets}" == "40") && ("${response.object.XMX}" != "3072M"):
+        setXmx:
+          Xmx: 3072M
+          nodeGroup: proc
+
+    - api: env.control.GetContainerEnvVarsByGroup
+      nodeGroup: cp
+    - if ("${nodes.cp.first.flexibleCloudlets}" == "80") && ("${response.object.XMX}" != "6144M"):
+        setXmx:
+          Xmx: 6144M
+          nodeGroup: cp
+    - elif ("${nodes.cp.first.flexibleCloudlets}" == "60") && ("${response.object.XMX}" != "4915M"):
+        setXmx:
+          Xmx: 4915M
+          nodeGroup: cp
+    - elif ("${nodes.cp.first.flexibleCloudlets}" == "40") && ("${response.object.XMX}" != "3072M"):
+        setXmx:
+          Xmx: 3072M
+          nodeGroup: cp
+
+  setXmx:
+    - api: env.control.AddContainerEnvVars
+      nodeGroup: ${this.nodeGroup}
+      vars: {"XMX": "${this.Xmx}"}
+    - setGlobals:
+        jahiaRollingRestartNeeded: true
 
 settings:
   fields:
