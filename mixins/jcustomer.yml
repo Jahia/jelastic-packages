@@ -392,7 +392,7 @@ actions:
         - cmd[${this}]: |-
             [ -f /tmp/abricot  ] && rm /tmp/abricot
             [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
-            sed '/^abricot:/d' -i opt/jcustomer/jcustomer/etc/keys.properties
+            sed '/^abricot:/d' -i /opt/jcustomer/jcustomer/etc/keys.properties
             sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /opt/jcustomer/jcustomer/etc/org.apache.karaf.shell.cfg
         - isjCustomerKarafLoginEnabled: ${globals.isjCustomerKarafLoginEnabled}
           script: |-
