@@ -1,0 +1,35 @@
+---
+type: update
+version: 1.5.2
+name: Unomi - Set log level
+id: unomi-set-log-level
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - enablejCustomerKarafLogin: cp
+
+  - cmd[cp]: |-
+      ${globals.jCustomerKarafConsole} "log:set ${settings.level} ${settings.logger}"
+
+  - disablejCustomerKarafLogin: cp
+
+settings:
+  fields:
+    - name: level
+      type: list
+      caption: Log level
+      values:
+        DEBUG: "1. Debug"
+        INFO: "2. Info"
+        WARNING: "3. Warning"
+        ERROR: "4. Error"
+        CRITICAL: "5. Critical"
+      required: true
+    - name: logger
+      type: string
+      caption: Logger name
+      vtype: text
+      required: true
