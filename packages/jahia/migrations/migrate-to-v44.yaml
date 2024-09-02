@@ -35,6 +35,7 @@ onInstall:
   - addCustomSshConfForKarafConsole                   # PAAS-3008
   - updateStorageNodesCloudlets                       # PAAS-2673
   - enablePageComposerForJahia82                      # PAAS-3012
+  - addClassesDumps                                   # PAAS-3033
 
   # Actions that require a restart
 
@@ -145,6 +146,19 @@ actions:
                 properties:
                   hideLegacyPageComposer: "false"
                   showPageBuilder: "true"
+
+
+  addClassesDumps:
+    - cmd [cp, proc]: |-
+        md5="9d2ffbd28c43fd45f79194bd1b7bacd4"
+        script_name=thread-dump.sh
+        script_path=/usr/local/bin/$script_name
+        if ! (echo "$md5 $script_path" | md5sum --status -c); then
+          curl -fSsLo $script_path ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$script_name || exit 1
+          chmod +x $script_path
+        fi
+      user: root
+
 
 settings:
   fields:
