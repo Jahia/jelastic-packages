@@ -14,10 +14,10 @@ fi
 
 sudo -u $TOMCAT_USER mkdir -p $dumps_dir/{thread,heap,classes}_dumps
 
-# add jstack to /usr/bin if not present
+# check if jstack is present
 if [[ ! -f "/usr/bin/jstack" ]]; then
-    jstack=$(find /usr/java/openjdk-*/bin -name jstack)
-    ln -s $jstack /usr/bin/
+    echo "no /usr/bin/jstack symlink"
+    exit 1
 fi
 
 PID=$(pgrep -u tomcat java.orig)
