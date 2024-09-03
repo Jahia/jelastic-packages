@@ -35,6 +35,7 @@ onInstall:
   - addCustomSshConfForKarafConsole                   # PAAS-3008
   - updateStorageNodesCloudlets                       # PAAS-2673
   - enablePageComposerForJahia82                      # PAAS-3012
+  - fixSomeJavaSymlinks                               # PAAS-3081
   - addClassesDumps                                   # PAAS-3033
 
   # Actions that require a restart
@@ -150,7 +151,7 @@ actions:
 
   addClassesDumps:
     - cmd [cp, proc]: |-
-        md5="9d2ffbd28c43fd45f79194bd1b7bacd4"
+        md5="4906321520be82e3af2922548aef6db2"
         script_name=thread-dump.sh
         script_path=/usr/local/bin/$script_name
         if ! (echo "$md5 $script_path" | md5sum --status -c); then
@@ -196,6 +197,17 @@ actions:
       vars: {"XMX": "${this.Xmx}"}
     - setGlobals:
         jahiaRollingRestartNeeded: true
+
+  fixSomeJavaSymlinks:
+    - cmd[cp, proc]: |-
+        if [[ ${JAVA_VERSION%%.*} == 17 ]]; then
+          alternatives --add-follower java /usr/lib/jvm/jdk-17-oracle-x64/bin/java /usr/bin/jcmd jcmd /usr/java/zulu-17.0.10/bin/jcmd
+          alternatives --add-follower java /usr/java/graalvm-jdk-17.0.9+11.1/bin/java /usr/bin/jcmd jcmd /usr/java/graalvm-jdk-17.0.9+11.1/bin/jcmd
+          alternatives --add-follower java /usr/lib/jvm/jdk-17-oracle-x64/bin/java /usr/bin/jstack jstack /usr/java/zulu-17.0.10/bin/jstack
+          alternatives --add-follower java /usr/java/graalvm-jdk-17.0.9+11.1/bin/java /usr/bin/jstack jstack /usr/java/graalvm-jdk-17.0.9+11.1/bin/jstack
+        else
+          echo "no need to update java alternatives configuration here"
+        fi
 
 settings:
   fields:
