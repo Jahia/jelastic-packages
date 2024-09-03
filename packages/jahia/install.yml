@@ -89,20 +89,20 @@ onBeforeInstall: |
   switch ("${settings.browsingNodeSize}") {
     case 'large':
       var browsingCloudlets = 80;
-      var browsingXmx = "6656M";
+      var browsingXmx = "6144M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "3000M";
       break;
     case 'medium':
       var browsingCloudlets = 64;
-      var browsingXmx = "5325M";
+      var browsingXmx = "4915M";
       var browsingMaxBytesLocalHeap = "700M";
       var browsingBigMaxBytesLocalHeap = "2500M";
       break;
     case 'small':
     default:
       var browsingCloudlets = 40;
-      var browsingXmx = "3328M";
+      var browsingXmx = "3072M";
       var browsingMaxBytesLocalHeap = "500M";
       var browsingBigMaxBytesLocalHeap = "500M";
   }
