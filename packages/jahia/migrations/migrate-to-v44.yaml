@@ -166,7 +166,7 @@ actions:
         setXmx:
           Xmx: 6144M
           nodeGroup: proc
-    - elif ("${nodes.proc.first.flexibleCloudlets}" == "60") && ("${response.object.XMX}" != "4915M"):
+    - elif ("${nodes.proc.first.flexibleCloudlets}" == "64") && ("${response.object.XMX}" != "4915M"):
         setXmx:
           Xmx: 4915M
           nodeGroup: proc
@@ -181,7 +181,7 @@ actions:
         setXmx:
           Xmx: 6144M
           nodeGroup: cp
-    - elif ("${nodes.cp.first.flexibleCloudlets}" == "60") && ("${response.object.XMX}" != "4915M"):
+    - elif ("${nodes.cp.first.flexibleCloudlets}" == "64") && ("${response.object.XMX}" != "4915M"):
         setXmx:
           Xmx: 4915M
           nodeGroup: cp

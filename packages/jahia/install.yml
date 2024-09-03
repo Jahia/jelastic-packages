@@ -172,20 +172,20 @@ onBeforeInstall: |
   switch ("${settings.processingNodeSize}") {
     case 'large':
       var procCloudlets = 80;
-      var procXmx = "7680M";
+      var procXmx = "6144M";
       var procMaxBytesLocalHeap = "700M";
       var procBigMaxBytesLocalHeap = "800M";
       break;
     case 'medium':
       var procCloudlets = 64;
-      var procXmx = "5632M";
+      var procXmx = "4915M";
       var procMaxBytesLocalHeap = "700M";
       var procBigMaxBytesLocalHeap = "800M";
       break;
     case 'small':
     default:
       var procCloudlets = 40;
-      var procXmx = "2584M";
+      var procXmx = "3072M";
       var procMaxBytesLocalHeap = "500M";
       var procBigMaxBytesLocalHeap = "500M";
   }
