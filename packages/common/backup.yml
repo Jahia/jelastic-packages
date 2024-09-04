@@ -200,7 +200,6 @@ actions:
           | rclone rcat backup:${globals.bucketName}/${globals.backupName}/datastore.tar \
                    --s3-chunk-size 48M \
                    --log-file=${globals.logsPath} \
-                   --log-level DEBUG \
                    2>&1
 
         if (($?)); then
