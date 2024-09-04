@@ -14,13 +14,7 @@ fi
 
 sudo -u $TOMCAT_USER mkdir -p $dumps_dir/{thread,heap,classes}_dumps
 
-# check if jstack is present
-if [[ ! -f "/usr/bin/jstack" ]]; then
-    echo "no /usr/bin/jstack symlink"
-    exit 1
-fi
-
-PID=$(pgrep -u tomcat java.orig)
+PID=$(pgrep -u tomcat java)
 today=$(date +'%m-%d-%Y')
 hour=$(date +'%Hh')
 minute=$(date +'%M')
@@ -43,7 +37,11 @@ for dump_type in "thread" "classes"; do
     if [ "$dump_type" = "thread" ]; then
         timeout $(( 15 * 60 )) jstack -l $PID > $filename
     else
-        timeout $(( 15 * 60 )) jstack $PID GC.class_stats > $filename
+        case ${JAVA_VERSION%%.*} in
+            11) cmd="GC.class_stats";;
+            17) cmd="VM.classloader_stats";;
+        esac
+        timeout $(( 15 * 60 )) jcmd $PID $cmd > $filename
     fi
 
     chown -R $TOMCAT_USER: $today_dir
