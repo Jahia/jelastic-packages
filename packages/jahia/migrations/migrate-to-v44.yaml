@@ -152,7 +152,7 @@ actions:
 
   addClassesDumps:
     - cmd [cp, proc]: |-
-        md5="4906321520be82e3af2922548aef6db2"
+        md5="fa29e1062411c485585b3a6cdb7a9f04"
         script_name=thread-dump.sh
         script_path=/usr/local/bin/$script_name
         if ! (echo "$md5 $script_path" | md5sum --status -c); then
