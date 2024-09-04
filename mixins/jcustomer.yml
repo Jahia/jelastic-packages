@@ -149,6 +149,7 @@ actions:
     - cmd[cp]: |-
         redeploy_conf_path="/etc/jelastic/redeploy.conf"
         echo "$redeploy_conf_path" >> $redeploy_conf_path
+        echo "/opt/jcustomer/jcustomer/data/migration/" >> $redeploy_conf_path
 
   getLinkedJahiaEnvs:
     # Exports the comma-separated list of linked Jahia envs to the "linkedJahiaEnvs" global

@@ -44,6 +44,12 @@ onInstall:
       echo $tmpenv >> /etc/jelastic/redeploy.conf
 
   - cmd[cp]: |-
+      migrationdir="/opt/jcustomer/jcustomer/data/migration"
+      newmigrationdir="/opt/jcustomer/jcustomer-${settings.targetVersion}/data/migration"
+      if [ -d $migrationdir ]; then
+        mkdir -p $newmigrationdir && cp -R $migrationdir/* $newmigrationdir/
+        sed -i 's|jcustomer/jcustomer/data|jcustomer/jcustomer-${settings.targetVersion}/data|g' /etc/jelastic/redeploy.conf
+      fi
       service datadog-agent stop
       service karaf stop
 
@@ -60,6 +66,9 @@ onInstall:
   - forEach(nodes.cp):
       if ("${@i.id}" != "${nodes.cp.first.id}"):
         upgradeJcustomerOnNode: ${@i.id}
+
+  - cmd[cp]: |-
+      sed -i 's|jcustomer/jcustomer-${settings.targetVersion}/data|jcustomer/jcustomer/data|g' /etc/jelastic/redeploy.conf
 
   - env.control.AddContainerEnvVars[cp]:
     vars: {"UNOMI_VERSION": "${settings.targetVersion}"}
