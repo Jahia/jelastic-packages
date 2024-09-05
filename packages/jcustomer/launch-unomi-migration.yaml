@@ -9,6 +9,15 @@ mixins:
   - "../../mixins/jcustomer.yml"
 
 onInstall:
+  - setGlobalRepoRootUrl
+
+  - if(!${settings.skip_backup}):
+      install:
+        jps: "${globals.repoRootUrl}/packages/common/backup.yml"
+        settings:
+          backup_name: "${env.envName}-pre-migrate"
+          backtype: manual
+
   - muteDatadogHost:
       target: "*"
       duration: 60
@@ -35,3 +44,7 @@ settings:
       caption: The origin version (e.g. to migrate from 2.3.0 to 2.5.0, set 2.3.0)
       vtype: text
       required: true
+    - type: toggle
+      name: skip_backup
+      caption: Skip backup step
+      default: false
