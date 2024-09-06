@@ -63,10 +63,12 @@ actions:
   preChecks:
     - checkJcustomerHealth: cp
     - checkJcustomerDatadogCustomChecks: cp
+    - checkHaproxyHealth: bl
 
   postChecks:
     - checkJcustomerHealth: cp
     - checkJcustomerDatadogCustomChecks: cp
+    - checkHaproxyHealth: bl
 
   updateHaproxyCookieName:
     - cmd[bl]: |-
@@ -96,6 +98,13 @@ actions:
         conf="/etc/jelastic/redeploy.conf"
         line="/opt/jcustomer/jcustomer/data/migration/"
         grep -q $line $conf || echo $line >> $conf
+
+  increaseCheckInterval:
+    - cmd[cp]: |-
+        f=/etc/datadog-agent/conf.d/jcustomer_node_not_in_haproxy.yaml
+        if ! (grep -q "360" $f); then
+          sed -i 's/30/360/g' $f
+        fi
 
 settings:
   fields:
