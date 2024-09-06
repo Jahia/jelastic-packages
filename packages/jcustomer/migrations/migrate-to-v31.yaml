@@ -32,6 +32,7 @@ onInstall:
   - updateHaproxyCookieName                # PAAS-2962
   - captureCookiesInHaproxy                # PAAS-3036
   - addCustomSshConfForKarafConsole        # PAAS-3077
+  - preserveMigrationFolder                # PAAS-3075
 
   # Actions that require a restart
   # (None)
@@ -89,6 +90,12 @@ actions:
         if [ ! -f /root/karaf_openssl.cnf ]; then
           curl -fLSso /root/karaf_openssl.cnf ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/karaf_openssl.cnf
         fi
+
+  preserveMigrationFolder:
+    - cmd[cp]: |-
+        conf="/etc/jelastic/redeploy.conf"
+        line="/opt/jcustomer/jcustomer/data/migration/"
+        grep -q $line $conf || echo $line >> $conf
 
 settings:
   fields:
