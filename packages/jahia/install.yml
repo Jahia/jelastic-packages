@@ -342,7 +342,7 @@ onInstall:
       packages: "jq rclone"
   - installRequiredPackages:
       target: "sqldb"
-      packages: "qpress python3-boto3"
+      packages: "qpress socat MariaDB-backup python3-boto3"
   - installPython:
       target: "sqldb, storage"
       python_major_version: 3

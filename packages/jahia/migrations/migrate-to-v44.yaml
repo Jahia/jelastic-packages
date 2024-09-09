@@ -38,6 +38,7 @@ onInstall:
   - fixSomeJavaSymlinks                               # PAAS-3081
   - addClassesDumps                                   # PAAS-3033
   - logThreadName                                     # PAAS-3054
+  - mariaDbWithSystemD                                # PAAS-3048
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
@@ -283,6 +284,29 @@ actions:
         - else:
             - log: "no DUMP_PATH typo here"
 
+
+  mariaDbWithSystemD:
+    - cmd [sqldb]: |-
+        line='Cmnd_Alias JAHIA_MYSQL_SERVICE = /sbin/service mysqld *, /sbin/service mysql *, /usr/bin/systemctl * mysqld, /usr/bin/systemctl * mysql, /usr/bin/systemctl * mysqld.service, /usr/bin/systemctl * mysql.service, /sbin/service mariadb *, /usr/bin/systemctl * mariadb, /usr/bin/systemctl * mariadb.service'
+        sudo_file=/etc/sudoers.d/jahia-rules
+
+        if [[ ! -x /usr/bin/mariabackup ]]; then
+          yum install -y MariaDB-backup
+        fi
+        if [[ ! -x /usr/bin/qpress ]]; then
+          yum install -y qpress
+        fi
+        if [[ ! -x /usr/bin/socat ]]; then
+          yum install -y socat
+        fi
+
+        rm -f /etc/init.d/mysql
+
+        if ! grep -qE "Cmnd_Alias JAHIA_MYSQL_SERVICE.*systemctl" $sudo_file; then
+          sed -i $sudo_file \
+              -e "/Cmnd_Alias JAHIA_MYSQL/d" \
+              -e "/Cmnd_Alias JAHIA_TOMCAT_SERVICE/a $line"
+        fi
 
 settings:
   fields:

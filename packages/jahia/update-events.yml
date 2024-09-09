@@ -227,7 +227,7 @@ onAfterRedeployContainer[sqldb]:
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeGroup}]: |-
           chkconfig mysql on
-          service mysql start
+          systemctl start mysql
       - setupDatadogAgentSql: ${event.params.nodeGroup}
       - mysqlService:
           target: ${event.params.nodeGroup}
@@ -240,7 +240,7 @@ onAfterRedeployContainer[sqldb]:
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeId}]: |-
           chkconfig mysql on
-          service mysql start
+          systemctl start mysql
       - setupDatadogAgentSql: ${event.params.nodeId}
       - mysqlService:
           target: ${event.params.nodeId}
@@ -307,21 +307,13 @@ onBeforeStop:
 
 onAfterStart:
   - if (nodes.sqldb.length > 1):
-      - cmd[sqldb]: |-
-          chkconfig mysql on
+      - cmd [sqldb]: |-
+          systemctl enable mysql
           for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
             [ -f $f ] && rm -f $f
           done
           exit 0
-      - forEach(i:nodes.sqldb):
-          - if (${@i.id} != ${nodes.sqldb.first.id}):
-              cmd[${@i.id}]: |-
-                sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 0/' /var/lib/mysql/grastate.dat
-          - else:
-              cmd[${@i.id}]: |-
-                sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
-          - startGaleraNode: ${@i.id}
-
+      - startGaleraCluster
       - cmd[proc]: |-
           systemctl enable --now proxysql
           systemctl enable --now tomcat

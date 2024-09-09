@@ -979,7 +979,7 @@ actions:
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
         ls database.tar || exit 0
-        service mysql stop
+        systemctl stop mysql
         if (pgrep mysqld > /dev/null); then
           pkill -e -9 mysqld
         fi
@@ -1013,26 +1013,19 @@ actions:
         fi
 
     - if (nodes.sqldb.length > 1):
-        - cmd[sqldb]: |-
+        - cmd [sqldb]: |-
             seqno=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 2)
             uuid=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 1)
             echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
-            echo "version: 2.1" >> /var/lib/mysql/grastate.dat
-            echo "uuid:    $uuid" >> /var/lib/mysql/grastate.dat
-            echo "seqno:   $seqno" >> /var/lib/mysql/grastate.dat
+            echo "version:           2.1" >> /var/lib/mysql/grastate.dat
+            echo "uuid:              $uuid" >> /var/lib/mysql/grastate.dat
+            echo "seqno:             $seqno" >> /var/lib/mysql/grastate.dat
+            echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
             chown mysql: /var/lib/mysql/grastate.dat
-
-        - cmd[${nodes.sqldb.first.id}]: |-
-            echo "safe_to_bootstrap: 1" >> /var/lib/mysql/grastate.dat
-        - startGaleraNode: ${nodes.sqldb.first.id}
-
-        - forEach(i:nodes.sqldb):
-            if (${@i.id} != ${nodes.sqldb.first.id}):
-              - cmd[${@i.id}]: |-
-                  echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
-              - startGaleraNode: ${@i.id}
+        - startGaleraCluster
     - else:
-        startGaleraNode: sqldb
+        startGaleraNode:
+          target: sqldb
 
 
     - api: env.control.GetContainerEnvVarsByGroup
