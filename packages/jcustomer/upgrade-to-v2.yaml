@@ -47,7 +47,7 @@ onInstall:
       migrationdir="/opt/jcustomer/jcustomer/data/migration"
       newmigrationdir="/opt/jcustomer/jcustomer-${settings.targetVersion}/data/migration"
       if [ -d $migrationdir ]; then
-        mkdir -p $newmigrationdir && cp -R $migrationdir/* $newmigrationdir/
+        mkdir -p $newmigrationdir && cp -R $migrationdir/* $newmigrationdir/ && chown -R karaf:karaf $newmigrationdir
         sed -i 's|jcustomer/jcustomer/data|jcustomer/jcustomer-${settings.targetVersion}/data|g' /etc/jelastic/redeploy.conf
       fi
       service datadog-agent stop
