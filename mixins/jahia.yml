@@ -617,7 +617,18 @@ actions:
             [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
             ssh-keygen -t rsa -f /tmp/abricot -P ""
             awk '{printf "abricot:%s,_g_:admingroup\n",$2}' /tmp/abricot.pub >> /data/digital-factory-data/karaf/etc/keys.properties
-            sed 's,\(sshRealm\s*=\s*\)jahia,\1karaf,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+        # The following two blocks should be replaced by the updateModuleKarafConfig when PAAS-3087 is being taken care of
+        - callProvisioningAPI:
+            target: ${this}
+            payload:
+              - editConfiguration: "org.apache.karaf.shell"
+                properties:
+                  sshRealm: "karaf"
+        - if (! ${globals.provisioning_api_call_success}):
+            return:
+            type: error
+            message: "Failed to update karaf shell configuration"
+        - cmd[${this}]: |-
             i=1
             it=66
             until (OPENSSL_CONF=/root/karaf_openssl.cnf ssh abricot@localhost -p 8101 -i /tmp/abricot -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR full-read-only); do
@@ -660,7 +671,17 @@ actions:
             [ -f /tmp/abricot  ] && rm /tmp/abricot
             [ -f /tmp/abricot.pub  ] && rm /tmp/abricot.pub
             sed '/^abricot:/d' -i /data/digital-factory-data/karaf/etc/keys.properties
-            sed 's,\(sshRealm\s*=\s*\)karaf,\1jahia,' -i /data/digital-factory-data/karaf/etc/org.apache.karaf.shell.cfg
+        # The following two blocks should be replaced by the updateModuleKarafConfig when PAAS-3087 is being taken care of
+        - callProvisioningAPI:
+            target: ${this}
+            payload:
+              - editConfiguration: "org.apache.karaf.shell"
+                properties:
+                  sshRealm: "jahia"
+        - if (! ${globals.provisioning_api_call_success}):
+            return:
+            type: error
+            message: "Failed to update karaf shell configuration"
         - isKarafLoginEnabled: ${globals.isKarafLoginEnabled}
           script: |-
             try {
@@ -1263,25 +1284,14 @@ actions:
                 }
               }
             }
-        - cmd[proc]: |-
-            config_file="/data/digital-factory-data/karaf/etc/org.jahia.services.env.cfg"
-            organization_name="${this.organizationName}"
-            env_name="${env.envName}"
-            if [ ! -f $config_file ]; then
-              touch $config_file
-              echo "org.jahia.services.env.organization=$organization_name" >> $config_file
-              echo "org.jahia.services.env.env_name=$env_name" >> $config_file
-            else
-              if ( ! grep -q "organization=$organization_name" $config_file ) || ( grep -qc "organization=$organization_name" $config_file | awk -F: '$NF+0 > 1' ); then
-                sed -i '/.*organization=.*/d' $config_file
-                echo "org.jahia.services.env.organization=$organization_name" >> $config_file
-              fi
-              if ( ! grep -q "env_name=$env_name" $config_file ) || ( grep -qc "env_name=$env_name" $config_file | awk -F: '$NF+0 > 1' ); then
-                sed -i '/.*env_name=.*/d' $config_file
-                echo "org.jahia.services.env.env_name=$env_name" >> $config_file
-              fi
-            fi
-            chown tomcat:tomcat $config_file
+        - cmd [proc]: |-
+            prov_file=/data/digital-factory-data/patches/provisioning/set-jahia-user-feedbacks-config.yaml
+            echo '- editConfiguration: "org.jahia.services.env"
+              properties:
+                org.jahia.services.env.organization: "${this.organizationName}"
+                org.jahia.services.env.env_name: "${env.envName}"' \
+              > $prov_file
+            chown tomcat: $prov_file
 
   generateNodesListFile:
     - set:
@@ -1942,11 +1952,18 @@ actions:
             message: "jCustomer password is wrong."
 
   removeAndCleanJexperience:
-    - cmd[proc, cp]: |-
-        JCUSTOMER_CONFIG_FILE="/data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg"
-        if [ -f $JCUSTOMER_CONFIG_FILE ]; then
-         sed -i 's/\(jexperience.jCustomer.*=\).*/\1/g' $JCUSTOMER_CONFIG_FILE
-        fi
+    - set:
+        jc_cfg_file: "org.jahia.modules.jexperience.settings-global"
+    - cmd [proc, cp]: '[ -f /data/digital-factory-data/karaf/etc/${this.jc_cfg_file}.cfg ] && echo "file present"'
+    - if ("${response.out}" == "file present"):
+        - cmd [proc, cp]: |-
+            prov_file=/data/digital-factory-data/patches/provisioning/remove-and-clean-jexperience.yaml
+            echo '- editConfiguration: "${this.jc_cfg_file}"
+              properties:
+                jexperience.jCustomer: ""' \
+              > $prov_file
+            chown tomcat: $prov_file
+
     - uninstallModule:
         moduleSymname: jexperience
     - environment.nodegroup.ApplyData [proc, cp]:
@@ -2041,15 +2058,19 @@ actions:
           );
     - getKibanaEndpointOfJcustomer:
         jcustomerEnv: ${this.jcustomerEnv}
-    - cmd[proc]: |-
-        __secret__password="${this.__secret__password}"
-        cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
-        sed -i "s,.*\(kibana_dashboards_provider.kibanaURL\).*,\1=${globals.kibanaEndpoint},g" $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaUser\).*/\1=${this.roleAndAccountName}/g' $cfg_file
-        sed -i "s/.*\(kibana_dashboards_provider.kibanaPassword\).*/\1=$__secret__password/g" $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaSpace\).*/\1=${this.roleAndAccountName}/g' $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.enable\).*/\1=true/g' $cfg_file
-        sed -i 's/.*\(kibana_dashboards_provider.kibanaProxy.cloud\).*/\1=true/g' $cfg_file
+    - updateModuleKarafConfig:
+        servicePid: "org.jahia.modules.kibana_dashboards_provider"
+        properties:
+          kibana_dashboards_provider.kibanaURL: ${globals.kibanaEndpoint}
+          kibana_dashboards_provider.kibanaUser: ${this.roleAndAccountName}
+          kibana_dashboards_provider.kibanaPassword: ${this.__secret__password}
+          kibana_dashboards_provider.kibanaSpace: ${this.roleAndAccountName}
+          kibana_dashboards_provider.kibanaProxy.enable: true
+          kibana_dashboards_provider.kibanaProxy.cloud: true
+    - if (! ${globals.updateModuleKarafConfig_success}):
+        return:
+        type: error
+        message: "Failed to update Kibana Dashboards provider configuration"
 
   createKibanaCustomerUserAccount:
     # Parameters:
@@ -2073,12 +2094,18 @@ actions:
         );
 
   removeKibanaAndJexperienceDashboards:
-    - cmd [proc]: |-
-        cfg_file=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
-        if [ -f $cfg_file ]; then
-          sed -i "s,.*\(kibana_dashboards_provider.\)\(kibanaURL\|kibanaUser\|kibanaPassword\|kibanaSpace\).*,\1\2=,g" $cfg_file
-          sed -E 's:(^\s*kibana_dashboards_provider\.)(kibana(URL|User|Password|Space)).*:\1\2=:' -i $cfg_file
-        fi
+    - cmd [proc, cp]: |-
+        prov_file=/data/digital-factory-data/patches/provisioning/remove-kibana-and-jexperience-dashboards.yaml
+        echo '- editConfiguration: org.jahia.modules.kibana_dashboards_provider
+          properties:
+            kibana_dashboards_provider.kibanaURL: ""
+            kibana_dashboards_provider.kibanaUser: ""
+            kibana_dashboards_provider.kibanaPassword: ""
+            kibana_dashboards_provider.kibanaSpace: ""
+            kibana_dashboards_provider.kibanaProxy.enable: "false"
+            kibana_dashboards_provider.kibanaProxy.cloud: "false"' \
+          > $prov_file
+        chown tomcat: $prov_file
     - uninstallModule:
         moduleSymname: kibana-dashboards-provider
     - uninstallModule:

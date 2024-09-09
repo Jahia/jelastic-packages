@@ -98,10 +98,11 @@ actions:
 
   confJexperience:
     - setGlobalRepoRootUrl
+    - set:
+        confFilename: org.jahia.modules.jexperience.settings-global.cfg
     - cmd[${this}]: |-
-        CONF_FILENAME=org.jahia.modules.jexperience.settings-global.cfg
-        CONF_PATH="/data/digital-factory-data/karaf/etc/$CONF_FILENAME"
-        CONF_ASSET_URL=${globals.repoRootUrl}/assets/jahia/$CONF_FILENAME
+        CONF_PATH="/tmp/${this.confFilename}"
+        CONF_ASSET_URL=${globals.repoRootUrl}/assets/jahia/${this.confFilename}
         # Check if asset URL is correct
         if (! curl -fIs "$CONF_ASSET_URL" > /dev/null); then
           >&2 echo "Asset not found"
@@ -122,6 +123,15 @@ actions:
         - return:
             type: error
             message: "An error occurred during jexperience installation."
+    - callProvisioningAPI:
+        target: "${this}"
+        payload:
+          - installConfiguration: "file:/tmp/${this.confFilename}"
+    - if (! ${globals.provisioning_api_call_success}):
+        return:
+        type: error
+        message: "Failed to update jExperience configuration"
+    - cmd [$this]: rm -f /tmp/${this.confFilename}
 
   checkJexperienceHealth:
     - getPatTokenAndKey

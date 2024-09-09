@@ -208,22 +208,46 @@ actions:
     #
     # Screeb: /root/org.jahia.services.env.cfg
     - log: "Initial Screeb and Kibana dashboard config has been restored"
-    - cmd[proc, cp]: |-
+    - cmd [proc, cp]: |-
+        tmp_file=$(mktemp)
+        prov_file=/data/digital-factory-data/patches/provisioning/restore-modules-configurations.yaml
         cfg_files=(
           "/root/org.jahia.services.env.cfg"
         )
         for file in ${cfg_files[@]}; do
           if [ -f $file ]; then
-            mv $file /data/digital-factory-data/karaf/etc
+            echo '- installConfiguration: "file:$file"' \
+              >> $tmp_file
           fi
         done
+        if [[ $(wc -l $tmp_file | cut -d" " -f1) != 0 ]]; do
+          chown tomcat: $prov_file
+          mv $tmp_file $prov_file
+        else
+          rm -f $tmp_file
+        fi
 
   reconfigureJExperience:
     - log: "jExperience was active before the restore, the original conf needs to be restored"
     - cmd [proc, cp]: |-
-        mv /root/org.jahia.modules.kibana_dashboards_provider.cfg /data/digital-factory-data/karaf/etc
-    - cmd [proc, cp]: |-
-        mv /root/org.jahia.modules.jexperience.settings-global.cfg /data/digital-factory-data/karaf/etc
+        tmp_file=$(mktemp)
+        prov_file=/data/digital-factory-data/patches/provisioning/restore-jexperience-configuration.yaml
+        cfg_files=(
+          "/root/org.jahia.modules.kibana_dashboards_provider.cfg"
+          "/root/org.jahia.modules.jexperience.settings-global.cfg"
+        )
+        for file in ${cfg_files[@]}; do
+          if [ -f $file ]; then
+            echo '- installConfiguration: "file:$file"' \
+              >> $tmp_file
+          fi
+        done
+        if [[ $(wc -l $tmp_file | cut -d" " -f1) != 0 ]]; do
+          chown tomcat: $prov_file
+          mv $tmp_file $prov_file
+        else
+          rm -f $tmp_file
+        fi
 
   installOrUpgradeJExprienceModules:
     - cmd [proc]: |-
@@ -645,6 +669,8 @@ actions:
     - startupJahiaHealthCheck: cp
     # Upgrade dx-clustering module if needed
     - upgradeDxClusteringTo8109
+    # Clean up /root folder with modules configuration files
+    - cmd [proc, cp]: rm -f /root/*.cfg
 
   restoreElasticsearch:
     - script: |-
