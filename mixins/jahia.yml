@@ -738,6 +738,30 @@ actions:
         return {"result": 1, errOut: "Can't get Jahia version"}
     - log: "Jahia is v${globals.jahiaVersion}"
 
+  installKarafConfigurationsOffline:
+    # This action will install config files to the karaf/etc folder.
+    #
+    # Parameters:
+    #   - target
+    #   - configFilePaths: list of files present on the node
+    #   - provFileName: name of the provisioning file that will be created
+    - log: "Initial Screeb and Kibana dashboard config has been restored"
+    - cmd [${this.target}]: |-
+        tmp_file=$(mktemp)
+        prov_file=/data/digital-factory-data/patches/provisioning/${this.provFileName}.yaml
+        for file in $(echo '${this.configFilePaths.toJSON()}' | jq -r '.[]'); do
+          if [ -f $file ]; then
+            echo '- installConfiguration: "file:'$file'"' \
+              >> $tmp_file
+          fi
+        done
+        if [[ $(wc -l $tmp_file | cut -d" " -f1) != 0 ]]; then
+          chown tomcat: $tmp_file
+          mv $tmp_file $prov_file
+        else
+          rm -f $tmp_file
+        fi
+
   updateModuleKarafConfig:
     # Update a module's configuration by:
     # * update configuration on processing
