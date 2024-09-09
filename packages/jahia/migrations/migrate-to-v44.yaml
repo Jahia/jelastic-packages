@@ -37,6 +37,7 @@ onInstall:
   - enablePageComposerForJahia82                      # PAAS-3012
   - fixSomeJavaSymlinks                               # PAAS-3081
   - addClassesDumps                                   # PAAS-3033
+  - logThreadName                                     # PAAS-3054
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
@@ -221,6 +222,13 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
+
+  logThreadName:
+    - cmd[proc, cp]: |-
+        conf=/opt/tomcat/webapps/ROOT/WEB-INF/etc/config/log4j2.xml
+        if ! grep -qF '[%t][%c{1}]' $conf; then
+          sed -i 's|\[%c{1}\]|[%t][%c{1}]|' $conf
+        fi
 
 settings:
   fields:
