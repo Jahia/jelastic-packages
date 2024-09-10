@@ -2,8 +2,7 @@ Cmnd_Alias JAHIA_HAPROXY_SERVICE = /sbin/service haproxy stop, /sbin/service hap
 Cmnd_Alias JAHIA_HAPROXY_SYSTEMCTL = /sbin/systemctl * haproxy.service, /usr/bin/systemctl * haproxy.service
 Cmnd_Alias JAHIA_TOMCAT = /etc/init.d/tomcat start, /etc/init.d/tomcat stop, /etc/init.d/tomcat restart, /etc/init.d/tomcat status, /etc/init.d/tomcat condrestart
 Cmnd_Alias JAHIA_TOMCAT_SERVICE = /sbin/service tomcat start, /sbin/service tomcat stop, /sbin/service tomcat restart, /sbin/service tomcat status, /sbin/service tomcat condrestart
-Cmnd_Alias JAHIA_MYSQL = /etc/init.d/mysql start, /etc/init.d/mysql stop, /etc/init.d/mysql status, /etc/init.d/mysql restart, /etc/init.d/mysql condrestart, /etc/init.d/mysql try-restart, /etc/init.d/mysql reload, /etc/init.d/mysql force-reload, /etc/init.d/mysql startsos, /etc/init.d/mysql configtest
-Cmnd_Alias JAHIA_MYSQL_SERVICE = /sbin/service mysql start, /sbin/service mysql stop, /sbin/service mysql status, /sbin/service mysql restart, /sbin/service mysql condrestart, /sbin/service mysql try-restart, /sbin/service mysql reload, /sbin/service mysql force-reload, /sbin/service mysql startsos, /sbin/service mysql configtest
+Cmnd_Alias JAHIA_MYSQL_SERVICE = /sbin/service mysqld *, /sbin/service mysql *, /usr/bin/systemctl * mysqld, /usr/bin/systemctl * mysql, /usr/bin/systemctl * mysqld.service, /usr/bin/systemctl * mysql.service, /sbin/service mariadb *, /usr/bin/systemctl * mariadb, /usr/bin/systemctl * mariadb.service
 
 haproxy ALL=NOPASSWD: JAHIA_HAPROXY_SERVICE, JAHIA_HAPROXY_SYSTEMCTL
 tomcat ALL=NOPASSWD: JAHIA_TOMCAT, JAHIA_TOMCAT_SERVICE

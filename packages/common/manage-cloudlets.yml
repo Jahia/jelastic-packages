@@ -149,7 +149,7 @@ actions:
                   - setCloudlets: ${@i.id}
                   - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
                       cmd[${@i.id}]: |-
-                        service mysql restart
+                        systemctl restart mysql
                 - else:
                   - setGlobals:
                       origMasterId: ${@i.id}
@@ -167,7 +167,7 @@ actions:
             - setCloudlets: ${globals.origMasterId}
             - if (${globals.cloudletsIncrease}) && (${settings.forceRestart}):
                 cmd[${response.newMasterIndex}]: |-
-                  service mysql restart
+                  systemctl restart mysql
         - else:
             - forEach(nodes.sqldb):
                 setCloudlets: ${@i.id}

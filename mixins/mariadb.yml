@@ -19,7 +19,7 @@ actions:
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        service mysql stop
+        systemctl stop mysql
         sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
         sleep 5  # be sure that the daemon is launched
         # allow root user to authenticate
@@ -32,15 +32,12 @@ actions:
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
         curl --retry 6 -fLSso /etc/mysql/conf.d/mysql.cnf ${globals.repoRootUrl}/assets/database/mysql.cnf || exit 1
-        echo "/etc/init.d/mysql" >> /etc/jelastic/redeploy.conf
         curl --retry 6 -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
         chmod 644 /etc/logrotate.d/mysql
         curl --retry 6 --create-dirs -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
-        curl --retry 6 -fLSso /etc/init.d/mysql ${globals.repoRootUrl}/assets/database/mysql-init.d || exit 1
-        chkconfig mysql on 2> /dev/null
-        service mysql start
+        systemctl start mysql
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
     - if ("${response.errOut}" != ""):
         - return:
@@ -50,7 +47,7 @@ actions:
         - installGaleraCluster
     - else:
         # Trigger mariabackup installation
-        - cmd [sqldb]: service mysql restart
+        - cmd [sqldb]: systemctl restart mysql
     - log: "## Create DX's Jahia database and user"
     - cmd[${nodes.sqldb.master.id}]: |-
         __secret__password="${this.__secret__password}"
@@ -158,7 +155,7 @@ actions:
         timeout=${this.maxDuration:0}
         MYSQL_IS_RUNNING=0
         while [ $MYSQL_IS_RUNNING -eq 0 ] || [ $i -lt $timeout ]; do
-          if service mysql status > /dev/null; then
+          if systemctl status mysql > /dev/null; then
             if mysqladmin -s processlist 1>/dev/null; then
               MYSQL_IS_RUNNING=1
             else
@@ -201,7 +198,7 @@ actions:
     - forEach(i:nodes.sqldb):
         setupInstance:
           id: "${@i.id}"
-    - cmd[${nodes.sqldb.master.id}]: "/etc/init.d/mysql stop; sleep 5; galera_new_cluster;"
+    - cmd[${nodes.sqldb.master.id}]: "systemctl stop mysql; sleep 5; galera_new_cluster;"
     - forEach(n:nodes.sqldb):
         if (!${@n.ismaster}):
           cmd[${@n.id}]: "jem service restart"
@@ -229,14 +226,22 @@ actions:
             message: "An error occurred during galera cluster setup."
 
   stopGalera:
-    forEach(nodes.sqldb):
-      - log: "Stopping MariaDB on node ${@i.id}..."
-      - cmd[${@i.id}]: |-
-          service mysql stop || exit 1
-          cat /var/lib/mysql/grastate.dat || true
-      - if (nodes.sqldb.length > 1):
-          cmd[${@i.id}]: |-
-            chkconfig mysql off
+    - if (nodes.sqldb.length > 1):
+        - forEach(nodes.sqldb):
+            - if (${@i.id} != ${nodes.sqldb.first.id}):
+                - log: "Stopping MariaDB on node ${@i.id}..."
+                - cmd[${@i.id}]: |-
+                    systemctl stop mysql || exit 1
+                    cat /var/lib/mysql/grastate.dat || true
+        - log: "Stopping MariaDB on node ${nodes.sqldb.first.id}..."
+        - cmd [${nodes.sqldb.first.id}]: |-
+            systemctl stop mysql || exit 1
+            cat /var/lib/mysql/grastate.dat || true
+        - cmd [sqldb]: |-
+            systemctl disable mysql
+    - else:
+        - cmd [sqldb]: |-
+            systemctl stop mysql || exit 1
 
   setupSeeds:
     script: |
@@ -256,7 +261,7 @@ actions:
         [ -f /var/lib/mysql/grastate.dat ] && rm -f /var/lib/mysql/grastate.dat
         [ -f /var/lib/mysql/gvwstate.dat ] && rm -f /var/lib/mysql/gvwstate.dat
         [ -f /var/lib/mysql/galera.cache ] && rm -f /var/lib/mysql/galera.cache
-        (/etc/init.d/mysql stop; pkill -9 mysql; /etc/init.d/mysql start) 2> /dev/null
+        (systemctl stop mysql; pkill -9 mysql; systemctl start mysql) 2> /dev/null
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -277,41 +282,53 @@ actions:
 
   stopGaleraNode:
     cmd[${this}]: |-
-      service mysql stop || exit 1
+      systemctl stop mysql || exit 1
       if [ -f /var/lib/mysql/grastate.dat ]; then
         cat /var/lib/mysql/grastate.dat
       else
         echo "$HOSTNAME is not in a cluster"
       fi
-      service mysql stop
+      systemctl stop mysql
 
   startGaleraNode:
-    cmd[${this}]: |-
-      service mysql start
-      rc=$?
-      mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
-      if [ ! -f /var/lib/mysql/grastate.dat ]; then
-        echo "$HOSTNAME is not in a cluster, exiting"
-        exit $rc
-      fi
-      i=1
-      it=66
-      until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" == "Synced"  ]; do
-        if [ $i -ge $it ]; then
-          echo "Too long to start, something is wrong here... EXITING"
-          exit 1
-        fi
-        # As long as there is a mariabackup command running, we don't increment the timeout count
-        if pgrep wsrep_sst_maria; then
-          echo "$(date) SSTs sync still in progress"
-          sleep 15
+    # Parameters:
+    #   - target
+    #   - bootstrap_cluser: (Optional, default value: false) Set to true if you want to bootstrap the cluster
+    - set:
+        bootstrap: false
+    - if ("${this.bootstrap_cluster}" == "true"):
+        - set:
+            bootstrap: true
+    - cmd [${this.target}]: |-
+        if ${this.bootstrap}; then
+          galera_new_cluster
         else
-          echo "$(date) not ready yet (iteration $i/$it)"
-          ((i++))
-          sleep 1
+          systemctl start mysql
         fi
-      done
-      echo "Node $HOSTNAME is now Synced !"
+        rc=$?
+        mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
+        if [ ! -f /var/lib/mysql/grastate.dat ]; then
+          echo "$HOSTNAME is not in a cluster, exiting"
+          exit $rc
+        fi
+        i=1
+        it=66
+        until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" == "Synced"  ]; do
+          if [ $i -ge $it ]; then
+            echo "Too long to start, something is wrong here... EXITING"
+            exit 1
+          fi
+          # As long as there is a mariabackup command running, we don't increment the timeout count
+          if pgrep wsrep_sst_maria; then
+            echo "$(date) SSTs sync still in progress"
+            sleep 15
+          else
+            echo "$(date) not ready yet (iteration $i/$it)"
+            ((i++))
+            sleep 1
+          fi
+        done
+        echo "Node $HOSTNAME is now Synced !"
 
   rollingRestartGaleraNodes:
     - if (nodes.sqldb.length > 1):
@@ -323,7 +340,8 @@ actions:
             - setDonorNode:
                 target : ${@i.id}
             - stopGaleraNode: ${@i.id}
-            - startGaleraNode: ${@i.id}
+            - startGaleraNode:
+                target: ${@i.id}
             - sleep:
               - milliseconds: 15000
           - else:
@@ -342,10 +360,28 @@ actions:
           target: ${globals.origMasterId}
 
       - stopGaleraNode: ${globals.origMasterId}
-      - startGaleraNode: ${globals.origMasterId}
+      - startGaleraNode:
+          target: ${globals.origMasterId}
     - else:
       - stopGaleraNode: ${nodes.sqldb.first}
-      - startGaleraNode: ${nodes.sqldb.first}
+      - startGaleraNode:
+          target: ${nodes.sqldb.first}
+
+  startGaleraCluster:
+    # First of all we bootstrap the first node (should be the last one to be stopped,
+    # therefore the first one to be started)
+    - cmd [${nodes.sqldb.first.id}]: |-
+        sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
+    - startGaleraNode:
+        target: ${nodes.sqldb.first.id}
+        bootstrap_cluster: true
+    # Then we start all other nodes
+    - forEach (nodes.sqldb):
+        if (${@i.id} != ${nodes.sqldb.first.id}):
+          - cmd[${@i.id}]: |-
+              sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 0/' /var/lib/mysql/grastate.dat
+          - startGaleraNode:
+              target: ${@i.id}
 
   setDonorNode:
     # Configure the wsrep donor node as a non master node.
