@@ -98,8 +98,7 @@ onInstall:
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
-          target: cp
-          logAction: ${globals.logAction}
+          target: cptemp: ${globals.logAction}
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
@@ -129,10 +128,10 @@ actions:
             jexperienceDashboardsVersionBeforeRestore: ${globals.runningVersion}
         # We save Kibana dashboards provider configuration
         - cmd [proc,cp]: |-
-            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /root
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg /opt/tomcat/temp
         # We save jexperience configuration
         - cmd [proc,cp]: |-
-            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /root
+            cp -p /data/digital-factory-data/karaf/etc/org.jahia.modules.jexperience.settings-global.cfg /opt/tomcat/temp
 
   getInitialAugSearchStatus:
     # Saves AS module version and status (installed/started) in /tmp/as-state if augsearch variable present and set to true in nodegroup data
@@ -198,7 +197,7 @@ actions:
         )
         for file in ${cfg_files[@]}; do
           if [ -f $file ]; then
-            cp -p $file /root
+            cp -p $file /opt/tomcat/temp
           fi
         done
 
@@ -221,8 +220,8 @@ actions:
     - installKarafConfigurationsOffline:
         target: cp, proc
         configFilePaths:
-          - /root/org.jahia.modules.kibana_dashboards_provider.cfg
-          - /root/org.jahia.modules.jexperience.settings-global.cfg
+          - /opt/tomcat/temp/org.jahia.modules.kibana_dashboards_provider.cfg
+          - /opt/tomcat/temp/org.jahia.modules.jexperience.settings-global.cfg
         provFileName: "restore-jexperience-configuration"
     # If the version of jExperience restored from the backup is not the same as the original one,
     # then we need to install the right version
@@ -423,7 +422,7 @@ actions:
     - installKarafConfigurationsOffline:
         target: cp, proc
         configFilePaths:
-          - /root/org.jahia.services.env.cfg # Screeb
+          - /opt/tomcat/temp/org.jahia.services.env.cfg # Screeb
         provFileName: "restore_other_modules_config"
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
     # before starting Jahia so the modules can start successfully when Jahia will start
@@ -633,8 +632,8 @@ actions:
     - startupJahiaHealthCheck: cp
     # Upgrade dx-clustering module if needed
     - upgradeDxClusteringTo8109
-    # Clean up /root folder with modules configuration files
-    - cmd [proc, cp]: rm -f /root/*.cfg
+    # Clean up /opt/tomcat/temp folder with modules configuration files
+    - cmd [proc, cp]: rm -f /opt/tomcat/temp/*.cfg
 
   restoreElasticsearch:
     - script: |-

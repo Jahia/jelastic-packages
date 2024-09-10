@@ -1978,7 +1978,7 @@ actions:
   removeAndCleanJexperience:
     - set:
         jc_cfg_file: "org.jahia.modules.jexperience.settings-global"
-    - cmd [proc, cp]: '[ -f /data/digital-factory-data/karaf/etc/${this.jc_cfg_file}.cfg ] && echo "file present"'
+    - cmd [proc, cp]: '[ -f /data/digital-factory-data/karaf/etc/${this.jc_cfg_file}.cfg ] && echo "file present" || exit 0'
     - if ("${response.out}" == "file present"):
         - cmd [proc, cp]: |-
             prov_file=/data/digital-factory-data/patches/provisioning/remove-and-clean-jexperience.yaml
