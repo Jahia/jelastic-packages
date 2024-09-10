@@ -202,53 +202,6 @@ actions:
           fi
         done
 
-  restoreOtherModulesConfig:
-    # This action will restore config files from various modules saved in the saveOtherModulesConfig action
-    # to the karaf/etc folder. The cfg_files list should contain the same files as in saveOtherModulesConfig
-    #
-    # Screeb: /root/org.jahia.services.env.cfg
-    - log: "Initial Screeb and Kibana dashboard config has been restored"
-    - cmd [proc, cp]: |-
-        tmp_file=$(mktemp)
-        prov_file=/data/digital-factory-data/patches/provisioning/restore-modules-configurations.yaml
-        cfg_files=(
-          "/root/org.jahia.services.env.cfg"
-        )
-        for file in ${cfg_files[@]}; do
-          if [ -f $file ]; then
-            echo '- installConfiguration: "file:$file"' \
-              >> $tmp_file
-          fi
-        done
-        if [[ $(wc -l $tmp_file | cut -d" " -f1) != 0 ]]; do
-          chown tomcat: $prov_file
-          mv $tmp_file $prov_file
-        else
-          rm -f $tmp_file
-        fi
-
-  reconfigureJExperience:
-    - log: "jExperience was active before the restore, the original conf needs to be restored"
-    - cmd [proc, cp]: |-
-        tmp_file=$(mktemp)
-        prov_file=/data/digital-factory-data/patches/provisioning/restore-jexperience-configuration.yaml
-        cfg_files=(
-          "/root/org.jahia.modules.kibana_dashboards_provider.cfg"
-          "/root/org.jahia.modules.jexperience.settings-global.cfg"
-        )
-        for file in ${cfg_files[@]}; do
-          if [ -f $file ]; then
-            echo '- installConfiguration: "file:$file"' \
-              >> $tmp_file
-          fi
-        done
-        if [[ $(wc -l $tmp_file | cut -d" " -f1) != 0 ]]; do
-          chown tomcat: $prov_file
-          mv $tmp_file $prov_file
-        else
-          rm -f $tmp_file
-        fi
-
   installOrUpgradeJExprienceModules:
     - cmd [proc]: |-
         provisioning_folder=/data/digital-factory-data/patches/provisioning
@@ -264,7 +217,13 @@ actions:
             $provisioning_file
 
   prepareJExperienceRestore:
-    - reconfigureJExperience
+    - log: "jExperience was active before the restore, the original conf needs to be restored"
+    - installKarafConfigurationsOffline:
+        target: cp, proc
+        configFilePaths:
+          - /root/org.jahia.modules.kibana_dashboards_provider.cfg
+          - /root/org.jahia.modules.jexperience.settings-global.cfg
+        provFileName: "restore-jexperience-configuration"
     # If the version of jExperience restored from the backup is not the same as the original one,
     # then we need to install the right version
     - log: "The version of jExperience pre-restore has to be installed: ${globals.jexperienceVersionBeforeRestore}"
@@ -460,7 +419,12 @@ actions:
         - return:
             type: error
             message: "An error occurred while restoring Jahia (data)"
-    - restoreOtherModulesConfig
+    # Restore other modules config
+    - installKarafConfigurationsOffline:
+        target: cp, proc
+        configFilePaths:
+          - /root/org.jahia.services.env.cfg # Screeb
+        provFileName: "restore_other_modules_config"
     # If Augmented Search and/or jExperience need to be restored, then these actions need to be performed
     # before starting Jahia so the modules can start successfully when Jahia will start
     - if (${globals.jexperienceActiveBeforeRestore}):
