@@ -37,7 +37,6 @@ onInstall:
   - enablePageComposerForJahia82                      # PAAS-3012
   - fixSomeJavaSymlinks                               # PAAS-3081
   - addClassesDumps                                   # PAAS-3033
-  - configureJexperienceProxyMode                     # PAAS-2458
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
@@ -222,16 +221,6 @@ actions:
     - if("${response.out}" == "restart"):
         - setGlobals:
             jahiaRollingRestartNeeded: true
-
-  configureJexperienceProxyMode:
-    - getEnvLinkedJcustomer:
-        envName: ${env.envName}
-    - if (${globals.unomi_env_linked}):
-        - updateModuleKarafConfig:
-            servicePid: "org.jahia.modules.jexperience.settings-global"
-            properties:
-              jexperience.jCustomerURL: ${globals.unomidns}
-              jexperience.jCustomerPublicURL: '$WEBAPP_CONTEXT/modules/jexperience/proxy/$CURRENT_SITE'
 
 settings:
   fields:
