@@ -19,7 +19,8 @@ globals:
 onInstall:
   ### Pre-migration actions
   - checkEnvProvides: jahia
-  - checkEnvVersion: ${globals.version}
+  - if(!${settings.force}):
+      - checkEnvVersion: ${globals.version}
   - if(!${settings.disable_checks}):
       - preChecks
   - else:
@@ -357,4 +358,9 @@ settings:
   fields:
     - type: toggle
       name: disable_checks
-      caption: disable all checks
+      caption: Disable checks
+      tooltip: Disable post and pre checks
+    - type: toggle
+      name: force
+      caption: Force migration
+      tooltip: Apply the migration even if env_version is up-to-date
