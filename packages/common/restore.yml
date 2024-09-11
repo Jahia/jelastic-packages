@@ -98,7 +98,8 @@ onInstall:
           user: root
           logsPath: ${globals.logsPath}
       - installBackupTools:
-          target: cptemp: ${globals.logAction}
+          target: cp
+          logAction: ${globals.logAction}
       - restoreElasticsearch
       - restoreJcustomer
       - checkJcustomerHealthWhenStarting: cp
