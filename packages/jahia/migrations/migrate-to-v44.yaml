@@ -312,7 +312,7 @@ actions:
   updateSAM:
     - getJahiaVersion
     - isVersionStrictlyLower:
-        a: ${globals.runningVersion}
+        a: ${globals.jahiaVersion}
         b: 8.1.5.2
         res: isBelow8152
     - if (${globals.isBelow8152}):
