@@ -28,6 +28,7 @@ onInstall:
   ### End pre-migration actions
 
   # Actions that update modules (needs to be done first)
+  - updateSAM                                         # PAAS-2996
 
   # Regular actions
   - installTelnet                                     # PAAS-3055
@@ -307,6 +308,49 @@ actions:
               -e "/Cmnd_Alias JAHIA_MYSQL/d" \
               -e "/Cmnd_Alias JAHIA_TOMCAT_SERVICE/a $line"
         fi
+
+  updateSAM:
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.runningVersion}
+        b: 8.1.5.2
+        res: isBelow8152
+    - if (${globals.isBelow8152}):
+        setGlobals:
+          requiredSamVersion: 2.7.0
+    - isVersionBetween:
+        lower: 8.1.5.2
+        lower_may_equal: true
+        version: ${globals.jahiaVersion}
+        higher: 8.2.0.0
+        higher_may_equal: false
+        res: isBetween8152and820
+    - if (${globals.isBetween8152and820}):
+        setGlobals:
+          requiredSamVersion: 2.8.1
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: jahia82plus
+    - if (${globals.jahia82plus}):
+        setGlobals:
+          requiredSamVersion: 3.2.1
+    - checkModule:
+        moduleSymname: server-availability-manager
+    - if ("${globals.runningVersion}" != "${globals.requiredSamVersion}"):
+        - disableHaproxyHealthcheck
+        - installOrUpgradeModules:
+            modules: server-availability-manager/${globals.requiredSamVersion}
+        # Probe is present in SAM 3.2+ only
+        - if (${globals.jahia82plus}):
+            - callProvisioningAPI:
+                target: proc
+                payload:
+                  - editConfiguration:  "org.jahia.modules.sam.healthcheck.ProbesRegistry"
+                    properties:
+                      probes.RenderingChain.severity: "HIGH"
+        - checkJahiaHealth: "cp, proc"
+        - enableHaproxyHealthcheck
 
 settings:
   fields:
