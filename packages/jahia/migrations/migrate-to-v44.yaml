@@ -378,6 +378,17 @@ actions:
         fi
         exit 1
 
+  cleanLockFilesAtJahiaStartup:
+    - cmd [cp, proc]: |-
+        filename=override.conf
+        f=/etc/systemd/system/tomcat.service.d/$filename
+        if [[ $(md5sum $f | awk '{print $1}') == "59973da5a1ab4e89026641c672531735" ]] $f; then
+          echo "Nothing to do"
+          exit 0
+        fi
+        curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$filename && \
+        systemctl daemon-reload
+
 settings:
   fields:
     - type: toggle
