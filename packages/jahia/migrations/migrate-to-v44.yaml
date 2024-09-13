@@ -42,6 +42,7 @@ onInstall:
   - addClassesDumps                                   # PAAS-3033
   - logThreadName                                     # PAAS-3054
   - mariaDbWithSystemD                                # PAAS-3048
+  - cleanLockFilesAtJahiaStartup                      # PAAS-1898
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
