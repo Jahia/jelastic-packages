@@ -383,7 +383,7 @@ actions:
     - cmd [cp, proc]: |-
         filename=override.conf
         f=/etc/systemd/system/tomcat.service.d/$filename
-        if [[ $(md5sum $f | awk '{print $1}') == "59973da5a1ab4e89026641c672531735" ]] $f; then
+        if [[ $(md5sum $f | awk '{print $1}') == "59973da5a1ab4e89026641c672531735" ]]; then
           echo "Nothing to do"
           exit 0
         fi
