@@ -1,0 +1,54 @@
+#!/bin/bash
+
+include extendperm;
+$PROGRAM 'systemctl';
+$PROGRAM 'grep';
+
+if [ "x$action" != "xservice" ] ; then return 0; fi
+
+[ -f /.jelenv ] && . /etc/profile
+
+function enableService() {
+    echo "$(date) debut enableService" >> /tmp/hop
+    local name=${1} level=${2:-3} doStart=${3:-${__TRUE}};
+    [[ $name == karaf ]] && return 0  # to avoid enabling and starting the karaf unit if the node is redeployed, return 0
+    [[ ${doStart} == ${__TRUE} ]] && startService ${name};
+    ${CHKCONFIG} --level ${level} ${name} on;
+    return ${?};
+}
+
+function doRestart(){
+    local result=0 message="Ok";
+    serviceToRestart="karaf";
+    referenceFile=/opt/jcustomer/jcustomer/mem_on_karaf_start
+    if [ -s ${referenceFile} ]; then
+        TotalMem=$(free -m | awk 'NR==2 {print $2}')
+        LastMem=$(cat ${referenceFile})
+        if [[ $TotalMem > $LastMem ]]; then
+            writeJSONResponseOut "result=>${result}" "message=>'Do not restart karaf after cloudlet increase'" && return 0;
+        fi
+    fi
+    stopService "$serviceToRestart ">> "$ACTIONS_LOG" 2>&1;
+        result=$?;
+        if [[ "${result}" -eq "0" ]]
+        then
+            startService "$serviceToRestart" >> "$ACTIONS_LOG" 2>&1;
+            result=$?;
+            if [[ "${result}" -eq "0" ]]
+            then
+                [ -n "$FIREWALL_ENABLED" -a "${FIREWALL_ENABLED+xxx}" = "xxx" ] && [ "${FIREWALL_ENABLED}" -eq "1" ] && [ "$USER" == "root" ] && {
+                    local msg=$( doAction "firewall" "Start" )  || message="Failed to apply firewall rules";
+                }
+            else
+                message="Failed to start $1";
+            fi
+        else
+            message="Failed to stop $1";
+        fi
+        if [[ "${result}" -ne "0" ]]; then
+            local resultMessage="result ${result} "
+            result="4182" #Pre-defined error code for non-successul restart
+        fi
+        writeJSONResponseOut "result=>${result}" "message=>${resultMessage}${message}";
+        return 0;
+}
