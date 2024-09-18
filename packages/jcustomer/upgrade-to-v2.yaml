@@ -32,6 +32,8 @@ onInstall:
 
   - muteEnvWideMonitors
 
+  - updateJelasticKarafOverride
+
   - env.control.AddContainerEnvVars[cp]:
     vars:
       UNOMI_MIGRATION_RECOVER_FROM_HISTORY: true
@@ -97,6 +99,15 @@ actions:
     skipReinstall: false
     isSequential: false
     envName: ${env.envName}
+
+  updateJelasticKarafOverride:
+    - cmd[cp]: |-
+        md5="bb9df0b60b8a98b98fca778afa4b6ae7"
+        file_path="/var/lib/jelastic/customizations/karaf_override.lib"
+        if ! (echo "$md5 $file_path" | md5sum --status -c); then
+          curl -fLSso $file_path ${globals.repoRootUrl}/assets/jcustomer/$(basename $file_path) || exit 1
+        fi
+
 
 settings:
   fields:
