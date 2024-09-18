@@ -226,8 +226,7 @@ onAfterRedeployContainer[sqldb]:
           target: ${event.params.nodeGroup}
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeGroup}]: |-
-          chkconfig mysql on
-          systemctl start mysql
+          systemctl enable --now mariadb
       - setupDatadogAgentSql: ${event.params.nodeGroup}
       - mysqlService:
           target: ${event.params.nodeGroup}
@@ -239,8 +238,7 @@ onAfterRedeployContainer[sqldb]:
           target: ${event.params.nodeId}
           packages: "jq rclone python3-pip python3-boto3 qpress"
       - cmd[${event.params.nodeId}]: |-
-          chkconfig mysql on
-          systemctl start mysql
+          systemctl enable --now mariadb
       - setupDatadogAgentSql: ${event.params.nodeId}
       - mysqlService:
           target: ${event.params.nodeId}
@@ -293,11 +291,7 @@ onBeforeStop:
   - stopJahia: cp, proc
   - cleanJRJJournalTable:
       batchSize: 10000
-  - stopGalera
-  - if (nodes.sqldb.length > 1):
-      cmd[cp, proc]: |-
-        systemctl disable tomcat
-        systemctl disable proxysql
+  - stopGaleraCluster
   - updateEnvStatusInPapi:
       status: stopped
   - logEvent:
@@ -306,25 +300,7 @@ onBeforeStop:
       text: "$envName is going to stop"
 
 onAfterStart:
-  - if (nodes.sqldb.length > 1):
-      - cmd [sqldb]: |-
-          systemctl enable mysql
-          for f in /var/lock/subsys/mysql /var/lib/mysql/mysqld.pid; do
-            [ -f $f ] && rm -f $f
-          done
-          exit 0
-      - startGaleraCluster
-      - cmd[proc]: |-
-          systemctl enable --now proxysql
-          systemctl enable --now tomcat
-      - startupJahiaHealthCheck: proc
-      - cmd[cp]: |-
-          systemctl enable --now proxysql
-          systemctl enable --now tomcat
-      - startupJahiaHealthCheck: cp
-  - else:
-      startupJahiaHealthCheck: proc, cp
-
+  - startupJahiaHealthCheck: proc, cp
   - getEnvLinkedJcustomer:
       envName: ${env.envName}
   - if ( ! ${globals.unomi_env_linked}):

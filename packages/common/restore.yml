@@ -979,7 +979,7 @@ actions:
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
         ls database.tar || exit 0
-        systemctl stop mysql
+        systemctl stop mariadb
         if (pgrep mysqld > /dev/null); then
           pkill -e -9 mysqld
         fi
