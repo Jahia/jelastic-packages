@@ -9,7 +9,6 @@ if [ "x$action" != "xservice" ] ; then return 0; fi
 [ -f /.jelenv ] && . /etc/profile
 
 function enableService() {
-    echo "$(date) debut enableService" >> /tmp/hop
     local name=${1} level=${2:-3} doStart=${3:-${__TRUE}};
     [[ $name == karaf ]] && return 0  # to avoid enabling and starting the karaf unit if the node is redeployed, return 0
     [[ ${doStart} == ${__TRUE} ]] && startService ${name};
