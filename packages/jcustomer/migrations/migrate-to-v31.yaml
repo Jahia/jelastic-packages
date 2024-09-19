@@ -34,6 +34,7 @@ onInstall:
   - captureCookiesInHaproxy                # PAAS-3036
   - addCustomSshConfForKarafConsole        # PAAS-3077
   - preserveMigrationFolder                # PAAS-3075
+  - updateJelasticKarafOverride            # PAAS-3103
 
   # Actions that require a restart
   # (None)
@@ -105,6 +106,14 @@ actions:
         f=/etc/datadog-agent/conf.d/jcustomer_node_not_in_haproxy.yaml
         if ! (grep -q "360" $f); then
           sed -i 's/30/360/g' $f
+        fi
+
+  updateJelasticKarafOverride:
+    - cmd[cp]: |-
+        md5="4485efd5287be272236c2756e4aaed7d"
+        file_path="/var/lib/jelastic/customizations/karaf_override.lib"
+        if ! (echo "$md5 $file_path" | md5sum --status -c); then
+          curl -fLSso $file_path ${globals.repoRootUrl}/packages/jcustomer/migrations/v${globals.version}_assets/$(basename $file_path) || exit 1
         fi
 
 settings:
