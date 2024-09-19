@@ -311,6 +311,21 @@ actions:
               -e "/Cmnd_Alias JAHIA_MYSQL/d" \
               -e "/Cmnd_Alias JAHIA_TOMCAT_SERVICE/a $line"
         fi
+    - cmd [sqldb]: |-
+        dir=/etc/systemd/system/mariadb.service.d
+        daemon_reload=false
+        f=override.conf
+        if [[ $(md5sum $dir/$f | awk '{print $1}') != "ac6cd0f779b816a434fc73cbe5ea9143" ]]; then
+          curl --retry 6 -fLSso $dir/$f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/mariadb_$f || exit 1
+          daemon_reload=true
+        fi
+        f=bootstrap.conf
+        if ! [ -f $dir/$f ] && [[ ${nodes.sqldb.length} > 1 ]]; then
+          curl --retry 6 -fLSso $dir/$f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$f || exit 1
+          daemon_reload=true
+        fi
+        $daemon_reload && systemctl daemon-reload
+        systemctl disable --now apache2 php-fpm 2>/dev/null
 
   updateSAM:
     - getJahiaVersion
@@ -387,7 +402,7 @@ actions:
           echo "Nothing to do"
           exit 0
         fi
-        curl -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$filename && \
+        curl --retry 6 -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/tomcat_$filename && \
         systemctl daemon-reload
 
 settings:
