@@ -102,7 +102,7 @@ actions:
 
   updateJelasticKarafOverride:
     - cmd[cp]: |-
-        md5="bb9df0b60b8a98b98fca778afa4b6ae7"
+        md5="4485efd5287be272236c2756e4aaed7d"
         file_path="/var/lib/jelastic/customizations/karaf_override.lib"
         if ! (echo "$md5 $file_path" | md5sum --status -c); then
           curl -fLSso $file_path ${globals.repoRootUrl}/assets/jcustomer/$(basename $file_path) || exit 1
