@@ -19,7 +19,7 @@ actions:
     - log: "## Setup MariaDB logrotate"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        systemctl stop mysql
+        systemctl stop mariadb
         sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
         sleep 5  # be sure that the daemon is launched
         # allow root user to authenticate
@@ -28,6 +28,9 @@ actions:
         done
         pkill 'mysqld_safe|mariadbd'
         sleep 5  # be sure that the daemon is stopped
+        # Disable apache2 and php-fpm daemons since we don't use phpMyAdmin
+        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/override.conf ${globals.repoRootUrl}/assets/database/override.conf || exit 1
+        systemctl disable --now apache2 php-fpm
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
@@ -37,17 +40,14 @@ actions:
         curl --retry 6 --create-dirs -fLSso /var/lib/jelastic/customizations/jahia_override.lib ${globals.repoRootUrl}/assets/database/jahia_override.lib || exit 1
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
-        systemctl start mysql
+        systemctl start mariadb
         mysql -e "set global key_buffer_size = 128*1024*1024; set global myisam_sort_buffer_size = 128*1024*1024; set global wsrep_sst_auth = 'mysql:'; set global wsrep_sst_method = 'mariabackup';"
     - if ("${response.errOut}" != ""):
         - return:
             type: error
             message: "An error occurred during mariadb setup."
     - if (nodes.sqldb.length > 1):
-        - installGaleraCluster
-    - else:
-        # Trigger mariabackup installation
-        - cmd [sqldb]: systemctl restart mysql
+        installGaleraCluster
     - log: "## Create DX's Jahia database and user"
     - cmd[${nodes.sqldb.master.id}]: |-
         __secret__password="${this.__secret__password}"
@@ -190,10 +190,10 @@ actions:
     - forEach(i:nodes.sqldb):
         setupInstance:
           id: "${@i.id}"
-    - cmd[${nodes.sqldb.master.id}]: "systemctl stop mysql; sleep 5; galera_new_cluster;"
+    - cmd[${nodes.sqldb.master.id}]: "systemctl stop mariadb; sleep 5; galera_new_cluster;"
     - forEach(n:nodes.sqldb):
         if (!${@n.ismaster}):
-          cmd[${@n.id}]: "jem service restart"
+          cmd[${@n.id}]: "systemctl start mariadb"
 
   setupInstance:
     - cmd[${this.id}]: |-
@@ -211,29 +211,13 @@ actions:
     - setNodeDisplayName[sqldb]: Galera
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
-        curl -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
+        curl --retry 6 -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
+        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
+        systemctl daemon-reload
     - if ("${response.errOut}" != ""):
         - return:
             type: error
             message: "An error occurred during galera cluster setup."
-
-  stopGalera:
-    - if (nodes.sqldb.length > 1):
-        - forEach(nodes.sqldb):
-            - if (${@i.id} != ${nodes.sqldb.first.id}):
-                - log: "Stopping MariaDB on node ${@i.id}..."
-                - cmd[${@i.id}]: |-
-                    systemctl stop mysql || exit 1
-                    cat /var/lib/mysql/grastate.dat || true
-        - log: "Stopping MariaDB on node ${nodes.sqldb.first.id}..."
-        - cmd [${nodes.sqldb.first.id}]: |-
-            systemctl stop mysql || exit 1
-            cat /var/lib/mysql/grastate.dat || true
-        - cmd [sqldb]: |-
-            systemctl disable mysql
-    - else:
-        - cmd [sqldb]: |-
-            systemctl stop mysql || exit 1
 
   setupSeeds:
     script: |
@@ -253,7 +237,7 @@ actions:
         [ -f /var/lib/mysql/grastate.dat ] && rm -f /var/lib/mysql/grastate.dat
         [ -f /var/lib/mysql/gvwstate.dat ] && rm -f /var/lib/mysql/gvwstate.dat
         [ -f /var/lib/mysql/galera.cache ] && rm -f /var/lib/mysql/galera.cache
-        (systemctl stop mysql; pkill -9 mysql; systemctl start mysql) 2> /dev/null
+        (systemctl stop mariadb || pkill -9 mysql) 2> /dev/null
     - if ("${response.errOut}" != ""):
         - return:
             type: error
@@ -273,35 +257,37 @@ actions:
         checkName: mysql
 
   stopGaleraNode:
-    cmd[${this}]: |-
-      systemctl stop mysql || exit 1
-      if [ -f /var/lib/mysql/grastate.dat ]; then
-        cat /var/lib/mysql/grastate.dat
-      else
-        echo "$HOSTNAME is not in a cluster"
-      fi
-      systemctl stop mysql
+    - log: "Stopping MariaDB on node ${@i.id}..."
+    - cmd[${this}]: |-
+        systemctl stop mariadb || exit 1
+        if [ -f /var/lib/mysql/grastate.dat ]; then
+          cat /var/lib/mysql/grastate.dat
+        else
+          echo "$HOSTNAME is not in a cluster"
+        fi
+
+  stopGaleraCluster:
+    - if (nodes.sqldb.length > 1):
+        - getGaleraMaster
+        - forEach(nodes.sqldb):
+            - getGaleraNodeNameIndex: ${@i.id}
+            - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+              - setDonorNode:
+                  target : ${@i.id}
+              - stopGaleraNode: ${@i.id}
+            - else:
+                set:
+                  galeraMasterId: ${@i.id}
+        - stopGaleraNode: ${this.galeraMasterId}
+    - else:
+        stopGaleraNode: ${nodes.sqldb.first.id}
 
   startGaleraNode:
-    # Parameters:
-    #   - target
-    #   - bootstrap_cluser: (Optional, default value: false) Set to true if you want to bootstrap the cluster
-    - set:
-        bootstrap: false
-    - if ("${this.bootstrap_cluster}" == "true"):
-        - set:
-            bootstrap: true
     - cmd [${this.target}]: |-
-        if ${this.bootstrap}; then
-          galera_new_cluster
-        else
-          systemctl start mysql
-        fi
-        rc=$?
         mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
         if [ ! -f /var/lib/mysql/grastate.dat ]; then
-          echo "$HOSTNAME is not in a cluster, exiting"
-          exit $rc
+          echo "$HOSTNAME is not in a cluster, nothing to do"
+          exit 0
         fi
         i=1
         it=66
@@ -360,20 +346,19 @@ actions:
           target: ${nodes.sqldb.first}
 
   startGaleraCluster:
-    # First of all we bootstrap the first node (should be the last one to be stopped,
-    # therefore the first one to be started)
-    - cmd [${nodes.sqldb.first.id}]: |-
-        sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 1/' /var/lib/mysql/grastate.dat
-    - startGaleraNode:
-        target: ${nodes.sqldb.first.id}
-        bootstrap_cluster: true
-    # Then we start all other nodes
-    - forEach (nodes.sqldb):
-        if (${@i.id} != ${nodes.sqldb.first.id}):
-          - cmd[${@i.id}]: |-
-              sed -i 's/safe_to_bootstrap:.*/safe_to_bootstrap: 0/' /var/lib/mysql/grastate.dat
-          - startGaleraNode:
-              target: ${@i.id}
+    - if (nodes.sqldb.length > 1):
+        - getGaleraMaster
+        - forEach(nodes.sqldb):
+            - getGaleraNodeNameIndex: ${@i.id}
+            - if ("${globals.galeraNodeNameIndex}" == "${globals.galeraMasterIndex}"):
+              - startGaleraNode: ${@i.id}
+              - set:
+                  galeraMasterId: ${@i.id}
+        - forEach(nodes.sqldb):
+            if (${@i.id} != ${this.galeraMasterId}):
+              startGaleraNode: ${@i.id}
+    - else:
+        startGaleraNode: ${nodes.sqldb.first.id}
 
   setDonorNode:
     # Configure the wsrep donor node as a non master node.
