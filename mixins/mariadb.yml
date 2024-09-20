@@ -16,7 +16,7 @@ actions:
       #   - __secret__password: DB user's password
     - setJelasticUserAsRoot: sqldb
     - updateMysqlUser: sqldb
-    - log: "## Setup MariaDB logrotate"
+    - log: "## Setup MariaDB"
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
         systemctl stop mariadb
@@ -30,7 +30,7 @@ actions:
         sleep 5  # be sure that the daemon is stopped
         # Disable apache2 and php-fpm daemons since we don't use phpMyAdmin
         curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/override.conf ${globals.repoRootUrl}/assets/database/override.conf || exit 1
-        systemctl disable --now apache2 php-fpm
+        systemctl disable --now apache2 php-fpm 2>/dev/null
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
@@ -183,6 +183,7 @@ actions:
   # galera related #
   ##################
   installGaleraCluster:
+    - log: "## Setup Galera cluster"
     - setGlobalRepoRootUrl
     - resetCluster
     - initialSetup
@@ -194,6 +195,9 @@ actions:
     - forEach(n:nodes.sqldb):
         if (!${@n.ismaster}):
           cmd[${@n.id}]: "systemctl start mariadb"
+    - cmd[sqldb]: |-
+        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
+        systemctl daemon-reload
 
   setupInstance:
     - cmd[${this.id}]: |-
@@ -212,8 +216,6 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
         curl --retry 6 -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
-        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
-        systemctl daemon-reload
     - if ("${response.errOut}" != ""):
         - return:
             type: error
