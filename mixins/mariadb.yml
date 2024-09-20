@@ -286,6 +286,7 @@ actions:
 
   startGaleraNode:
     - cmd [${this.target}]: |-
+        systemctl start mariadb
         mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
         if [ ! -f /var/lib/mysql/grastate.dat ]; then
           echo "$HOSTNAME is not in a cluster, nothing to do"
