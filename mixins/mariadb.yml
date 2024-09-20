@@ -195,6 +195,9 @@ actions:
     - forEach(n:nodes.sqldb):
         if (!${@n.ismaster}):
           cmd[${@n.id}]: "systemctl start mariadb"
+    - cmd[sqldb]: |-
+        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
+        systemctl daemon-reload
 
   setupInstance:
     - cmd[${this.id}]: |-
@@ -213,8 +216,6 @@ actions:
     - setGlobalRepoRootUrl
     - cmd[sqldb]: |-
         curl --retry 6 -fLSso /etc/mysql/conf.d/galera.cnf ${globals.repoRootUrl}/assets/database/galera.cnf &>> /var/log/run.log || exit 1
-        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
-        systemctl daemon-reload
     - if ("${response.errOut}" != ""):
         - return:
             type: error
