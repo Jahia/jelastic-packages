@@ -1022,10 +1022,12 @@ actions:
             echo "seqno:             $seqno" >> /var/lib/mysql/grastate.dat
             echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
             chown mysql: /var/lib/mysql/grastate.dat
-        - startGaleraCluster
-    - else:
-        startGaleraNode:
-          target: sqldb
+        - cmd[${nodes.sqldb.master.id}]: |-
+            sed -i "s/safe_to_bootstrap.*/safe_to_bootstrap: 1/" /var/lib/mysql/grastate.dat
+        # We start the bootstrap node first to make sure the mariadb-upgrade command is run first
+        # before running the other nodes (and to avoid getting unnecessary errors when mariadb daemon starts)
+        - startGaleraNode: ${nodes.sqldb.master.id}
+    - startGaleraNode: sqldb
 
 
     - api: env.control.GetContainerEnvVarsByGroup
