@@ -285,24 +285,23 @@ actions:
         stopGaleraNode: ${nodes.sqldb.first.id}
 
   startGaleraNode:
-    - cmd [${this.target}]: |-
-        systemctl start mariadb
-        mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade  # in case a backup from a previous minor MariaDB has just been restored
+    - cmd [${this}]: |-
+        systemctl start mariadb 2>/dev/null
         if [ ! -f /var/lib/mysql/grastate.dat ]; then
           echo "$HOSTNAME is not in a cluster, nothing to do"
           exit 0
         fi
         i=1
         it=66
-        until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" | awk '{print $NF}')" == "Synced"  ]; do
+        until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" 2>/dev/null | awk '{print $NF}')" == "Synced"  ]; do
           if [ $i -ge $it ]; then
             echo "Too long to start, something is wrong here... EXITING"
             exit 1
           fi
           # As long as there is a mariabackup command running, we don't increment the timeout count
           if pgrep wsrep_sst_maria; then
-            echo "$(date) SSTs sync still in progress"
-            sleep 15
+            echo "$(date) SSTs sync still in progress..."
+            sleep 5
           else
             echo "$(date) not ready yet (iteration $i/$it)"
             ((i++))
@@ -310,6 +309,8 @@ actions:
           fi
         done
         echo "Node $HOSTNAME is now Synced !"
+        # In case a backup from a previous minor MariaDB has just been restored, we run mariadb-upgrade
+        mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || exit 0
 
   rollingRestartGaleraNodes:
     - if (nodes.sqldb.length > 1):
@@ -321,8 +322,7 @@ actions:
             - setDonorNode:
                 target : ${@i.id}
             - stopGaleraNode: ${@i.id}
-            - startGaleraNode:
-                target: ${@i.id}
+            - startGaleraNode:${@i.id}
             - sleep:
               - milliseconds: 15000
           - else:
@@ -341,27 +341,10 @@ actions:
           target: ${globals.origMasterId}
 
       - stopGaleraNode: ${globals.origMasterId}
-      - startGaleraNode:
-          target: ${globals.origMasterId}
+      - startGaleraNode: ${globals.origMasterId}
     - else:
       - stopGaleraNode: ${nodes.sqldb.first}
-      - startGaleraNode:
-          target: ${nodes.sqldb.first}
-
-  startGaleraCluster:
-    - if (nodes.sqldb.length > 1):
-        - getGaleraMaster
-        - forEach(nodes.sqldb):
-            - getGaleraNodeNameIndex: ${@i.id}
-            - if ("${globals.galeraNodeNameIndex}" == "${globals.galeraMasterIndex}"):
-              - startGaleraNode: ${@i.id}
-              - set:
-                  galeraMasterId: ${@i.id}
-        - forEach(nodes.sqldb):
-            if (${@i.id} != ${this.galeraMasterId}):
-              startGaleraNode: ${@i.id}
-    - else:
-        startGaleraNode: ${nodes.sqldb.first.id}
+      - startGaleraNode: ${nodes.sqldb.first}
 
   setDonorNode:
     # Configure the wsrep donor node as a non master node.
