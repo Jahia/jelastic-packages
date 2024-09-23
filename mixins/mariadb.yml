@@ -322,7 +322,7 @@ actions:
             - setDonorNode:
                 target : ${@i.id}
             - stopGaleraNode: ${@i.id}
-            - startGaleraNode:${@i.id}
+            - startGaleraNode: ${@i.id}
             - sleep:
               - milliseconds: 15000
           - else:
