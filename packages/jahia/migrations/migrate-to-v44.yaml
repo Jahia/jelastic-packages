@@ -43,6 +43,7 @@ onInstall:
   - logThreadName                                     # PAAS-3054
   - mariaDbWithSystemD                                # PAAS-3048
   - cleanLockFilesAtJahiaStartup                      # PAAS-1898
+  - fixMultilineProcessing                            # PAAS-3111
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
@@ -404,6 +405,18 @@ actions:
         fi
         curl --retry 6 -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/tomcat_$filename && \
         systemctl daemon-reload
+
+  fixMultilineProcessing:
+    cmd [proc, cp]: |-
+        filename=conf.yaml
+        f=/etc/datadog-agent/conf.d/tomcat.d/$filename
+        if [[ $(md5sum $f | awk '{print $1}') == "94c225ead82db913f995ea5c8de9af6d" ]]; then
+          echo "Nothing to do"
+          exit 0
+        fi
+        curl --retry 6 -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/dd_agent_tomcat_$filename && \
+        systemctl restart datadog-agent
+
 
 settings:
   fields:
