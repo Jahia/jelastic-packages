@@ -208,12 +208,13 @@ onAfterServiceScaleOut[bl]:
     - installPapiScript: ${@i.id}
 
 onBeforeRedeployContainer[sqldb]:
-  # disable mysql autostart because JEM will do it
   - if ('${event.params.nodeGroup:}'):
+      - cmd [${event.params.nodeGroup}]: systemctl disable mariadb
       - mysqlService:
           target: ${event.params.nodeGroup}
           action: disable
   - elif ('${event.params.nodeId:}'):
+      - cmd [${event.params.nodeId}]: systemctl disable mariadb
       - mysqlService:
           target: ${event.params.nodeId}
           action: disable
@@ -221,40 +222,14 @@ onBeforeRedeployContainer[sqldb]:
 onAfterRedeployContainer[sqldb]:
   - if ('${event.params.nodeGroup:}'):
       # Handle RedeployContainersByGroup
-      - setJelasticUserAsRoot: ${event.params.nodeGroup}
-      - installRequiredPackages:
-          target: ${event.params.nodeGroup}
-          packages: "jq rclone python3-pip python3-boto3 qpress"
-      - cmd[${event.params.nodeGroup}]: |-
-          systemctl enable --now mariadb
-      - setupDatadogAgentSql: ${event.params.nodeGroup}
-      - mysqlService:
-          target: ${event.params.nodeGroup}
-          action: enable
+      - onAfterRedeploySqldbContainer: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
-      - setJelasticUserAsRoot: ${event.params.nodeId}
-      - installRequiredPackages:
-          target: ${event.params.nodeId}
-          packages: "jq rclone python3-pip python3-boto3 qpress"
-      - cmd[${event.params.nodeId}]: |-
-          systemctl enable --now mariadb
-      - setupDatadogAgentSql: ${event.params.nodeId}
-      - mysqlService:
-          target: ${event.params.nodeId}
-          action: enable
+      - onAfterRedeploySqldbContainer: ${event.params.nodeId}
 
 onAfterScaleOut[sqldb]:
   - forEach(event.response.nodes):
-    - setJelasticUserAsRoot: ${@i.id}
-    - updateMysqlUser: sqldb
-    - installRequiredPackages:
-        target: ${@i.id}
-        packages: "jq rclone"
-    - installPython:
-        target: ${@i.id}
-        python_major_version: 3
-        python_minor_version: 8
+    - onAfterRedeploySqldbContainer: ${@i.id}
 
 onAfterRedeployContainer[storage]:
   - if ('${event.params.nodeGroup:}'):
