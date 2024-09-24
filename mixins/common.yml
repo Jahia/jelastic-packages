@@ -3,12 +3,13 @@ actions:
   setGlobalRepoRootUrl:
     # Gets the repository root URL and set it in a global named "repoRootUrl", WITH NO TRAILING SLASH
     # Examples:
-    #   repoRootUrl = https://github.com/Jahia/jelastic-packages/raw/master
-    #   repoRootUrl = https://raw.githubusercontent.com/Jahia/jelastic-packages/master
+    #   repoRootUrl = https://github.com/Jahia/jelastic-packages/raw/main
+    #   repoRootUrl = https://raw.githubusercontent.com/Jahia/jelastic-packages/main
+    #   repoRootUrl = https://raw.githubusercontent.com/Jahia/jelastic-packages/refs/heads/main
     - if(!globals.repoRootUrl):
         - script: |-
             var baseUrl = "${baseUrl}"
-            var regex = /https:\/\/(raw\.)?github\w*\.com\/Jahia\/[^\/]+\/(raw\/)?[^\/]+/
+            var regex = /https:\/\/(raw\.)?github\w*\.com\/Jahia\/[^\/]+\/(raw\/)?(refs\/heads\/)?[^\/]+/
             var repoRootUrl = baseUrl.match(regex)
             return {"result": 0, "root_url": repoRootUrl[0]}
         - setGlobals:
