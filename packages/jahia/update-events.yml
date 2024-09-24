@@ -263,10 +263,6 @@ onAfterRedeployContainer[storage]:
       - installRequiredPackages:
           target: ${event.params.nodeGroup}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeGroup}
-          python_major_version: 3
-          python_minor_version: 8
       - setupDatadogAgentStorage: ${event.params.nodeGroup}
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
@@ -274,10 +270,6 @@ onAfterRedeployContainer[storage]:
       - installRequiredPackages:
           target: ${event.params.nodeId}
           packages: "jq rclone"
-      - installPython:
-          target: ${event.params.nodeId}
-          python_major_version: 3
-          python_minor_version: 8
       - setupDatadogAgentStorage: ${event.params.nodeId}
 
 onBeforeStop:
