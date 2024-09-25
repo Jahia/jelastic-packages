@@ -28,13 +28,14 @@ actions:
     - cmd[sqldb]: |-
         systemctl stop mariadb
         sudo -u mysql mysqld_safe --skip-grant-tables --skip-networking &
-        sleep 5  # be sure that the daemon is launched
+        sleep 5  # Make sure that the daemon is running
         # allow root user to authenticate
         for u in root mysql; do
           mysql -e "flush privileges; alter user ${u}@localhost identified via unix_socket; flush privileges;"
         done
         pkill 'mysqld_safe|mariadbd'
-        sleep 5  # be sure that the daemon is stopped
+        # Make sure that the daemon is stopped
+        sleep 5
     - disablePhpMyAdmin: sqldb
     - cmd[sqldb]: |-
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
