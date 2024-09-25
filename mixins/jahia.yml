@@ -112,12 +112,7 @@ actions:
 
     - if ("${globals.strongswanServiceStatus}" == "enable"):
         - cmd[${this}]: |-
-            if [ -f /etc/almalinux-release ]; then
-              strongswan_service=strongswan-starter
-            else
-              strongswan_service=strongswan
-            fi
-
+            strongswan_service=strongswan-starter
             systemctl enable $strongswan_service.service
             systemctl start $strongswan_service.service
 

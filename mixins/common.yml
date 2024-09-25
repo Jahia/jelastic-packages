@@ -334,10 +334,6 @@ actions:
   installBackupTools:
     - setGlobalRepoRootUrl
     - cmd [${this.target}]: |-
-        if [ ! -f /etc/almalinux-release ]; then
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --upgrade boto3
-        fi
         [ -d jelastic_backup ] || mkdir jelastic_backup
         cd jelastic_backup
         for file in backrest.py lib_aws.py revisionNode.py; do
@@ -418,12 +414,7 @@ actions:
     - setGlobalRepoRootUrl
     - cmd [${this}]: |-
         if [ ! -f /usr/local/bin/papi.py ]; then
-          if grep -q 'AlmaLinux' /etc/os-release; then
-            yum -y install python3-requests
-          else
-            python3 -m pip install --upgrade pip
-            python3 -m pip install requests
-          fi
+          yum -y install python3-requests
           curl --retry 6 -fLSso /usr/local/bin/papi.py ${globals.repoRootUrl}/assets/common/papi.py || exit 1
           chmod 755 /usr/local/bin/papi.py
         fi

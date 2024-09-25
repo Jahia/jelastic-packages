@@ -78,10 +78,6 @@ onInstall:
             curl -fLSso $file_path $file_url || exit 1
             chmod +x $file_path
           fi
-      # we need to remove /usr/lib/locale from redeploy.conf
-      - cmd[proc,cp]: |-
-          [ -f /etc/almalinux-release ] && exit 0
-          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
       # we need to set the JAHIA_UPGRADE envvar in a different way
       - env.control.AddContainerEnvVars[proc]:
         vars:

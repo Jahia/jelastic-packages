@@ -229,10 +229,6 @@ onBeforeRedeployContainer:
           target: ${event.params.nodeGroup}
           title: "Redeploying ${event.params.nodeGroup} nodes to ${event.params.tag} version"
           text: "${event.params.nodeGroup} nodes are going to be redeploy to ${event.params.tag} version"
-      # PAAS-2986: quick fix for centos → almalinux locales issue
-      - cmd[${event.params.nodeGroup}]: |-
-          [ -f /etc/almalinux-release ] && exit 0
-          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
       - muteDatadogHost:
           target: ${event.params.nodeGroup}
           duration: 20
@@ -241,10 +237,6 @@ onBeforeRedeployContainer:
           target: ${nodes.cp.first.id}
           title: "Redeploying node ${event.params.nodeid} to ${event.params.tag} version"
           text: "Node ${event.params.nodeid} is going to be redeploy to ${event.params.tag} version"
-      # PAAS-2986: quick fix for centos → almalinux locales issue
-      - cmd[${event.params.nodeId}]: |-
-          [ -f /etc/almalinux-release ] && exit 0
-          sed -i '/\/usr\/lib\/locale/d' /etc/jelastic/redeploy.conf
       - muteDatadogHost:
           target: ${event.params.nodeId}
           duration: 20
@@ -252,9 +244,6 @@ onBeforeRedeployContainer:
 onAfterRedeployContainer:
   - if ('${event.params.nodeGroup.print()}' != ''):
       - fetchRcloneFiles: ${event.params.nodeGroup}
-      # PAAS-2986: quick fix for centos → almalinux locales issue
-      - cmd[${event.params.nodeGroup}]: |-
-          grep -qxF "/usr/lib/locale/" /etc/jelastic/redeploy.conf || echo "/usr/lib/locale/" >> /etc/jelastic/redeploy.conf
       - getLogEventScript: ${event.params.nodeGroup}
       - logEvent:
           target: ${event.params.nodeGroup}
@@ -265,9 +254,6 @@ onAfterRedeployContainer:
       - installPapiScript: ${event.params.nodeGroup}
   - elif ('${event.params.nodeid.print()}' != ''):
       - fetchRcloneFiles: ${event.params.nodeId}
-      # PAAS-2986: quick fix for centos → almalinux locales issue
-      - cmd[${event.params.nodeId}]: |-
-          grep -qxF "/usr/lib/locale/" /etc/jelastic/redeploy.conf || echo "/usr/lib/locale/" >> /etc/jelastic/redeploy.conf
       - getLogEventScript: ${event.params.nodeid}
       - logEvent:
           target: ${event.params.nodeid}
