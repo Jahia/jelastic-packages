@@ -10,6 +10,13 @@ actions:
   updateMysqlUser:
     - cmd [${this}]: sed 's;\(^mysql.*\)/home/jelastic/.*;\1/var/lib/mysql/:/sbin/nologin;' /etc/passwd
 
+  disablePhpMyAdmin:
+  # Disable apache2 and php-fpm daemons since we don't use phpMyAdmin
+    cmd [${this}]: |-
+      curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/override.conf ${globals.repoRootUrl}/assets/database/override.conf || exit 1
+      systemctl daemon-reload
+      systemctl disable --now apache2 php-fpm 2>/dev/null || exit 0
+
   installDatabase:
     # Parameters:
       #   - user: DB username
@@ -28,9 +35,8 @@ actions:
         done
         pkill 'mysqld_safe|mariadbd'
         sleep 5  # be sure that the daemon is stopped
-        # Disable apache2 and php-fpm daemons since we don't use phpMyAdmin
-        curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/override.conf ${globals.repoRootUrl}/assets/database/override.conf || exit 1
-        systemctl disable --now apache2 php-fpm 2>/dev/null
+    - disablePhpMyAdmin: sqldb
+    - cmd[sqldb]: |-
         # Securing possible blocking issues with jelastic/mariadb:10.4.13 with next 3 lines
         [ -f /etc/mysql/conf.d/master.cnf ] && rm -f /etc/mysql/conf.d/master.cnf
         [ -f /etc/mysql/conf.d/slave.cnf ] && rm -f /etc/mysql/conf.d/slave.cnf
@@ -58,6 +64,27 @@ actions:
         - return:
             type: error
             message: "An error occurred when creating jahia database."
+
+  onAfterRedeploySqldbContainer:
+    - setJelasticUserAsRoot: ${this}
+    - updateMysqlUser: ${this}
+    - installRequiredPackages:
+        target: ${this}
+        packages: "jq rclone python3-pip python3-boto3 qpress socat MariaDB-backup"
+    - disablePhpMyAdmin: ${this}
+    - cmd [${this}]: |-
+        curl --retry 6 -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
+        chown -R mysql:mysql /var/lib/jelastic/customizations
+        logrotate -f /etc/logrotate.d/mysql
+        systemctl enable --now mariadb
+        if [[ ${nodes.sqldb.length} > 1 ]]; then
+          curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/bootstrap.conf ${globals.repoRootUrl}/assets/database/bootstrap.conf &>> /var/log/run.log || exit 1
+          systemctl daemon-reload
+        fi
+    - setupDatadogAgentSql: ${this}
+    - mysqlService:
+        target: ${this}
+        action: enable
 
   createDataDogUser:
     - log: "## Create Datadog database user"
@@ -170,6 +197,7 @@ actions:
         galeraNodeNameIndex: "${response.out}"
 
   mysqlService:
+    # disable mysql autostart because JEM will do it
     - if ("${this.action}" == "enable"):
         - cmd [${this.target}]: |-
             sed -i '/^\/var\/lib\/jelastic\/overrides\/envinfo.lib/d' /etc/jelastic/redeploy.conf
@@ -430,6 +458,8 @@ actions:
     # We are going to a new if dimension, let's save some information
     - setGlobals:
         currentNode: ${this.target}
+    - checkMariadbHealth:
+        target: ${this.target}
     - if (nodes.sqldb.length > 1):
         - checkGaleraClusterHealth: sqldb
         - checkGaleraClusterSize
@@ -440,4 +470,3 @@ actions:
     - proxysqlSetMariadbBackendStatus:
         targetHost: ${globals.galeraNodeNameIndex}
         newStatus: ONLINE
-
