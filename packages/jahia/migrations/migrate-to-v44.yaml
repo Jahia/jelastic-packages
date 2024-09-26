@@ -325,8 +325,14 @@ actions:
           curl --retry 6 -fLSso $dir/$f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$f || exit 1
           daemon_reload=true
         fi
+        dir1=/etc/systemd/system/httpd.service.d
+        dir2=/usr/lib/systemd/system/httpd.service.d
+        if [ -d $dir1 ] || [ -d $dir2 ]; then
+          rm -rf $dir1 $dir2
+          daemon_reload=true
+        fi
         $daemon_reload && systemctl daemon-reload
-        systemctl disable --now apache2 php-fpm 2>/dev/null
+        systemctl disable --now apache2 php-fpm httpd 2>/dev/null
 
   updateSAM:
     - getJahiaVersion

@@ -14,8 +14,9 @@ actions:
   # Disable apache2 and php-fpm daemons since we don't use phpMyAdmin
     cmd [${this}]: |-
       curl --retry 6 -fLSso /etc/systemd/system/mariadb.service.d/override.conf ${globals.repoRootUrl}/assets/database/override.conf || exit 1
+      rm -rf /etc/systemd/system/httpd.service.d /usr/lib/systemd/system/httpd.service.d
       systemctl daemon-reload
-      systemctl disable --now apache2 php-fpm 2>/dev/null || exit 0
+      systemctl disable --now apache2 php-fpm httpd 2>/dev/null || exit 0
 
   installDatabase:
     # Parameters:
