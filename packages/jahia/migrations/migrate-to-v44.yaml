@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 44
-  ignoredModules: "server-availability-manager"
+  ignoredModules: "server-availability-manager,graphql-dxm-provider"
 
 onInstall:
   ### Pre-migration actions
@@ -31,6 +31,7 @@ onInstall:
 
   # Actions that update modules (needs to be done first)
   - updateSAM                                         # PAAS-2996
+  - updateGraphql                                     # PAAS-3120
 
   # Regular actions
   - installTelnet                                     # PAAS-3055
@@ -422,6 +423,24 @@ actions:
         fi
         curl --retry 6 -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/dd_agent_tomcat_$filename && \
         systemctl restart datadog-agent
+
+  updateGraphql:
+    - getJahiaVersion
+    - isVersionStrictlyLower:
+        a: ${globals.jahiaVersion}
+        b: 8.1.6.0
+        res: isBelow816
+    - if( ${globals.isBelow816} ):
+      - setGlobals:
+          requiredGraphqlVersion: 2.19.0
+      - checkModule:
+          moduleSymname: graphql-dxm-provider
+      - if ("${globals.runningVersion}" != "${globals.requiredGraphqlVersion}"):
+          - disableHaproxyHealthcheck
+          - installOrUpgradeModules:
+              modules: graphql-dxm-provider/${globals.requiredGraphqlVersion}
+          - checkJahiaHealth: "cp, proc"
+          - enableHaproxyHealthcheck
 
 
 settings:
