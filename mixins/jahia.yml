@@ -2326,10 +2326,10 @@ actions:
     - if ("${this.ignoredModules:}" != ""):
         - cmd[cp, proc]: |-
             # Clean the dumps
-            clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '2 p')
-            clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster* | sed -n '1 p')
-            localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '2 p')
-            localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local* | sed -n '1 p')
+            clusterdump_before=$(ls -t /opt/tomcat/temp/modulesdump-cluster.${this.operation}* | sed -n '2 p')
+            clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster.${this.operation}* | sed -n '1 p')
+            localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '2 p')
+            localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '1 p')
             dumps=($clusterdump_before $clusterdump_after $localdump_before $localdump_after)
             for dump in ${dumps[@]}; do
               sed -i -E "/\s+($(echo "${this.ignoredModules}" | tr ',' '|'))$/d" "$dump"
