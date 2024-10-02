@@ -29,6 +29,9 @@ onInstall:
   - setGlobalRepoRootUrl
   ### End pre-migration actions
 
+  ### Executed first to avoid breaking the env if the migration crash in the middle
+  - mariaDbWithSystemD                                # PAAS-3048
+
   # Actions that update modules (needs to be done first)
   - updateSAM                                         # PAAS-2996
   - updateGraphql                                     # PAAS-3120
@@ -42,7 +45,6 @@ onInstall:
   - fixSomeJavaSymlinks                               # PAAS-3081
   - addClassesDumps                                   # PAAS-3033
   - logThreadName                                     # PAAS-3054
-  - mariaDbWithSystemD                                # PAAS-3048
   - cleanLockFilesAtJahiaStartup                      # PAAS-1898
   - fixMultilineProcessing                            # PAAS-3111
 
