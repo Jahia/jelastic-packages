@@ -9,7 +9,7 @@ actions:
     - if(!globals.repoRootUrl):
         - script: |-
             var baseUrl = "${baseUrl}"
-            var regex = /https:\/\/(raw\.)?github\w*\.com\/Jahia\/[^\/]+\/(raw\/)?(refs\/heads\/)?[^\/]+/
+            var regex = /https:\/\/(raw\.)?github\w*\.com\/Jahia\/[^\/]+\/(raw\/)?[^\/]+/
             var repoRootUrl = baseUrl.match(regex)
             return {"result": 0, "root_url": repoRootUrl[0]}
         - setGlobals:
