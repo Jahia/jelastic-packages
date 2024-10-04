@@ -258,7 +258,6 @@ onBeforeStop:
   - stopJahia: cp, proc
   - cleanJRJJournalTable:
       batchSize: 10000
-  - stopGaleraCluster
   - updateEnvStatusInPapi:
       status: stopped
   - logEvent:

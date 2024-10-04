@@ -292,30 +292,8 @@ actions:
         - else:
             - log: "no DUMP_PATH typo here"
 
-
-  mariaDbWithSystemD:
-    - cmd [sqldb]: |-
-        line='Cmnd_Alias JAHIA_MYSQL_SERVICE = /sbin/service mysqld *, /sbin/service mysql *, /usr/bin/systemctl * mysqld, /usr/bin/systemctl * mysql, /usr/bin/systemctl * mysqld.service, /usr/bin/systemctl * mysql.service, /sbin/service mariadb *, /usr/bin/systemctl * mariadb, /usr/bin/systemctl * mariadb.service'
-        sudo_file=/etc/sudoers.d/jahia-rules
-
-        if [[ ! -x /usr/bin/mariabackup ]]; then
-          yum install -y MariaDB-backup
-        fi
-        if [[ ! -x /usr/bin/qpress ]]; then
-          yum install -y qpress
-        fi
-        if [[ ! -x /usr/bin/socat ]]; then
-          yum install -y socat
-        fi
-
-        rm -f /etc/init.d/mysql
-
-        if ! grep -qE "Cmnd_Alias JAHIA_MYSQL_SERVICE.*systemctl" $sudo_file; then
-          sed -i $sudo_file \
-              -e "/Cmnd_Alias JAHIA_MYSQL/d" \
-              -e "/Cmnd_Alias JAHIA_TOMCAT_SERVICE/a $line"
-        fi
-    - cmd [sqldb]: |-
+  updateMariaDBConfToSystemD:
+    - cmd [${this}]: |-
         dir=/etc/systemd/system/mariadb.service.d
         daemon_reload=false
         f=override.conf
@@ -328,6 +306,11 @@ actions:
           curl --retry 6 -fLSso $dir/$f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$f || exit 1
           daemon_reload=true
         fi
+        f=/etc/init.d/mysql
+        if [[ $(md5sum $f | awk '{print $1}') != "0391d67edf41ad87eee6b4bd6c445495" ]]; then
+          rm -f $f
+          curl --retry 6 -fLSso $f ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/init-mysql || exit 1
+        fi
         dir1=/etc/systemd/system/httpd.service.d
         dir2=/usr/lib/systemd/system/httpd.service.d
         if [ -d $dir1 ] || [ -d $dir2 ]; then
@@ -336,6 +319,58 @@ actions:
         fi
         $daemon_reload && systemctl daemon-reload
         systemctl disable --now apache2 php-fpm httpd 2>/dev/null
+
+  mariaDbWithSystemD:
+    - cmd [sqldb]: |-
+        line='Cmnd_Alias JAHIA_MYSQL_SERVICE = /sbin/service mysqld *, /sbin/service mysql *, /usr/bin/systemctl * mysqld, /usr/bin/systemctl * mysql, /usr/bin/systemctl * mysqld.service, /usr/bin/systemctl * mysql.service, /sbin/service mariadb *, /usr/bin/systemctl * mariadb, /usr/bin/systemctl * mariadb.service'
+        sudo_file=/etc/sudoers.d/jahia-rules
+        if [[ ! -x /usr/bin/mariabackup ]]; then
+          yum install -y MariaDB-backup
+        fi
+        if [[ ! -x /usr/bin/qpress ]]; then
+          yum install -y qpress
+        fi
+        if [[ ! -x /usr/bin/socat ]]; then
+          yum install -y socat
+        fi
+        if ! grep -qE "Cmnd_Alias JAHIA_MYSQL_SERVICE.*systemctl" $sudo_file; then
+          sed -i $sudo_file \
+              -e "/Cmnd_Alias JAHIA_MYSQL/d" \
+              -e "/Cmnd_Alias JAHIA_TOMCAT_SERVICE/a $line"
+        fi
+    - if (nodes.sqldb.length > 1):
+      - getGaleraMaster
+      - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
+          - getGaleraNodeNameIndex: ${@i.id}
+          - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+            - log: "Restarting MariaDB on node ${@i.id}..."
+            - setDonorNode:
+                target : ${@i.id}
+            - cmd [${@i.id}]: |-
+                service mysql stop || kill -9 $(pgrep 'mysqld_safe|mariadbd' | xargs)
+            - updateMariaDBConfToSystemD: ${@i.id}
+            - startGaleraNode: ${@i.id}
+            - sleep:
+              - milliseconds: 15000
+          - else:
+            - setGlobals:
+                origMasterId: ${@i.id}
+      - script: |-
+          masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+          newMasterIndex = ((masterIndex + 1) % 3) + 1
+          return {'result':0, 'newMasterIndex': newMasterIndex}
+      - proxysqlSwitchMaster:
+          target: ${response.newMasterIndex}
+      - setDonorNode:
+          target: ${globals.origMasterId}
+      - cmd [${globals.origMasterId}]: |-
+          service mysql stop || kill -9 $(pgrep 'mysqld_safe|mariadbd' | xargs)
+      - startGaleraNode: ${globals.origMasterId}
+    - else:
+      - cmd [${nodes.sqldb.first}]: |-
+          service mysql stop || kill -9 $(pgrep 'mysqld_safe|mariadbd' | xargs)
+      - updateMariaDBConfToSystemD: ${nodes.sqldb.first}
+      - startGaleraNode: ${nodes.sqldb.first}
 
   updateSAM:
     - getJahiaVersion
