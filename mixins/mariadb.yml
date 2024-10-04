@@ -180,6 +180,9 @@ actions:
             message: "An error occurred when installing datadog agent on a mariadb node."
 
   checkMariadbHealth:
+    # Parameters:
+    #   - target
+    #   - maxDuration
     - cmd [${this.target}]: |-
         timeout ${this.maxDuration:1}s bash -c '
           until mysqladmin -s processlist 1>/dev/null || [[ $i == 0 ]]; do
@@ -403,53 +406,50 @@ actions:
             return:
               type: error
               message: "Galera cluster size is wrong. Aborting"
-    - getGaleraMaster
-    - forEach(nodes.sqldb): # Only redeploy no master nodes. It allows to change master node only once
-        - log: "Redeploying MariaDB on node ${@i.id}..."
-        - getGaleraNodeNameIndex: ${@i.id}
-        - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
-            - setDonorNode:
-                target: ${@i.id}
-            - redeployGaleraNode:
-                target: ${@i.id}
-            - sleep:
-                - milliseconds: 15000
-        - else:
-            - setGlobals:
-                origMasterId: ${@i.id}
+        - getGaleraMaster
+        - forEach(nodes.sqldb): # Only redeploy no master nodes. It allows to change master node only once
+            - log: "Redeploying MariaDB on node ${@i.id}..."
+            - getGaleraNodeNameIndex: ${@i.id}
+            - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
+                - setDonorNode:
+                    target: ${@i.id}
+                - redeployGaleraNode: ${@i.id}
+                - sleep:
+                    - milliseconds: 15000
+            - else:
+                - setGlobals:
+                    origMasterId: ${@i.id}
+        - script: |-
+            masterIndex = "${globals.galeraMasterIndex}".slice(-1);
+            newMasterIndex = ((masterIndex + 1) % 3) + 1
+            return {'result':0, 'newMasterIndex': newMasterIndex}
+        - proxysqlSwitchMaster:
+            target: ${response.newMasterIndex}
+        - setDonorNode:
+            target: ${globals.origMasterId}
+        - redeployGaleraNode: ${globals.origMasterId}
+    - else:
+        - redeployGaleraNode: ${nodes.sqldb.first.id}
 
-    - script: |-
-        masterIndex = "${globals.galeraMasterIndex}".slice(-1);
-        newMasterIndex = ((masterIndex + 1) % 3) + 1
-        return {'result':0, 'newMasterIndex': newMasterIndex}
-
-    - proxysqlSwitchMaster:
-        target: ${response.newMasterIndex}
-
-    - setDonorNode:
-        target: ${globals.origMasterId}
-    - redeployGaleraNode:
-        target: ${globals.origMasterId}
 
 
   redeployGaleraNode:
-    # Parameters:
-    #   - target: target node id
+    # Parameters: target node id
     - proxysqlSetMariadbBackendStatus:
         targetHost: ${globals.galeraNodeNameIndex}
         newStatus: OFFLINE_SOFT
-    - stopGaleraNode: ${this.target}
+    - stopGaleraNode: ${this}
     - api: environment.control.RedeployContainerById
-      nodeId: ${this.target}
+      nodeId: ${this}
       tag: ${globals.targetDockerTag}
       useExistingVolumes: true
       skipReinstall: false
       envName: ${env.envName}
     # We are going to a new if dimension, let's save some information
     - setGlobals:
-        currentNode: ${this.target}
+        currentNode: ${this}
     - checkMariadbHealth:
-        target: ${this.target}
+        target: ${this}
     - if (nodes.sqldb.length > 1):
         - checkGaleraClusterHealth: sqldb
         - checkGaleraClusterSize
