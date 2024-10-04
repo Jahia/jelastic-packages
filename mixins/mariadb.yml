@@ -298,22 +298,6 @@ actions:
           echo "$HOSTNAME is not in a cluster"
         fi
 
-  stopGaleraCluster:
-    - if (nodes.sqldb.length > 1):
-        - getGaleraMaster
-        - forEach(nodes.sqldb):
-            - getGaleraNodeNameIndex: ${@i.id}
-            - if ("${globals.galeraNodeNameIndex}" != "${globals.galeraMasterIndex}"):
-              - setDonorNode:
-                  target : ${@i.id}
-              - stopGaleraNode: ${@i.id}
-            - else:
-                set:
-                  galeraMasterId: ${@i.id}
-        - stopGaleraNode: ${this.galeraMasterId}
-    - else:
-        stopGaleraNode: ${nodes.sqldb.first.id}
-
   startGaleraNode:
     - cmd [${this}]: |-
         systemctl start mariadb 2>/dev/null
