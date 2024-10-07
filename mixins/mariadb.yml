@@ -429,6 +429,7 @@ actions:
             target: ${globals.origMasterId}
         - redeployGaleraNode: ${globals.origMasterId}
     - else:
+        - getGaleraNodeNameIndex: ${nodes.sqldb.first.id}
         - redeployGaleraNode: ${nodes.sqldb.first.id}
 
 
