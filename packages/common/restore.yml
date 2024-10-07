@@ -983,6 +983,8 @@ actions:
         if (pgrep mysqld > /dev/null); then
           pkill -e -9 mysqld
         fi
+        xtrabackup_file=/var/lib/mysql/xtrabackup_galera_info
+        [ -f $xtrabackup_file ] && cp -a $xtrabackup_file /root
         rm -rf /var/lib/mysql/*
         mv database.tar /var/lib/mysql/
         cd /var/lib/mysql/
@@ -1014,14 +1016,18 @@ actions:
 
     - if (nodes.sqldb.length > 1):
         - cmd [sqldb]: |-
-            seqno=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 2)
-            uuid=$(cat /var/lib/mysql/xtrabackup_galera_info|cut -d':' -f 1)
-            echo "# GALERA saved state" > /var/lib/mysql/grastate.dat
-            echo "version:           2.1" >> /var/lib/mysql/grastate.dat
-            echo "uuid:              $uuid" >> /var/lib/mysql/grastate.dat
-            echo "seqno:             $seqno" >> /var/lib/mysql/grastate.dat
-            echo "safe_to_bootstrap: 0" >> /var/lib/mysql/grastate.dat
-            chown mysql: /var/lib/mysql/grastate.dat
+            xtrabackup_file=/var/lib/mysql/xtrabackup_galera_info
+            grastate_file=/var/lib/mysql/grastate.dat
+            [ -f $xtrabackup_file ] || cp -a /root/xtrabackup_galera_info $xtrabackup_file
+            rm -f /root/xtrabackup_galera_info
+            seqno=$(cat $xtrabackup_file | cut -d':' -f 2)
+            uuid=$(cat $xtrabackup_file|cut -d':' -f 1)
+            echo "# GALERA saved state" > $grastate_file
+            echo "version:           2.1" >> $grastate_file
+            echo "uuid:              $uuid" >> $grastate_file
+            echo "seqno:             $seqno" >> $grastate_file
+            echo "safe_to_bootstrap: 0" >> $grastate_file
+            chown mysql: $grastate_file
         - cmd[${nodes.sqldb.master.id}]: |-
             sed -i "s/safe_to_bootstrap.*/safe_to_bootstrap: 1/" /var/lib/mysql/grastate.dat
         # We start the bootstrap node first to make sure the mariadb-upgrade command is run first
