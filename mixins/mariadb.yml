@@ -80,6 +80,7 @@ actions:
     - disablePhpMyAdmin: ${this}
     - cmd [${this}]: |-
         curl --retry 6 -fLSso /etc/logrotate.d/mysql ${globals.repoRootUrl}/assets/database/logrotate_mysql || exit 1
+        chmod 644 /etc/logrotate.d/mysql
         chown -R mysql:mysql /var/lib/jelastic/customizations
         logrotate -f /etc/logrotate.d/mysql
         systemctl enable --now mariadb
@@ -307,29 +308,32 @@ actions:
 
   startGaleraNode:
     - cmd [${this}]: |-
-        systemctl start mariadb 2>/dev/null
-        if [ ! -f /var/lib/mysql/grastate.dat ]; then
-          echo "$HOSTNAME is not in a cluster, nothing to do"
-          exit 0
+        if [ -f /var/lib/mysql/grastate.dat ]; then
+          # for Galera clusters, the startup of MariaDB can take a long time if the node is not safe to bootstrap and there is a lot
+          # of data to be transferred with SSTs, so the `systemctl start` command might fail with error messages but MariaDB is actually
+          # still starting. Hence the redirect of stderr to `/dev/null` to avoid printing false errors.
+          systemctl start mariadb 2>/dev/null
+          i=1
+          it=66
+          until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" 2>/dev/null | awk '{print $NF}')" == "Synced"  ]; do
+            if [ $i -ge $it ]; then
+              echo "Too long to start, something is wrong here... EXITING"
+              exit 1
+            fi
+            # As long as there is a mariabackup command running, we don't increment the timeout count
+            if pgrep wsrep_sst_maria; then
+              echo "$(date) SSTs sync still in progress..."
+              sleep 5
+            else
+              echo "$(date) not ready yet (iteration $i/$it)"
+              ((i++))
+              sleep 1
+            fi
+          done
+          echo "Node $HOSTNAME is now Synced !"
+        else
+          systemctl start mariadb || exit 1
         fi
-        i=1
-        it=66
-        until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" 2>/dev/null | awk '{print $NF}')" == "Synced"  ]; do
-          if [ $i -ge $it ]; then
-            echo "Too long to start, something is wrong here... EXITING"
-            exit 1
-          fi
-          # As long as there is a mariabackup command running, we don't increment the timeout count
-          if pgrep wsrep_sst_maria; then
-            echo "$(date) SSTs sync still in progress..."
-            sleep 5
-          else
-            echo "$(date) not ready yet (iteration $i/$it)"
-            ((i++))
-            sleep 1
-          fi
-        done
-        echo "Node $HOSTNAME is now Synced !"
         # In case a backup from a previous minor MariaDB has just been restored, we run mariadb-upgrade
         mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || exit 0
 
