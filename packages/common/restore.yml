@@ -1038,7 +1038,11 @@ actions:
         # We start the bootstrap node first to make sure the mariadb-upgrade command is run first
         # before running the other nodes (and to avoid getting unnecessary errors when mariadb daemon starts)
         - startGaleraNode: ${nodes.sqldb.master.id}
-    - startGaleraNode: sqldb
+        - forEach(nodes.sqldb):
+            - if(${@i.id} != ${nodes.sqldb.master.id}):
+                - startGaleraNode: ${@i.id}
+    - else:
+        - startGaleraNode: sqldb
 
 
     - api: env.control.GetContainerEnvVarsByGroup
