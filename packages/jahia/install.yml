@@ -81,7 +81,7 @@ onBeforeInstall: |
 
   // Browsing nodes
 
-  var jahiaDockerTag = "${settings.productVersion}";
+  var jahiaDockerTag = "${settings.productVersion}_testlfu";
   if ("${settings.dockerTagSuffix}" != "") {
     jahiaDockerTag += "_${settings.dockerTagSuffix}"
   }
