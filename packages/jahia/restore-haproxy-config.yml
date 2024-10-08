@@ -12,7 +12,8 @@ mixins:
 
 onInstall:
   # Make sure all nodes are OK before restoring the config
-  - checkJahiaHealth: "cp, proc"
+  - checkJahiaHealth:
+      target: "cp, proc"
   # Reset the config (backends list + healthcheck)
   - resetHaproxyBackends
   - enableHaproxyHealthcheck

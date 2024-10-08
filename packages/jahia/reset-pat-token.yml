@@ -39,7 +39,8 @@ onInstall:
         })
       """ > ${groovy_file_path}
   - checkPatGroovyScriptExecution
-  - checkJahiaHealth: "cp, proc"
+  - checkJahiaHealth:
+      target: "cp, proc"
   - setPatInHaproxy:
       __secret__pat_token: ${globals.__secret__pat_token}
   - cmd [bl]: systemctl restart haproxy

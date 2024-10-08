@@ -86,7 +86,8 @@ actions:
       jps: "${baseUrl}../update-events.yml"
 
   preChecks:
-    - checkJahiaHealth: "cp, proc"
+    - checkJahiaHealth:
+        target: "cp, proc"
     - checkJahiaDatadogCustomChecks: "cp, proc"
     - checkHaproxyHealth: bl
     - checkHaproxyDatadogCustomChecks: bl
@@ -100,7 +101,8 @@ actions:
         checkVersion: true
 
   postChecks:
-    - checkJahiaHealth: "cp, proc"
+    - checkJahiaHealth:
+        target: "cp, proc"
     - checkJahiaDatadogCustomChecks: "cp, proc"
     - checkHaproxyHealth: bl
     - checkHaproxyDatadogCustomChecks: bl
@@ -414,7 +416,10 @@ actions:
                   - editConfiguration:  "org.jahia.modules.sam.healthcheck.ProbesRegistry"
                     properties:
                       probes.RenderingChain.severity: "HIGH"
-        - checkJahiaHealth: "cp, proc"
+        - checkJahiaHealth:
+            target: "cp, proc"
+            singleCheck: false
+            timeout: 180
         - enableHaproxyHealthcheck
 
   ######
@@ -478,7 +483,10 @@ actions:
           - disableHaproxyHealthcheck
           - installOrUpgradeModules:
               modules: graphql-dxm-provider/${globals.requiredGraphqlVersion}
-          - checkJahiaHealth: "cp, proc"
+          - checkJahiaHealth:
+              target: "cp, proc"
+              singleCheck: false
+              timeout: 180
           - enableHaproxyHealthcheck
 
 

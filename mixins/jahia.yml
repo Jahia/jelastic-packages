@@ -402,23 +402,40 @@ actions:
         exit 5
 
   checkJahiaHealth:
+    # Parameters:
+    #  - target: the node(s) to check
+    #  - singleCheck: set true if the action must request the healthcheck only once, false to perform checks until success/timeout. Default value: true
+    #  - timeout: if singleCheck is false, set the time before aborting (in seconds). Default value: 60
     - getPatTokenAndKey
-    - cmd [${this}]: |-
+    - cmd [${this.target}]: |-
+        interval=5
+        if ${this.singleCheck:true}; then
+          timeout=1
+        else
+          timeout=$((${this.timeout:60} / $interval))
+        fi
+
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
           echo "[ERROR] Tomcat process not found, please check" >&2
           exit 1
         fi
-
-        hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
-
-        if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
-          status=$(echo $curl_resp | jq -r ".status.health")
-          if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
-            exit 0
+        while [ $timeout -ge 0 ]; do
+          hc_url="http://127.0.0.1:8080/modules/healthcheck?severity=critical"
+          if curl_resp=$(curl -f -s -m 1 "$hc_url" -H "authorization: APIToken $__secret__jahia_cfg_healthcheck_token"); then
+            status=$(echo $curl_resp | jq -r ".status.health")
+            if [ "$status" = "GREEN" ] || [ "$status" = "YELLOW" ]; then
+              break
+            fi
           fi
+
+          sleep $interval
+          ((timeout-=1))
+        done
+
+        if [ $timeout -le 0 ]; then
+          echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
         fi
-        echo "[ERROR] Healthcheck result different from GREEN or YELLOW, exiting" 1>&2 && exit 1
 
   checkJahiaDatadogCustomChecks:
     - if (nodes.sqldb.length == 3):
