@@ -307,12 +307,17 @@ actions:
         fi
 
   startGaleraNode:
+    - getEnvVersion
     - cmd [${this}]: |-
         if [ -f /var/lib/mysql/grastate.dat ]; then
           # for Galera clusters, the startup of MariaDB can take a long time if the node is not safe to bootstrap and there is a lot
           # of data to be transferred with SSTs, so the `systemctl start` command might fail with error messages but MariaDB is actually
           # still starting. Hence the redirect of stderr to `/dev/null` to avoid printing false errors.
-          systemctl start mariadb 2>/dev/null
+          if [[ ${globals.envVersion} < 44 ]]; then  # check if release is < v3.36.0
+            service mysql start 2> /dev/null
+          else
+            systemctl start mariadb 2>/dev/null
+          fi
           i=1
           it=66
           until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" 2>/dev/null | awk '{print $NF}')" == "Synced"  ]; do
@@ -332,7 +337,11 @@ actions:
           done
           echo "Node $HOSTNAME is now Synced !"
         else
-          systemctl start mariadb || exit 1
+          if [[ ${globals.envVersion} < 44 ]]; then  # check if release is < v3.36.0
+            service mysql start || exit 1
+          else
+            systemctl start mariadb || exit 1
+          fi
         fi
         # In case a backup from a previous minor MariaDB has just been restored, we run mariadb-upgrade
         mariadb-upgrade --check-if-upgrade-is-needed && mariadb-upgrade || exit 0
