@@ -970,6 +970,7 @@ actions:
     - cmd [bl]: service haproxy restart
 
   restoreMariadb:
+    - getEnvVersion
     - cmd[sqldb]: |-
         __secret__ACCESS_KEY_ID="${globals.__secret__backupAccessKeyId}"
         __secret__SECRET_ACCESS_KEY="${globals.__secret__backupSecretAccessKey}"
@@ -979,7 +980,11 @@ actions:
         cd jelastic_backup
         rclone copy backup:${globals.bucketName}/${globals.backupName}/database.tar . || exit 1
         ls database.tar || exit 0
-        systemctl stop mariadb
+        if [[ ${globals.envVersion} < 44 ]]; then  # check if release is < v3.36.0
+          service mysql stop
+        else
+          systemctl stop mariadb
+        fi
         if (pgrep mysqld > /dev/null); then
           pkill -e -9 mysqld
         fi
