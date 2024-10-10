@@ -47,6 +47,7 @@ onInstall:
   - logThreadName                                     # PAAS-3054
   - cleanLockFilesAtJahiaStartup                      # PAAS-1898
   - fixMultilineProcessing                            # PAAS-3111
+  - ensureTomcatUsesGraalVM                           # PAAS-3135
 
   # Actions that require a restart
   - setXmxRamRatio                                    # PAAS-2584
@@ -421,6 +422,24 @@ actions:
             singleCheck: false
             timeout: 180
         - enableHaproxyHealthcheck
+
+  ensureTomcatUsesGraalVM:
+    - cmd[cp, proc]: |-
+        setenv=/opt/tomcat/bin/setenv.sh
+        tomcatenv=/opt/tomcat/conf/tomcat-env.sh
+        if ! stat $setenv | grep -q "symbolic link"; then
+          rm -f $setenv
+          ln -s $tomcatenv $setenv
+        fi
+        if [[ ${JAVA_VERSION%%.*} == 17 ]]; then
+          if grep -qE '^\s*JAVA_HOME\s*=.*/usr/java/latest' $tomcatenv; then
+            sed 's;^\s*JAVA_HOME\s*=.*$;JAVA_HOME="$(dirname $(dirname $(readlink -f /etc/alternatives/java)))";' -i $tomcatenv
+            echo restart
+          fi
+        fi
+    - if("${response.out}" == "restart"):
+        - setGlobals:
+            jahiaRollingRestartNeeded: true
 
   ######
   # Override for v44 migration only
