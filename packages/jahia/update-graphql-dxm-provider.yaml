@@ -22,6 +22,8 @@ onInstall:
           modules: graphql-dxm-provider/${settings.targetVersion}
       - checkJahiaHealth:
           target: "cp, proc"
+          singleCheck: false
+          timeout: 180
       - enableHaproxyHealthcheck
       - checkModule:
           moduleSymname: graphql-dxm-provider
