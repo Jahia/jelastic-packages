@@ -1,0 +1,23 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3135 - fix GraalVM and the setenv.sh symlink
+id: paas-3135-fix-graalvm-and-setenv-symlink
+
+onInstall:
+  - cmd[cp, proc]: |-
+      setenv=/opt/tomcat/bin/setenv.sh
+      tomcatenv=/opt/tomcat/conf/tomcat-env.sh
+      if ! stat $setenv | grep -q "symbolic link"; then
+        rm -f $setenv
+        ln -s $tomcatenv $setenv
+      fi
+      if [[ ${JAVA_VERSION%%.*} == 17 ]]; then
+        if grep -qE '^\s*JAVA_HOME\s*=.*/usr/java/latest' $envfile; then
+          sed 's;^\s*JAVA_HOME\s*=.*$;JAVA_HOME="$(dirname $(dirname $(readlink -f /etc/alternatives/java)))";' -i $tomcatenv
+          echo restart
+        fi
+      fi
+  - if("${response.out}" == "restart"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
