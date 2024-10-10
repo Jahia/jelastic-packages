@@ -217,12 +217,21 @@ actions:
 
         for index in $indices; do
           # Merge index settings and mappings in order to create the index creation payload
-          jq -s '.[0] * .[1] * .[2] * .[3]' \
+          f=/tmp/${index}_lifecycle.json
+          if [ -s $f ]; then
+            jq -s '.[0] * .[1] * .[2] * .[3]' \
+              /tmp/settings.json \
+              /tmp/${index}_lifecycle.json \
+              /tmp/${index}_alias.json \
+              /tmp/${index}_mappings.json \
+              > /tmp/${index}_creation_payload.json
+          else
+            jq -s '.[0] * .[1] * .[2]' \
             /tmp/settings.json \
-            /tmp/${index}_lifecycle.json \
             /tmp/${index}_alias.json \
             /tmp/${index}_mappings.json \
             > /tmp/${index}_creation_payload.json
+          fi
 
           # create new indices without replicas (for faster reindex)
           # with "folding" analyser and mapping
