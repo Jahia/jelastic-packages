@@ -307,13 +307,12 @@ actions:
         fi
 
   startGaleraNode:
-    - getEnvVersion
     - cmd [${this}]: |-
         if [ -f /var/lib/mysql/grastate.dat ]; then
           # for Galera clusters, the startup of MariaDB can take a long time if the node is not safe to bootstrap and there is a lot
           # of data to be transferred with SSTs, so the `systemctl start` command might fail with error messages but MariaDB is actually
           # still starting. Hence the redirect of stderr to `/dev/null` to avoid printing false errors.
-          if [[ ${globals.envVersion} < 44 ]]; then  # check if release is < v3.36.0
+          if ! (echo 0391d67edf41ad87eee6b4bd6c445495 /etc/init.d/mysql | md5sum -c --status); then  # check if release is < v3.36.0
             service mysql start 2> /dev/null
           else
             systemctl start mariadb 2>/dev/null
@@ -337,7 +336,7 @@ actions:
           done
           echo "Node $HOSTNAME is now Synced !"
         else
-          if [[ ${globals.envVersion} < 44 ]]; then  # check if release is < v3.36.0
+          if ! (echo 0391d67edf41ad87eee6b4bd6c445495 /etc/init.d/mysql | md5sum -c --status); then  # check if release is < v3.36.0
             service mysql start || exit 1
           else
             systemctl start mariadb || exit 1
