@@ -4,6 +4,9 @@ version: 1.5.2
 name: PAAS-3135 - fix GraalVM and the setenv.sh symlink
 id: paas-3135-fix-graalvm-and-setenv-symlink
 
+mixins:
+  - "../../mixins/common.yml"
+
 onInstall:
   - cmd[cp, proc]: |-
       setenv=/opt/tomcat/bin/setenv.sh
@@ -22,5 +25,6 @@ onInstall:
         fi
       fi
   - if("${response.out}" == "restart"):
+      - setGlobalRepoRootUrl
       - install:
           jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
