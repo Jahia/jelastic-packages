@@ -1,0 +1,194 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Repair Mapping-less Indices
+id: jcustomer-repair-mappings
+description:
+  short: jCustomer - Repair Mapping-less Indices
+
+globals:
+  log_file: /var/log/jelastic-packages/mapping_repair.log
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/jcustomer.yml"
+
+onInstall:
+  - manageFRO:
+      enable: true
+  - muteDatadogHost:
+      target: "cp"
+  - fixReindex
+  - controlDaemon:
+      target: cp
+      command: restart
+      daemon: karaf
+  - checkJcustomerHealthWhenStarting: cp
+  - manageFRO:
+      enable: false
+  - unmuteDatadogHost:
+      target: "cp"
+
+
+actions:
+  controlDaemon:
+    # parameter:
+    #   - target: cp/es
+    #   - command: stop/start
+    #   - daemon: unit name
+    - cmd[${this.target}]: |-
+        systemctl ${this.command} ${this.daemon}
+
+  manageFRO:
+    # parameters:
+    #   - enable: boolean
+    - script: |-
+        envsLinked = jelastic.env.control.GetNodeGroups("${env.envName}", session).object.filter(function (object) {
+                                          return object.name == "cp";}).pop().envLink
+        if (! envsLinked) {
+          return {"result": 0, "envs": []}
+        }
+        return {"result": 0, "envs": envsLinked.split(",")}
+    - forEach(response.envs):
+        - getEnvStatus:
+            envName: ${@i}
+        - if(${response.out} == 1):  # only if linked jahia is started
+            - script: |-
+                return api.marketplace.jps.Install(
+                  {
+                    jps: "${baseUrl}/../jahia/jahia-full-read-only.yml",
+                    envName: "${@i}",
+                    settings: {
+                      "enableFRO": Boolean(${this.enable})
+                    }
+                  }
+                );
+  fixReindex:
+    - cmd[${nodes.cp.first.id}]: |-
+        ec_auth="${UNOMI_ELASTICSEARCH_USERNAME}:${UNOMI_ELASTICSEARCH_PASSWORD}"
+        indices=$(curl -su $ec_auth "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_cat/indices?h=index" | grep -v "geonameentry")
+        output_file="${globals.log_file}"
+        log(){
+          echo "$(date --iso-8601=seconds) [$1] $2" >> $output_file
+        }
+        # Get mappings from source
+        mapping_files=(actionType campaign event goal patch personaSession propertyType rulestats segment campaignevent conditionType exportConfig importConfig persona profile rule scoring session)
+        unomi_git="https://raw.githubusercontent.com/apache/unomi/refs/tags/unomi-root-1.9.1"
+        mapping_url=$unomi_git/persistence-elasticsearch/core/src/main/resources/META-INF/cxs/mappings
+        mappings_dir=/tmp/mappings
+        mkdir $mappings_dir
+        for file in ${mapping_files[@]}; do
+          curl -fLSso $mappings_dir/$(echo "$file" | tr '[:upper:]' '[:lower:]').json $mapping_url/$file.json
+        done
+        # Get additionnal mappings
+        curl -fLSso $mappings_dir/userlist.json $unomi_git/extensions/lists-extension/services/src/main/resources/META-INF/cxs/mappings/userList.json
+        curl -fLSso $mappings_dir/groovyaction.json $unomi_git/extensions/groovy-actions/services/src/main/resources/META-INF/cxs/mappings/groovyAction.json
+        # Wrap the structure under mappings
+        cd $mappings_dir
+        for file in $(ls); do
+          jq '{mappings: .}' $file > $file.tmp && mv -f $file.tmp $file
+        done
+
+        for index in $indices; do
+            # remove replicas on indices in order to save memory,
+            # put them in read only (to allow clone),
+            # clone them,
+            # and delete them
+            log "${index}" "decrease replica to 0..."
+            curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+                -XPUT -d '{"index":{"number_of_replicas": 0}}'
+            log "${index}" "enable read-only..."
+            curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+                -XPUT -d '{"settings" :{"index.blocks.write": true}}'
+            log "${index}" "clone to ${index}_clone..."
+            curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_clone/${index}_clone \
+                -XPOST
+            log "${index}" "delete..."
+            curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+                -XDELETE
+        done
+        # indices settings are the same, so we will use this file as settings when create indices
+        cat > /tmp/settings.json <<- EOF
+        {
+          "settings": {
+            "index": {
+              "number_of_shards": 1,
+              "number_of_replicas": 0
+            },
+            "analysis": {
+              "analyzer": {
+                "folding": {
+                  "filter": [
+                    "lowercase",
+                    "asciifolding"
+                  ],
+                  "type": "custom",
+                  "tokenizer": "keyword"
+                }
+              }
+            }
+          }
+        }
+        EOF
+
+        for index in $indices; do
+          # Adjust for rolled-over indices
+          if [[ $index =~ "event-date" ]]; then
+            f=$mappings_dir/event.json
+          elif [[ $index =~ "session-date" ]]; then
+            f=$mappings_dir/session.json
+          else
+            f=$mappings_dir/${index/$UNOMI_ELASTICSEARCH_INDEXPREFIX-/}.json
+          fi
+          # Merge with the settings and create the payload
+          jq -s '.[0] * .[1]' \
+          /tmp/settings.json \
+          $f \
+          > $mappings_dir/${index}_creation_payload.json
+
+          # create new indices without replicas (for faster reindex)
+          # with "folding" analyser and mapping
+          log "${index}" "create new index with correct settings and mappings..."
+          curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index} \
+                -XPUT -d @$mappings_dir/${index}_creation_payload.json
+
+          # reindex the _clone index to the final one
+          log "${index}" "reindex ${index}_clone to new ${index}..."
+          task=$(curl -su $ec_auth \
+                      -H "content-type: application/json" \
+                      "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_reindex?wait_for_completion=false" \
+                      -XPOST -d '{"source":{"index": "'${index}_clone'"}, "dest":{"index": "'${index}'"}}' \
+                  | jq -r .task)
+          log "${index}" "reindex task for ${index}_clone to new ${index} is $task"
+          get_reindex_state='curl -su $ec_auth -H "content-type: application/json" "https://$UNOMI_ELASTICSEARCH_ADDRESSES/_tasks/$task"'
+          n=0
+          until [[ $(eval $get_reindex_state | jq -r .completed) == true ]]; do
+            ((n+=1))
+            if [[ $n == 100 ]]; then
+              log "${index}" "waiting for task $task to complete..."
+              n=0
+            fi
+            sleep 1
+          done
+          log "${index}" "reindex ${index}_clone to new ${index} is now over"
+          log "${index}" "delete ${index}_clone..."
+          curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}_clone \
+                -XDELETE
+          log "${index}" "increase replica to 1..."
+          curl -su $ec_auth \
+                -H "content-type: application/json" \
+                https://$UNOMI_ELASTICSEARCH_ADDRESSES/${index}/_settings \
+                -XPUT -d '{"index":{"number_of_replicas": 1}}'
+        done
