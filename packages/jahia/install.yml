@@ -12,7 +12,7 @@ description:
     needs for sustainable growth.
 
 globals:
-  jahia_env_version: 44
+  jahia_env_version: 45
   db_user: jahia-db-${fn.random}
   __secret__db_pass: ${fn.password(20)}
   __secret__db_user_datadog: ${fn.password(20)}
@@ -61,7 +61,7 @@ onBeforeInstall: |
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
-    "tag": "2.8.9-almalinux-9",
+    "tag": "2.8.11-almalinux-9",
     "count": ${settings.haproxyNodeCount},
     "cloudlets": 8,
     "env": {
