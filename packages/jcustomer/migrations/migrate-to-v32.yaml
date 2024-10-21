@@ -1,0 +1,96 @@
+---
+type: update
+version: 1.5.2
+name: Migrate jCustomer env to v32
+id: migrate-jcustomer-env-v32
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jcustomer.yml"
+  - "../../../mixins/elasticsearch.yml"
+  - "../../../mixins/haproxy.yml"
+
+globals:
+  version: 32
+  jCustomerRollingRestartNeeded: false
+  jCustomerRollingRedeployNeeded: false
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvProvides: unomi
+  - if(!${settings.force}):
+      - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # Regular actions
+
+  # Actions that require a restart
+  # (None)
+
+  # Actions that require a redeploy
+  - upgradeHaproxy                # PAAS-3119
+
+  - if ("${globals.jCustomerRollingRestartNeeded}" == "true"):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.cp.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}/../update-events.yml"
+
+  preChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+    - checkHaproxyHealth: bl
+
+  postChecks:
+    - checkJcustomerHealth: cp
+    - checkJcustomerDatadogCustomChecks: cp
+    - checkHaproxyHealth: bl
+
+  upgradeHaproxy:
+    - setGlobals:
+        haproxyVersion: "2.8.11-almalinux-9"
+    - foreach (nodes.bl):
+      - if ("${@i.version}" != "${globals.haproxyVersion}"):
+        - api: environment.control.RedeployContainerById
+          nodeId: ${@i.id}
+          tag: ${globals.haproxyVersion}
+          useExistingVolumes: true
+          skipReinstall: false
+          envName: ${env.envName}
+    - environment.nodegroup.ApplyData [bl]:
+      data:
+        productName: haproxy
+        productVersion: ${globals.haproxyVersion}
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: Disable checks
+      tooltip: Disable post and pre checks
+    - type: toggle
+      name: force
+      caption: Force migration
+      tooltip: Apply the migration even if env_version is up-to-date
