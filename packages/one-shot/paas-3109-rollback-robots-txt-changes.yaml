@@ -1,0 +1,29 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3109 - Rollback robots.txt changes
+id: paas-3109-rollback-robots-txt-changes
+description:
+  short: Restore jahia cloud haproxy configuration with robots.txt rules
+
+mixins:
+  - "../../mixins/common.yml"
+
+onInstall:
+  ### !!!!!!! This will upload the robot.txt of the current branch/tag !!!!!!!
+  - setGlobalRepoRootUrl
+  - cmd[bl]: |-
+      if ! grep -q robot /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg; then
+        curl -fLSso /etc/haproxy/robots_noindex.txt ${globals.repoRootUrl}/assets/haproxy/robots_noindex.txt || exit 1
+        echo """    acl is_robots_txt path_end /robots.txt
+          acl is_host_technical_domain hdr_reg(Host) ^.*\.(j|cloud)\.jahia.com$
+          acl is_x-forwarded-host_set hdr(X-Forwarded-Host) -m found
+          acl is_x-forwarded-host_technical_domain hdr_reg(X-Forwarded-Host) ^.*\.(j|cloud)\.jahia.com$ if is_x-forwarded-host_set
+          http-request return status 200 content-type \"text/plain\" file \"/etc/haproxy/robots_noindex.txt\" hdr \"cache-control\" \"no-cache\" if is_robots_txt  is_host_technical_domain !is_x-forwarded-host_set || is_robots_txt is_host_technical_domain is_x-forwarded-host_technical_domain
+      """ > /tmp/robot_rules
+
+        sed -ie '/errorfiles error-pages/e cat /tmp/robot_rules' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        rm /tmp/robot_rules
+        systemctl reload haproxy
+      fi
+
