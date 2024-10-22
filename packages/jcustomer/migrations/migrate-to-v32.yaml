@@ -30,6 +30,7 @@ onInstall:
   ### End pre-migration actions
 
   # Regular actions
+  - removeJelasticHelloWorld      # PAAS-3117
 
   # Actions that require a restart
   # (None)
@@ -83,6 +84,11 @@ actions:
       data:
         productName: haproxy
         productVersion: ${globals.haproxyVersion}
+
+  removeJelasticHelloWorld:
+    - cmd[cp]: |-
+        file="/home/jelastic/APP/jelastic-helloworld-1.3.jar"
+        [ -f $file ] && rm -f $file
 
 settings:
   fields:
