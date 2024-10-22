@@ -1452,3 +1452,46 @@ actions:
           msg = "${env.envName} doesn't provides a ${this} but a " + resp.object._PROVIDE
           }
         return {"result": result, "msg": msg}
+
+  checkExternalDomains:
+    # Parameters:
+    #  outputFilePath: the file path to store results
+    - api: environment.binder.GetExtDomains
+    - cmd[proc]: |-
+        out=${this.outputFilePath}
+        if [ ! -d $(dirname $out) ]; then
+          mkdir -p $(dirname $out)
+        fi
+        echo -n "" > $out
+        response='${response.extDomains}'
+        domains=$(echo $response | jq | grep domain | sed 's/.*: "\(.*\)",/\1/')
+        if [ "$domains" != "" ]; then
+          while IFS= read -r domain; do
+            # First, we try to request the domain
+            response_code=$(curl -fLsSo /dev/null -w "%{http_code}" https://$domain)
+            res=$?
+            if [ $res -ne 0 ] || [ "$response_code" != "200" ]; then
+              # If previous attempt failed, we try by requesting jahia directly with domain in Host header
+              response_code=$(curl -fLsSo /dev/null -w "%{http_code}" 127.0.0.1 -H "Host: $domain")
+              res=$?
+            fi
+            if [ $res -ne 0 ] || [ "$response_code" != "200" ]; then
+              echo "$domain NOK ($response_code)" >> $out
+            else
+              echo "$domain OK" >> $out
+            fi
+          done<<<$(echo "$domains")
+        fi
+
+  checkExternalDomainsAfterMigration:
+    # Parameters:
+    #  outputFilePath: the file path to store results
+    - checkExternalDomains:
+        outputFilePath: ${this.outputFilePath}
+    - cmd[proc]: |-
+        diff=$(diff /var/tmp/cloud/domains_check/afterMigrateToV${globals.version} /var/tmp/cloud/domains_check/beforeMigrateToV${globals.version})
+        if [ "$diff" != "" ]; then
+          domains=$(echo "$diff" | grep -e "^<" -e "^>" | awk '{print $2}' | sort | uniq | sed -z -e 's/\n/, /g' -e 's/, $//')
+          timestamp=$(date +"%Y-%m-%dT%H:%M:%S")
+          echo "$timestamp - Domains check result has changed for the following domains: $domains" >> /var/log/jelastic-packages/domainscheck.log
+        fi
