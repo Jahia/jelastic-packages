@@ -80,6 +80,8 @@ actions:
     - dumpModules:
         operation: migration
         checkVersion: true
+    - checkExternalDomains:
+        outputFilePath: "/var/tmp/cloud/domains_check/beforeMigrateToV${globals.version}"
 
   postChecks:
     - checkJahiaHealth:
@@ -95,6 +97,8 @@ actions:
         operation: migration
         ignoredModules: ${globals.ignoredModules}
         checkVersion: true
+    - checkExternalDomainsAfterMigration:
+        outputFilePath: "/var/tmp/cloud/domains_check/afterMigrateToV${globals.version}"
 
   upgradeHaproxy:
     - setGlobals:
