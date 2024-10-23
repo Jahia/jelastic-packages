@@ -419,3 +419,46 @@ actions:
     - cmd [bl]: |-
         # Necessary to take credentials variable into account
         service haproxy restart
+
+  reapplyPatches:
+    - cmd [${this}]: echo $UNOMI_VERSION
+    - isVersionStrictlyLower:
+        a: ${response.out}
+        b: 2.0.0
+        res: jcustomer1
+    - if (${globals.jcustomer1}):
+        - cmd [${this}]: |-
+            patches=$(curl -XPOST -Ss \
+                          -u $UNOMI_ELASTICSEARCH_USERNAME:$UNOMI_ELASTICSEARCH_PASSWORD \
+                          -H "content-type: application/json; charset=UTF-8" \
+                          -d '{"size": 100, "query": {"match_all": {}}}' \
+                          "https://$UNOMI_ELASTICSEARCH_ADDRESSES/$UNOMI_ELASTICSEARCH_INDEXPREFIX-patch/_search?filter_path=hits.hits._source")
+            if [[ "$patches" == "{}" ]]; then
+              echo "Nothing to do"
+              exit 0
+            fi
+            if [[ "$(echo $patches | jq '. | select(.error != null) | true')" == "true" ]]; then
+              echo "Error when trying to get the list of patches:" >&2
+              echo $patches >&2
+              exit 1
+            fi
+            errors=0
+            failed_patches=()
+            for json in $(echo $patches | jq -cr '.hits.hits[]."_source"'); do
+              curl -XPOST -fSs \
+                  -u karaf:$UNOMI_ROOT_PASSWORD \
+                  -H "Content-Type: application/json" \
+                  -d "$json"
+                  http://localhost/cxs/patches/apply?force=true
+              if [ $? -ne 0 ]; then
+                ((errors++))
+                patch_id=$(echo $json | jq -r '.itemId')
+                $failed_patches=(${failed_patches[@]} $patch_id)
+              fi
+            done
+            if [ $errors -gt 0 ]; then
+              printf -v joined '%s, ' "${failed_patches[@]}"
+              echo "There has been $errors errors when applying the patches. Here are the ones that failed:" >&2
+              echo "${joined%, }" >&2
+              exit 1
+            fi

@@ -44,6 +44,7 @@ onAfterRestartNode[cp]:
   - if ('${event.params.nodeGroup:}'):
       forEach(nodes.cp):
         - checkJcustomerHealthWhenStarting: ${@i.id}
+        - reapplyPatches: ${@i.id}
         - addBrowsingNodeToHaproxy:
             nodeId: ${@i.id}
             nodeIp: ${@i.intIP}
@@ -52,6 +53,7 @@ onAfterRestartNode[cp]:
       forEach(nodes.cp):
         if ("${event.params.nodeId}" == "${@i.id}"):
           - checkJcustomerHealthWhenStarting: ${@i.id}
+          - reapplyPatches: ${@i.id}
           - addBrowsingNodeToHaproxy:
               nodeId: ${@i.id}
               nodeIp: ${@i.intIP}
@@ -180,6 +182,7 @@ onAfterStart:
       text: "$envName is started"
   - updateS3LogsCredentials
   - checkJcustomerHealthWhenStarting: cp
+  - reapplyPatches: cp
   - resetHaproxyBackends
   - unmuteDatadogHost:
       target: "*"
