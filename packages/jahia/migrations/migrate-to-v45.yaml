@@ -32,6 +32,7 @@ onInstall:
   # Actions that update modules (needs to be done first)
 
   # Regular actions
+  - fixTomcatEnvFile                              # PAAS-3135
   - updateModules                                 # PAAS-3105
   # Actions that require a restart
 
@@ -167,6 +168,15 @@ actions:
           - if ("${globals.runningVersion}" != "2.21.0"):
               - installOrUpgradeModules:
                   modules: graphql-dxm-provider/2.21.0
+
+  fixTomcatEnvFile:
+    - cmd[cp, proc]: |-
+        setenv=/opt/tomcat/bin/setenv.sh
+        tomcatenv=/opt/tomcat/conf/tomcat-env.sh
+        if [ ! -L $setenv ]; then
+          mv -f $setenv $tomcatenv
+          ln -s $tomcatenv $setenv
+        fi
 
 settings:
   fields:
