@@ -64,6 +64,17 @@ onInstall:
           settings:
             skipRestart: true
 
+  # Checks and updates “tomcat-env.sh” for alternatives management in the case
+  # of an 8.1 to 8.2 migration
+  - cmd[proc, cp]: |-
+      if [[ ${globals.initialVersion} =~ ^8\.1\. && ${settings.targetVersion} =~ ^8\.2\. ]]; then
+        sed -r 's/^(JAVA_HOME)=.*/\1="$(dirname $(dirname $(readlink -f \/etc\/alternatives\/java)))"/' \
+            -i /opt/tomcat/conf/tomcat-env.sh
+        echo "the tomcat-env.sh file has been modified to use alternatives"
+      else
+        echo "as this is not a migration to 8.2, the tomcat-env.sh file doesn't need to be updated"
+      fi
+
   # Upgrade Jahia nodes (all Jahia nodes must be stopped first)
   - cmd [cp, proc]:
       - service tomcat stop

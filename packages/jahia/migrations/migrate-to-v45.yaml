@@ -35,6 +35,7 @@ onInstall:
   - fixTomcatEnvFile                              # PAAS-3135
   - updateModules                                 # PAAS-3105
   # Actions that require a restart
+  - fixSetenvOn82                                 # PAAS-3151
 
   # Actions that require a redeploy
   - upgradeHaproxy                                # PAAS-3119
@@ -177,6 +178,24 @@ actions:
           mv -f $setenv $tomcatenv
           ln -s $tomcatenv $setenv
         fi
+
+  fixSetenvOn82:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.2.0.0
+        res: jahia82
+    - if(${globals.jahia82}):
+        - cmd[proc,cp]: |-
+            current_line_hash=$(grep ^JAVA_HOME  /opt/tomcat/bin/setenv.sh | md5sum - | awk '{print $1}')
+            if [[ $current_line_hash != 2d27cde66c361163eb36091134422a85 ]]; then
+              sed -r 's/^(JAVA_HOME)=.*/\1="$(dirname $(dirname $(readlink -f \/etc\/alternatives\/java)))"/' \
+                  -i /opt/tomcat/bin/setenv.sh --follow-symlinks
+              echo "to_restart"
+            fi
+        - if("${response.out}" == "to_restart"):
+            - setGlobals:
+                jahiaRollingRestartNeeded: true
 
 settings:
   fields:
