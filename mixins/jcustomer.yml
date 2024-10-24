@@ -442,18 +442,20 @@ actions:
               echo $patches >&2
               exit 1
             fi
+            source /opt/jcustomer/jcustomer/bin/setenv 2>/dev/null
+            IFS=$'\n'
             errors=0
             failed_patches=()
             for json in $(echo $patches | jq -cr '.hits.hits[]."_source"'); do
               curl -XPOST -fSs \
                   -u karaf:$UNOMI_ROOT_PASSWORD \
                   -H "Content-Type: application/json" \
-                  -d "$json"
+                  -d "$json" \
                   http://localhost/cxs/patches/apply?force=true
               if [ $? -ne 0 ]; then
                 ((errors++))
                 patch_id=$(echo $json | jq -r '.itemId')
-                $failed_patches=(${failed_patches[@]} $patch_id)
+                failed_patches=(${failed_patches[@]} $patch_id)
               fi
             done
             if [ $errors -gt 0 ]; then
