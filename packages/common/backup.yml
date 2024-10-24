@@ -184,9 +184,14 @@ actions:
         DS_folder=/share/datastore
         mirror_folder=~/share_mirror
 
+        if (grep -q '^DX_VERSION=8\.1\.' /.jelenv); then
+          # Jahia 8.1
+          jcmd $(pgrep -u tomcat) GC.run
+        fi
+
         # mirroring the datastore from the share to a local directory
         # we dont care about tmp file like /share/datastore/tmp6142621287746279577.tmp (and remove them from the target if any)
-        rsync -a --delete --exclude='tmp[[:digit:]]*.tmp' --delete-excluded --log-file=${globals.logsPath} $DS_folder $mirror_folder 2>>${globals.logsPath}
+        nice -n 10 rsync -a --delete --exclude='tmp[[:digit:]]*.tmp' --delete-excluded --log-file=${globals.logsPath} $DS_folder $mirror_folder 2>>${globals.logsPath}
         # if the output code is different from 0 or 24 (vanished file(s)) then we have a problem
         if (($? && $? != 24)); then
           echo "Something went wrong with rsync" >> ${globals.logsPath}
