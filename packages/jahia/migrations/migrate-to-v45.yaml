@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 45
-  ignoredModules: "jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider"
+  ignoredModules: "distributed-sessions,jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider"
 
 onInstall:
   ### Pre-migration actions
@@ -30,6 +30,7 @@ onInstall:
   ### End pre-migration actions
 
   # Actions that update modules (needs to be done first)
+  - updateDistributedSession                      # PAAS-3148
 
   # Regular actions
   - fixTomcatEnvFile                              # PAAS-3135
@@ -199,7 +200,7 @@ actions:
             - setGlobals:
                 jahiaRollingRestartNeeded: true
 
-removeRobotsTXTFromHaproxyConfig:
+  removeRobotsTXTFromHaproxyConfig:
     cmd[bl]: |-
       if (grep -q robot /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg); then
         sed -i '/acl is_robot/,+5d' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
@@ -207,6 +208,18 @@ removeRobotsTXTFromHaproxyConfig:
         systemctl reload haproxy
       fi
 
+  updateDistributedSession:
+    - getJahiaVersion
+    - isVersionHigherOrEqual:
+        a: ${globals.jahiaVersion}
+        b: 8.1.5.0
+        res: isHigherOrEqualThan815
+    - if (${globals.isHigherOrEqualThan815}):
+        - checkModule:
+            moduleSymname: distributed-sessions
+        - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "4.1.0"):
+            - installOrUpgradeModules:
+                modules: distributed-sessions/4.1.0
 
 settings:
   fields:
