@@ -34,13 +34,15 @@ onInstall:
   # Regular actions
   - fixTomcatEnvFile                              # PAAS-3135
   - updateModules                                 # PAAS-3105
+  - removeRobotsTXTFromHaproxyConfig              # PAAS-3109
+
   # Actions that require a restart
   - fixSetenvOn82                                 # PAAS-3151
 
   # Actions that require a redeploy
   - upgradeHaproxy                                # PAAS-3119
 
-  # Redeploy and restart actions:
+  # Redeploy and restart actions
   - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
       - install:
           jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-redeploy.yml"
@@ -196,6 +198,15 @@ actions:
         - if("${response.out}" == "to_restart"):
             - setGlobals:
                 jahiaRollingRestartNeeded: true
+
+removeRobotsTXTFromHaproxyConfig:
+    cmd[bl]: |-
+      if (grep -q robot /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg); then
+        sed -i '/acl is_robot/,+5d' /etc/haproxy/haproxy.cfg.jahia/jahia-cloud.cfg
+        rm -f /etc/haproxy/robots_noindex.txt
+        systemctl reload haproxy
+      fi
+
 
 settings:
   fields:

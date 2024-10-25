@@ -1,3 +1,0 @@
-# ¯\_(ツ)_/¯
-User-agent: *
-Disallow: /
