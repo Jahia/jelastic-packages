@@ -1457,7 +1457,7 @@ actions:
     # Parameters:
     #  outputFilePath: the file path to store results
     - api: environment.binder.GetExtDomains
-    - cmd[proc]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         out=${this.outputFilePath}
         if [ ! -d $(dirname $out) ]; then
           mkdir -p $(dirname $out)
@@ -1488,7 +1488,7 @@ actions:
     #  outputFilePath: the file path to store results
     - checkExternalDomains:
         outputFilePath: ${this.outputFilePath}
-    - cmd[proc]: |-
+    - cmd[${nodes.cp.first.id}]: |-
         diff=$(diff /var/tmp/cloud/domains_check/afterMigrateToV${globals.version} /var/tmp/cloud/domains_check/beforeMigrateToV${globals.version})
         if [ "$diff" != "" ]; then
           domains=$(echo "$diff" | grep -e "^<" -e "^>" | awk '{print $2}' | sort | uniq | sed -z -e 's/\n/, /g' -e 's/, $//')
