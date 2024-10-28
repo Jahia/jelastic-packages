@@ -18,6 +18,7 @@ globals:
 onInstall:
   - setRewritesRules
   - reloadHAProxy
+  - CDNInvalidation
   - removeBackup
 
 actions:
@@ -89,6 +90,14 @@ actions:
         - return:
             type: error
             message: "${this.error-out}"
+
+  CDNInvalidation:
+    - cmd[${nodes.bl.first.id}]: |-
+        if [ ! -d /etc/haproxy/cdn ]; then
+          echo "no CDN's cache to invalidate here"
+          exit 0
+        fi
+        /etc/haproxy/cdn/trigger_invalidation.sh
 
   removeBackup:
     - cmd [bl]: |-
