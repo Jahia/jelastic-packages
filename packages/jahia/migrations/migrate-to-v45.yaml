@@ -122,7 +122,7 @@ actions:
         productVersion: ${globals.haproxyVersion}
 
   updateModules:
-    # Install modules with a single version available
+      # Install modules with a single version available
       - set:
           modules: [
             {"name": "jahia-ui-root", "version":"1.10.0"},
@@ -136,7 +136,13 @@ actions:
           - if ("${globals.runningVersion}" != "${@i.version}"):
                   - installOrUpgradeModules:
                       modules: ${@i.name}/${@i.version}
-    # Install modules with multiple versions available
+      - checkModule:
+          moduleSymname: site-settings-seo
+      - if ("${globals.installedVersionsCount}" != ""):
+          - if (${fn.compare([globals.runningVersion], 4.4.0)} < 0):
+              - installOrUpgradeModules:
+                  modules: site-settings-seo/4.4.0
+      # Install modules with multiple versions available
       - checkModule:
           moduleSymname: content-editor
       # Make sure it is installed, as it's optional in 8.2.X
