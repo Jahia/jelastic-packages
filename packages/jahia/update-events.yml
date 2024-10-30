@@ -239,6 +239,7 @@ onAfterRedeployContainer[storage]:
           target: ${event.params.nodeGroup}
           packages: "jq rclone"
       - setupDatadogAgentStorage: ${event.params.nodeGroup}
+      - cmd [${event.params.nodeGroup}]: dnf config-manager --disable epel
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
       - setJelasticUserAsRoot: ${event.params.nodeId}
@@ -246,6 +247,7 @@ onAfterRedeployContainer[storage]:
           target: ${event.params.nodeId}
           packages: "jq rclone"
       - setupDatadogAgentStorage: ${event.params.nodeId}
+      - cmd [${event.params.nodeId}]: dnf config-manager --disable epel
 
 onBeforeStop:
   - backupKarafConfsDir: cp, proc

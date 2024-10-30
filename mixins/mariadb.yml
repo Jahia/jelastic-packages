@@ -92,6 +92,7 @@ actions:
     - mysqlService:
         target: ${this}
         action: enable
+    - cmd [${this}]: dnf config-manager --disable epel
 
   createDataDogUser:
     - log: "## Create Datadog database user"
