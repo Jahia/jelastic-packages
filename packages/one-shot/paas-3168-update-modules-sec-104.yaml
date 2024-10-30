@@ -1,0 +1,79 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3168 - Update modules following SEC-104
+id: paas-3168-updates-modules-sec-104
+
+mixins:
+  - "../../mixins/jahia.yml"
+  - "../../mixins/common.yml"
+
+globals:
+  ignoredModules: "jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,site-settings-seo,content-editor,jcontent,app-shell,graphql-dxm-provider"
+
+onInstall:
+  # Check modules before/after to make sure everything is ok
+  - dumpModules:
+      operation: one-shot-paas-3168
+      checkVersion: true
+  # Install modules with a single version available
+  - set:
+      modules: [
+        {"name": "jahia-ui-root", "version":"1.10.0"},
+        {"name": "jahia-page-composer", "version":"1.12.0"},
+        {"name": "jahia-dashboard", "version":"1.10.0"},
+        {"name": "jahia-administration", "version":"1.10.0"}
+        ]
+  - forEach(this.modules):
+      - checkModule:
+          moduleSymname: ${@i.name}
+      - if ("${globals.runningVersion}" != "${@i.version}"):
+              - installOrUpgradeModules:
+                  modules: ${@i.name}/${@i.version}
+  - checkModule:
+      moduleSymname: site-settings-seo
+  - if ("${globals.installedVersionsCount}" != ""):
+      - if (${fn.compare([globals.runningVersion], 4.4.0)} < 0):
+          - installOrUpgradeModules:
+              modules: site-settings-seo/4.4.0
+  # Install modules with multiple versions available
+  - checkModule:
+      moduleSymname: content-editor
+  # Make sure it is installed, as it's optional in 8.2.X
+  - if ("${globals.installedVersionsCount}" != ""):
+      - if (${fn.compare([globals.runningVersion], 4.0.0)} < 0):
+          set: {"version":"3.7.0"}
+      - else:
+          set: {"version":"4.11.0"}
+      - if ("${globals.runningVersion}" != "${this.version}"):
+          - installOrUpgradeModules:
+              modules: content-editor/${this.version}
+  - checkModule:
+      moduleSymname: app-shell
+  - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
+      set: {"version":"2.10.0"}
+  - else:
+      set: {"version":"3.2.0"}
+  - if ("${globals.runningVersion}" != "${this.version}"):
+      - installOrUpgradeModules:
+          modules: app-shell/${this.version}
+  - checkModule:
+      moduleSymname: jcontent
+  # Only upgrade jcontent if 2.X installed
+  - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
+      set: {"version":"2.17.0"}
+  - if ("${globals.runningVersion}" != "${this.version}"):
+      - installOrUpgradeModules:
+          modules: jcontent/${this.version}
+  # Finish with graphql-dxm-provider if 2.X installed
+  - checkModule:
+      moduleSymname: graphql-dxm-provider
+  - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
+      - if ("${globals.runningVersion}" != "2.21.0"):
+          - installOrUpgradeModules:
+              modules: graphql-dxm-provider/2.21.0
+  # Check modules after the operation
+  - checkModulesAfterOperation:
+      operation: one-shot-paas-3168
+      ignoredModules: ${globals.ignoredModules}
+      checkVersion: true
