@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 45
-  ignoredModules: "distributed-sessions,jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider"
+  ignoredModules: "distributed-sessions,jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider,site-settings-seo"
 
 onInstall:
   ### Pre-migration actions
@@ -31,10 +31,10 @@ onInstall:
 
   # Actions that update modules (needs to be done first)
   - updateDistributedSession                      # PAAS-3148
+  - updateModules                                 # PAAS-3105
 
   # Regular actions
   - fixTomcatEnvFile                              # PAAS-3135
-  - updateModules                                 # PAAS-3105
   - removeRobotsTXTFromHaproxyConfig              # PAAS-3109
 
   # Actions that require a restart
@@ -176,8 +176,14 @@ actions:
           moduleSymname: graphql-dxm-provider
       - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
           - if ("${globals.runningVersion}" != "2.21.0"):
+              - disableHaproxyHealthcheck
               - installOrUpgradeModules:
                   modules: graphql-dxm-provider/2.21.0
+              - checkJahiaHealth:
+                  target: "cp, proc"
+                  singleCheck: false
+                  timeout: 180
+              - enableHaproxyHealthcheck
 
   fixTomcatEnvFile:
     - cmd[cp, proc]: |-
