@@ -343,6 +343,7 @@ onInstall:
   - installRequiredPackages:
       target: "sqldb"
       packages: "qpress socat MariaDB-backup python3-boto3"
+  - cmd [storage,sqldb]: dnf config-manager --disable epel
   - setJournaldLimit
   - installDatabase:
       user: ${globals.db_user}

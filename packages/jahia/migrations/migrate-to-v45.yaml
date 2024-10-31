@@ -36,6 +36,7 @@ onInstall:
   # Regular actions
   - fixTomcatEnvFile                              # PAAS-3135
   - removeRobotsTXTFromHaproxyConfig              # PAAS-3109
+  - disableEpelRepository                         # PAAS-3172
 
   # Actions that require a restart
   - fixSetenvOn82                                 # PAAS-3151
@@ -232,6 +233,10 @@ actions:
         - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "4.1.0"):
             - installOrUpgradeModules:
                 modules: distributed-sessions/4.1.0
+
+  disableEpelRepository:
+    cmd[sqldb,storage]:
+      dnf config-manager --disable epel
 
 settings:
   fields:
