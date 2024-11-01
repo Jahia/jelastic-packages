@@ -252,11 +252,13 @@ actions:
         md5="3517eac528da69d51562b7866d4118c4"
         script_name=thread-dump.sh
         script_path=/usr/local/bin/$script_name
+        dumps_path=$DUMPS_PATH
+        [ -z $dumps_path ] && dumps_path=/var/tmp/cloud
         if ! (echo "$md5 $script_path" | md5sum --status -c); then
           curl -fSsLo $script_path ${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets/$script_name || exit 1
           chmod +x $script_path
         fi
-        $DUMP_JAVA_CLASSES || rm -rf ${DUMPS_PATH:-/var/tmp/cloud}/classes_dumps/*
+        $DUMP_JAVA_CLASSES || rm -rf ${dumps_path}/classes_dumps/*
 
 settings:
   fields:
