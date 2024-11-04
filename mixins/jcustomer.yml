@@ -143,7 +143,6 @@ actions:
         - return:
             type: error
             message: "An error occurred during unomi setup."
-    - checkJcustomerHealthWhenStarting: ${this.nodeId}
 
   initRedeployConfig:
     - cmd[cp]: |-
@@ -204,20 +203,75 @@ actions:
         return {"result": 0, "out": "Unlinked following environments: " + linkedJahiaEnvs};
 
   checkJcustomerHealthWhenStarting:
-    cmd [${this}]: |-
+    - cmd [${this}]: |-
+        jcustomer_log_file=/var/log/jcustomer/karaf.log
+        setenv=/opt/jcustomer/jcustomer/bin/setenv
         log_file="/var/log/jelastic-packages/checkJcustomerHealthWhenStarting"
-        setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
         karaf_pwd=$(awk -F'"' '$1~/UNOMI_ROOT_PASSWORD_B64=$/ {print $2}' $setenv | base64 -d)
         timeout=600
-        echo "jCustomer is starting...." >> $log_file
-        echo "Waiting for cxs/privacy/info to be ok" >> $log_file
+        hc_url="http://localhost:80/cxs/privacy/info"
+        startup_pattern="org.apache.karaf.main.Main launch"
+        running_migrations_patterns="Waiting for Task .* to complete|Migration step: .* reach:|Starting execution of|Finish execution of|Task is completed"
+        failed_migrations_pattern="Error during Unomi startup when processing 'unomi.autoMigrate' or 'unomi.autoStart' properties"
+
+        echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): Checking Karaf startup..." >> $log_file
+
+        if ! pid=$(pgrep -u karaf -f java); then
+          echo "[ERROR] Karaf process not found, please check." >> $log_file
+          exit 1
+        fi
+
+        echo "[INFO] Karaf process PID: $pid"
+
+        timeout 60 bash -c '
+          until grep -q "$startup_pattern" $0; do
+            sleep 1
+          done
+        ' $jcustomer_log_file
+        if (($?)); then
+          echo "[ERROR] Karaf won't start, it seems there is a problem with the instance, please check." >> $log_file
+          exit 2
+        fi
+
+        startup_line=$(grep -n "$startup_pattern" $jcustomer_log_file | tail -n1 | cut -d":" -f1)
+        last_check_line=$startup_line
+
         while [ $timeout -gt 0 ]; do
-          curl -fsI /dev/null -u "karaf:$karaf_pwd" http://localhost:80/cxs/privacy/info && exit 0
-          sleep 1
-          let "timeout-=1"
+          # First we test if jCustomer is up
+          if curl -fsS -m 1 -u "karaf:$karaf_pwd" "$hc_url" 2>/dev/null; then
+            echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): jCustomer has successfully started!" | tee -a $log_file
+            exit 0
+          fi
+
+          # If it isn't, we first check tomcat process status
+          if ! ps --pid $pid > /dev/null; then
+            echo "[ERROR] $(date "+%Y/%m/%d %H:%M:%S"): Karaf process not running anymore, please check." >> $log_file
+            exit 3
+          fi
+
+          # Then we check if there are still migrations running, if so we keep waiting
+          last_line=$(wc -l $jcustomer_log_file | awk '{print $1}')
+          if tail -n +${last_check_line} $jcustomer_log_file | grep -qE "$running_migrations_patterns"; then
+            last_check_line=$last_line
+            echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): migrations still running..." >> $log_file
+            sleep 30
+            continue
+          fi
+
+          # If no migration is running, we first check if it failed (if no migration was run then this will be OK as well)
+          if tail -n +${last_check_line} $jcustomer_log_file | grep -q "$failed_migrations_pattern"; then
+            echo "[ERROR] $(date "+%Y/%m/%d %H:%M:%S"): There was an error with Unomi migrations, please check." >> $log_file
+            exit 4
+          fi
+
+          # If there were no migrations of if they succeeded then we can start the timeout countdown because Karaf should start
+          echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): Karaf startup still in progress..." >> $log_file
+          ((timeout-=5))
+          sleep 5
         done
-        echo "600 seconds timeout exceeded, aborting" >> $log_file
-        exit 1
+
+        echo "[ERROR] Karaf startup is finished but cxs/privacy/info is still down, please check." >> $log_file
+        exit 5
 
   updateJahia:
     # Parameters:
