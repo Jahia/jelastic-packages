@@ -377,6 +377,21 @@ onInstall:
   - install:
       jps: "${baseUrl}/update-events.yml"
   - startupJahiaHealthCheck: cp
+  # now a sad workaround to ensure that Distributed Sessions is installed on all nodes, see PAAS-3148
+  - isVersionBetween:
+      version: ${settings.productVersion}
+      lower: 8.1.5.0
+      lower_may_equal: true
+      higher: 8.2.0.0
+      higher_may_equal: false
+      res: isBetween815and820
+  - if (${globals.isBetween815and820}):
+      - callProvisioningAPI:
+          target: proc
+          payload:
+            - installOrUpgradeBundle: "mvn:org.jahia.modules/distributed-sessions/4.1.0"
+              forceUpdate: true
+  # end of the sad workaround
   - setJelEnvRoleInNodeGroupData
   - updateEnvStatusInPapi:
       status: running
