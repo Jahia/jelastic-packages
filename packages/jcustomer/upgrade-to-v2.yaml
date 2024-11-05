@@ -54,6 +54,10 @@ onInstall:
       service karaf stop
 
   - upgradeJcustomerOnNode: ${nodes.cp.first.id}
+  # If the Unomi migrations failed, the node won't start (and we shouldn't move forward with the upgrade)
+  # so we have to check the node again to make sure that it is running (since the healthcheck done during the
+  # onAfterRedeployContainer event won't make the upgrade package fail)
+  - checkJcustomerHealthWhenStarting: ${nodes.cp.first.id}
 
   - env.control.RemoveContainerEnvVars[cp]:
     vars: ["UNOMI_MIGRATION_RECOVER_FROM_HISTORY"]

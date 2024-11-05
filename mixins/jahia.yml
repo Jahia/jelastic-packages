@@ -303,18 +303,8 @@ actions:
           systemctl restart rsyslog crond datadog-agent
 
   startupJahiaHealthCheck:
-    # Two arguments:
-    #   - target: Mandatory, the target nodeId or nodeGroup. If the duration is not specified, the target
-    #     can be passed as a parameter directly after the action name, e.g.: startupJahiaHealthCheck: <target>
-    #   - duration: Optional, duration in seconds. Default value of 24 hours if not specified
-    # The .print() call surrounded by simple quotes is the only working way I found to test if the variable exists
-    - if ('${this.print()}' != ''):
-        set:
-          target: ${this}
-    - else:
-        set:
     - getPatTokenAndKey
-    - cmd [${this.target}]: |-
+    - cmd [${this}]: |-
         __secret__jahia_cfg_healthcheck_token=${globals.__secret__pat_token}
         log_file=/opt/tomcat/logs/catalina.out
         if ! tomcat_pid=$(pgrep -u tomcat -f java); then
@@ -367,7 +357,7 @@ actions:
             exit 3
           fi
 
-          # Then we check Jahia startup status, all
+          # Then we check Jahia startup status
           tail -n +${startup_line} $log_file | grep -q "Server startup in"
           if [ $? -eq 0 ]; then
             if [ $jahia_running_timeout -gt 1 ]; then

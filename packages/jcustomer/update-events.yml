@@ -33,6 +33,7 @@ onAfterServiceScaleOut[cp]:
       - setupDatadogAgentUnomi:
           target: ${@i.id}
           __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
+      - checkJcustomerHealthWhenStarting: ${@i.id}
   - resetHaproxyBackends
 
 onBeforeRestartNode[cp]:
@@ -82,7 +83,7 @@ onAfterRedeployContainer[cp]:
           - setupUnomi:
               nodeId: ${@i.id}
               __secret__unomi_root_password_b64: ${globals.__secret__unomi_root_password_b64}
-      - checkJcustomerHealthWhenStarting: ${event.params.nodeGroup}
+          - checkJcustomerHealthWhenStarting: ${@i.id}
       - resetHaproxyBackends
   - elif ('${event.params.nodeId:}'):
       # Handle RedeployContainerById
