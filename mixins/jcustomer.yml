@@ -211,8 +211,16 @@ actions:
         timeout=600
         hc_url="http://localhost:80/cxs/privacy/info"
         startup_pattern="org.apache.karaf.main.Main launch"
-        running_migrations_patterns="Waiting for Task .* to complete|Migration step: .* reach:|Starting execution of|Finish execution of|Task is completed"
-        failed_migrations_pattern="Error during Unomi startup when processing 'unomi.autoMigrate' or 'unomi.autoStart' properties"
+        saved_IFS=$IFS
+        IFS=""
+        running_migrations_patterns="Detected: .* profiles merged\
+        |Waiting for Task .* to complete\
+        |Migration step: .* reach:\
+        |Starting execution of\
+        |Finish execution of\
+        |Task is completed"
+        failed_migrations_pattern="Error during Unomi startup when processing \
+        'unomi.autoMigrate' or 'unomi.autoStart' properties"
 
         echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): Checking Karaf startup..." >> $log_file
 
