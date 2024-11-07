@@ -2291,6 +2291,8 @@ actions:
     # Parameters:
     # - operation: type of operation performed
     # - checkVersion: if true, add versions to validation
+    - set:
+        timeoutInMs: 120000
     - script: |-
         res = {"result": 0}
         res.onAfterReturn = {
@@ -2304,13 +2306,17 @@ actions:
           target: "proc, cp"
           payload:
             - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$6 \$7}" | shell:exec sort -k3 > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+              timeout: ${this.timeoutInMs}
             - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR > 3 {print \$2 \$4 \$5}" | shell:exec sort -k3 > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+              timeout: ${this.timeoutInMs}
     - else:
        - callProvisioningAPI:
           target: "proc, cp"
           payload:
             - karafCommand: cluster:bundle-list -s default | shell:exec awk -F " │" "NR>3 {print \$2 \$7}" | shell:exec sort -k2 > /opt/tomcat/temp/modulesdump-cluster.${this.operation}.${this.nowDate}
+              timeout: ${this.timeoutInMs}
             - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR>3 {print \$2 \$5}" | shell:exec sort -k2 > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
+              timeout: ${this.timeoutInMs}
     - cmd[cp, proc]: |-
         sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
 
