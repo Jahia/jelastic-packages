@@ -124,13 +124,14 @@ actions:
         productVersion: ${globals.haproxyVersion}
 
   updateModules:
+      - disableHaproxyHealthcheck
       # Install modules with a single version available
       - set:
           modules: [
             {"name": "jahia-ui-root", "version":"1.10.0"},
             {"name": "jahia-page-composer", "version":"1.12.0"},
             {"name": "jahia-dashboard", "version":"1.10.0"},
-            {"name": "jahia-administration", "version":"1.10.0"}
+            {"name": "jahia-administration", "version":"1.11.0"}
             ]
       - forEach(this.modules):
           - checkModule:
@@ -150,7 +151,7 @@ actions:
       # Make sure it is installed, as it's optional in 8.2.X
       - if ("${globals.installedVersionsCount}" != ""):
           - if (${fn.compare([globals.runningVersion], 4.0.0)} < 0):
-              set: {"version":"3.7.0"}
+              set: {"version":"3.8.0"}
           - else:
               set: {"version":"4.11.0"}
           - if ("${globals.runningVersion}" != "${this.version}"):
@@ -178,14 +179,13 @@ actions:
           moduleSymname: graphql-dxm-provider
       - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
           - if ("${globals.runningVersion}" != "2.21.0"):
-              - disableHaproxyHealthcheck
               - installOrUpgradeModules:
                   modules: graphql-dxm-provider/2.21.0
               - checkJahiaHealth:
                   target: "cp, proc"
                   singleCheck: false
                   timeout: 180
-              - enableHaproxyHealthcheck
+      - enableHaproxyHealthcheck
 
   fixTomcatEnvFile:
     - cmd[cp, proc]: |-
