@@ -2366,8 +2366,9 @@ actions:
           sed -i 's/  */ /g' "$dump"
         done
 
-        if [ ! -s $localdump_before ] || [ ! -s $localdump_after ]; then
-            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the local dump files was empty, please check modules manually."
+        # If one of the files doesn't exist or is empty, we don't need to compare the lists, just add an error message
+        if [ ! -s $localdump_before ] || [ ! -s $localdump_after ] || [ -z $localdump_before ] || [ -z $localdump_after ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the local dump files was empty or absent, please check modules manually."
         else
           local_result_file=$(mktemp)
           comm -23 <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $local_result_file
@@ -2379,8 +2380,8 @@ actions:
 
         unset errormsg
 
-        if [ ! -s $clusterdump_before ] || [ ! -s $clusterdump_after ]; then
-            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the cluster dump files was empty, please check modules manually."
+        if [ ! -s $clusterdump_before ] || [ ! -s $clusterdump_after ] || [ -z $clusterdump_before ] || [ -z $clusterdump_after ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the cluster dump files was empty or absent, please check modules manually."
         else
           cluster_result_file=$(mktemp)
           comm -23 <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $cluster_result_file
