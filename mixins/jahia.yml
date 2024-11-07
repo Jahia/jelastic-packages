@@ -2349,6 +2349,8 @@ actions:
         clusterdump_after=$(ls -t /opt/tomcat/temp/modulesdump-cluster.${this.operation}* | sed -n '1 p')
         localdump_before=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '2 p')
         localdump_after=$(ls -t /opt/tomcat/temp/modulesdump-local.${this.operation}* | sed -n '1 p')
+        timestamp=$(date +"%Y-%m-%dT%H:%M:%S")
+        logfile=/var/log/jelastic-packages/modulescheck.log
 
         # If this is an upgrade, only keep active modules
         dumps_before=($clusterdump_before $localdump_before)
@@ -2364,17 +2366,29 @@ actions:
           sed -i 's/  */ /g' "$dump"
         done
 
-        result_file=$(mktemp)
-        comm -23 <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $result_file
-        comm -23 <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $result_file
-
-        # Log error if any
-        if [ -s "$result_file" ]; then
-          logfile=/var/log/jelastic-packages/modulescheck.log
-          timestamp=$(date +"%Y-%m-%dT%H:%M:%S")
-          errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state of the following module(s): $(sort -u $result_file | paste -s -d,)"
-          echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
+        if [ ! -s $localdump_before ] || [ ! -s $localdump_after ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the local dump files was empty, please check modules manually."
+        else
+          local_result_file=$(mktemp)
+          comm -23 <(sort $localdump_before) <(sort $localdump_after) | awk '{print $NF}' >> $local_result_file
+          if [ -s "$local_result_file" ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state (local) of the following module(s): $(sort -u $local_result_file | paste -s -d,)"
+          fi
         fi
+        [ -z $errormsg ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
+
+        unset errormsg
+
+        if [ ! -s $clusterdump_before ] || [ ! -s $clusterdump_after ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. One of the cluster dump files was empty, please check modules manually."
+        else
+          cluster_result_file=$(mktemp)
+          comm -23 <(sort $clusterdump_before) <(sort $clusterdump_after) | awk '{print $NF}' >> $cluster_result_file
+          if [ -s "$result_file" ]; then
+            errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state (cluster) of the following module(s): $(sort -u $result_file | paste -s -d,)"
+          fi
+        fi
+        [ -z $errormsg ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
 
   callProvisioningAPI:
     # Parameters:
