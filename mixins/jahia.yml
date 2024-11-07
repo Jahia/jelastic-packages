@@ -2412,6 +2412,7 @@ actions:
     - cmd[${this.target}]: |-
         __secret__API_TOKEN="${globals.__secret__pat_token}"
         output_file=/tmp/provAPIOutput
+        touch $output_file
         # Always set yaml format because it's necessary for yaml, and not taken into account when json is provided...
         http_code=$(curl -sS -o $output_file -w '%{http_code}' \
                     -H "authorization: APIToken $__secret__API_TOKEN" \
