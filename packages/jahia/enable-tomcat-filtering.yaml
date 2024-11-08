@@ -9,12 +9,75 @@ mixins:
   - ../../mixins/common.yml
 
 onInstall:
-  - env.control.AddContainerEnvVars[cp, proc]:
-      vars: {"tomcat_cfg_cloud_filtering": "true"}
-  - cmd[cp,proc]: |-
-      systemctl enable --now squid.service
-      mv /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled /etc/datadog-agent/conf.d/squid.d/conf.yaml
-      systemctl restart datadog-agent
   - setGlobalRepoRootUrl
+  - filteringRequirements
+  - enablingFiltering
   - install:
       jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+
+actions:
+  filteringRequirements:
+    - cmd[proc,cp]: |-
+        yum install -y proxychains-ng dante-server
+        sed -e 's/^\s*#\s*quiet_mode\s*$/quiet_mode/' \
+            -e '/^socks/d' \
+            -e '$asocks5 127.0.0.1 1080' \
+            -e '/localnet 127.0.0.0\/255.0.0.0/s/^#\s*//' \
+            -e '/localnet ::1\/128/s/^#\s*//' \
+            -e '/localnet 10.0.0.0\/255.0.0.0/s/^#\s*//' \
+            -e '/localnet 172.16.0.0\/255.240.0.0/s/^#\s*//' \
+            -e '/localnet 192.168.0.0\/255.255.0.0/s/^#\s*//' \
+            -i /etc/proxychains.conf
+        curl -fSsLo /etc/sockd.conf ${globals.repoRootUrl}/assets/common/sockd.conf || exit 1
+
+        echo "/etc/proxychains.conf" >> /etc/jelastic/redeploy.conf
+        echo "/etc/sockd.conf" >> /etc/jelastic/redeploy.conf
+        echo "/etc/systemd/system/tomcat.service.d/override.conf" >> /etc/jelastic/redeploy.conf
+
+  enablingFiltering:
+    - cmd[proc,cp]: |-
+        # Be sure that no cap_net_bind_service set on java's binaries
+        setcap 'cap_net_bind_service=-epi' /usr/java/latest/bin/java
+        [ -f /usr/java/latest/bin/java.orig ] && setcap 'cap_net_bind_service=-epi' /usr/java/latest/bin/java.orig 2>/dev/null || true
+        tmpJdkDir=$(readlink -f /etc/alternatives/java | sed -e 's|jre/bin/java||') 2>/dev/null
+        [ -f "${tmpJdkDir}/jre-abrt/bin/java" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre-abrt/bin/java 2>/dev/null || true
+        [ -f "${tmpJdkDir}/jre-abrt/bin/java.orig" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre-abrt/bin/java.orig 2>/dev/null || true
+        [ -f "${tmpJdkDir}/jre/bin/java.orig" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre/bin/java.orig 2>/dev/null || true
+        [ -f "${tmpJdkDir}/jre/bin/java" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre/bin/java 2>/dev/null || true
+
+        # Now we update the tomcat's unit service in order to:
+        #   - not launch setcat_bind script anymore
+        #   - reinstall proxychains and dante server, enable dante server (in case of redeploy)
+        #   - set LD_PRELOAD for libtcmalloc right now (instead of tomcat-env.sh)
+        #   - define new ExecStart in order to launch tomcat startup script in the proxychains context
+        sed -r -e 's/.+setcat_bind/#&/' \
+            -e '/setcat_bind/i ExecStartPre=-/usr/bin/bash -c "rpm -qa | grep dante-server || (yum install -y proxychains-ng dante-server && systemctl enable --now sockd)"' \
+            -e '/^EnvironmentFile/a Environment="LD_PRELOAD=libtcmalloc.so"' \
+            -e '/^ExecStop=$/i ExecStart=\nExecStart=/usr/bin/proxychains4 /opt/tomcat/bin/startup.sh' \
+            -i /etc/systemd/system/tomcat.service.d/override.conf
+        systemctl daemon-reload
+
+        # Add nat rules for redirect what comming into venet0 and loopback to dport 80 to port 8080
+        # (folder /etc/nftables is kept on redeploy by Jelastic magic)
+        echo """
+        table ip nat {
+                chain PREROUTING {
+                        type nat hook prerouting priority dstnat; policy accept;
+                        iifname "venet0" tcp dport 80 redirect to :8080
+                }
+                chain OUTPUT {
+                        type nat hook output priority dstnat; policy accept;
+                        oifname "lo" tcp dport 80 redirect to :8080
+                }
+        }""" >> /etc/nftables/user-defined.nft
+
+        # Now we update the tomcat-env for:
+        #  - commenting the now useless LD_PRELOAD export
+        #  - change the way we set cluster.tcp.bindAddress (because of https://github.com/rofl0r/proxychains-ng/issues/168)
+        sed -r -e 's/.+LD_PRELOAD.+/#&/' \
+            -e 's,^(export jahia_cfg_cluster_tcp_bindAddress=).*,\1$(ip a s | awk '\''$NF=="venet0:0" {print $2}'\'' | cut -d'\''/'\'' -f1),' \
+            -i /opt/tomcat/conf/tomcat-env.sh
+
+        # Finally, we can enable/start the Dante server
+        systemctl enable --now sockd
