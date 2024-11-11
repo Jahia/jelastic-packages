@@ -147,17 +147,6 @@ actions:
                   modules: site-settings-seo/4.4.0
       # Install modules with multiple versions available
       - checkModule:
-          moduleSymname: content-editor
-      # Make sure it is installed, as it's optional in 8.2.X
-      - if ("${globals.installedVersionsCount}" != ""):
-          - if (${fn.compare([globals.runningVersion], 4.0.0)} < 0):
-              set: {"version":"3.8.0"}
-          - else:
-              set: {"version":"4.11.0"}
-          - if ("${globals.runningVersion}" != "${this.version}"):
-              - installOrUpgradeModules:
-                  modules: content-editor/${this.version}
-      - checkModule:
           moduleSymname: app-shell
       - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
           set: {"version":"2.10.0"}
@@ -174,7 +163,7 @@ actions:
       - if ("${globals.runningVersion}" != "${this.version}"):
           - installOrUpgradeModules:
               modules: jcontent/${this.version}
-      # Finish with graphql-dxm-provider if 2.X installed
+      # Update graphql-dxm-provider if 2.X installed
       - checkModule:
           moduleSymname: graphql-dxm-provider
       - if (${fn.compare([globals.runningVersion], 3.0.0)} < 0):
@@ -185,6 +174,18 @@ actions:
                   target: "cp, proc"
                   singleCheck: false
                   timeout: 180
+      # Finish with content-editor to avoid any dependency issue
+      - checkModule:
+          moduleSymname: content-editor
+      # Make sure it is installed, as it's optional in 8.2.X
+      - if ("${globals.installedVersionsCount}" != ""):
+          - if (${fn.compare([globals.runningVersion], 4.0.0)} < 0):
+              set: {"version":"3.8.0"}
+          - else:
+              set: {"version":"4.11.0"}
+          - if ("${globals.runningVersion}" != "${this.version}"):
+              - installOrUpgradeModules:
+                  modules: content-editor/${this.version}
       - enableHaproxyHealthcheck
 
   fixTomcatEnvFile:
