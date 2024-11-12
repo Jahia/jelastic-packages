@@ -30,9 +30,6 @@ onInstall:
       setGlobals:
           __secret__backupAccessKeyId: ${globals.__secret__backrestAwsAccessKeyId}
           __secret__backupSecretAccessKey: ${globals.__secret__backrestAwsSecretAccessKey}
-  - setupBackupRCloneConfig:
-      provider: ${globals.provider}
-      region: ${globals.region}
 
   - cmd[${nodes.cp.first.id}]: |-
       cluster_role=$(awk -F'=' '$1=="JEL_ENV_ROLE" {print $2}' /metadata_from_HOST)
