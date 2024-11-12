@@ -232,9 +232,9 @@ actions:
     - if (${globals.isHigherOrEqualThan815}):
         - checkModule:
             moduleSymname: distributed-sessions
-        - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "4.1.0"):
+        - if ("${globals.moduleState}" == "started" && "${globals.runningVersion}" != "4.2.0"):
             - installOrUpgradeModules:
-                modules: distributed-sessions/4.1.0
+                modules: distributed-sessions/4.2.0
 
   disableEpelRepository:
     cmd[sqldb,storage]:
