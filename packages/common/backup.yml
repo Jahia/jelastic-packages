@@ -546,13 +546,7 @@ actions:
             message: "An error occurred during database backup."
 
   chooseTheBestDatabaseNodeToBackup:
-    - if (nodes.sqldb.length > 1):
-        # choose the node having the lowest number of openened connections
-        - forEach(i:nodes.sqldb):
-            chooseIfLessConnections: ${@i.id}
-    - else:
-        - setGlobals:
-            dbBackupNode: ${nodes.sqldb.first.id}
+    dbBackupNode: 10132
 
   chooseIfLessConnections:
     - cmd[${this}]: mysql -sNe "select count(host) from information_schema.processlist"
