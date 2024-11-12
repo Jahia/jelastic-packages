@@ -546,7 +546,8 @@ actions:
             message: "An error occurred during database backup."
 
   chooseTheBestDatabaseNodeToBackup:
-    dbBackupNode: 10132
+    - setGlobals:
+        dbBackupNode: 10132
 
   chooseIfLessConnections:
     - cmd[${this}]: mysql -sNe "select count(host) from information_schema.processlist"
