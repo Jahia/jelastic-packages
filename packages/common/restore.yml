@@ -1104,6 +1104,7 @@ actions:
         - api: env.control.RestartNodes
           envName: ${env.envName}
           nodeGroup: cp
+        - sleep: 30000
     - else:
         log: "No env var backup available"
 
