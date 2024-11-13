@@ -219,7 +219,7 @@ actions:
         |Starting execution of\
         |Finish execution of\
         |Task is completed"
-        failed_migrations_pattern="Error during Unomi startup when processing \
+        failed_migrations_pattern="Error during Unomi startup when processing"
         succeeded_migrations_pattern="Migration step: migrationStatus reach: COMPLETED"
 
         echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): Checking Karaf startup..." >> $log_file
