@@ -220,7 +220,7 @@ actions:
         |Finish execution of\
         |Task is completed"
         failed_migrations_pattern="Error during Unomi startup when processing \
-        'unomi.autoMigrate' or 'unomi.autoStart' properties"
+        succeeded_migrations_pattern="Migration step: migrationStatus reach: COMPLETED"
 
         echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): Checking Karaf startup..." >> $log_file
 
@@ -229,7 +229,7 @@ actions:
           exit 1
         fi
 
-        echo "[INFO] Karaf process PID: $pid"
+        echo "[INFO] Karaf process PID: $pid" >> $log_file
 
         timeout 60 bash -c '
           until grep -q "$startup_pattern" $0; do
@@ -242,7 +242,6 @@ actions:
         fi
 
         startup_line=$(grep -n "$startup_pattern" $jcustomer_log_file | tail -n1 | cut -d":" -f1)
-        last_check_line=$startup_line
 
         while [ $timeout -gt 0 ]; do
           # First we test if jCustomer is up
@@ -257,19 +256,17 @@ actions:
             exit 3
           fi
 
-          # Then we check if there are still migrations running, if so we keep waiting
-          last_line=$(wc -l $jcustomer_log_file | awk '{print $1}')
-          if tail -n +${last_check_line} $jcustomer_log_file | grep -qE "$running_migrations_patterns"; then
-            last_check_line=$last_line
-            echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): migrations still running..." >> $log_file
-            sleep 30
-            continue
-          fi
-
-          # If no migration is running, we first check if it failed (if no migration was run then this will be OK as well)
-          if tail -n +${last_check_line} $jcustomer_log_file | grep -q "$failed_migrations_pattern"; then
-            echo "[ERROR] $(date "+%Y/%m/%d %H:%M:%S"): There was an error with Unomi migrations, please check." >> $log_file
-            exit 4
+          # Then we check if there are migrations running, if so we keep waiting
+          if tail -n +${startup_line} $jcustomer_log_file | grep -qE "$running_migrations_patterns"; then
+            echo "[INFO] $(date "+%Y/%m/%d %H:%M:%S"): migrations are running, waiting for the end..." >> $log_file
+            until tail -n +${startup_line} $jcustomer_log_file | grep -q "$succeeded_migrations_pattern"; do
+              # We check if the migrations failed
+              if tail -n +${startup_line} $jcustomer_log_file | grep -q "$failed_migrations_pattern"; then
+                echo "[ERROR] $(date "+%Y/%m/%d %H:%M:%S"): There was an error with Unomi migrations, please check." >> $log_file
+                exit 4
+              fi
+              sleep 30
+            done
           fi
 
           # If there were no migrations of if they succeeded then we can start the timeout countdown because Karaf should start
