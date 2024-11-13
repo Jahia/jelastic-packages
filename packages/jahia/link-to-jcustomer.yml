@@ -131,7 +131,7 @@ actions:
         return:
         type: error
         message: "Failed to update jExperience configuration"
-    - cmd [$this]: rm -f /tmp/${this.confFilename}
+    - cmd[${this}]: rm -f /tmp/${this.confFilename}
 
   checkJexperienceHealth:
     - getPatTokenAndKey
