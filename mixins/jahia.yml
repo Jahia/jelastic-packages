@@ -2091,8 +2091,8 @@ actions:
           kibana_dashboards_provider.kibanaUser: ${this.roleAndAccountName}
           kibana_dashboards_provider.kibanaPassword: ${this.__secret__password}
           kibana_dashboards_provider.kibanaSpace: ${this.roleAndAccountName}
-          kibana_dashboards_provider.kibanaProxy.enable: true
-          kibana_dashboards_provider.kibanaProxy.cloud: true
+          kibana_dashboards_provider.kibanaProxy.enable: "true"
+          kibana_dashboards_provider.kibanaProxy.cloud: "true"
     - if (! ${globals.updateModuleKarafConfig_success}):
         return:
         type: error
