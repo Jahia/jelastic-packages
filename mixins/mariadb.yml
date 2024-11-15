@@ -355,8 +355,8 @@ actions:
             - log: "Restarting MariaDB on node ${@i.id}..."
             - setDonorNode:
                 target : ${@i.id}
-            - stopGaleraNode: ${@i.id}
-            - startGaleraNode: ${@i.id}
+            - api: environment.control.RestartNodeById
+              nodeId: ${@i.id}
             - sleep:
               - milliseconds: 15000
           - else:
@@ -374,8 +374,8 @@ actions:
       - setDonorNode:
           target: ${globals.origMasterId}
 
-      - stopGaleraNode: ${globals.origMasterId}
-      - startGaleraNode: ${globals.origMasterId}
+      - api: environment.control.RestartNodeById
+        nodeId: ${globals.origMasterId}
     - else:
       - stopGaleraNode: sqldb
       - startGaleraNode: sqldb
