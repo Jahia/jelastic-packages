@@ -38,13 +38,9 @@ actions:
   enablingFiltering:
     - cmd[proc,cp]: |-
         # Be sure that no cap_net_bind_service set on java's binaries
-        setcap 'cap_net_bind_service=-epi' /usr/java/latest/bin/java
-        [ -f /usr/java/latest/bin/java.orig ] && setcap 'cap_net_bind_service=-epi' /usr/java/latest/bin/java.orig 2>/dev/null || true
-        tmpJdkDir=$(readlink -f /etc/alternatives/java | sed -e 's|jre/bin/java||') 2>/dev/null
-        [ -f "${tmpJdkDir}/jre-abrt/bin/java" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre-abrt/bin/java 2>/dev/null || true
-        [ -f "${tmpJdkDir}/jre-abrt/bin/java.orig" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre-abrt/bin/java.orig 2>/dev/null || true
-        [ -f "${tmpJdkDir}/jre/bin/java.orig" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre/bin/java.orig 2>/dev/null || true
-        [ -f "${tmpJdkDir}/jre/bin/java" ] && setcap 'cap_net_bind_service=-epi' ${tmpJdkDir}/jre/bin/java 2>/dev/null || true
+        find /usr/*/*/bin -regextype posix-extended \
+              -type f -regex ".+/java(\.orig)?$" \
+              -exec setcap 'cap_net_bind_service=-epi' {} \;
 
         # Now we update the tomcat's unit service in order to:
         #   - not launch setcat_bind script anymore
