@@ -9,16 +9,43 @@ mixins:
   - ../../mixins/common.yml
 
 onInstall:
-  - env.control.AddContainerEnvVars[cp, proc]:
-      vars: {"tomcat_cfg_cloud_filtering": "false"}
-  - cmd[cp,proc]: |-
-      systemctl disable --now squid.service
-      mv /etc/datadog-agent/conf.d/squid.d/conf.yaml /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled
-      systemctl restart datadog-agent
-  - setGlobalRepoRootUrl
+  - disableFiltering
   - if(! ${settings.skipRestart}):
+      - setGlobalRepoRootUrl
       - install:
           jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+      - cleanRequirements
+
+
+actions:
+  disableFiltering:
+    - cmd[proc,cp]: |-
+        # rollback tomcat unit override
+        sed -r -e 's,^#(.+setcat_bind),\1,' \
+            -e '/dante-server/d' \
+            -e '/LD_PRELOAD/d' \
+            -e '/^ExecStart=/d' \
+            -i /etc/systemd/system/tomcat.service.d/override.conf
+        systemctl daemon-reload
+
+        # remove netfilter fules from the file
+        sed -e '/^table ip nat/,/^{/d' \
+            -i /etc/nftables/user-defined.nft
+
+        # (barely) rollback tomcat-env.sh
+        sed -r -e 's/^#(.+LD_PRELOAD.+)/\1/' \
+            -i /opt/tomcat/conf/tomcat-env.sh
+
+        # rollback redeploy.conf
+        sed -r -e '/proxychains/d' \
+            -e '/sockd/d' \
+            -e '/tomcat\.service.+override/d' \
+            -i /etc/jelastic/redeploy.conf
+
+  cleanRequirements:
+    - cmd[proc,cp]: |-
+        # remove packages
+        yum remove -y proxychains-ng dante-server
 
 settings:
   fields:
