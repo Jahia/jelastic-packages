@@ -1,0 +1,33 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3212 - Update forms-core module to 3.15
+id: paas-3212-forms-core-module-to-3-15
+
+mixins:
+  - "../../mixins/jahia.yml"
+  - "../../mixins/common.yml"
+
+globals:
+  ignoredModules: "forms-core"
+
+onInstall:
+  # Check modules before/after to make sure everything is ok
+  - dumpModules:
+      operation: one-shot-paas-3212
+      checkVersion: true
+  - checkModule:
+      moduleSymname: forms-core
+  - if ("${globals.moduleState}" == "started"):
+      - isVersionHigherOrEqual:
+            a: "${globals.runningVersion}"
+            b: "3.14.0"
+            res: moduleIsUpToDate
+      - if (! ${globals.moduleIsUpToDate}):
+          installOrUpgradeModules:
+                modules: forms-core/3.15.0
+  # Check modules after the operation
+  - checkModulesAfterOperation:
+      operation: one-shot-paas-3212
+      ignoredModules: ${globals.ignoredModules}
+      checkVersion: true
