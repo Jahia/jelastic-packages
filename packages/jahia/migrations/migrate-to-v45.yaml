@@ -14,7 +14,7 @@ mixins:
 
 globals:
   version: 45
-  ignoredModules: "distributed-sessions,jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider,site-settings-seo"
+  ignoredModules: "distributed-sessions,jahia-ui-root,jahia-page-composer,jahia-dashboard,jahia-administration,content-editor,jcontent,app-shell,graphql-dxm-provider,site-settings-seo,forms-core"
 
 onInstall:
   ### Pre-migration actions
@@ -30,6 +30,7 @@ onInstall:
   ### End pre-migration actions
 
   # Actions that update modules (needs to be done first)
+  - updateFormsCore                               # PAAS-3213
   - updateDistributedSession                      # PAAS-3148
   - updateModules                                 # PAAS-3105
 
@@ -260,6 +261,23 @@ actions:
           chmod +x $script_path
         fi
         $DUMP_JAVA_CLASSES || rm -rf ${dumps_path}/classes_dumps/*
+
+  updateFormsCore:
+    ##################################################################
+    # Added in the middle of the release for production environments #
+    # Already migrated environments will be patched with a one shot  #
+    # package (PAAS-3212)                                            #
+    # ################################################################
+    - checkModule:
+        moduleSymname: forms-core
+    - if ("${globals.moduleState}" == "started"):
+        - isVersionHigherOrEqual:
+              a: "${globals.runningVersion}"
+              b: "3.14.0"
+              res: moduleIsUpToDate
+        - if (! ${globals.moduleIsUpToDate}):
+            installOrUpgradeModules:
+                  modules: forms-core/3.15.0
 
 settings:
   fields:
