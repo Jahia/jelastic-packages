@@ -57,7 +57,7 @@ onBeforeInstall: |
     "displayName": "Haproxy",
     "nodeGroup": "bl",
     "nodeType": "haproxy",
-    "tag": "2.8.9-almalinux-9",
+    "tag": "2.8.11-almalinux-9",
     "count": ${settings.haproxyNodeCount},
     "cloudlets": 6,
     "env": {
