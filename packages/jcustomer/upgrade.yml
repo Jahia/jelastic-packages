@@ -41,19 +41,27 @@ onInstall:
   - env.control.AddContainerEnvVars[cp]:
     vars:
       UNOMI_MIGRATION_RECOVER_FROM_HISTORY: true
+
+  # Adjust tomcat directory
+  - setGlobals:
+        jahiaDir: jcustomer-${settings.targetVersion}
+  - if ("${settings.targetVersionStatus}" == "snapshot"):
+      setGlobals:
+        jahiaDir: jcustomer-${settings.targetVersion}-SNAPSHOT
+
   - cmd[${nodes.cp.first.id}]: |-
       setenv=$(find /opt/jcustomer/jcustomer/bin -name setenv)
-      tmpenv=/opt/jcustomer/jcustomer-${settings.targetVersion}/bin/setenv
-      mkdir -p /opt/jcustomer/jcustomer-${settings.targetVersion}/bin && cp $setenv $tmpenv
+      tmpenv=/opt/jcustomer/${globals.jahiaDir}/bin/setenv
+      mkdir -p /opt/jcustomer/${globals.jahiaDir}/bin && cp $setenv $tmpenv
       sed -i 's/KARAF_OPTS="-Dunomi.autoStart=true"/KARAF_OPTS="-Dunomi.autoMigrate=${globals.currentVersion} -Dunomi.autoStart=true"/' $tmpenv
       echo $tmpenv >> /etc/jelastic/redeploy.conf
 
   - cmd[cp]: |-
       migrationdir="/opt/jcustomer/jcustomer/data/migration"
-      newmigrationdir="/opt/jcustomer/jcustomer-${settings.targetVersion}/data/migration"
+      newmigrationdir="/opt/jcustomer/${globals.jahiaDir}/data/migration"
       if [ -d $migrationdir ]; then
         mkdir -p $newmigrationdir && cp -R $migrationdir/* $newmigrationdir/ && chown -R karaf:karaf $newmigrationdir
-        sed -i 's|jcustomer/jcustomer/data|jcustomer/jcustomer-${settings.targetVersion}/data|g' /etc/jelastic/redeploy.conf
+        sed -i 's|jcustomer/jcustomer/data|jcustomer/${globals.jahiaDir}/data|g' /etc/jelastic/redeploy.conf
       fi
       service datadog-agent stop
       service karaf stop
@@ -84,7 +92,7 @@ onInstall:
         upgradeJcustomerOnNode: ${@i.id}
 
   - cmd[cp]: |-
-      sed -i 's|jcustomer/jcustomer-${settings.targetVersion}/data|jcustomer/jcustomer/data|g' /etc/jelastic/redeploy.conf
+      sed -i 's|jcustomer/${globals.jahiaDir}/data|jcustomer/jcustomer/data|g' /etc/jelastic/redeploy.conf
 
   - updateProductVersionInPapi:
       version: "${settings.targetVersion}"
@@ -110,6 +118,11 @@ settings:
     - name: targetVersion
       type: string
       caption: Target Version
+      vtype: text
+      required: true
+    - name: targetVersionStatus
+      type: string
+      caption: Target Version Status
       vtype: text
       required: true
     - name: jCustomerDockerTagSuffix
