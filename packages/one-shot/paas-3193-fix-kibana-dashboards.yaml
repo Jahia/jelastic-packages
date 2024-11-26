@@ -1,0 +1,132 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3193 - fix Kibana dasboards
+id: paas-3193-fix-kibana-dashboards
+
+mixins:
+  - "../../mixins/common.yml"
+  - "../../mixins/elasticsearch.yml"
+  - "../../mixins/jahia.yml"
+
+globals:
+  back2normalGetVaultData: false
+
+onInstall:
+  - checkIfBroken
+  - setRequiredGlobals
+  - resetESAccountPassword:
+      username: ${globals.kibanaDashboardRoleAndAccountName}
+      __secret__password: ${globals.__secret__kibanaDashboardpassword}
+  - getKibanaEndpointOfJcustomer:
+      jcustomerEnv: ${globals.unomi_env_name}
+  - setGlobals:
+      back2normalGetVaultData: true
+  - updateModuleKarafConfig:
+      servicePid: "org.jahia.modules.kibana_dashboards_provider"
+      properties:
+        kibana_dashboards_provider.kibanaURL: ${globals.kibanaEndpoint}
+        kibana_dashboards_provider.kibanaUser: ${globals.kibanaDashboardRoleAndAccountName}
+        kibana_dashboards_provider.kibanaPassword: ${globals.__secret__kibanaDashboardpassword}
+        kibana_dashboards_provider.kibanaSpace: ${globals.kibanaDashboardRoleAndAccountName}
+        kibana_dashboards_provider.kibanaProxy.enable: "true"
+        kibana_dashboards_provider.kibanaProxy.cloud: "true"
+  - if (! ${globals.updateModuleKarafConfig_success}):
+      return:
+      type: error
+      message: "Failed to update Kibana Dashboards provider configuration"
+
+
+actions:
+  checkIfBroken:
+    - getEnvLinkedJcustomer:
+        envName: ${env.envName}
+    - if(!${globals.unomi_env_linked}):
+        - return:
+            type: sucess
+            message: "${env.envName} isn't linked to a jcustomer"
+    - else:
+        log: "${env.envName} is linked to jcustomer ${globals.unomi_env_name}"
+
+    - cmd[proc]: |-
+        f=/data/digital-factory-data/karaf/etc/org.jahia.modules.kibana_dashboards_provider.cfg
+        if (grep -qE "^kibana_dashboards_provider.kibanaPassword\s*=\s*password$" $f); then
+          echo toFix
+        else
+          echo ok
+        fi
+    - if("${response.out}" == "ok"):
+        - return:
+            type: success
+            message: "${env.envName}'s kibana dashboards aren't broken"
+
+  setRequiredGlobals:
+    - setGlobalRepoRootUrl
+    - setGlobals:
+        kibanaDashboardRoleAndAccountName: ${env.envName}-kibana-dashboard
+        __secret__kibanaDashboardpassword: ${fn.password(20)}
+
+  # overload the getPapiData from common mixin
+  getPapiData:
+    - script: |
+        const envName = "${globals.unomi_env_name}";
+        papiEnvId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_ENV_ID;
+        papiHostname = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_HOSTNAME;
+        papiApiVersion = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().PAPI_API_VERSION;
+        return {
+          'result': 0,
+          'papi_env_id': papiEnvId,
+          'papi_hostname': papiHostname,
+          'papi_api_version': papiApiVersion
+        };
+    - setGlobals:
+        papiApiVersion: ${response.papi_api_version}
+        papiEnvId: ${response.papi_env_id}
+        papiHostname: ${response.papi_hostname}
+
+  # overload the getPapiInfoAlll from common mixin
+  getPapiInfoAll:
+    - getVaultData
+    - vaultSecretReadKeyB64:
+        secretPath: "paas/customers/${globals.organizationName}/paas_${globals.unomi_env_name}/papi"
+        secretKey: "token"
+    - setGlobals:
+        __secret__papiToken: '${globals.__secret__vaultSecretData.fromBase64()}'
+    - getPapiData
+
+  # overload the getVaultData from common mixin
+  getVaultData:
+    # Force bad token to force renewing because we have to grabe data
+    # for the jahia env and for the jcustomer env.
+    - setGlobals:
+        __secret__vaultToken: "aNotWorkingToken"
+    - if(globals.back2normalGetVaultData):
+        - set:
+            envname: ${env.envName}
+    - else:
+        - set:
+            envname: ${globals.unomi_env_name}
+    - script: |
+        const envName = "${this.envname}";
+        orgName = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().ORGANIZATION_NAME;
+        vaultUrl = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_CLUSTER_URL;
+        roleId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_ROLE_ID;
+        secretId = jelastic.env.control.GetNodeGroups(envName, session).object.filter(function (object) {
+                                        return object.name == "cp";}).pop().VAULT_SECRET_ID;
+        return {
+          "result": 0,
+          "onAfterReturn": {
+            setGlobals: {
+              "organizationName": orgName,
+              "vaultClusterUrl": vaultUrl,
+              "__secret__vaultRoleId": roleId,
+              "__secret__vaultSecretId": secretId
+            }
+          }
+        };
