@@ -1905,14 +1905,17 @@ actions:
   # jexperience related #
   #######################
   getJexperienceVersion:
-    # Get jExperience version to install according to jCustomer env version:
+    # Get jExperience version to install according to Jahia / jCustomer env version:
     # - jCustomer 1.x ==> jExperience 2.10.2 & jExperienceDashboards 0.3.0
-    # - jCustomer 2.x ==> jExperience 3.4.0 & jExperienceDashboards 1.0.0
+    # - jCustomer 2.x ==>
+    #     - Jahia < 8.1.5  ==> jExperience 3.4.0 & jExperienceDashboards 1.0.0
+    #     - Jahia >= 8.1.5 ==> jExperience 3.5.1 & jExperienceDashboards 1.0.0
     # Parameters:
     #   unomi_env_name: name of jCustomer environment
     # Returns:
     #   ${globals.jexperienceVersion}: jExperience version to install according to current Jahia / jCustomer version
     #   ${globals.jexperienceDashboardsVersion}: jExperience-Dashboards version to install according to current Jahia / jCustomer version
+    - getJahiaVersion
     - api: env.control.GetContainerEnvVarsByGroup
       envName: ${this.unomi_env_name}
       nodeGroup: cp
@@ -1926,11 +1929,22 @@ actions:
         - setGlobals:
             jexperienceVersion: 3.4.0
             jexperienceDashboardsVersion: 1.0.0
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.1.5.0
+            res: jahia815plus
+        - if ( ${globals.jahia815plus} ):
+            - setGlobals:
+                jexperienceVersion: 3.5.1
     - else:
+        - isVersionHigherOrEqual:
+            a: ${globals.jahiaVersion}
+            b: 8.2.0.0
+            res: jahia82plus
         - if(${globals.jahia82Plus}):
             return:
               type: error
-              message: jahia 8.2 is not compatible with jcustomer 1
+              message: jahia 8.2 is not compatible with jCustomer 1
         - setGlobals:
             jexperienceVersion: 2.10.2
             jexperienceDashboardsVersion: 0.3.0
