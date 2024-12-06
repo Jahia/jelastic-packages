@@ -10,30 +10,17 @@ mixins:
 
 onInstall:
   - setGlobalRepoRootUrl
-  - filteringRequirements
   - enablingFiltering
   - install:
       jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+  - enableDatadogCheck
 
 
 actions:
-  filteringRequirements:
-    - cmd[proc,cp]: |-
-        yum install -y proxychains-ng dante-server
-        sed -e 's/^\s*#\s*quiet_mode\s*$/quiet_mode/' \
-            -e '/^socks/d' \
-            -e '$asocks5 127.0.0.1 1080' \
-            -e '/localnet 127.0.0.0\/255.0.0.0/s/^#\s*//' \
-            -e '/localnet ::1\/128/s/^#\s*//' \
-            -e '/localnet 10.0.0.0\/255.0.0.0/s/^#\s*//' \
-            -e '/localnet 172.16.0.0\/255.240.0.0/s/^#\s*//' \
-            -e '/localnet 192.168.0.0\/255.255.0.0/s/^#\s*//' \
-            -i /etc/proxychains.conf
-        curl -fSsLo /etc/sockd.conf ${globals.repoRootUrl}/assets/common/sockd.conf || exit 1
-
-        echo "/etc/proxychains.conf" >> /etc/jelastic/redeploy.conf
-        echo "/etc/sockd.conf" >> /etc/jelastic/redeploy.conf
-        echo "/etc/systemd/system/tomcat.service.d/override.conf" >> /etc/jelastic/redeploy.conf
+  enableDatadogCheck:
+    cmd[cp, proc]: |-
+      mv /etc/datadog-agent/conf.d/proxychains.yaml-disabled /etc/datadog-agent/conf.d/proxychains.yaml
+      systemctl restart datadog-agent
 
   enablingFiltering:
     - cmd[proc,cp]: |-
@@ -48,7 +35,6 @@ actions:
         #   - set LD_PRELOAD for libtcmalloc right now (instead of tomcat-env.sh)
         #   - define new ExecStart in order to launch tomcat startup script in the proxychains context
         sed -r -e 's/.+setcat_bind/#&/' \
-            -e '/setcat_bind/i ExecStartPre=-/usr/bin/bash -c "rpm -qa | grep dante-server || (yum install -y proxychains-ng dante-server && systemctl enable --now sockd)"' \
             -e '/^EnvironmentFile/a Environment="LD_PRELOAD=libtcmalloc.so"' \
             -e '/^ExecStop=$/i ExecStart=\nExecStart=/usr/bin/proxychains4 /opt/tomcat/bin/startup.sh' \
             -i /etc/systemd/system/tomcat.service.d/override.conf
