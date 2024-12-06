@@ -2332,7 +2332,8 @@ actions:
             - karafCommand: bundle:list -s | shell:exec awk -F " │" "NR>3 {print \$2 \$5}" | shell:exec sort -k2 > /opt/tomcat/temp/modulesdump-local.${this.operation}.${this.nowDate}
               timeout: ${this.timeoutInMs}
     - cmd[cp, proc]: |-
-        sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate}
+        sed -i -E "s/Resolved|Installed/Stopped/" /opt/tomcat/temp/modulesdump-*.${this.operation}.${this.nowDate} \
+            || echo "File modulesdump-*.${this.operation}.${this.nowDate} don't exist, the provisioning API may not have been available" 1>&2
 
   checkModulesAfterOperation:
     # Parameters:
@@ -2390,7 +2391,7 @@ actions:
             errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state (local) of the following module(s): $(sort -u $local_result_file | paste -s -d,)"
           fi
         fi
-        [ -z $errormsg ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
+        [ -z "$errormsg" ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
 
         unset errormsg
 
@@ -2403,7 +2404,7 @@ actions:
             errormsg="$timestamp - Errors detected in module states after ${this.operation}. Please check the state (cluster) of the following module(s): $(sort -u $result_file | paste -s -d,)"
           fi
         fi
-        [ -z $errormsg ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
+        [ -z "$errormsg" ] || echo '{"level": "ERROR", "message": "'"$errormsg"'" }' >> $logfile
 
   callProvisioningAPI:
     # Parameters:
