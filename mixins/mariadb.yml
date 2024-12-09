@@ -348,6 +348,12 @@ actions:
 
   rollingRestartGaleraNodes:
     - if (nodes.sqldb.length > 1):
+      - muteMonitorsByTags:
+          # restarts should take few seconds per nodes.
+          # proxysqlSwitchMaster timeout is set to 1200.
+          # So it should not exceed 1300 unless there is an issue
+          duration: 1300
+          tag: database
       - getGaleraMaster
       - forEach(nodes.sqldb): # Only restart no master nodes. It allows to change master node only once
           - getGaleraNodeNameIndex: ${@i.id}
@@ -355,8 +361,9 @@ actions:
             - log: "Restarting MariaDB on node ${@i.id}..."
             - setDonorNode:
                 target : ${@i.id}
-            - stopGaleraNode: ${@i.id}
-            - startGaleraNode: ${@i.id}
+            - api: environment.control.RestartNodeById
+              nodeId: ${@i.id}
+            - checkGaleraNodeStartup: ${@i.id}
             - sleep:
               - milliseconds: 15000
           - else:
@@ -374,11 +381,16 @@ actions:
       - setDonorNode:
           target: ${globals.origMasterId}
 
-      - stopGaleraNode: ${globals.origMasterId}
-      - startGaleraNode: ${globals.origMasterId}
+      - api: environment.control.RestartNodeById
+        nodeId: ${globals.origMasterId}
+      - checkGaleraNodeStartup: ${globals.origMasterId}
+
+      - unmuteMonitorsByTags:
+          tag: database
     - else:
-      - stopGaleraNode: sqldb
-      - startGaleraNode: sqldb
+        - api: environment.control.RestartNodeById
+          nodeId: sqldb
+
 
   setDonorNode:
     # Configure the wsrep donor node as a non master node.
@@ -474,3 +486,24 @@ actions:
     - proxysqlSetMariadbBackendStatus:
         targetHost: ${globals.galeraNodeNameIndex}
         newStatus: ONLINE
+
+  checkGaleraNodeStartup:
+    - cmd[${this}]: |-
+        i=1
+        it=66
+        until [ "$(mysql -Ns -e "show global status like 'wsrep_local_state_comment'" 2>/dev/null | awk '{print $NF}')" == "Synced"  ]; do
+          if [ $i -ge $it ]; then
+            echo "Too long to start, something is wrong here... EXITING"
+            exit 1
+          fi
+          # As long as there is a mariabackup command running, we don't increment the timeout count
+          if pgrep wsrep_sst_maria; then
+            echo "$(date) SSTs sync still in progress..."
+            sleep 5
+          else
+            echo "$(date) not ready yet (iteration $i/$it)"
+            ((i++))
+            sleep 1
+          fi
+        done
+        echo "Node $HOSTNAME is now Synced !"
