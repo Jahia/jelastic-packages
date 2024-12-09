@@ -389,7 +389,7 @@ actions:
           tag: database
     - else:
         - api: environment.control.RestartNodeById
-          nodeId: sqldb
+          nodeId: ${nodes.sqldb.first.id}
 
 
   setDonorNode:
