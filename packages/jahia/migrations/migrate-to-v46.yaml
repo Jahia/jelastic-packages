@@ -1,0 +1,146 @@
+---
+type: update
+version: 1.5.2
+name: Migrate Jahia env to v46
+id: migrate-jahia-env-v46
+
+# Required for healthchecks
+mixins:
+  - "../../../mixins/common.yml"
+  - "../../../mixins/jahia.yml"
+  - "../../../mixins/mariadb.yml"
+  - "../../../mixins/haproxy.yml"
+  - "../../../mixins/elasticsearch.yml"
+
+globals:
+  version: 46
+  ignoredModules: ""
+
+onInstall:
+  ### Pre-migration actions
+  - checkEnvProvides: jahia
+  - if(!${settings.force}):
+      - checkEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - preChecks
+  - else:
+      log: "pre migration checks are disabled"
+  - eventsUpdate
+  - setGlobalRepoRootUrl
+  ### End pre-migration actions
+
+  # Actions that update modules (needs to be done first)
+
+  # Regular actions
+  - switchOffSquid                             # PAAS-3135
+
+  # Actions that require a restart
+
+  # Actions that require a redeploy
+
+  # Redeploy and restart actions
+  - if ("${globals.jahiaRollingRedeployNeeded}" == "true"):
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-redeploy.yml"
+  - else:
+      - if ("${globals.jahiaRollingRestartNeeded}" == "true"):
+          - install:
+              jps: "${globals.repoRootUrl}/packages/jahia/jahia-rolling-restart.yml"
+
+  # Actions that can only run when the redeploy is done
+  # (None)
+
+  ### Post-migration actions
+  - setEnvVersion: ${globals.version}
+  - if(!${settings.disable_checks}):
+      - postChecks
+  - else:
+      log: "post migration checks are disabled"
+  - logEvent:
+      target: ${nodes.proc.first.id}
+      title: "Environment $envName migrated"
+      text: "Environment $envName migrated to v${globals.version}"
+  ### End post-migration actions
+
+actions:
+  eventsUpdate:
+    install:
+      jps: "${baseUrl}../update-events.yml"
+
+  preChecks:
+    - checkJahiaHealth:
+        target: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+    - dumpModules:
+        operation: migration
+        checkVersion: true
+    - checkExternalDomains:
+        outputFilePath: "/var/tmp/cloud/domains_check/beforeMigrateToV${globals.version}"
+
+  postChecks:
+    - checkJahiaHealth:
+        target: "cp, proc"
+    - checkJahiaDatadogCustomChecks: "cp, proc"
+    - checkHaproxyHealth: bl
+    - checkHaproxyDatadogCustomChecks: bl
+    - checkMariadbHealth:
+        target: sqldb
+    - checkGaleraClusterHealth: sqldb
+    - checkMariadbDatadogCustomChecks: sqldb
+    - checkModulesAfterOperation:
+        operation: migration
+        ignoredModules: ${globals.ignoredModules}
+        checkVersion: true
+    - checkExternalDomainsAfterMigration:
+        outputFilePath: "/var/tmp/cloud/domains_check/afterMigrateToV${globals.version}"
+
+  switchOffSquid:
+    cmd[cp,proc]: |-
+      # Clean environment & redeploy files
+      f=/opt/tomcat/conf/tomcat-env.sh
+      sed -i '/^PROXY_/d' $f
+      sed -i '/JVM_PROXY_CONF/d' $f
+
+      redeployFile=/etc/jelastic/redeploy.conf
+      sed -i '/squid/d' $redeployFile
+      if ! grep -q "proxychains" $redeployFile; then
+        echo "/etc/proxychains.conf" >> $redeployFile
+        echo "/etc/sockd.conf" >> $redeployFile
+        echo "/etc/systemd/system/tomcat.service.d/override.conf" >> $redeployFile
+      fi
+
+      # Remove squid
+      if [ -f /etc/squid/squid.conf ]; then
+        yum remove squid -y
+        rm -rf /etc/squid
+        rm -f /etc/datadog-agent/conf.d/squid.d/conf.yaml-disabled
+      fi
+
+      # Add proxyfication requirements
+      if [ ! -x /usr/bin/proxychains ]; then
+        yum install -y proxychains-ng dante-server
+        filesUrl=${globals.repoRootUrl}/packages/jahia/migrations/v${globals.version}_assets
+        curl -fSsLo /etc/proxychains.conf $filesUrl/proxychains.conf || exit 1
+        curl -fSsLo /etc/sockd.conf $filesUrl/sockd.conf || exit 1
+        curl -fSsLo /etc/datadog-agent/checks.d/proxychains.py $filesUrl/proxychains.py || exit 1
+        curl -fSsLo /etc/datadog-agent/conf.d/proxychains.yaml-disabled $filesUrl/proxychains.yaml|| exit 1
+        chown dd-agent:dd-agent /etc/datadog-agent/checks.d/proxychains.py /etc/datadog-agent/conf.d/proxychains.yaml-disabled
+        sed -i '/^dd-agent/c\dd-agent ALL=NOPASSWD: /usr/sbin/strongswan statusall, /usr/bin/lsof -p[0-9]*' /etc/sudoers.d/dd-agent
+      fi
+
+settings:
+  fields:
+    - type: toggle
+      name: disable_checks
+      caption: Disable checks
+      tooltip: Disable post and pre checks
+    - type: toggle
+      name: force
+      caption: Force migration
+      tooltip: Apply the migration even if env_version is up-to-date
