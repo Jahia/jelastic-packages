@@ -1,0 +1,51 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3218 - rolling upgrade from Jahia 8.2.0.5 to 8.2.0.6
+id: paas-3218-rolling-upgrade-8-2-0-5-to-8-2-0-6
+
+mixins:
+  - "../../mixins/jahia.yml"
+  - "../../mixins/common.yml"
+
+globals:
+  ignoredModules: "graphql-dxm-provider,external-provider-users-groups"
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - dumpModules:
+      operation: one-shot-paas-3212
+      checkVersion: true
+
+  - checkModule:
+      moduleSymname: graphql-dxm-provider
+  - isVersionStrictlyLower:
+        a: "${globals.runningVersion}"
+        b: "3.1.0"
+        res: needUpgrade
+  - if (${globals.needUpgrade}):
+      install:
+        jps: "${globals.repoRootUrl}/packages/jahia/update-graphql-dxm-provider.yaml"
+        settings:
+          targetVersion: 3.1.0
+
+  - checkModule:
+      moduleSymname: external-provider-users-groups
+  - isVersionStrictlyLower:
+        a: "${globals.runningVersion}"
+        b: "2.5.0"
+        res: needUpgrade
+  - if (${globals.needUpgrade}):
+      installOrUpgradeModules:
+            modules: external-provider-users-groups/2.5.0
+
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jahia/rolling-upgrade.yml"
+      settings:
+        targetVersion: 8.2.0.6
+
+  # Check modules after the operation
+  - checkModulesAfterOperation:
+      operation: one-shot-paas-3212
+      ignoredModules: ${globals.ignoredModules}
+      checkVersion: true
