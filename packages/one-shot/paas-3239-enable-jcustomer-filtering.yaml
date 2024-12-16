@@ -1,0 +1,132 @@
+---
+type: update
+version: 1.5.2
+name: PAAS-3239 - jCustomer - Enable karaf filtering
+id: paas-3239-jcustomer-enable-karaf-filtering
+description:
+  short: jCustomer - Enable karaf filtering (one-shot version)
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - requirementSetup
+  - enablingFiltering
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+  - enableDatadogCheck
+
+
+actions:
+  requirementSetup:
+    - cmd[cp]: |-
+        yum install -y proxychains-ng dante-server nmap-ncat
+
+        # set the good configuration for proxychains
+        sed -e 's/^\s*#\s*quiet_mode\s*$/quiet_mode/' \
+            -e '/^socks/d' \
+            -e '$asocks5 127.0.0.1 1080' \
+            -e '/localnet 127.0.0.0\/255.0.0.0/s/^#\s*//' \
+            -e '/localnet ::1\/128/s/^#\s*//' \
+            -e '/localnet 10.0.0.0\/255.0.0.0/s/^#\s*//' \
+            -e '/localnet 172.16.0.0\/255.240.0.0/s/^#\s*//' \
+            -e '/localnet 192.168.0.0\/255.255.0.0/s/^#\s*//' \
+            -i /etc/proxychains.conf
+
+        # set the good configuration for dante server
+        curl -fSsLo /etc/sockd.conf ${globals.repoRootUrl}/assets/common/sockd.conf || exit 1
+
+        # set the karaf's systemd unit override
+        override_file=/etc/systemd/system/karaf.service.d/override.conf
+        mkdir -p $(dirname $override_file)
+        cat > $override_file << EOF
+        [Service]
+        ExecStart=
+        ExecStart=/usr/bin/proxychains4 /opt/jcustomer/jcustomer/bin/karaf daemon
+        EOF
+        systemctl daemon-reload
+
+        # keep these files on redeploy
+        echo "/etc/proxychains.conf" >> /etc/jelastic/redeploy.conf
+        echo "/etc/sockd.conf" >> /etc/jelastic/redeploy.conf
+        echo "/etc/systemd/system/karaf.service.d/override.conf" >> /etc/jelastic/redeploy.conf
+
+        # set datadog custom check
+        # first, the check itself, but be aware that
+        # EOF is quoted belllow in order to avoid shell variable interpolation
+        cat > /etc/datadog-agent/checks.d/proxychains.py << 'EOF'
+        import subprocess
+
+        # the following try/except block will make the custom check compatible with any Agent version
+        try:
+            # first, try to import the base class from old versions of the Agent...
+            from checks import AgentCheck
+        except ImportError:
+            # ...if the above failed, the check is running in Agent version 6 or later
+            from datadog_checks.checks import AgentCheck, ConfigurationError
+
+        __version__ = "1.0.0"
+
+
+        class ProxychainsCheck(AgentCheck):
+
+            SERVICE_CHECK_NAME = "proxyfication"
+            __NAMESPACE__ = "proxychains"
+
+            def check(self, instance):
+                try:
+                    is_loaded_cmd = "sudo lsof -p$(pgrep -u karaf java) | grep proxychains"
+                    process = subprocess.run(is_loaded_cmd, shell=True)
+                    if process.returncode != 0:
+                        message = "jCustomer is not using proxychains"
+                        self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, message=message)
+                        return
+
+                    is_closed_cmd = "proxychains nc -vz forbidden.com.com 443"
+                    process = subprocess.run(is_closed_cmd, shell=True)
+                    if process.returncode != 1:
+                        message = "proxychains forbidden endpoint is reachable"
+                        self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, message=message)
+                        return
+
+                    is_open_cmd = "proxychains nc -vz repository.apache.org 443"
+                    process = subprocess.run(is_open_cmd, shell=True)
+                    if process.returncode != 0:
+                        message = "proxychains whitelisted endpoint is unreachable"
+                        self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, message=message)
+                        return
+
+                    # Getting there means it's all good
+                    message = "proxychains checks are ok"
+                    self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.OK, message=message)
+
+                except Exception as e:
+                    message = "proxychains check failed"
+                    self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, message=message)
+        EOF
+
+        cat > /etc/datadog-agent/conf.d/proxychains.yaml-disabled << EOF
+        ---
+        init_config:
+        instances:
+          - min_collection_interval: 60
+        EOF
+
+        # set dd-agent user as owner of these files
+        chown dd-agent: /etc/datadog-agent/checks.d/proxychains.py
+        chown dd-agent: /etc/datadog-agent/conf.d/proxychains.yaml-disabled
+
+        # allow dd-agent user to do lsof
+        if ! (grep -q lsof /etc/sudoers.d/dd-agent); then
+          sed -r 's;^dd-agent .+;&, /usr/bin/lsof -p[0-9]*;' \
+              -i /etc/sudoers.d/dd-agent
+        fi
+
+  enablingFiltering:
+    - cmd[cp]: |-
+        systemctl enable --now sockd
+
+  enableDatadogCheck:
+    cmd[cp]: |-
+      mv /etc/datadog-agent/conf.d/proxychains.yaml{-disabled,}
+      systemctl restart datadog-agent
