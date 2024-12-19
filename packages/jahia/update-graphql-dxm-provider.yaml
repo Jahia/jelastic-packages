@@ -20,6 +20,7 @@ onInstall:
       - disableHaproxyHealthcheck
       - installOrUpgradeModules:
           modules: graphql-dxm-provider/${settings.targetVersion}
+      - post-update-workaround
       - checkJahiaHealth:
           target: "cp, proc"
           singleCheck: false
@@ -33,6 +34,57 @@ onInstall:
             message: "The upgrade of graphql-dxm-provider did not return any error but the running version of the module is still ${globals.runningVersion}. Please make sure that the provided version (${settings.targetVersion}) exists and check logs for errors"
   - else:
       - log: The provided version (${settings.targetVersion}) is not superior to the currently running version (${globals.runningVersion}), nothing to do
+
+actions:
+  post-update-workaround:
+    # If org.jahia.bundles.clustering < 8.2.1.0
+    # refresh sam module on all nodes, and check if some modules has wiring issue. If so, refresh them on all nodes
+    - checkModule:
+        moduleSymname: org.jahia.bundles.clustering
+    - isVersionStrictlyLower:
+        a: ${globals.runningVersion}
+        b: 8.2.1.0
+        res: below8210
+    - if (${globals.below8210}):
+        - refreshSAM:
+            target: proc
+        - forEach (nodes.cp):
+            refreshSAM:
+              target: ${@i.id}
+
+        - cmd[proc]: |-
+            token=$(cat /etc/datadog-agent/conf.d/healthcheck_metric.d/jahia_root_token)
+            modules_probe_status=$(curl -s 127.0.0.1/modules/healthcheck -H "authorization: APIToken $token"| jq -r '.probes[]| select(.name=="ModuleState")|.status')
+            if [ "$(echo $modules_probe_status | jq -r '.health')" = "GREEN" ]; then
+              echo "Modules are OK"
+              exit 0
+            fi
+            # Extract the section listing modules having wiring issues from the message
+            wiring_issue_section=$(echo $modules_probe_status | jq -r '.message' | sed 's/At least one module has wiring issues: \[\(.*header)\)\].*/\1/')
+            if [ -z "$wiring_issue_section" ]; then
+              echo "Modules are OK"
+              exit 0
+            fi
+            # Extract module list from wiring issues section
+            modules_list=$(echo $wiring_issue_section | sed 's/Module/\n/g' |awk '{print $1}' | tr '\n' ' ')
+            echo "$modules_list"
+
+        - if ("${response.errOut}" != ""):
+            return:
+              type: error
+              message: "There was some error while fetching modules having wiring issues"
+
+        - if ("${response.out}" != "Modules are OK"):
+            - log: "Need to refresh modules ${response.out}"
+            - callProvisioningAPI:
+                target: proc
+                payload:
+                  - karafCommand: "bundle:refresh ${response.out}"
+            - forEach (nodes.cp):
+                callProvisioningAPI:
+                  target: ${@i.id}
+                  payload:
+                    - karafCommand: "bundle:refresh ${response.out}"
 
 settings:
   fields:

@@ -13,6 +13,13 @@ globals:
 
 onInstall:
   - setGlobalRepoRootUrl
+  - if(!${settings.skip_backup:false}):
+      install:
+        jps: "${globals.repoRootUrl}/packages/common/backup.yml"
+        settings:
+          backup_name: "${env.envName}-pre-upgrade-8-2-0-6"
+          backtype: manual
+
   - dumpModules:
       operation: one-shot-paas-3212
       checkVersion: true
@@ -49,3 +56,10 @@ onInstall:
       operation: one-shot-paas-3212
       ignoredModules: ${globals.ignoredModules}
       checkVersion: true
+
+settings:
+  fields:
+    - type: toggle
+      name: skip_backup
+      caption: Skip backup step
+      default: false
