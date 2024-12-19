@@ -1,0 +1,36 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Enable web filtering
+id: jcustomer-enable-tomcat-filtering
+description:
+  short: jCustomer - Enable web filtering
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - setGlobalRepoRootUrl
+  - enablingFiltering
+  - install:
+      jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+  - enableDatadogCheck
+
+actions:
+  enableDatadogCheck:
+    cmd[cp]: |-
+      mv /etc/datadog-agent/conf.d/proxychains.yaml-disabled /etc/datadog-agent/conf.d/proxychains.yaml
+      systemctl restart datadog-agent
+
+  enablingFiltering:
+    - cmd[cp]: |-
+        # set the karaf's systemd unit override
+        override_file=/etc/systemd/system/karaf.service.d/override.conf
+        mkdir -p $(dirname $override_file)
+        cat > $override_file << EOF
+        [Service]
+        ExecStart=
+        ExecStart=/usr/bin/proxychains4 /opt/jcustomer/jcustomer/bin/karaf daemon
+        EOF
+        systemctl daemon-reload
+
+        systemctl enable --now sockd

@@ -1,0 +1,39 @@
+---
+type: update
+version: 1.5.2
+name: jCustomer - Disable web filtering
+id: jahia-disable-jcustomer-filtering
+description:
+  short: jCustomer - Disable web filtering
+mixins:
+  - ../../mixins/common.yml
+
+onInstall:
+  - disableDatadogCheck
+  - disableFiltering
+  - if(! ${settings.skipRestart}):
+      - setGlobalRepoRootUrl
+      - install:
+          jps: "${globals.repoRootUrl}/packages/jcustomer/jcustomer-rolling-restart.yml"
+
+actions:
+  disableDatadogCheck:
+    cmd[cp]: |-
+      mv /etc/datadog-agent/conf.d/proxychains.yaml /etc/datadog-agent/conf.d/proxychains.yaml-disabled
+      systemctl restart datadog-agent
+
+  disableFiltering:
+    - cmd[cp]: |-
+        # rollback jcustomer unit override
+        rm /etc/systemd/system/karaf.service.d/override.conf
+        systemctl daemon-reload
+        systemctl stop sockd
+        systemctl disable sockd
+
+settings:
+  fields:
+    - name: skipRestart
+      type: checkbox
+      caption: Skip the rolling restart
+      default: false
+      required: false
