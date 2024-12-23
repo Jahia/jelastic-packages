@@ -8,9 +8,6 @@ mixins:
   - "../../mixins/jahia.yml"
   - "../../mixins/common.yml"
 
-globals:
-  ignoredModules: "graphql-dxm-provider,external-provider-users-groups"
-
 onInstall:
   - setGlobalRepoRootUrl
   - if(!${settings.skip_backup:false}):
@@ -46,16 +43,16 @@ onInstall:
       installOrUpgradeModules:
             modules: external-provider-users-groups/2.5.0
 
+  # Check modules state after modules update
+  - checkModulesAfterOperation:
+      operation: one-shot-paas-3212
+      ignoredModules: "graphql-dxm-provider,external-provider-users-groups"
+      checkVersion: true
+
   - install:
       jps: "${globals.repoRootUrl}/packages/jahia/rolling-upgrade.yml"
       settings:
         targetVersion: 8.2.0.6
-
-  # Check modules after the operation
-  - checkModulesAfterOperation:
-      operation: one-shot-paas-3212
-      ignoredModules: ${globals.ignoredModules}
-      checkVersion: true
 
 settings:
   fields:
